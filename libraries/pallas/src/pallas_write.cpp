@@ -602,6 +602,13 @@ static inline void pop_data(Event* e, void* data, size_t data_size, byte*& curso
 }
 
 void Thread::printEvent(pallas::Event* e) const {
+  char output_str[1024];
+  size_t buffer_size=1024;
+  printEventToString(e, output_str, buffer_size);
+  printf(output_str);
+}
+
+void Thread::printEventToString(pallas::Event* e, char* output_str, size_t buffer_size) const {
   byte* cursor = nullptr;
   switch (e->record) {
   case PALLAS_EVENT_ENTER: {
@@ -609,7 +616,7 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
     const Region* region = archive->getRegion(region_ref);
     const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
-    printf("Enter %d (%s)", region_ref, region_name);
+    snprintf(output_str, buffer_size, "Enter %d (%s)", region_ref, region_name);
     break;
   }
   case PALLAS_EVENT_LEAVE: {
@@ -617,24 +624,24 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
     const Region* region = archive->getRegion(region_ref);
     const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
-    printf("Leave %d (%s)", region_ref, region_name);
+    snprintf(output_str, buffer_size, "Leave %d (%s)", region_ref, region_name);
     break;
   }
 
   case PALLAS_EVENT_THREAD_BEGIN:
-    printf("THREAD_BEGIN()");
+    snprintf(output_str, buffer_size, "THREAD_BEGIN()");
     break;
 
   case PALLAS_EVENT_THREAD_END:
-    printf("THREAD_END()");
+    snprintf(output_str, buffer_size, "THREAD_END()");
     break;
 
   case PALLAS_EVENT_THREAD_TEAM_BEGIN:
-    printf("THREAD_TEAM_BEGIN()");
+    snprintf(output_str, buffer_size, "THREAD_TEAM_BEGIN()");
     break;
 
   case PALLAS_EVENT_THREAD_TEAM_END:
-    printf("THREAD_TEAM_END()");
+    snprintf(output_str, buffer_size, "THREAD_TEAM_END()");
     break;
 
   case PALLAS_EVENT_MPI_SEND: {
@@ -647,7 +654,7 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &communicator, sizeof(communicator), cursor);
     pop_data(e, &msgTag, sizeof(msgTag), cursor);
     pop_data(e, &msgLength, sizeof(msgLength), cursor);
-    printf("MPI_SEND(dest=%d, comm=%x, tag=%x, len=%" PRIu64 ")", receiver, communicator, msgTag, msgLength);
+    snprintf(output_str, buffer_size, "MPI_SEND(dest=%d, comm=%x, tag=%x, len=%" PRIu64 ")", receiver, communicator, msgTag, msgLength);
     break;
   }
   case PALLAS_EVENT_MPI_ISEND: {
@@ -662,20 +669,20 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &msgTag, sizeof(msgTag), cursor);
     pop_data(e, &msgLength, sizeof(msgLength), cursor);
     pop_data(e, &requestID, sizeof(requestID), cursor);
-    printf("MPI_ISEND(dest=%d, comm=%x, tag=%x, len=%" PRIu64 ", req=%" PRIx64 ")", receiver, communicator, msgTag,
-           msgLength, requestID);
+    snprintf(output_str, buffer_size, "MPI_ISEND(dest=%d, comm=%x, tag=%x, len=%" PRIu64 ", req=%" PRIx64 ")", receiver, communicator, msgTag,
+	       msgLength, requestID);
     break;
   }
   case PALLAS_EVENT_MPI_ISEND_COMPLETE: {
     uint64_t requestID;
     pop_data(e, &requestID, sizeof(requestID), cursor);
-    printf("MPI_ISEND_COMPLETE(req=%" PRIx64 ")", requestID);
+    snprintf(output_str, buffer_size, "MPI_ISEND_COMPLETE(req=%" PRIx64 ")", requestID);
     break;
   }
   case PALLAS_EVENT_MPI_IRECV_REQUEST: {
     uint64_t requestID;
     pop_data(e, &requestID, sizeof(requestID), cursor);
-    printf("MPI_IRECV_REQUEST(req=%" PRIx64 ")", requestID);
+    snprintf(output_str, buffer_size, "MPI_IRECV_REQUEST(req=%" PRIx64 ")", requestID);
     break;
   }
   case PALLAS_EVENT_MPI_RECV: {
@@ -689,7 +696,7 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &msgTag, sizeof(msgTag), cursor);
     pop_data(e, &msgLength, sizeof(msgLength), cursor);
 
-    printf("MPI_RECV(src=%d, comm=%x, tag=%x, len=%" PRIu64 ")", sender, communicator, msgTag, msgLength);
+    snprintf(output_str, buffer_size, "MPI_RECV(src=%d, comm=%x, tag=%x, len=%" PRIu64 ")", sender, communicator, msgTag, msgLength);
     break;
   }
   case PALLAS_EVENT_MPI_IRECV: {
@@ -704,12 +711,12 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &msgLength, sizeof(msgLength), cursor);
     pop_data(e, &requestID, sizeof(requestID), cursor);
 
-    printf("MPI_IRECV(src=%d, comm=%x, tag=%x, len=%" PRIu64 ", req=%" PRIu64 ")", sender, communicator, msgTag,
-           msgLength, requestID);
+    snprintf(output_str, buffer_size, "MPI_IRECV(src=%d, comm=%x, tag=%x, len=%" PRIu64 ", req=%" PRIu64 ")", sender, communicator, msgTag,
+	       msgLength, requestID);
     break;
   }
   case PALLAS_EVENT_MPI_COLLECTIVE_BEGIN: {
-    printf("MPI_COLLECTIVE_BEGIN()");
+    snprintf(output_str, buffer_size, "MPI_COLLECTIVE_BEGIN()");
     break;
   }
   case PALLAS_EVENT_MPI_COLLECTIVE_END: {
@@ -725,12 +732,12 @@ void Thread::printEvent(pallas::Event* e) const {
     pop_data(e, &sizeSent, sizeof(sizeSent), cursor);
     pop_data(e, &sizeReceived, sizeof(sizeReceived), cursor);
 
-    printf("MPI_COLLECTIVE_END(op=%x, comm=%x, root=%d, sent=%" PRIu64 ", recved=%" PRIu64 ")", collectiveOp,
-           communicator, root, sizeSent, sizeReceived);
+    snprintf(output_str, buffer_size, "MPI_COLLECTIVE_END(op=%x, comm=%x, root=%d, sent=%" PRIu64 ", recved=%" PRIu64 ")", collectiveOp,
+	       communicator, root, sizeSent, sizeReceived);
     break;
   }
   default:
-    printf("{.record: %x, .size:%x}", e->record, e->event_size);
+    snprintf(output_str, buffer_size, "{.record: %x, .size:%x}", e->record, e->event_size);
   }
 }
 

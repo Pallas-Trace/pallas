@@ -415,6 +415,7 @@ typedef struct Thread {
   void printTokenVector(const std::vector<Token>&) const;
   void printSequence(Token) const;
   void printEvent(Event*) const;
+  void printEventToString(pallas::Event* e, char* output_str, size_t buffer_size) const;
   void printAttribute(AttributeRef) const;
   void printString(StringRef) const;
   void printAttributeRef(AttributeRef) const;
