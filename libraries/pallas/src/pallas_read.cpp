@@ -456,7 +456,7 @@ pallas::Occurence* pallas_thread_reader_get_occurence(const pallas::ThreadReader
 
 C_CXX(_Thread_local, thread_local) size_t savestate_memory = 0;
 
-struct pallas::Savestate* create_savestate(pallas::ThreadReader* reader) {
+struct pallas::Savestate* create_savestate(const pallas::ThreadReader* reader) {
   return new pallas::Savestate(reader);
 }
 
