@@ -258,7 +258,7 @@ extern union PALLAS(Occurence) *
   pallas_thread_reader_get_occurence(const PALLAS(ThreadReader) * reader, PALLAS(Token) id, int occurence_id);
 
 /** Creates a new savestate from the reader. */
-extern PALLAS(Savestate) * create_savestate(const PALLAS(ThreadReader) * reader);
+extern struct pallas::Savestate* create_savestate(pallas::ThreadReader* reader);
 
 /** Loads the given savestate. */
 extern void load_savestate(PALLAS(ThreadReader) * reader, PALLAS(Savestate) * savestate);

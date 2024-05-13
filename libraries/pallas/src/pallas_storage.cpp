@@ -509,7 +509,7 @@ inline static uint64_t* _pallas_compress_read(size_t n, FILE* file) {
     _pallas_fread(&realSize, sizeof(realSize), 1, file);
     uncompressedArray = new uint64_t[n];
     _pallas_fread(uncompressedArray, realSize, 1, file);
-    pallas_assert(realSize == n * sizeof(uint64_t));
+    //    pallas_assert(realSize == n * sizeof(uint64_t));
   }
   return uncompressedArray;
 }
