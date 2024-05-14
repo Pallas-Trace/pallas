@@ -401,14 +401,14 @@ Savestate::Savestate(const ThreadReader* reader) {
     referential_timestamp = reader->referential_timestamp;
   }
 
-  callstack_sequence = new Token[reader->current_frame];
-  memcpy(callstack_sequence, reader->callstack_sequence, sizeof(Token) * reader->current_frame);
+  callstack_sequence = new Token[reader->current_frame+1];
+  memcpy(callstack_sequence, reader->callstack_sequence, sizeof(Token) * (reader->current_frame+1));
 
-  callstack_index = new int[reader->current_frame];
-  memcpy(callstack_index, reader->callstack_index, sizeof(int) * reader->current_frame);
+  callstack_index = new int[reader->current_frame+1];
+  memcpy(callstack_index, reader->callstack_index, sizeof(int) * (reader->current_frame+1));
 
-  callstack_loop_iteration = new int[reader->current_frame];
-  memcpy(callstack_loop_iteration, reader->callstack_loop_iteration, sizeof(int) * reader->current_frame);
+  callstack_loop_iteration = new int[reader->current_frame+1];
+  memcpy(callstack_loop_iteration, reader->callstack_loop_iteration, sizeof(int) * (reader->current_frame+1));
 
   current_frame = reader->current_frame;
 
