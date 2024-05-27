@@ -322,7 +322,7 @@ Token ThreadReader::getNextToken() {
 void ThreadReader::loadSavestate(Savestate* savestate) {
   if ((options & ThreadReaderOptions::NoTimestamps) == 0)
     referential_timestamp = savestate->referential_timestamp;
-  memcpy(callstack_sequence, savestate->callstack_sequence, sizeof(int) * MAX_CALLSTACK_DEPTH);
+  memcpy(callstack_sequence, savestate->callstack_sequence, sizeof(Token) * MAX_CALLSTACK_DEPTH);
   memcpy(callstack_index, savestate->callstack_index, sizeof(int) * MAX_CALLSTACK_DEPTH);
   memcpy(callstack_loop_iteration, savestate->callstack_loop_iteration, sizeof(int) * MAX_CALLSTACK_DEPTH);
   current_frame = savestate->current_frame;
