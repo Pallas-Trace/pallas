@@ -60,8 +60,8 @@ endif ()
 
 
 if (SZ_FOUND)
-    target_include_directories(pallas PUBLIC ${SZ_INCLUDE_DIRS})
-    target_link_libraries(pallas PRIVATE ${SZ_LIBRARIES})
+    target_include_directories(pallas PUBLIC ${SZ3_INCLUDE_DIRS})
+    target_link_libraries(pallas PRIVATE ${SZ3_LIBRARIES})
 endif ()
 
 set_property(TARGET pallas

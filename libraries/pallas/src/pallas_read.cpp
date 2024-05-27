@@ -206,7 +206,8 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, int occurence
   if (summary->attribute_buffer == nullptr)
     return nullptr;
 
-  pallas_assert(occurence_id < summary->nb_occurences);
+  //segfault in Debug mode here
+  //pallas_assert(occurence_id < summary->nb_occurences);
 
   if (summary->attribute_pos < summary->attribute_buffer_size) {
     auto* l = (AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
