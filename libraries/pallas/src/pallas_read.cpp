@@ -312,6 +312,7 @@ void ThreadReader::updateReadCurToken() {
     auto summary = getEventSummary(current_token);
     if ((options & ThreadReaderOptions::NoTimestamps) == 0) {
       referential_timestamp += summary->durations->at(tokenCount[current_token]);
+      //lire timestamp abs
     }
     tokenCount[current_token]++;
     break;

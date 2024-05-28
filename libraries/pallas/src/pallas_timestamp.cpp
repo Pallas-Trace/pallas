@@ -7,11 +7,14 @@
 
 #define NANOSECONDS(timestamp) std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp).count()
 
+
+
 pallas_timestamp_t pallas::ThreadWriter::getTimestamp() {
   Timepoint start = std::chrono::high_resolution_clock::now();
   if (NANOSECONDS(firstTimestamp.time_since_epoch()) == 0) {
     firstTimestamp = start;
   }
+  //TODO test diff par rapport au prec
   return NANOSECONDS(start - firstTimestamp);
 }
 

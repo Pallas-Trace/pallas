@@ -737,6 +737,7 @@ void EventSummary::initEventSummary(TokenId token_id, const Event& e) {
   attribute_buffer_size = 0;
   attribute_pos = 0;
   durations = new LinkedVector();
+  //TODO duration sans delta à écrire et lire 
   memcpy(&event, &e, sizeof(e));
 }
 
