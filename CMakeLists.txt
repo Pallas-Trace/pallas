@@ -85,6 +85,8 @@ if (ENABLE_SZ)
     find_package(SZ3)
     if (SZ3_FOUND)
         add_compile_definitions(WITH_SZ)
+        target_include_directories(pallas PRIVATE ${SZ3_INCLUDE_DIRS})
+        target_link_libraries(pallas PRIVATE ${SZ3_LIBRARIES})
     endif ()
 endif (ENABLE_SZ)
 
