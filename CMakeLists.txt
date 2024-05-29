@@ -36,7 +36,9 @@ option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
 # endif()
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZSTD libzstd REQUIRED)
+
+#pkg_check_modules(ZSTD libzstd REQUIRED)
+find_package(Zstd REQUIRED)
 pkg_check_modules(JSONCPP jsoncpp REQUIRED)
 find_package(Doxygen)
 
