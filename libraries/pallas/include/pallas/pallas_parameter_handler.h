@@ -31,6 +31,7 @@ enum class CompressionAlgorithm {
   /**Compression using ZFP (lossy). */
   ZFP = 4,
 #endif
+  ZSTD_Histogram = 5,
   Invalid
 };
 

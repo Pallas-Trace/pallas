@@ -17,6 +17,7 @@
 #ifdef __cplusplus
 #include <cstring>
 #include <map>
+#include <unordered_map>
 #else
 #include <string.h>
 #endif
@@ -54,10 +55,10 @@ enum TokenType { TypeInvalid = 0, TypeEvent = 1, TypeSequence = 2, TypeLoop = 3 
  * 'U' otherwise
  */
 #define PALLAS_TOKEN_TYPE_C(t)     \
-  (t.type) == TypeInvalid    ? 'I' \
-  : (t.type) == TypeEvent    ? 'E' \
-  : (t.type) == TypeSequence ? 'S' \
-  : (t.type) == TypeLoop     ? 'L' \
+  ((t).type) == TypeInvalid    ? 'I' \
+  : ((t).type) == TypeEvent    ? 'E' \
+  : ((t).type) == TypeSequence ? 'S' \
+  : ((t).type) == TypeLoop     ? 'L' \
                              : 'U'
 
 /**
@@ -344,7 +345,7 @@ typedef uint32_t Ref;
 /** Reference for a pallas::String */
 typedef Ref StringRef;
 /** Invalid StringRef */
-#define PALLAS_STRING_REF_INVALID ((StringRef)PALLAS_UNDEFINED_UINT32)
+#define PALLAS_STRINGREF_INVALID ((PALLAS(StringRef))PALLAS_UNDEFINED_UINT32)
 /**
  * Define a String reference structure used by PALLAS format.
  *
@@ -359,7 +360,7 @@ typedef struct String {
 /** Reference for a pallas::Region */
 typedef Ref RegionRef;
 /** Invalid RegionRef */
-#define PALLAS_REGIONREF_INVALID ((RegionRef)PALLAS_UNDEFINED_UINT32)
+#define PALLAS_REGIONREF_INVALID ((PALLAS(RegionRef))PALLAS_UNDEFINED_UINT32)
 /**
  * Define a Region that has an ID and a description.
  */
@@ -404,9 +405,9 @@ typedef struct Thread {
 
   /** Map to associate the hash of the pallas::Sequence to their id.*/
 #ifdef __cplusplus
-  std::map<uint32_t, std::vector<TokenId>> hashToSequence;
+  std::unordered_map<uint32_t, std::vector<TokenId>> hashToSequence;
 #else
-  byte hashToSequence[MAP_SIZE];
+  byte hashToSequence[UNO_MAP_SIZE];
 #endif
   Loop* loops;                 /**< Array of pallas::Loop recorded in this Thread. */
   unsigned nb_allocated_loops; /**< Number of blocks of size pallas:Loop allocated in #loops. */
@@ -436,6 +437,7 @@ typedef struct Thread {
   void printTokenVector(const std::vector<Token>&) const;                         /**< Prints a vector of Token. */
   void printSequence(Token) const;            /**< Prints the Sequence corresponding to the given Token. */
   void printEvent(Event*) const;              /**< Prints an Event. */
+  void printEventToString(pallas::Event* e, char* output_str, size_t buffer_size) const;
   void printAttribute(AttributeRef) const;    /**< Prints an Attribute. */
   void printString(StringRef) const;          /**< Prints a String (checks for validity first). */
   void printAttributeRef(AttributeRef) const; /**< Prints an AttributeRef (checks for validity first). */
@@ -452,7 +454,7 @@ typedef struct Thread {
   Token getSequenceIdFromArray(Token* token_array, size_t array_len);
   /** Returns the duration for the given array.
    * You can choose to ignore the last event token. */
-  pallas_duration_t getSequenceDuration(const Token*array, size_t size, bool ignoreLastEvent = false) const;
+  pallas_duration_t getLastSequenceDuration(Sequence* sequence, size_t offset = 0) const;
   void finalizeThread();
   /** Initializes the Thread from an archive and an id.
    * This is used when writing the trace, because it creates Threads using malloc. */

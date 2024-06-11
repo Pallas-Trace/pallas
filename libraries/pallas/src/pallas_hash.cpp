@@ -65,7 +65,7 @@ static FORCE_INLINE uint64_t fmix64(uint64_t k) {
 //-----------------------------------------------------------------------------
 
 namespace pallas {
-void hash32(const void* key, const size_t len, const uint32_t seed, uint32_t* out) {
+uint32_t hash32(const void* key, const size_t len, const uint32_t seed) {
   // Here's the issue: We'll be feeding it an array of Token
   // An Token is 32 bits long
   // So either we change every uint8_t here to a uint32_t
@@ -127,7 +127,7 @@ void hash32(const void* key, const size_t len, const uint32_t seed, uint32_t* ou
 
   h1 = fmix32(h1);
 
-  *out = h1;
+  return h1;
 }
 
 void hash64(const void* key, const size_t len, const uint32_t seed, uint64_t* out) {

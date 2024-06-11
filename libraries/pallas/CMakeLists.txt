@@ -79,7 +79,6 @@ target_link_libraries(pallas
         PUBLIC
         dl
         PRIVATE
-        atomic
         ${CMAKE_DL_LIBS}
         rt
         m

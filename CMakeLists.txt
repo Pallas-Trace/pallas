@@ -48,6 +48,11 @@ check_type_size("std::map<uint32_t, size_t>" SIZEOF_MAP LANGUAGE CXX)
 message("Size of std::map<uint32_t, size_t>: ${SIZEOF_MAP}")
 add_compile_definitions(MAP_SIZE=${SIZEOF_MAP})
 
+SET(CMAKE_EXTRA_INCLUDE_FILES "unordered_map")
+check_type_size("std::unordered_map<uint32_t, size_t>" SIZEOF_UNO_MAP LANGUAGE CXX)
+message("std::unordered_map<uint32_t, size_t>: ${SIZEOF_UNO_MAP}")
+add_compile_definitions(UNO_MAP_SIZE=${SIZEOF_UNO_MAP})
+
 SET(CMAKE_EXTRA_INCLUDE_FILES "vector")
 check_type_size("std::vector<size_t>" SIZEOF_VECTOR LANGUAGE CXX)
 message("Size of std::vector<size_t>: ${SIZEOF_VECTOR}")

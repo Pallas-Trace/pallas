@@ -14,7 +14,7 @@
 #define SEED 17
 namespace pallas {
 /** Writes a 32bits hash value to out.*/
-void hash32(const void* key, size_t len, uint32_t seed, uint32_t* out);
+uint32_t hash32(const void* key, const size_t len, const uint32_t seed);
 /** Writes a 64bits hash value to out.*/
 void hash64(const void* key, size_t len, uint32_t seed, uint64_t* out);
 }  // namespace pallas

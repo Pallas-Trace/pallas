@@ -16,6 +16,9 @@
 #ifndef MAP_SIZE
 #define MAP_SIZE @SIZEOF_MAP@
 #endif
+#ifndef UNO_MAP_SIZE
+#define UNO_MAP_SIZE @SIZEOF_UNO_MAP@
+#endif
 #ifndef TIMEPOINT_SIZE
 #define TIMEPOINT_SIZE @SIZEOF_TIMEPOINT@
 #endif

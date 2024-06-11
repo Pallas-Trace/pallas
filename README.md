@@ -49,6 +49,7 @@ Here are the configuration options with specific values:
   - `SZ`
   - `ZFP`
   - `Histogram`
+  - `ZSTD_Histogram`
 - `encodingAlgorithm`: Specifies which encoding algorithm is used for storing the timestamps. If the specified
   compression algorithm is lossy, this is defaulted to None. Its values are:
   - `None`

@@ -40,14 +40,11 @@
  */
 
 #include <stdint.h>
+#include <limits.h>
 
 #include "otf2_compiler.h"
 
 #include <otf2/OTF2_ErrorCodes.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 #include "pallas/pallas.h"
 
@@ -105,7 +102,7 @@ typedef uint8_t OTF2_IoParadigmRef;
 #define OTF2_UNDEFINED_IO_PARADIGM ((OTF2_IoParadigmRef)OTF2_UNDEFINED_UINT8)
 
 /** @brief Type used to indicate a reference to a @eref{String} definition */
-typedef StringRef OTF2_StringRef;
+typedef PALLAS(StringRef) OTF2_StringRef;
 /** @brief The invalid value for a reference to a @eref{String} definition */
 #define OTF2_UNDEFINED_STRING ((OTF2_StringRef)PALLAS_STRINGREF_INVALID)
 
@@ -130,7 +127,7 @@ typedef uint64_t OTF2_LocationRef;
 #define OTF2_UNDEFINED_LOCATION ((OTF2_LocationRef)OTF2_UNDEFINED_UINT64)
 
 /** @brief Type used to indicate a reference to a @eref{Region} definition */
-typedef RegionRef OTF2_RegionRef;
+typedef PALLAS(RegionRef) OTF2_RegionRef;
 /** @brief The invalid value for a reference to a @eref{Region} definition */
 #define OTF2_UNDEFINED_REGION ((OTF2_RegionRef)PALLAS_REGIONREF_INVALID)
 
@@ -984,9 +981,5 @@ enum OTF2_ThumbnailType_enum {
    */
   OTF2_THUMBNAIL_TYPE_ATTRIBUTES = 2
 };
-
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
 
 #endif /* !OTF2_GENERAL_DEFINITIONS_H */

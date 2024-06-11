@@ -51,6 +51,7 @@ std::map<CompressionAlgorithm, std::string> CompressionAlgorithmMap = {
   {CompressionAlgorithm::None, "None"},
   {CompressionAlgorithm::ZSTD, "ZSTD"},
   {CompressionAlgorithm::Histogram, "Histogram"},
+  {CompressionAlgorithm::ZSTD_Histogram, "ZSTD_Histogram"},
 #ifdef WITH_SZ
   {CompressionAlgorithm::SZ, "SZ"},
 #endif
@@ -235,7 +236,7 @@ ParameterHandler::ParameterHandler() {
     }
   } else {
     elseJump:
-    pallas_warn("No config file provided, using default: %s\n", defaultConfigFile);
+    pallas_log(DebugLevel::Debug, "No config file provided, using default: %s\n", defaultConfigFile);
     configFile.open(defaultConfigFile);
     if (!configFile.good()) {
       pallas_warn("No config file found at default install path ! Check your installation.\n");
@@ -257,7 +258,7 @@ ParameterHandler::ParameterHandler() {
   zstdCompressionLevel = loadZSTDCompressionLevel(config);
   timestampStorage = loadTimestampStorageConfig(config);
 
-  pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
+  pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
 
 size_t ParameterHandler::getMaxLoopLength() const {
@@ -266,7 +267,7 @@ size_t ParameterHandler::getMaxLoopLength() const {
   pallas_error("Asked for the max loop length but wasn't using a LoopFindingBasicTruncated algorithm.\n");
 }
 u_int8_t ParameterHandler::getZstdCompressionLevel() const {
-  if (compressionAlgorithm == CompressionAlgorithm::ZSTD) {
+  if (compressionAlgorithm == CompressionAlgorithm::ZSTD || compressionAlgorithm == CompressionAlgorithm::ZSTD_Histogram) {
     return zstdCompressionLevel;
   }
   pallas_error("Asked for ZSTD Compression Level but wasn't using a CompressionZSTD algorithm.\n");

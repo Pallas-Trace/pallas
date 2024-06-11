@@ -71,8 +71,7 @@ static void printEvent(const std::string& current_indent,
 static void printSequence(const std::string& current_indent,
                            const pallas::Thread* thread,
                            const pallas::Token token,
-                           const pallas::SequenceOccurence* sequenceOccurence,
-                           const pallas::LoopOccurence* containingLoopOccurence = nullptr) {
+                           const pallas::SequenceOccurence* sequenceOccurence) {
   auto* sequence = sequenceOccurence->sequence;
   pallas_timestamp_t ts = sequenceOccurence->timestamp;
   pallas_timestamp_t duration = sequenceOccurence->duration;
@@ -95,14 +94,6 @@ static void printSequence(const std::string& current_indent,
       thread->printToken(sequence->tokens[i]);
       std::cout << " ";
     }
-  }
-
-  if (containingLoopOccurence && (unroll_loops || explore_loop_sequences)) {
-    //    pallas_timestamp_t mean = containingLoopOccurence->duration / containingLoopOccurence->nb_iterations;
-    //    std::cout << ((mean < duration) ? "-" : "+");
-    //    uint64_t diff = (mean < duration) ? duration - mean : mean - duration;
-    //    float percentile = (float)diff / (float)mean * 100;
-    //    printf("%5.2f%%", percentile);
   }
   std::cout << std::endl;
 }
@@ -134,23 +125,23 @@ static void printToken(const pallas::Thread* thread,
                         const pallas::Token* t,
                         const pallas::Occurence* e,
                         int depth = 0,
-                        int last_one = 0,
-                        const pallas::LoopOccurence* containing_loop = nullptr) {
+                        bool isLastOfSeq = false,
+                        bool isInLoop = false) {
   pallas_log(pallas::DebugLevel::Verbose, "Reading repeated_token(%d.%d) for thread %s\n", t->type, t->id,
              thread->getName());
   // Prints the structure of the sequences and the loops
   std::string current_indent;
   if (show_structure && depth >= 1) {
-    structure_indent[depth - 1] = (last_one ? "╰" : "├");
+    structure_indent[depth - 1] = (isLastOfSeq ? "╰" : "├");
     DOFOR(i, depth) {
       current_indent += structure_indent[i];
     }
     if (t->type != pallas::TypeEvent) {
-      current_indent += (containing_loop && !explore_loop_sequences) ? "─" : "┬";
+      current_indent += (isInLoop && !explore_loop_sequences) ? "─" : "┬";
     } else {
       current_indent += "─";
     }
-    structure_indent[depth - 1] = last_one ? " " : "│";
+    structure_indent[depth - 1] = isLastOfSeq ? " " : "│";
   }
 
   // Prints the repeated_token we first started with
@@ -163,7 +154,7 @@ static void printToken(const pallas::Thread* thread,
     break;
   case pallas::TypeSequence: {
     if (show_structure)
-      printSequence(current_indent, thread, *t, &e->sequence_occurence, containing_loop);
+      printSequence(current_indent, thread, *t, &e->sequence_occurence);
     break;
   }
   case pallas::TypeLoop: {
@@ -172,65 +163,6 @@ static void printToken(const pallas::Thread* thread,
     break;
   }
   }
-}
-
-static void displaySequence(pallas::ThreadReader& reader,
-                             pallas::Token token,
-                             pallas::SequenceOccurence* occurence,
-                             int depth) {
-  if (occurence) {
-    reader.loadSavestate(occurence->savestate);
-    reader.enterBlock(token);
-  }
-  auto current_level = reader.readCurrentLevel();
-  for (const auto& tokenOccurence : current_level) {
-    printToken(reader.thread_trace, tokenOccurence.token, tokenOccurence.occurence, depth,
-               &tokenOccurence == &current_level.back());
-    if (tokenOccurence.token->type == pallas::TypeSequence) {
-      displaySequence(reader, *tokenOccurence.token, &tokenOccurence.occurence->sequence_occurence, depth + 1);
-    }
-    if (tokenOccurence.token->type == pallas::TypeLoop) {
-      pallas::LoopOccurence& loop = tokenOccurence.occurence->loop_occurence;
-      // The printing of loops is a bit convoluted, because there's no right way to do it
-      // Here, we offer four ways to print loops:
-      //    - Print only the Sequence inside once, with its mean/median duration
-      //    - Print only the Sequence inside once, and also print what's inside of it, with their mean/median duration
-      //    - Print the Sequence inside as much time as needed, but don't unroll it
-      //    - Print the Sequence inside as much time as needed, and unroll it.
-      // So we basically need two booleans: unroll_loops, which we use to determine if we need to print each Sequence
-      // inside the loop, and explore_loop_sequences, which we use to determine if we need to print the inside of
-      // each Sequence.
-      // We'll do each option one after another
-      if (!unroll_loops && !explore_loop_sequences) {
-        loop.loop_summary = pallas::SequenceOccurence();
-        loop.loop_summary.sequence = loop.full_loop[0].sequence;
-        for (uint j = 0; j < loop.nb_iterations; j++) {
-          loop.loop_summary.duration += loop.full_loop[j].duration / loop.nb_iterations;
-        }
-        // Don't do this at home kids
-        printToken(reader.thread_trace, &loop.loop->repeated_token, (pallas::Occurence*)&loop.loop_summary, depth + 1,
-                   true, &loop);
-      }
-      if (!unroll_loops && explore_loop_sequences) {
-        pallas_error("Not implemented yet ! Sorry\n");
-      }
-      if (unroll_loops) {
-        for (uint j = 0; j < loop.nb_iterations; j++) {
-          pallas::SequenceOccurence* seq = &loop.full_loop[j];
-          printToken(reader.thread_trace, &loop.loop->repeated_token, (pallas::Occurence*)seq, depth + 1,
-                     j == loop.nb_iterations - 1, &loop);
-          if (explore_loop_sequences) {
-            displaySequence(reader, loop.loop->repeated_token, seq, depth + 2);
-          }
-        }
-      }
-    }
-  }
-  //  if (occurence) {
-  //    occurence->full_sequence = new pallas::TokenOccurence[current_level.size()];
-  //    memcpy(occurence->full_sequence, current_level.data(), current_level.size() * sizeof(pallas::TokenOccurence));
-  //  }
-  reader.leaveBlock();
 }
 
 /* Print all the events of a thread */
@@ -249,7 +181,23 @@ static void printThread(pallas::Archive& trace, pallas::Thread* thread) {
 
   auto reader = pallas::ThreadReader(&trace, thread->id, reader_options);
 
-  displaySequence(reader, pallas::Token(pallas::TypeSequence, 0), nullptr, 0);
+  while (reader.current_frame >= 0) {
+    auto& token = reader.getCurToken();
+    auto* occurrence = reader.getOccurence(token, reader.tokenCount[token]);
+
+    printToken(reader.thread_trace,
+               &token,
+               occurrence,
+               reader.current_frame,
+               reader.isLastInCurrentArray(),
+               reader.isInLoop());
+
+    // Update the reader
+    reader.updateReadCurToken();
+    if (token.type == pallas::TypeEvent)
+      reader.moveToNextToken();
+    delete occurrence;
+  }
 }
 
 /**
@@ -352,7 +300,7 @@ int main(int argc, char** argv) {
       per_thread = true;
       show_structure = true;
       unroll_loops = false;
-      explore_loop_sequences = false;
+      explore_loop_sequences = true;
       nb_opts++;
     } else if (show_structure && !strcmp(argv[i], "-u")) {
       unroll_loops = true;

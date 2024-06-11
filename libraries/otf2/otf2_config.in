@@ -75,8 +75,7 @@ while [ $# -ge 1 ]; do
 	    exit 1
 	    ;;
 	 "--interface-version")
-	    echo "NOT IMPLEMENTED" >&2
-	    exit 1
+	    echo "10:0:0"
 	    ;;
 	 "--config-summary")
 	    echo "NOT IMPLEMENTED" >&2

@@ -28,10 +28,10 @@ enum ThreadReaderOptions {
 
 /** Represents one occurence of an Event. */
 typedef struct EventOccurence {
-  struct Event* event;       /**< Pointer to the Event.*/
+  struct Event* event;          /**< Pointer to the Event.*/
   pallas_timestamp_t timestamp; /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;  /**< Duration of that occurence.*/
-  AttributeList* attributes; /**< Attributes for that occurence.*/
+  pallas_duration_t duration;   /**< Duration of that occurence.*/
+  AttributeList* attributes;    /**< Attributes for that occurence.*/
 } EventOccurence;
 
 /**
@@ -40,8 +40,8 @@ typedef struct EventOccurence {
 typedef struct SequenceOccurence {
   struct Sequence* sequence;            /**< Pointer to the Sequence.*/
   struct Savestate* savestate;          /**< Savestate of the reader before entering the sequence.*/
-  pallas_timestamp_t timestamp;            /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;             /**< Duration of that occurence.*/
+  pallas_timestamp_t timestamp;         /**< Timestamp for that occurence.*/
+  pallas_duration_t duration;           /**< Duration of that occurence.*/
   struct TokenOccurence* full_sequence; /** Array of the occurrences in this sequence. */
 } SequenceOccurence;
 
@@ -51,8 +51,8 @@ typedef struct SequenceOccurence {
 typedef struct LoopOccurence {
   struct Loop* loop;                     /**< Pointer to the Loop.*/
   unsigned int nb_iterations;            /**< Number of iterations for that occurence.*/
-  pallas_timestamp_t timestamp;             /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;              /**< Duration for that occurence.*/
+  pallas_timestamp_t timestamp;          /**< Timestamp for that occurence.*/
+  pallas_duration_t duration;            /**< Duration for that occurence.*/
   struct SequenceOccurence* full_loop;   /**< Array of the Sequences in this loop.*/
   struct SequenceOccurence loop_summary; /**< False SequenceOccurence that represents a summary of all the
                                           * occurrences in full_loop. */
@@ -93,13 +93,10 @@ typedef struct ThreadReader {
   pallas_timestamp_t referential_timestamp;
 
   /** Stack containing the sequences/loops being read. */
-  Token callstack_sequence[MAX_CALLSTACK_DEPTH];
+  Token callstack_iterable[MAX_CALLSTACK_DEPTH];
 
   /** Stack containing the index in the sequence or the loop iteration. */
   int callstack_index[MAX_CALLSTACK_DEPTH];
-
-  /** Stack containing the number of iteration of the loop at the corresponding frame */
-  int callstack_loop_iteration[MAX_CALLSTACK_DEPTH];
 
   /** Current frame = index of the event/loop being read in the callstacks.
    * You can view this as the "depth" of the callstack. */
@@ -129,7 +126,7 @@ typedef struct ThreadReader {
   /** Prints the current Token. */
   void printCurToken() const;
   /** Returns the current Sequence*/
-  [[nodiscard]] const Token& getCurSequence() const;
+  [[nodiscard]] const Token& getCurIterable() const;
   /** Prints the current Sequence. */
   void printCurSequence() const;
   /** Prints the whole current callstack. */
@@ -155,10 +152,10 @@ typedef struct ThreadReader {
                                                        bool saveReaderState) const;
   /** Returns an LoopOccurence for the given Token appearing at the given occurence_id.
    * Timestamp is set to Reader's referential timestamp.*/
-  [[nodiscard]] LoopOccurence getLoopOccurence(Token loop_id, int occurence_id) const;
+  [[nodiscard]] LoopOccurence getLoopOccurence(Token loop_id, size_t occurence_id) const;
 
   /** Returns a pointer to the AttributeList for the given occurence of the given Event. */
-  [[nodiscard]] AttributeList* getEventAttributeList(Token event_id, int occurence_id) const;
+  [[nodiscard]] AttributeList* getEventAttributeList(Token event_id, size_t occurence_id) const;
 
   /** Skips the given Token and updates the reader. */
   static void skipToken([[maybe_unused]] Token token) { pallas_error("Not implemented yet\n"); };
@@ -168,6 +165,10 @@ typedef struct ThreadReader {
   void enterBlock(Token new_block);
   /** Leaves the current block */
   void leaveBlock();
+  /** Checks if there is a Loop in the current callstack. */
+  bool isInLoop();
+  /** Checks if c,urrent Token is the last of the current Sequence/Loop */
+  bool isLastInCurrentArray();
   /** Moves the reader's position to the next token.
    *
    * Moves to the next token in the current block, or exits it recursively as long as it's at the end of a block.*/
@@ -184,7 +185,7 @@ typedef struct ThreadReader {
   /** Returns an Occurence for the given Token appearing at the given occurence_id.
    *
    * Timestamp is set to Reader's referential timestamp.*/
-  [[nodiscard]] union Occurence* getOccurence(Token id, int occurence_id) const;
+  [[nodiscard]] union Occurence* getOccurence(Token id, size_t occurence_id) const;
   /** Loads the given savestate. */
   void loadSavestate(struct Savestate* savestate);
   /** Reads the current level of the thread, and returns it as an array of TokenOccurences. */
@@ -203,13 +204,10 @@ typedef struct Savestate {
   pallas_timestamp_t referential_timestamp;
 
   /** Stack containing the sequences/loops being read. */
-  Token* callstack_sequence;
+  Token* callstack_iterable;
 
   /** Stack containing the index in the sequence or the loop iteration. */
   int* callstack_index;
-
-  /** Stack containing the number of iteration of the loop at the corresponding frame */
-  int* callstack_loop_iteration;
 
   /** Current frame = index of the event/loop being read in the callstacks.
    * You can view this as the "depth" of the callstack. */
@@ -226,11 +224,6 @@ typedef struct Savestate {
 
 #ifdef __cplusplus
 }; /* namespace pallas */
-
-/**
- * Counter for how much memory the savestates consume.
- */
-C_CXX(_Thread_local, thread_local) extern size_t savestate_memory;
 
 extern "C" {
 #endif
