@@ -42,7 +42,13 @@ char* pallas_archive_fullpath(char* dir_name, char* trace_name);
 void pallas_read_main_archive(PALLAS(Archive) * archive, char* main_filename);
 #ifdef __cplusplus
 };
+
+
+
 #endif
+
+
+
 
 /* -*-
    mode: c;

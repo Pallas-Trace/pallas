@@ -148,6 +148,10 @@ void Thread::initThread(Archive* a, ThreadId thread_id) {
   }
   archive->threads[archive->nb_threads++] = this;
   pthread_mutex_unlock(&archive->lock);
+
+  bufferTimestamps = new BufferTimestamps;
+  bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
+  bufferTimestamps->usedSpace = 0;
 }
 
 Archive::~Archive() {
@@ -169,6 +173,8 @@ Thread::~Thread() {
   }
   delete[] sequences;
   delete[] loops;
+  delete[] bufferTimestamps->arrayTimestamps;
+  delete bufferTimestamps;
 }
 
 const char* Thread::getName() const {

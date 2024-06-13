@@ -387,6 +387,15 @@ typedef struct Attribute {
 } Attribute;
 
 /**
+ * A buffer to manage timestamps used at compression.
+ */
+#define SIZE_BUFFER_TIMESTAMP (sizeof(uint64_t)*1000000) /**< Maximum size of the buffer for timestamps*/
+typedef struct BufferTimestamps {
+  uint64_t* arrayTimestamps;          /**< Pointer to the start of the buffer.*/
+  size_t usedSpace;                   /**< Number of bytes currently in the buffer*/
+} BufferTimestamps;
+
+/**
  * A thread contains streams of events.
  *
  * It can be a regular thread (eg. a pthread), or a GPU stream.
@@ -402,6 +411,8 @@ typedef struct Thread {
   Sequence** sequences;            /**< Array of pallas::Sequence recorded in this Thread. */
   unsigned nb_allocated_sequences; /**< Number of blocks of size pallas:Sequence allocated in #sequences. */
   unsigned nb_sequences;           /**< Number of pallas::Sequence in #sequences. */
+
+  struct BufferTimestamps* bufferTimestamps;  /**< Buffer to store efficiently timestamps. */
 
   /** Map to associate the hash of the pallas::Sequence to their id.*/
 #ifdef __cplusplus

@@ -297,15 +297,11 @@ inline static uint64_t* _pallas_zfp_decompress(size_t n, void* compressedArray, 
  */
 
 inline static byte* _pallas_sz_compress(uint64_t* src, size_t n, size_t& compressedSize) {
-  //conf must be the same in compress and decompress -> attribute in struct ?
-
-  //TODO find a way to NOT compress if "n * sizeof(uint64_t)" < 500 without messing with the decompresion
   SZ3::Config conf({n});  //usage : SZ3::Config conf({size_dimension_1, size_dimension_2, size_dimension_3})
   conf.cmprAlgo = SZ3::ALGO_INTERP_LORENZO;
-  //conf.errorBoundMode = SZ3::EB_ABS; // absolute error
-  //conf.absErrorBound = 1000000; // absolute error bound
-  conf.errorBoundMode = SZ3::EB_REL;
-  conf.relErrorBound= 0.001; // %10
+  conf.errorBoundMode = SZ3::EB_ABS;  // absolute error
+  conf.absErrorBound = 10;            // absolute error bound (in nanosecond)
+
 
   byte* compressedArray = reinterpret_cast<byte*>(SZ_compress(conf, src, compressedSize));
   return compressedArray;
@@ -315,10 +311,9 @@ inline static byte* _pallas_sz_compress(uint64_t* src, size_t n, size_t& compres
 inline static void _pallas_sz_decompress(size_t n, byte* compressedArray, size_t compressedSize,uint64_t* decompressedArray) {
   SZ3::Config conf({n});  //usage : SZ3::Config conf({size_dimension_1, size_dimension_2, size_dimension_3})
   conf.cmprAlgo = SZ3::ALGO_INTERP_LORENZO;
-  //conf.errorBoundMode = SZ3::EB_ABS; // absolute error
-  //conf.absErrorBound = 1000000; // absolute error bound
-  conf.errorBoundMode = SZ3::EB_REL;
-  conf.relErrorBound= 0.001; // %10
+  conf.errorBoundMode = SZ3::EB_ABS;  // absolute error
+  conf.absErrorBound = 10;            // absolute error bound (in nanosecond)
+
   SZ_decompress(conf, reinterpret_cast<char*>(compressedArray), compressedSize, decompressedArray);
 };
 
@@ -517,10 +512,14 @@ size_t numberCompressedBytes = 0;
  * @param n Number of elements in src.
  * @param file File to write in.
  */
-inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file) {
+
+//TODO : change documentation according to changes
+inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, Thread th) {
   size_t size = n * sizeof(uint64_t);
   uint64_t* encodedArray = nullptr;
   size_t encodedSize;
+
+
   // First we do the encoding
   switch (pallas::parameterHandler->getEncodingAlgorithm()) {
   case pallas::EncodingAlgorithm::None:
@@ -537,6 +536,22 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file) {
   default:
     pallas_error("Invalid Encoding algorithm\n");
   }
+
+  // Check if enougth space in the buffer
+  if (SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace >= encodedSize){
+    memcpy(th->bufferTimestamps->arrayTimestamps,src);
+    th->bufferTimestamps->usedSpace += encodedSize;
+    assert(bufferSize <= SIZE_BUFFER_TIMESTAMP);
+    pallas_log(pallas::DebugLevel::Debug, "buffered %lu bytes\n", encodedSize);
+    return;
+  }
+
+  uint64_t* bufferArray = th->bufferTimestamps->arrayTimestamps;
+  size_t bufferSize = th->bufferTimestamps->usedSpace;
+  size_t bufferNumberElements = bufferSize/sizeof(uint64);
+  size_t compressedBufferSize;
+  byte* compressedBuffer = nullptr;
+  th->bufferTimestamps->usedSpace = 0;
 
   byte* compressedArray = nullptr;
   size_t compressedSize;
@@ -583,6 +598,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file) {
 #ifdef WITH_SZ
   case pallas::CompressionAlgorithm::SZ:
     compressedArray = _pallas_sz_compress(src, n, compressedSize);
+    compressedBuffer = _pallas_sz_compress(bufferArray,bufferNumberElements,compressedBufferSize);
     break;
 #endif
   default:
@@ -590,11 +606,15 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file) {
   }
 
   if (pallas::parameterHandler->getCompressionAlgorithm() != pallas::CompressionAlgorithm::None) {
+    //TODO add pallas_logs for buffer
     pallas_log(pallas::DebugLevel::Debug, "Compressing %lu bytes as %lu bytes\n", size, compressedSize);
+    _pallas_fwrite(&compressedBufferSize, sizeof(compressedBuffer), 1, file);
+    _pallas_fwrite(compressedBuffer, compressedBufferSize, 1, file);
+
     _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
     _pallas_fwrite(compressedArray, compressedSize, 1, file);
-    numberRawBytes += size;
-    numberCompressedBytes += compressedSize;
+    numberRawBytes += size + bufferSize;
+    numberCompressedBytes += compressedSize + compressedBufferSize;
   } else if (pallas::parameterHandler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None) {
     pallas_log(pallas::DebugLevel::Debug, "Encoding %lu bytes as %lu bytes\n", size, encodedSize);
     _pallas_fwrite(&encodedSize, sizeof(encodedSize), 1, file);
