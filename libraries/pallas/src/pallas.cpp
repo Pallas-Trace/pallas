@@ -123,6 +123,7 @@ Thread::Thread() {
 }
 
 void Thread::initThread(Archive* a, ThreadId thread_id) {
+  printf("==== [DEBUG] initThread\n");
   archive = a;
   id = thread_id;
 
@@ -173,8 +174,16 @@ Thread::~Thread() {
   }
   delete[] sequences;
   delete[] loops;
-  delete[] bufferTimestamps->arrayTimestamps;
-  delete bufferTimestamps;
+  if (bufferTimestamps != nullptr && bufferTimestamps->arrayTimestamps != nullptr) {
+    printf("==== [DEBUG]  delete[] bufferTimestamps->arrayTimestamps\n");
+    delete[] bufferTimestamps->arrayTimestamps;
+  }
+  if (bufferTimestamps != nullptr) {
+    printf("==== [DEBUG] delete[] bufferTimestamps\n");
+    delete[] bufferTimestamps;
+  }
+  printf("==== [DEBUG] Fin de ~Thread()\n");
+
 }
 
 const char* Thread::getName() const {

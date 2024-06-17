@@ -518,10 +518,11 @@ size_t numberCompressedBytes = 0;
   * @param th The current thread.
   */
 inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th){
-
+  printf("\n==== [DEBUG] _pallas_flush_durations_buffer\n");
   size_t bufferSize = th->bufferTimestamps->usedSpace;  
   //assert(bufferSize >= 0);
   if(bufferSize == 0){
+    printf("==== [DEBUG] /!\\ bufferSize == 0");
     return;
   }
   byte* compressedBuffer = nullptr;  
@@ -539,7 +540,8 @@ inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th
   th->bufferTimestamps->usedSpace = 0;
   numberRawBytes += bufferSize;
   numberCompressedBytes += compressedSize;
-
+  printf("==== [DEBUG] numberRawBytes : %ld (+%ld)\n",numberRawBytes,bufferSize);
+  printf("==== [DEBUG] numberCompressedBytes : %ld (+%ld)\n\n",numberCompressedBytes,compressedSize);
 }
 
 /**
@@ -552,14 +554,16 @@ inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th
 
 //TODO : change documentation according to changes
 inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pallas::Thread* th) {
+  printf("==== [DEBUG] _pallas_compress_write\n");
   size_t size = n * sizeof(uint64_t);
   uint64_t* encodedArray = nullptr;
-  size_t encodedSize;
+  size_t encodedSize = n;
 
 
   // First we do the encoding
   switch (pallas::parameterHandler->getEncodingAlgorithm()) {
   case pallas::EncodingAlgorithm::None:
+    printf("==== [DEBUG] Pas d'encodage\n");
     break;
   case pallas::EncodingAlgorithm::Masking: {
     encodedArray = new uint64_t[n];
@@ -576,21 +580,27 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
 
   // TODO : mettre ça dans une fonction a part ?
 
-  // Check if enougth space in the buffer
-  size_t bufferNumberElements = th->bufferTimestamps->usedSpace/sizeof(uint64);
-  if (SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace >= encodedSize){
-    memcpy(th->bufferTimestamps->arrayTimestamps+(uint64_t)bufferNumberElements
-          ,encodedArray,bufferNumberElements);
+  //Buffer not working with encoding
 
-    th->bufferTimestamps->usedSpace += encodedSize;
+  // Check if enougth space in the buffer
+  printf("==== [DEBUG] Check buffer\n");
+  size_t bufferNumberElements = th->bufferTimestamps->usedSpace/sizeof(uint64);
+  if (SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace >= n){
+    memcpy(th->bufferTimestamps->arrayTimestamps+(uint64_t)bufferNumberElements
+          ,src,bufferNumberElements);
+
+    th->bufferTimestamps->usedSpace += n;
     assert(th->bufferTimestamps->usedSpace <= SIZE_BUFFER_TIMESTAMP);
-    pallas_log(pallas::DebugLevel::Debug, "buffered %lu bytes\n", encodedSize);
+    pallas_log(pallas::DebugLevel::Debug, "buffered %lu bytes\n", n);
     return;
   }
-  uint64_t* toBufferArray = encodedArray;
-  size_t toBufferSize = encodedSize;
-  encodedArray = th->bufferTimestamps->arrayTimestamps;
-  encodedSize = th->bufferTimestamps->usedSpace;
+  printf("==== [DEBUG] Manque de place dans buffer (libre %ld, need : %ld)\n",SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace,n);
+  uint64_t* toBufferArray = src;
+  size_t toBufferSize = n;
+  src = th->bufferTimestamps->arrayTimestamps;
+  n = th->bufferTimestamps->usedSpace;
+  printf("==== [DEBUG] toBufferArray : %p, toBufferSize : %ld , src : %p, n : %ld",toBufferArray,
+          toBufferSize,src,n);
 
   th->bufferTimestamps->usedSpace = 0;  // Buffer flushed
 
@@ -638,7 +648,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
 #endif
 #ifdef WITH_SZ
   case pallas::CompressionAlgorithm::SZ:
-    compressedArray = _pallas_sz_compress(encodedArray, n, compressedSize);
+    compressedArray = _pallas_sz_compress(src, n, compressedSize);
     break;
 #endif
   default:
