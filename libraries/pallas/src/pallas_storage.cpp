@@ -160,10 +160,12 @@ void* getFirstOpenFile() {
 
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const pallas::File& eventFile,
-                             const pallas::File& durationFile);
+                             const pallas::File& durationFile,
+                             pallas::Thread* th);
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const pallas::File& sequenceFile,
-                                const pallas::File& durationFile);
+                                const pallas::File& durationFile,
+                                pallas::Thread* th);
 
 static void pallasStoreLoop(pallas::Loop& loop, const pallas::File& loopFile);
 
@@ -447,6 +449,8 @@ inline static uint64_t* _pallas_histogram_read(size_t n, byte* compArray, size_t
   return dest;
 }
 
+
+
 /**
  * Encodes the content in src using a Masking technique and writes it to dest.
  * This is done only for 64-bits values.
@@ -505,6 +509,39 @@ inline static uint64_t* _pallas_masking_read(size_t n, byte* encodedArray, size_
 size_t numberRawBytes = 0;
 size_t numberCompressedBytes = 0;
 
+
+
+/**
+  * Copy the content of the thread buffer (of timestamps) in the file, following the format 
+  * number of uint64_t then the array of timestamps. Compress the buffer if needed.
+  * @param file The destination file.
+  * @param th The current thread.
+  */
+inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th){
+
+  size_t bufferSize = th->bufferTimestamps->usedSpace;  
+  //assert(bufferSize >= 0);
+  if(bufferSize == 0){
+    return;
+  }
+  byte* compressedBuffer = nullptr;  
+
+  //compression ici
+
+  // CODE TEMPORAIRE
+  size_t compressedSize = -1;
+  compressedBuffer = _pallas_sz_compress(th->bufferTimestamps->arrayTimestamps
+                      ,bufferSize/sizeof(uint64_t), compressedSize);
+  //////////////////
+
+  _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
+  _pallas_fwrite(compressedBuffer, compressedSize, 1, file);
+  th->bufferTimestamps->usedSpace = 0;
+  numberRawBytes += bufferSize;
+  numberCompressedBytes += compressedSize;
+
+}
+
 /**
  * Writes the array to the given file, but encodes and compresses it before
  * according to the value of parameterHandler::EncodingAlgorithm and parameterHandler::CompressingAlgorithm.
@@ -514,7 +551,7 @@ size_t numberCompressedBytes = 0;
  */
 
 //TODO : change documentation according to changes
-inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, Thread th) {
+inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pallas::Thread* th) {
   size_t size = n * sizeof(uint64_t);
   uint64_t* encodedArray = nullptr;
   size_t encodedSize;
@@ -537,21 +574,25 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, T
     pallas_error("Invalid Encoding algorithm\n");
   }
 
+  // TODO : mettre ça dans une fonction a part ?
+
   // Check if enougth space in the buffer
+  size_t bufferNumberElements = th->bufferTimestamps->usedSpace/sizeof(uint64);
   if (SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace >= encodedSize){
-    memcpy(th->bufferTimestamps->arrayTimestamps,src);
+    memcpy(th->bufferTimestamps->arrayTimestamps+(uint64_t)bufferNumberElements
+          ,encodedArray,bufferNumberElements);
+
     th->bufferTimestamps->usedSpace += encodedSize;
-    assert(bufferSize <= SIZE_BUFFER_TIMESTAMP);
+    assert(th->bufferTimestamps->usedSpace <= SIZE_BUFFER_TIMESTAMP);
     pallas_log(pallas::DebugLevel::Debug, "buffered %lu bytes\n", encodedSize);
     return;
   }
+  uint64_t* toBufferArray = encodedArray;
+  size_t toBufferSize = encodedSize;
+  encodedArray = th->bufferTimestamps->arrayTimestamps;
+  encodedSize = th->bufferTimestamps->usedSpace;
 
-  uint64_t* bufferArray = th->bufferTimestamps->arrayTimestamps;
-  size_t bufferSize = th->bufferTimestamps->usedSpace;
-  size_t bufferNumberElements = bufferSize/sizeof(uint64);
-  size_t compressedBufferSize;
-  byte* compressedBuffer = nullptr;
-  th->bufferTimestamps->usedSpace = 0;
+  th->bufferTimestamps->usedSpace = 0;  // Buffer flushed
 
   byte* compressedArray = nullptr;
   size_t compressedSize;
@@ -597,8 +638,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, T
 #endif
 #ifdef WITH_SZ
   case pallas::CompressionAlgorithm::SZ:
-    compressedArray = _pallas_sz_compress(src, n, compressedSize);
-    compressedBuffer = _pallas_sz_compress(bufferArray,bufferNumberElements,compressedBufferSize);
+    compressedArray = _pallas_sz_compress(encodedArray, n, compressedSize);
     break;
 #endif
   default:
@@ -608,13 +648,10 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, T
   if (pallas::parameterHandler->getCompressionAlgorithm() != pallas::CompressionAlgorithm::None) {
     //TODO add pallas_logs for buffer
     pallas_log(pallas::DebugLevel::Debug, "Compressing %lu bytes as %lu bytes\n", size, compressedSize);
-    _pallas_fwrite(&compressedBufferSize, sizeof(compressedBuffer), 1, file);
-    _pallas_fwrite(compressedBuffer, compressedBufferSize, 1, file);
-
     _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
     _pallas_fwrite(compressedArray, compressedSize, 1, file);
-    numberRawBytes += size + bufferSize;
-    numberCompressedBytes += compressedSize + compressedBufferSize;
+    numberRawBytes += encodedSize;
+    numberCompressedBytes += compressedSize;
   } else if (pallas::parameterHandler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None) {
     pallas_log(pallas::DebugLevel::Debug, "Encoding %lu bytes as %lu bytes\n", size, encodedSize);
     _pallas_fwrite(&encodedSize, sizeof(encodedSize), 1, file);
@@ -624,6 +661,12 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, T
     _pallas_fwrite(&size, sizeof(size), 1, file);
     _pallas_fwrite(src, size, 1, file);
   }
+
+  // Then add the element to the buffer
+  memcpy(th->bufferTimestamps->arrayTimestamps+th->bufferTimestamps->usedSpace,toBufferArray,toBufferSize);
+  th->bufferTimestamps->usedSpace += toBufferSize;
+  assert(th->bufferTimestamps->usedSpace < SIZE_BUFFER_TIMESTAMP);
+
   if (pallas::parameterHandler->getCompressionAlgorithm() != pallas::CompressionAlgorithm::None)
     delete[] compressedArray;
   if (pallas::parameterHandler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None)
@@ -731,7 +774,7 @@ inline static uint64_t* _pallas_compress_read(size_t n, FILE* file) {
   return uncompressedArray;
 }
 
-void pallas::LinkedVector::writeToFile(FILE* vectorFile, FILE* valueFile) {
+void pallas::LinkedVector::writeToFile(FILE* vectorFile, FILE* valueFile,pallas::Thread* th) {
   if (first)
     finalUpdateStats();
   // Write the statistics to the vectorFile
@@ -755,7 +798,7 @@ void pallas::LinkedVector::writeToFile(FILE* vectorFile, FILE* valueFile) {
       sub_vec = sub_vec->next;
     }
     pallas_assert(cur_index == size);
-    _pallas_compress_write(buffer, size, valueFile);
+    _pallas_compress_write(buffer, size, valueFile,th);
     delete[] buffer;
     sub_vec = first;
     while (sub_vec) {
@@ -898,7 +941,8 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const pallas:
 
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const pallas::File& eventFile,
-                             const pallas::File& durationFile) {
+                             const pallas::File& durationFile,
+                             pallas::Thread* th) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.durations->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
     event.durations->print();
@@ -911,7 +955,7 @@ static void pallasStoreEvent(pallas::EventSummary& event,
     eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
   }
   if (STORE_TIMESTAMPS) {
-    event.durations->writeToFile(eventFile.file, durationFile.file);
+    event.durations->writeToFile(eventFile.file, durationFile.file,th);
   }
 }
 
@@ -947,7 +991,8 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const pallas::File& sequenceFile,
-                                const pallas::File& durationFile) {
+                                const pallas::File& durationFile,
+                                pallas::Thread* th) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
              sequence.durations->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
@@ -959,7 +1004,7 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
   sequenceFile.write(&size, sizeof(size), 1);
   sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
   if (STORE_TIMESTAMPS) {
-    sequence.durations->writeToFile(sequenceFile.file, durationFile.file);
+    sequence.durations->writeToFile(sequenceFile.file, durationFile.file,th);
   }
 }
 
@@ -1259,15 +1304,17 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   const char* eventDurationFilename = pallasGetEventDurationFilename(dir_name, th);
   pallas::File eventDurationFile = pallas::File(eventDurationFilename, "w");
   for (int i = 0; i < th->nb_events; i++) {
-    pallasStoreEvent(th->events[i], threadFile, eventDurationFile);
+    pallasStoreEvent(th->events[i], threadFile, eventDurationFile,th);
   }
+  _pallas_flush_durations_buffer(eventDurationFile.file,th);
   eventDurationFile.close();
 
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(dir_name, th);
   pallas::File sequenceDurationFile = pallas::File(sequenceDurationFilename, "w");
   for (int i = 0; i < th->nb_sequences; i++) {
-    pallasStoreSequence(*th->sequences[i], threadFile, sequenceDurationFile);
+    pallasStoreSequence(*th->sequences[i], threadFile, sequenceDurationFile,th);
   }
+  _pallas_flush_durations_buffer(sequenceDurationFile.file,th);
   sequenceDurationFile.close();
 
   for (int i = 0; i < th->nb_loops; i++)
