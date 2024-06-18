@@ -389,7 +389,8 @@ typedef struct Attribute {
 /**
  * A buffer to manage timestamps used at compression.
  */
-#define SIZE_BUFFER_TIMESTAMP (sizeof(uint64_t)*1000000) /**< Maximum size of the buffer for timestamps*/
+#define SIZE_BUFFER_TIMESTAMP (sizeof(uint64_t)*10000000) /**< Maximum size of the buffer for timestamps (80MB)*/
+
 typedef struct BufferTimestamps {
   uint64_t* arrayTimestamps;          /**< Pointer to the start of the buffer.*/
   size_t usedSpace;                   /**< Number of bytes currently in the buffer*/
