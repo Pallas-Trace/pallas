@@ -105,7 +105,17 @@ void Thread::printSequence(pallas::Token token) const {
   printTokenVector(sequence->tokens);
 }
 
+void fonctionBasique(){
+  volatile char test = 1;
+  while(test){
+    printf(" ///////\n");
+  }
+
+}
+
 Thread::Thread() {
+  printf("==== [DEBUG] Nouveau Thread\n");
+  fonctionBasique();
   archive = nullptr;
   id = PALLAS_THREAD_ID_INVALID;
 
@@ -120,10 +130,14 @@ Thread::Thread() {
   loops = nullptr;
   nb_allocated_loops = 0;
   nb_loops = 0;
+
+  bufferTimestamps = new BufferTimestamps;
+  bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
+  bufferTimestamps->usedSpace = 0;
 }
 
 void Thread::initThread(Archive* a, ThreadId thread_id) {
-  printf("==== [DEBUG] initThread\n");
+  
   archive = a;
   id = thread_id;
 
@@ -149,10 +163,7 @@ void Thread::initThread(Archive* a, ThreadId thread_id) {
   }
   archive->threads[archive->nb_threads++] = this;
   pthread_mutex_unlock(&archive->lock);
-
-  bufferTimestamps = new BufferTimestamps;
-  bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
-  bufferTimestamps->usedSpace = 0;
+  
 }
 
 Archive::~Archive() {

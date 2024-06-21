@@ -523,7 +523,7 @@ size_t numberCompressedBytes = 0;
   */
 inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th){
   printf("\n==%d=%d== [DEBUG] _pallas_flush_durations_buffer \n", (int)getpid(), (int)gettid());
-  size_t n = th->bufferTimestamps->usedSpace;  
+  size_t n = th->bufferTimestamps->usedSpace/sizeof(uint64_t);  
   //assert(n >= 0);
   if(n == 0){
     printf("==== [DEBUG] /!\\ n == 0");
@@ -603,6 +603,8 @@ inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th
   printf("==== [DEBUG] numberCompressedBytes : %ld (+%ld)\n\n",numberCompressedBytes,compressedSize);
 }
 
+
+
 /**
  * Writes the array to the given file, but encodes and compresses it before
  * according to the value of parameterHandler::EncodingAlgorithm and parameterHandler::CompressingAlgorithm.
@@ -613,6 +615,7 @@ inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th
 
 // TODO : change documentation according to changes
 inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pallas::Thread* th) {
+  
   //printf("==== [DEBUG] _pallas_compress_write\n");
   size_t size = n * sizeof(uint64_t);
   uint64_t* encodedArray = nullptr;
@@ -653,7 +656,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
     pallas_log(pallas::DebugLevel::Debug, "buffered %lu bytes\n", n);
     return;
   }
-
+  size_t uncompressedSize = th->bufferTimestamps->usedSpace;
+  
   printf("==== [DEBUG] Manque de place dans buffer (libre %ld, need : %ld)\n",SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace,n);
   uint64_t* toBufferArray = src;
   size_t toBufferSize = n;
@@ -718,9 +722,10 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
   if (pallas::parameterHandler->getCompressionAlgorithm() != pallas::CompressionAlgorithm::None) {
     //TODO add pallas_logs for buffer
     pallas_log(pallas::DebugLevel::Debug, "Compressing %lu bytes as %lu bytes\n", size, compressedSize);
+    _pallas_fwrite(&uncompressedSize, sizeof(uncompressedSize), 1, file);
     _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
     _pallas_fwrite(compressedArray, compressedSize, 1, file);
-    numberRawBytes += encodedSize;
+    numberRawBytes += uncompressedSize;
     numberCompressedBytes += compressedSize;
   } else if (pallas::parameterHandler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None) {
     pallas_log(pallas::DebugLevel::Debug, "Encoding %lu bytes as %lu bytes\n", size, encodedSize);
@@ -733,7 +738,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
   }
 
   // Then add the element to the buffer
-  memcpy(th->bufferTimestamps->arrayTimestamps+th->bufferTimestamps->usedSpace,toBufferArray,toBufferSize);
+  memcpy(th->bufferTimestamps->arrayTimestamps+th->bufferTimestamps->usedSpace,
+          toBufferArray,toBufferSize);
   th->bufferTimestamps->usedSpace += toBufferSize;
 
   if (th->bufferTimestamps->usedSpace >= SIZE_BUFFER_TIMESTAMP) {
@@ -748,6 +754,108 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
     delete[] encodedArray;
 }
 
+
+
+// TODO faire documentation
+inline static uint64_t* _pallas_compress_read_buffer(size_t n
+                                                    , FILE* file
+                                                    ,pallas::Thread* th){
+
+  
+  size_t expectedSize = n * sizeof(uint64_t);
+  size_t readeableSizeBuffer = SIZE_BUFFER_TIMESTAMP - th->bufferTimestamps->usedSpace;
+  uint64_t* startBuffer = th->bufferTimestamps->arrayTimestamps + th->bufferTimestamps->usedSpace;
+  uint64_t* uncompressedArray = nullptr;
+  
+
+  // Can just load the uncompressedArray from the buffer
+  if(expectedSize <= readeableSizeBuffer){
+    uncompressedArray = startBuffer;
+    th->bufferTimestamps->usedSpace += expectedSize;
+    return uncompressedArray;
+  }
+
+  // Need to read what we can from the buffer then load the next batch of timestamps
+  uncompressedArray = new uint64_t[n];
+  memcpy(uncompressedArray,startBuffer,readeableSizeBuffer);
+  th->bufferTimestamps->usedSpace = 0;
+
+  // Pointer where put next data
+  uint64_t* startUncompressedArray = uncompressedArray + readeableSizeBuffer;
+
+  size_t compressedSize;
+  size_t uncompressedSize;
+  byte* compressedArray = nullptr;
+  compressedArray = new byte[compressedSize];
+
+  uint64_t* uncompressedArrayBuffer = nullptr;
+
+  _pallas_fread(&uncompressedSize, sizeof(compressedSize), 1, file);
+  _pallas_fread(&compressedSize, sizeof(compressedSize), 1, file);
+  _pallas_fread(compressedArray, compressedSize, 1, file);
+  
+  auto compressionAlgorithm = pallas::parameterHandler->getCompressionAlgorithm();
+  //auto encodingAlgorithm = pallas::parameterHandler->getEncodingAlgorithm();
+  switch (compressionAlgorithm) {
+    case pallas::CompressionAlgorithm::None:
+      break;
+    case pallas::CompressionAlgorithm::ZSTD: {
+      if (pallas::parameterHandler->getEncodingAlgorithm() == pallas::EncodingAlgorithm::None) {
+        size_t TempUncompressedSize;
+        uncompressedArrayBuffer = _pallas_zstd_read(TempUncompressedSize, compressedArray, compressedSize);
+      } 
+      else {
+        pallas_error("Not implemented");
+        //encodedArray = reinterpret_cast<byte*>(_pallas_zstd_read(encodedSize, compressedArray, compressedSize));
+        //pallas_assert(encodedSize <= expectedSize);
+      }
+      
+      break;
+    }
+    case pallas::CompressionAlgorithm::Histogram: {
+      uncompressedArrayBuffer = _pallas_histogram_read(n, compressedArray, compressedSize);
+      break;
+    }
+    case pallas::CompressionAlgorithm::ZSTD_Histogram: {
+      // First ZSTD Decode
+      size_t histogramSize;
+      auto tempUncompressedArray =
+        reinterpret_cast<byte*>(_pallas_zstd_read(histogramSize, compressedArray, compressedSize));
+      uncompressedArrayBuffer = _pallas_histogram_read(n, tempUncompressedArray, histogramSize);
+      pallas_assert(n * sizeof(uint64_t) == expectedSize);
+      break;
+    }
+  #ifdef WITH_ZFP
+    case pallas::CompressionAlgorithm::ZFP: {
+      uncompressedArrayBuffer = _pallas_zfp_decompress(n, compressedArray, compressedSize);
+      break;
+    }
+  #endif
+  #ifdef WITH_SZ
+    case pallas::CompressionAlgorithm::SZ:
+      uncompressedArrayBuffer = new uint64_t[n];
+      _pallas_sz_decompress(n, compressedArray, compressedSize,uncompressedArrayBuffer);
+      break;
+  #endif
+    default:
+      pallas_error("Invalid Compression algorithm\n");
+  }
+  delete[] compressedArray;
+
+  // Full the UncompressedArray with the start of the new batch
+  memcpy(startUncompressedArray,uncompressedArrayBuffer,expectedSize - readeableSizeBuffer);
+  
+
+  // Then put the rest in the buffer
+  memcpy(th->bufferTimestamps->arrayTimestamps,uncompressedArrayBuffer,uncompressedSize);
+  th->bufferTimestamps->usedSpace = uncompressedSize;
+
+  return uncompressedArray;
+
+}
+
+
+
 /**
  * Reads, de-encodes and decompresses an array from the given file,
  * according to the values of parameterHandler::EncodingAlgorithm and parameterHandler::CompressingAlgorithm.
@@ -755,7 +863,9 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
  * @param file File to read from
  * @returns Array of uncompressed data of size uint64_t * n.
  */
-inline static uint64_t* _pallas_compress_read(size_t n, FILE* file) {
+
+// TODO change documentation
+inline static uint64_t* _pallas_compress_read(size_t n, FILE* file,pallas::Thread* th) {
   size_t expectedSize = n * sizeof(uint64_t);
   uint64_t* uncompressedArray = nullptr;
 
@@ -767,55 +877,10 @@ inline static uint64_t* _pallas_compress_read(size_t n, FILE* file) {
 
   auto compressionAlgorithm = pallas::parameterHandler->getCompressionAlgorithm();
   auto encodingAlgorithm = pallas::parameterHandler->getEncodingAlgorithm();
-  if (compressionAlgorithm != pallas::CompressionAlgorithm::None) {
-    _pallas_fread(&compressedSize, sizeof(compressedSize), 1, file);
-    compressedArray = new byte[compressedSize];
-    _pallas_fread(compressedArray, compressedSize, 1, file);
+  if (compressionAlgorithm != pallas::CompressionAlgorithm::None) { 
+    return _pallas_compress_read_buffer(n,file,th);
   }
-
-  switch (compressionAlgorithm) {
-  case pallas::CompressionAlgorithm::None:
-    break;
-  case pallas::CompressionAlgorithm::ZSTD: {
-    if (pallas::parameterHandler->getEncodingAlgorithm() == pallas::EncodingAlgorithm::None) {
-      size_t uncompressedSize;
-      uncompressedArray = _pallas_zstd_read(uncompressedSize, compressedArray, compressedSize);
-      pallas_assert(uncompressedSize == expectedSize);
-    } else {
-      encodedArray = reinterpret_cast<byte*>(_pallas_zstd_read(encodedSize, compressedArray, compressedSize));
-      pallas_assert(encodedSize <= expectedSize);
-    }
-    delete[] compressedArray;
-    break;
-  }
-  case pallas::CompressionAlgorithm::Histogram: {
-    uncompressedArray = _pallas_histogram_read(n, compressedArray, compressedSize);
-    break;
-  }
-  case pallas::CompressionAlgorithm::ZSTD_Histogram: {
-    // First ZSTD Decode
-    size_t histogramSize;
-    auto tempUncompressedArray =
-      reinterpret_cast<byte*>(_pallas_zstd_read(histogramSize, compressedArray, compressedSize));
-    uncompressedArray = _pallas_histogram_read(n, tempUncompressedArray, histogramSize);
-    pallas_assert(n * sizeof(uint64_t) == expectedSize);
-    break;
-  }
-#ifdef WITH_ZFP
-  case pallas::CompressionAlgorithm::ZFP: {
-    uncompressedArray = _pallas_zfp_decompress(n, compressedArray, compressedSize);
-    break;
-  }
-#endif
-#ifdef WITH_SZ
-  case pallas::CompressionAlgorithm::SZ:
-    uncompressedArray = new uint64_t[n];
-    _pallas_sz_decompress(n, compressedArray, compressedSize,uncompressedArray);
-    break;
-#endif
-  default:
-    pallas_error("Invalid Compression algorithm\n");
-  }
+  
 
   switch (encodingAlgorithm) {
   case pallas::EncodingAlgorithm::None:
@@ -921,7 +986,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath) 
   }
 }
 
-void pallas::LinkedVector::load_timestamps() {
+void pallas::LinkedVector::load_timestamps(pallas::Thread* th) {
   pallas_log(DebugLevel::Debug, "Loading timestamps from %s\n", filePath);
   pallas::File& f = *fileMap[filePath];
   if (!f.isOpen) {
@@ -933,7 +998,7 @@ void pallas::LinkedVector::load_timestamps() {
     f.open("r");
     ret = fseek(f.file, offset, 0);
   }
-  auto temp = _pallas_compress_read(size, f.file);
+  auto temp = _pallas_compress_read(size, f.file,th);
   last = new SubVector(size, temp);
   first = last;
 }
@@ -1357,6 +1422,8 @@ static pallas::File pallasGetThreadFile(const char* dir_name, pallas::Thread* th
   return pallas::File(filename, mode);
 }
 
+
+
 static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   if (th->nb_events == 0) {
     pallas_log(pallas::DebugLevel::Verbose, "\tSkipping Thread %u {.nb_events=%d, .nb_sequences=%d, .nb_loops=%d}\n",
@@ -1381,6 +1448,7 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   for (int i = 0; i < th->nb_events; i++) {
     pallasStoreEvent(th->events[i], threadFile, eventDurationFile,th);
   }
+  printf("\n==%d=%d== [DEBUG] flush buffer in eventDurationFile \n", (int)getpid(), (int)gettid());
   _pallas_flush_durations_buffer(eventDurationFile.file,th);
   eventDurationFile.close();
 
@@ -1389,6 +1457,7 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   for (int i = 0; i < th->nb_sequences; i++) {
     pallasStoreSequence(*th->sequences[i], threadFile, sequenceDurationFile,th);
   }
+  printf("\n==%d=%d== [DEBUG] flush buffer in sequenceDurationFile \n", (int)getpid(), (int)gettid());
   _pallas_flush_durations_buffer(sequenceDurationFile.file,th);
   sequenceDurationFile.close();
 

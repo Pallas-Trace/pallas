@@ -105,7 +105,7 @@ typedef struct LinkedVector {
   /**
    * Loads the timestamps / durations from filePath.
    */
-  void load_timestamps();
+  void load_timestamps(pallas::Thread* th);
   /**
    * Updates the min/max/mean, not using the last item, but the item before the last.
    * This is so that we actually get the durations, and not the timestamps.
