@@ -146,6 +146,7 @@ class File {
     free(path);
   }
 };
+
 }  // namespace pallas
 
 std::map<const char*, pallas::File*> fileMap;
