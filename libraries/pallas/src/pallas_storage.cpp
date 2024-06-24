@@ -612,11 +612,9 @@ inline static void _pallas_flush_durations_buffer(FILE* file, pallas::Thread* th
  * @param n Number of elements in src.
  * @param file File to write in.
  */
-
-// TODO : change documentation according to changes
-inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pallas::Thread* th) {
-  
-  //printf("==== [DEBUG] _pallas_compress_write\n");
+// TODO : update documentation 
+inline static void _pallas_compress_write(uint64_t* src, size_t n,const pallas::File* pallasFile) {
+  FILE* file = pallasFile->file; 
   size_t size = n * sizeof(uint64_t);
   uint64_t* encodedArray = nullptr;
   size_t encodedSize = n;
@@ -625,7 +623,6 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file,pa
   // First we do the encoding
   switch (pallas::parameterHandler->getEncodingAlgorithm()) {
   case pallas::EncodingAlgorithm::None:
-    //printf("==== [DEBUG] Pas d'encodage\n");
     break;
   case pallas::EncodingAlgorithm::Masking: {
     encodedArray = new uint64_t[n];
@@ -863,9 +860,9 @@ inline static uint64_t* _pallas_compress_read_buffer(size_t n
  * @param file File to read from
  * @returns Array of uncompressed data of size uint64_t * n.
  */
-
-// TODO change documentation
-inline static uint64_t* _pallas_compress_read(size_t n, FILE* file,pallas::Thread* th) {
+// TODO : update documentation 
+inline static uint64_t* _pallas_compress_read(size_t n,const pallas::File* pallasFile) {
+  FILE* file = pallasFile->file;
   size_t expectedSize = n * sizeof(uint64_t);
   uint64_t* uncompressedArray = nullptr;
 
@@ -914,7 +911,10 @@ inline static uint64_t* _pallas_compress_read(size_t n, FILE* file,pallas::Threa
   return uncompressedArray;
 }
 
-void pallas::LinkedVector::writeToFile(FILE* vectorFile, FILE* valueFile,pallas::Thread* th) {
+void pallas::LinkedVector::writeToFile(const pallas::File* pallasVectorFile
+                                      ,const pallas::File* pallasValueFile) {
+  FILE* vectorFile = pallasVectorFile->file;
+  FILE* valueFile = pallasValueFile->file;
   if (first)
     finalUpdateStats();
   // Write the statistics to the vectorFile
@@ -938,7 +938,7 @@ void pallas::LinkedVector::writeToFile(FILE* vectorFile, FILE* valueFile,pallas:
       sub_vec = sub_vec->next;
     }
     pallas_assert(cur_index == size);
-    _pallas_compress_write(buffer, size, valueFile,th);
+    _pallas_compress_write(buffer, size, pallasValueFile);
     delete[] buffer;
     sub_vec = first;
     while (sub_vec) {
@@ -986,7 +986,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath) 
   }
 }
 
-void pallas::LinkedVector::load_timestamps(pallas::Thread* th) {
+void pallas::LinkedVector::load_timestamps() {
   pallas_log(DebugLevel::Debug, "Loading timestamps from %s\n", filePath);
   pallas::File& f = *fileMap[filePath];
   if (!f.isOpen) {
@@ -998,7 +998,7 @@ void pallas::LinkedVector::load_timestamps(pallas::Thread* th) {
     f.open("r");
     ret = fseek(f.file, offset, 0);
   }
-  auto temp = _pallas_compress_read(size, f.file,th);
+  auto temp = _pallas_compress_read(size, &f);
   last = new SubVector(size, temp);
   first = last;
 }
@@ -1081,8 +1081,7 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const pallas:
 
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const pallas::File& eventFile,
-                             const pallas::File& durationFile,
-                             pallas::Thread* th) {
+                             const pallas::File& durationFile) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.durations->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
     event.durations->print();
@@ -1095,7 +1094,7 @@ static void pallasStoreEvent(pallas::EventSummary& event,
     eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
   }
   if (STORE_TIMESTAMPS) {
-    event.durations->writeToFile(eventFile.file, durationFile.file,th);
+    event.durations->writeToFile(&eventFile, &durationFile);
   }
 }
 
@@ -1131,8 +1130,7 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const pallas::File& sequenceFile,
-                                const pallas::File& durationFile,
-                                pallas::Thread* th) {
+                                const pallas::File& durationFile) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
              sequence.durations->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
@@ -1144,7 +1142,7 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
   sequenceFile.write(&size, sizeof(size), 1);
   sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
   if (STORE_TIMESTAMPS) {
-    sequence.durations->writeToFile(sequenceFile.file, durationFile.file,th);
+    sequence.durations->writeToFile(&sequenceFile, &durationFile);
   }
 }
 
@@ -1552,7 +1550,7 @@ void pallas_storage_finalize(pallas::Archive* archive) {
   if (archive->id == PALLAS_MAIN_LOCATION_GROUP_ID) {
     uint8_t version = PALLAS_ABI_VERSION;
     file.write(&version, sizeof(version), 1);
-    pallas::parameterHandler->writeToFile(file.file);
+    pallas::parameterHandler->writeToFile(&file);
   }
   size_t size;
   size = archive->location_groups.size();
@@ -1599,7 +1597,8 @@ char* pallas_archive_fullpath(char* dir_name, char* trace_name) {
   return fullpath;
 }
 
-void pallas::ParameterHandler::writeToFile(FILE* file) const {
+void pallas::ParameterHandler::writeToFile(const pallas::File* pallasFile) const {
+  FILE* file = pallasFile->file;
   _pallas_fwrite(&compressionAlgorithm, sizeof(compressionAlgorithm), 1, file);
   _pallas_fwrite(&encodingAlgorithm, sizeof(encodingAlgorithm), 1, file);
   _pallas_fwrite(&zstdCompressionLevel, sizeof(zstdCompressionLevel), 1, file);

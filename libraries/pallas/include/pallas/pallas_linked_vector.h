@@ -21,7 +21,7 @@
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 namespace pallas {
-  class Thread;
+  class File;
 #endif
 /**
  * An hybrid between a LinkedList and a Vector.
@@ -105,7 +105,7 @@ typedef struct LinkedVector {
   /**
    * Loads the timestamps / durations from filePath.
    */
-  void load_timestamps(pallas::Thread* th);
+  void load_timestamps();
   /**
    * Updates the min/max/mean, not using the last item, but the item before the last.
    * This is so that we actually get the durations, and not the timestamps.
@@ -164,6 +164,7 @@ typedef struct LinkedVector {
    * Prints the content of the LinkedVector to stdout.
    */
   void print();
+
   /**
    * Writes the vector to the given file as an array.
    * You may write the size of the vector as a header.
@@ -173,7 +174,8 @@ typedef struct LinkedVector {
    * @param writeSize Boolean indicating wether you should write the size of the LinkedVector as a header.
    * @param th The current thread.
    */
-  void writeToFile(FILE* vectorFile, FILE* valueFile, pallas::Thread* th);
+  // TODO : update documentation 
+  void writeToFile(const pallas::File* pallasVectorFile,const pallas::File* pallasValueFile);
 
   /**
    * Classic ForwardIterator for LinkedVector.
