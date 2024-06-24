@@ -21,6 +21,7 @@
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 namespace pallas {
+  class File;
 #endif
 /**
  * An hybrid between a LinkedList and a Vector.
@@ -163,6 +164,7 @@ typedef struct LinkedVector {
    * Prints the content of the LinkedVector to stdout.
    */
   void print();
+
   /**
    * Writes the vector to the given file as an array.
    * You may write the size of the vector as a header.
@@ -171,7 +173,8 @@ typedef struct LinkedVector {
    * @param vectorFile File descriptor.
    * @param writeSize Boolean indicating wether you should write the size of the LinkedVector as a header.
    */
-  void writeToFile(FILE* vectorFile, FILE* valueFile);
+  // TODO : update documentation 
+  void writeToFile(const pallas::File* pallasVectorFile,const pallas::File* pallasValueFile);
 
   /**
    * Classic ForwardIterator for LinkedVector.

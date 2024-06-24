@@ -15,6 +15,7 @@
 #endif
 
 namespace pallas {
+  class File;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -190,7 +191,7 @@ class ParameterHandler {
    * @returns Value of #timestampStorage. */
   [[nodiscard]] TimestampStorage getTimestampStorage() const;
 
-  void writeToFile(FILE* file) const;
+  void writeToFile(const pallas::File* pallasFile) const;
   void readFromFile(FILE* file);
 
   ParameterHandler();
