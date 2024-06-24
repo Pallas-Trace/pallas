@@ -111,7 +111,6 @@ void fonctionBasique(){
 }
 
 Thread::Thread() {
-  printf("==== [DEBUG] Nouveau Thread\n");
   fonctionBasique();
   archive = nullptr;
   id = PALLAS_THREAD_ID_INVALID;
@@ -127,10 +126,7 @@ Thread::Thread() {
   loops = nullptr;
   nb_allocated_loops = 0;
   nb_loops = 0;
-
-  bufferTimestamps = new BufferTimestamps;
-  bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
-  bufferTimestamps->usedSpace = 0;
+  
 }
 
 void Thread::initThread(Archive* a, ThreadId thread_id) {
@@ -182,15 +178,7 @@ Thread::~Thread() {
   }
   delete[] sequences;
   delete[] loops;
-  if (bufferTimestamps != nullptr && bufferTimestamps->arrayTimestamps != nullptr) {
-    printf("==== [DEBUG]  delete[] bufferTimestamps->arrayTimestamps\n");
-    delete[] bufferTimestamps->arrayTimestamps;
-  }
-  if (bufferTimestamps != nullptr) {
-    printf("==== [DEBUG] delete[] bufferTimestamps\n");
-    delete[] bufferTimestamps;
-  }
-  printf("==== [DEBUG] Fin de ~Thread()\n");
+  
 
 }
 

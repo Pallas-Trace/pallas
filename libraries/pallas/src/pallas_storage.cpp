@@ -150,7 +150,52 @@ class File {
     free(path);
   }
 };
-}  // namespace pallas
+
+/**
+ * A buffer to manage timestamps used at compression.
+ */
+#define SIZE_BUFFER_TIMESTAMP (sizeof(uint64_t)*10000000) /**< Maximum size of the buffer for timestamps (80MB)*/
+
+typedef struct BufferTimestamps {
+  uint64_t* arrayTimestamps;          /**< Pointer to the start of the buffer.*/
+  size_t usedSpace;                   /**< Number of bytes currently in the buffer (write) or already readed (read)*/
+} BufferTimestamps;
+
+
+class BufferFile : public File {
+  public:
+    struct BufferTimestamps* bufferTimestamps;  /**< Buffer to store efficiently timestamps. */
+    virtual void open(const char* mode)=0;
+    virtual void close() = 0;
+    virtual void compressed_write();
+    virtual void read(void* ptr, size_t size, size_t n) = 0;
+    virtual void write(void* ptr, size_t size, size_t n) = 0;
+    BufferFile(const char* path, const char* mode = nullptr);
+    ~BufferFile();
+  };
+
+BufferFile::BufferFile(const char* path, const char* mode) : File(path, mode) {
+  printf("==== [DEBUG] Nouveau BufferFile");
+  bufferTimestamps = new BufferTimestamps;
+  bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
+  bufferTimestamps->usedSpace = 0;
+}
+
+BufferFile::~BufferFile() {
+  if (isOpen) {
+      close();
+    }
+  // delete file;
+  free(path);
+  if (bufferTimestamps != nullptr && bufferTimestamps->arrayTimestamps != nullptr) {
+      printf("==== [DEBUG]  delete[] bufferTimestamps->arrayTimestamps\n");
+      delete[] bufferTimestamps->arrayTimestamps;
+    }
+  if (bufferTimestamps != nullptr) {
+    printf("==== [DEBUG] delete[] bufferTimestamps\n");
+    delete[] bufferTimestamps;
+  }
+}
 
 std::map<const char*, pallas::File*> fileMap;
 void* getFirstOpenFile() {
@@ -161,6 +206,9 @@ void* getFirstOpenFile() {
   }
   return nullptr;
 }
+
+
+}  // namespace pallas
 
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const pallas::File& eventFile,
