@@ -125,8 +125,6 @@ typedef struct ThreadReader {
   [[nodiscard]] const Token& getTokenInCallstack(int frame_number) const;
   /** Prints the current Token. */
   void printCurToken() const;
-  /** Returns the current Sequence*/
-  [[nodiscard]] const Token& getCurIterable() const;
   /** Prints the current Sequence. */
   void printCurSequence() const;
   /** Prints the whole current callstack. */
@@ -161,6 +159,8 @@ typedef struct ThreadReader {
   static void skipToken([[maybe_unused]] Token token) { pallas_error("Not implemented yet\n"); };
 
  public:
+  /** Returns the current Sequence*/
+  [[nodiscard]] const Token& getCurIterable() const;
   /** Enter a block (push a new frame in the callstack) */
   void enterBlock(Token new_block);
   /** Leaves the current block */

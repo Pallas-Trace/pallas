@@ -50,9 +50,9 @@ static void _print_indent(const std::string& current_indent) {
 
 /* Print one event */
 static void printEvent(const std::string& current_indent,
-                        const pallas::Thread* thread,
-                        const pallas::Token token,
-                        const pallas::EventOccurence* e) {
+                       const pallas::Thread* thread,
+                       const pallas::Token token,
+                       const pallas::EventOccurence* e) {
   _print_timestamp(e->timestamp);
   _print_duration(e->duration);
   _print_indent(current_indent);
@@ -69,9 +69,9 @@ static void printEvent(const std::string& current_indent,
 }
 
 static void printSequence(const std::string& current_indent,
-                           const pallas::Thread* thread,
-                           const pallas::Token token,
-                           const pallas::SequenceOccurence* sequenceOccurence) {
+                          const pallas::Thread* thread,
+                          const pallas::Token token,
+                          const pallas::SequenceOccurence* sequenceOccurence) {
   auto* sequence = sequenceOccurence->sequence;
   pallas_timestamp_t ts = sequenceOccurence->timestamp;
   pallas_timestamp_t duration = sequenceOccurence->duration;
@@ -95,13 +95,21 @@ static void printSequence(const std::string& current_indent,
       std::cout << " ";
     }
   }
+  if (sequence->isFunctionSequence(thread)) {
+    auto frontEvent = thread->getEvent(sequence->tokens.front());
+    pallas::RegionRef region_ref;
+    memcpy(&region_ref, &frontEvent->event_data[0], sizeof(region_ref));
+    const pallas::Region* region = thread->archive->getRegion(region_ref);
+    const char* region_name = region ? thread->archive->getString(region->string_ref)->str : "INVALID";
+    std::cout << " (" << region_name << ")";
+  }
   std::cout << std::endl;
 }
 
 static void printLoop(const std::string& current_indent,
-                       const pallas::Thread* thread,
-                       const pallas::Token token,
-                       const pallas::LoopOccurence* loopOccurence) {
+                      const pallas::Thread* thread,
+                      const pallas::Token token,
+                      const pallas::LoopOccurence* loopOccurence) {
   _print_timestamp(loopOccurence->timestamp);
   _print_duration(loopOccurence->duration);
   _print_indent(current_indent);
@@ -122,11 +130,11 @@ static void printLoop(const std::string& current_indent,
 }
 
 static void printToken(const pallas::Thread* thread,
-                        const pallas::Token* t,
-                        const pallas::Occurence* e,
-                        int depth = 0,
-                        bool isLastOfSeq = false,
-                        bool isInLoop = false) {
+                       const pallas::Token* t,
+                       const pallas::Occurence* e,
+                       int depth = 0,
+                       bool isLastOfSeq = false,
+                       bool isInLoop = false) {
   pallas_log(pallas::DebugLevel::Verbose, "Reading repeated_token(%d.%d) for thread %s\n", t->type, t->id,
              thread->getName());
   // Prints the structure of the sequences and the loops
@@ -137,7 +145,8 @@ static void printToken(const pallas::Thread* thread,
       current_indent += structure_indent[i];
     }
     if (t->type != pallas::TypeEvent) {
-      current_indent += (isInLoop && !explore_loop_sequences) ? "─" : "┬";
+      current_indent += ((t->type == pallas::TypeSequence && e->sequence_occurence.sequence->isFunctionSequence(thread))
+                         || (isInLoop && !explore_loop_sequences)) ? "─" : "┬";
     } else {
       current_indent += "─";
     }
@@ -185,13 +194,17 @@ static void printThread(pallas::Archive& trace, pallas::Thread* thread) {
     auto& token = reader.getCurToken();
     auto* occurrence = reader.getOccurence(token, reader.tokenCount[token]);
 
-    printToken(reader.thread_trace,
-               &token,
-               occurrence,
-               reader.current_frame,
-               reader.isLastInCurrentArray(),
-               reader.isInLoop());
-
+    bool printThisToken = true;
+    auto curIterable = reader.getCurIterable();
+    if (show_structure && curIterable.type == pallas::TypeSequence) {
+      auto curSequence = reader.thread_trace->getSequence(curIterable);
+      if (curSequence->isFunctionSequence(reader.thread_trace)) {
+        printThisToken = false;
+      }
+    }
+    if (printThisToken)
+      printToken(reader.thread_trace, &token, occurrence, reader.current_frame, reader.isLastInCurrentArray(),
+                 reader.isInLoop());
     // Update the reader
     reader.updateReadCurToken();
     if (token.type == pallas::TypeEvent)
@@ -299,6 +312,7 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[i], "-S")) {
       per_thread = true;
       show_structure = true;
+      print_timestamp = false;
       unroll_loops = false;
       explore_loop_sequences = true;
       nb_opts++;

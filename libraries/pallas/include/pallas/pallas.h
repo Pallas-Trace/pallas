@@ -277,6 +277,10 @@ typedef struct Sequence {
   /** Getter for the size of that Sequence.
    * @returns Number of tokens in that Sequence. */
   [[nodiscard]] size_t size() const { return tokens.size(); }
+  /** Indicates whether this Sequence comes from a function
+   * (ie begins with Enter and ends with End) or a detected sequence.
+   */
+  bool isFunctionSequence(const struct Thread* thread) const;
   /** Getter for #tokenCount.
    * If need be, counts the number of Token in that Sequence to initialize it.
    * alreadyReadTokens is used when you read the trace, it's supposed to be threadReader.tokenCount.
