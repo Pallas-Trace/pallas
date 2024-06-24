@@ -21,11 +21,11 @@ list(APPEND SCRIPTS
 #####################################################
 # otf2-print
 
-add_executable(otf2-print src/otf2-print.c)
+add_executable(otf2-print src/otf2_print.c)
 
 target_compile_options(otf2-print
         PRIVATE
-        -Wall -Wextra -Wpedantic
+        -Wall -Wextra -Wpedantic -Wno-unused -Wno-unused-parameter
 )
 
 target_link_libraries(otf2-print
@@ -33,6 +33,25 @@ target_link_libraries(otf2-print
         pallas
         otf2
 )
+
+
+#####################################################
+# otf2-estimator
+
+add_executable(otf2-estimator src/otf2_estimator.cpp)
+
+target_compile_options(otf2-estimator
+        PRIVATE
+        -Wall -Wextra -Wpedantic
+)
+
+target_link_libraries(otf2-estimator
+        PRIVATE
+        pallas
+        otf2
+)
+
+target_include_directories(otf2-estimator PRIVATE include)
 
 
 #####################################################
@@ -122,7 +141,7 @@ target_compile_options(otf2
         PUBLIC
         -D_GNU_SOURCE
         PRIVATE
-        -Wno-unused-parameter
+        -Wno-unused-parameter -Wno-unused
         -Wall -Wextra -Wno-sign-compare
 )
 
@@ -135,7 +154,7 @@ install(TARGETS otf2 EXPORT OTF2LibTargets
         PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/otf2)
 
 install(
-        TARGETS otf2-print
+        TARGETS otf2-print otf2-estimator
         LIBRARY DESTINATION ${INSTALL_LIBDIR}
         RUNTIME DESTINATION ${INSTALL_BINDIR}
         INCLUDES DESTINATION ${INSTALL_INCLUDEDIR}

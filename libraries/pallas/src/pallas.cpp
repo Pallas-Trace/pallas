@@ -53,9 +53,6 @@ Token& Thread::getToken(Token sequenceToken, int index) const {
     if (!loop) {
       pallas_error("Invalid loop ID: %d\n", sequenceToken.id);
     }
-    if (index >= loop->nb_iterations.back()) {
-      pallas_error("Invalid index (%d): this loop only has %d iterations\n", index, loop->nb_iterations.back());
-    }
     return loop->repeated_token;
   }
   pallas_error("Invalid parameter to getToken\n");
@@ -200,6 +197,15 @@ Thread::~Thread() {
 const char* Thread::getName() const {
   return archive->getString(archive->getLocation(id)->name)->str;
 }
+
+bool Sequence::isFunctionSequence(const struct Thread* thread) const {
+  if (tokens.front().type == TypeEvent && tokens.back().type == TypeEvent) {
+    auto frontToken = thread->getEvent(tokens.front());
+    auto backToken = thread->getEvent(tokens.back());
+    return frontToken->record == PALLAS_EVENT_ENTER && backToken->record == PALLAS_EVENT_LEAVE;
+  }
+  return false;
+};
 
 const TokenCountMap& Sequence::getTokenCount(const Thread* thread, const TokenCountMap* alreadyReadTokens) {
   if (tokenCount.empty()) {
