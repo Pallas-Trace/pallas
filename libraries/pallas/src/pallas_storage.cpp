@@ -769,12 +769,7 @@ void pallas::LinkedVector::load_timestamps() {
     f.open("r");
     ret = fseek(f.file, offset, 0);
   }
-  // faire un pallas::Bufferfile à partir de f ici
-  printf("\n==== [DEBUG] load_timestamps nouveau BufferFile ====\n");
-  pallas::BufferFile* bf = new pallas::BufferFile(f.path,"r");
-  auto temp = bf->_pallas_compress_read(size);
-  printf("\n==== [DEBUG] load_timestamps delete BufferFile ====\n");
-  delete bf;
+  auto temp = f._pallas_compress_read(size);
   last = new SubVector(size, temp);
   first = last;
 }
@@ -1767,6 +1762,7 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   threadFile.write(&th->nb_loops, sizeof(th->nb_loops), 1);
 
   const char* eventDurationFilename = pallasGetEventDurationFilename(dir_name, th);
+
   pallas::BufferFile eventDurationFile = pallas::BufferFile(eventDurationFilename, "w");
   for (int i = 0; i < th->nb_events; i++) {
     pallasStoreEvent(th->events[i], threadFile, eventDurationFile);
@@ -1846,7 +1842,7 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %d events\n", th->nb_events);
   const char* eventDurationFilename = pallasGetEventDurationFilename(global_archive->dir_name, th);
-  pallas::File& eventDurationFile = *new pallas::File(eventDurationFilename);
+  pallas::File& eventDurationFile = *new pallas::BufferFile(eventDurationFilename,"r"); 
   fileMap[eventDurationFilename] = &eventDurationFile;
   for (int i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
@@ -1855,7 +1851,7 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %d sequences\n", th->nb_sequences);
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(global_archive->dir_name, th);
-  pallas::File& sequenceDurationFile = *new pallas::File(sequenceDurationFilename);
+  pallas::File& sequenceDurationFile = *new pallas::BufferFile(sequenceDurationFilename,"r");
   fileMap[sequenceDurationFilename] = &sequenceDurationFile;
   for (int i = 0; i < th->nb_sequences; i++) {
     th->sequences[i]->id = i;
