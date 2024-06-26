@@ -586,6 +586,7 @@ inline static uint64_t* _pallas_masking_read(size_t n, byte* encodedArray, size_
  */
 // TODO : update documentation 
 inline uint64_t* pallas::File::_pallas_compress_read(size_t n) {
+  printf("==== [DEBUG] File::_pallas_compress_read \n");
   FILE* file = this->file;
   size_t expectedSize = n * sizeof(uint64_t);
   uint64_t* uncompressedArray = nullptr;
@@ -768,7 +769,9 @@ void pallas::LinkedVector::load_timestamps() {
     f.open("r");
     ret = fseek(f.file, offset, 0);
   }
-  auto temp = f._pallas_compress_read(size);
+  // faire un pallas::Bufferfile à partir de f ici
+  pallas::BufferFile* bf = new pallas::BufferFile(f.path,"r");
+  auto temp = bf->_pallas_compress_read(size);
   last = new SubVector(size, temp);
   first = last;
 }
@@ -1018,14 +1021,14 @@ void pallas::BufferFile::_pallas_compress_write(uint64_t* src, size_t n) {
 
 // TODO faire documentation
 uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
-                                                   
+  printf("\n==== [DEBUG] BufferFile::_pallas_compress_read ====\n");                     
   FILE* file = this->file;
   BufferTimestamps* buff = this->bufferTimestamps;
   size_t expectedSize = n * sizeof(uint64_t);
   size_t readeableSizeBuffer = SIZE_BUFFER_TIMESTAMP - buff->usedSpace;
   uint64_t* startBuffer = buff->arrayTimestamps + buff->usedSpace;
   uint64_t* uncompressedArray = nullptr;
-  
+  printf("==== [DEBUG] expectedSize:%ld | readeableSizeBuffer:%ld | startBuffer:%p | buff->usedSpace:%ld\n",expectedSize,readeableSizeBuffer,startBuffer,buff->usedSpace);
 
   // Can just load the uncompressedArray from the buffer
   if(expectedSize <= readeableSizeBuffer){
