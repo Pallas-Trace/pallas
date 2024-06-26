@@ -770,8 +770,11 @@ void pallas::LinkedVector::load_timestamps() {
     ret = fseek(f.file, offset, 0);
   }
   // faire un pallas::Bufferfile à partir de f ici
+  printf("\n==== [DEBUG] load_timestamps nouveau BufferFile ====\n");
   pallas::BufferFile* bf = new pallas::BufferFile(f.path,"r");
   auto temp = bf->_pallas_compress_read(size);
+  printf("\n==== [DEBUG] load_timestamps delete BufferFile ====\n");
+  delete bf;
   last = new SubVector(size, temp);
   first = last;
 }
