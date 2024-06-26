@@ -102,8 +102,8 @@ void Thread::printSequence(pallas::Token token) const {
   printTokenVector(sequence->tokens);
 }
 
-void fonctionBasique(){
-  volatile char test = 1;
+void loopdebug(){
+  volatile char test = 0;
   while(test){
     printf(" ///////\n");
   }
@@ -111,7 +111,7 @@ void fonctionBasique(){
 }
 
 Thread::Thread() {
-  fonctionBasique();
+  loopdebug();
   archive = nullptr;
   id = PALLAS_THREAD_ID_INVALID;
 

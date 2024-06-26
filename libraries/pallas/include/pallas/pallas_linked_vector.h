@@ -175,7 +175,7 @@ typedef struct LinkedVector {
    * @param th The current thread.
    */
   // TODO : update documentation 
-  void writeToFile(const pallas::File* pallasVectorFile,const pallas::File* pallasValueFile);
+  void writeToFile(pallas::File* pallasVectorFile,pallas::File* pallasValueFile);
 
   /**
    * Classic ForwardIterator for LinkedVector.
