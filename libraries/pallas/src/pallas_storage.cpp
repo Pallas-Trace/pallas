@@ -20,7 +20,9 @@
 #ifdef WITH_SZ
 #include <sz.h>
 #endif
-
+#ifdef WITH_OMP
+#include <omp.h>
+#endif
 #include "pallas/pallas.h"
 #include "pallas/pallas_dbg.h"
 #include "pallas/pallas_parameter_handler.h"
@@ -1437,6 +1439,10 @@ void pallas_read_main_archive(pallas::Archive* archive, char* main_filename) {
   }
 
 #ifdef WITH_OMP
+  auto numThreads = getenv("OMP_NUM_THREADS");
+  if (numThreads == nullptr) {
+    omp_set_num_threads(4);
+  }
 #pragma omp parallel for schedule(dynamic) default(shared)
 #endif
   for (auto& location : archive->locations) {
