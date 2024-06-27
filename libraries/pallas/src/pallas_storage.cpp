@@ -1032,6 +1032,11 @@ uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
   if(expectedSize <= readeableSizeBuffer){
     uncompressedArray = startBuffer;
     buff->usedSpace += expectedSize;
+
+    for(int i=0;i<n;i++){
+      printf("")
+    }
+
     return uncompressedArray;
   }
 
