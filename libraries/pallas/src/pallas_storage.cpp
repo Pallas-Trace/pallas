@@ -1181,7 +1181,10 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
   pallas_log(pallas::DebugLevel::Verbose, "Reading %d events\n", th->nb_events);
   const char* eventDurationFilename = pallasGetEventDurationFilename(global_archive->dir_name, th);
   pallas::File& eventDurationFile = *new pallas::File(eventDurationFilename);
+#ifdef WITH_OMP
+#pragma omp critical
   fileMap[eventDurationFilename] = &eventDurationFile;
+#endif
   for (int i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
     pallasReadEvent(th->events[i], threadFile, eventDurationFile, eventDurationFilename);
@@ -1190,7 +1193,10 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
   pallas_log(pallas::DebugLevel::Verbose, "Reading %d sequences\n", th->nb_sequences);
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(global_archive->dir_name, th);
   pallas::File& sequenceDurationFile = *new pallas::File(sequenceDurationFilename);
+#ifdef WITH_OMP
+#pragma omp critical
   fileMap[sequenceDurationFilename] = &sequenceDurationFile;
+#endif
   for (int i = 0; i < th->nb_sequences; i++) {
     th->sequences[i]->id = i;
     pallasReadSequence(*th->sequences[i], threadFile, sequenceDurationFilename);
