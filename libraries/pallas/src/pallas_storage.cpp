@@ -1426,7 +1426,7 @@ void pallas_read_main_archive(pallas::Archive* archive, char* main_filename) {
     global_archive = archive;
   }
 #ifdef WITH_OMP
-#pragma omp parallel for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic) default(shared)
 #endif
   for (auto& location : archive->locations) {
     auto* thread = new pallas::Thread();
