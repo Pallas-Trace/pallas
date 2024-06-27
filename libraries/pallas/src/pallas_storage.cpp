@@ -1425,25 +1425,34 @@ void pallas_read_main_archive(pallas::Archive* archive, char* main_filename) {
   if (archive->id == PALLAS_MAIN_LOCATION_GROUP_ID) {
     global_archive = archive;
   }
+
+  for (auto& locationGroup : archive->location_groups) {
+    pallasGetArchive(global_archive, locationGroup.mainLoc);
+  }
+
 #ifdef WITH_OMP
 #pragma omp parallel for schedule(dynamic) default(shared)
 #endif
   for (auto& location : archive->locations) {
     auto* thread = new pallas::Thread();
     auto parent = global_archive->getLocationGroup(location.parent);
+    thread->archive = pallasGetArchive(global_archive, parent->mainLoc);
+    pallasReadThread(global_archive, thread, location.id);
 #ifdef WITH_OMP
 #pragma omp critical
-    thread->archive = pallasGetArchive(global_archive, parent->mainLoc);
+    {
 #endif
-    pallasReadThread(global_archive, thread, location.id);
-    int index = 0;
-    while (thread->archive->threads[index] != nullptr) {
-      index++;
-      if (index >= thread->archive->nb_threads) {
-        pallas_error("Tried to load more archives than there are.\n");
+      int index = 0;
+      while (thread->archive->threads[index] != nullptr) {
+        index++;
+        if (index >= thread->archive->nb_threads) {
+          pallas_error("Tried to load more archives than there are.\n");
+        }
       }
-    }
-    thread->archive->threads[index] = thread;
+      thread->archive->threads[index] = thread;
+#ifdef WITH_OMP
+    };
+#endif
   }
 }
 
