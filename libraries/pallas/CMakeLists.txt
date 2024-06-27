@@ -41,6 +41,7 @@ target_sources(pallas
         src/pallas_write.cpp
         src/pallas_linked_vector.cpp
         src/pallas_parameter_handler.cpp
+        include/pallas/safe_ptr.h
         PUBLIC
         ${PALLAS_HEADERS}
 )

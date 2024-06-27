@@ -28,6 +28,7 @@
 #include "pallas/pallas_parameter_handler.h"
 #include "pallas/pallas_read.h"
 #include "pallas/pallas_storage.h"
+#include "pallas/safe_ptr.h"
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
@@ -149,10 +150,11 @@ class File {
   }
 };
 }  // namespace pallas
-
-std::map<const char*, pallas::File*> fileMap;
+std::map<const char*, pallas::File*> _fileMap;
+sf::contfree_safe_ptr<std::map<const char*, pallas::File*>> fileMap(_fileMap);
 void* getFirstOpenFile() {
-  for (auto& a : fileMap) {
+#pragma omp critical
+  for (auto& a : _fileMap) {
     if (a.second->isOpen) {
       return a.second;
     }
@@ -770,7 +772,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath) 
 
 void pallas::LinkedVector::load_timestamps() {
   pallas_log(DebugLevel::Debug, "Loading timestamps from %s\n", filePath);
-  pallas::File& f = *fileMap[filePath];
+  pallas::File& f = *fileMap->at(filePath);
   if (!f.isOpen) {
     f.open("r");
   }
@@ -1185,8 +1187,9 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
   pallas::File& eventDurationFile = *new pallas::File(eventDurationFilename);
 #ifdef WITH_OMP
 #pragma omp critical
-  fileMap[eventDurationFilename] = &eventDurationFile;
 #endif
+  fileMap->emplace(eventDurationFilename, &eventDurationFile);
+
   for (int i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
     pallasReadEvent(th->events[i], threadFile, eventDurationFile, eventDurationFilename);
@@ -1197,8 +1200,9 @@ static void pallasReadThread(pallas::Archive* global_archive, pallas::Thread* th
   pallas::File& sequenceDurationFile = *new pallas::File(sequenceDurationFilename);
 #ifdef WITH_OMP
 #pragma omp critical
-  fileMap[sequenceDurationFilename] = &sequenceDurationFile;
 #endif
+  fileMap->emplace(sequenceDurationFilename, &sequenceDurationFile);
+
   for (int i = 0; i < th->nb_sequences; i++) {
     th->sequences[i]->id = i;
     pallasReadSequence(*th->sequences[i], threadFile, sequenceDurationFilename);
