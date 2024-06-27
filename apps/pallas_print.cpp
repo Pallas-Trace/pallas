@@ -260,6 +260,7 @@ void printTrace(pallas::Archive& trace) {
   //    reader_options |= pallas::ThreadReaderOptions::ShowStructure;
   for (int i = 0; i < trace.nb_archives; i++) {
     for (int j = 0; j < trace.archive_list[i]->nb_threads; j ++)
+      if (trace.archive_list[i]->threads[j])
       readers.emplace_back(trace.archive_list[i], trace.archive_list[i]->threads[j]->id, reader_options);
   }
 
