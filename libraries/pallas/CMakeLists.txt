@@ -85,6 +85,14 @@ target_link_libraries(pallas
         ${ZSTD_LIBRARIES}
         ${JSONCPP_LIBRARIES}
 )
+if(ENABLE_OMP)
+    find_package(OpenMP)
+    if(OpenMP_CXX_FOUND)
+        target_link_libraries(pallas PUBLIC OpenMP::OpenMP_CXX)
+        add_compile_definitions(WITH_OMP)
+    endif()
+endif()
+
 target_link_directories(pallas PRIVATE ${JSONCPP_LIBRARY_DIRS} ${ZSTD_LIBRARY_DIRS})
 if (DOXYGEN_FOUND AND BUILD_DOC)
     # set input and output files

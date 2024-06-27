@@ -1425,11 +1425,16 @@ void pallas_read_main_archive(pallas::Archive* archive, char* main_filename) {
   if (archive->id == PALLAS_MAIN_LOCATION_GROUP_ID) {
     global_archive = archive;
   }
-
+#ifdef WITH_OMP
+#pragma omp parallel for schedule(dynamic)
+#endif
   for (auto& location : archive->locations) {
     auto* thread = new pallas::Thread();
     auto parent = global_archive->getLocationGroup(location.parent);
+#ifdef WITH_OMP
+#pragma omp critical
     thread->archive = pallasGetArchive(global_archive, parent->mainLoc);
+#endif
     pallasReadThread(global_archive, thread, location.id);
     int index = 0;
     while (thread->archive->threads[index] != nullptr) {
