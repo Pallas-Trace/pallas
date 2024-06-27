@@ -298,15 +298,12 @@ inline static uint64_t* _pallas_zfp_decompress(size_t n, void* compressedArray, 
  */
 
 inline static byte* _pallas_sz_compress(uint64_t* src, size_t n, size_t& compressedSize) {
-  //conf must be the same in compress and decompress -> attribute in struct ?
+  //conf must be the same in compress and decompress
 
-  //TODO find a way to NOT compress if "n * sizeof(uint64_t)" < 500 without messing with the decompresion
   SZ3::Config conf({n});  //usage : SZ3::Config conf({size_dimension_1, size_dimension_2, size_dimension_3})
   conf.cmprAlgo = SZ3::ALGO_INTERP_LORENZO;
-  //conf.errorBoundMode = SZ3::EB_ABS; // absolute error
-  //conf.absErrorBound = 1000000; // absolute error bound
-  conf.errorBoundMode = SZ3::EB_REL;
-  conf.relErrorBound= 0.001; // %10
+  conf.errorBoundMode = SZ3::EB_ABS; // absolute error
+  conf.absErrorBound = 10; // absolute error bound (in nanosecond)
 
   byte* compressedArray = reinterpret_cast<byte*>(SZ_compress(conf, src, compressedSize));
   return compressedArray;
@@ -316,10 +313,8 @@ inline static byte* _pallas_sz_compress(uint64_t* src, size_t n, size_t& compres
 inline static void _pallas_sz_decompress(size_t n, byte* compressedArray, size_t compressedSize,uint64_t* decompressedArray) {
   SZ3::Config conf({n});  //usage : SZ3::Config conf({size_dimension_1, size_dimension_2, size_dimension_3})
   conf.cmprAlgo = SZ3::ALGO_INTERP_LORENZO;
-  //conf.errorBoundMode = SZ3::EB_ABS; // absolute error
-  //conf.absErrorBound = 1000000; // absolute error bound
-  conf.errorBoundMode = SZ3::EB_REL;
-  conf.relErrorBound= 0.001; // %10
+  conf.errorBoundMode = SZ3::EB_ABS; // absolute error
+  conf.absErrorBound = 10; // absolute error bound (in nanosecond)
   SZ_decompress(conf, reinterpret_cast<char*>(compressedArray), compressedSize, decompressedArray);
 };
 
