@@ -28,7 +28,6 @@
 #include "pallas/pallas_parameter_handler.h"
 #include "pallas/pallas_read.h"
 #include "pallas/pallas_storage.h"
-#include "pallas/safe_ptr.h"
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
@@ -150,6 +149,8 @@ class File {
   }
 };
 }  // namespace pallas
+#ifdef WITH_OMP
+#include "pallas/safe_ptr.h"
 std::map<const char*, pallas::File*> _fileMap;
 sf::contfree_safe_ptr<std::map<const char*, pallas::File*>> fileMap(_fileMap);
 void* getFirstOpenFile() {
@@ -161,6 +162,17 @@ void* getFirstOpenFile() {
   }
   return nullptr;
 }
+#else
+std::map<const char*, pallas::File*> fileMap;
+void* getFirstOpenFile() {
+  for (auto& a : fileMap) {
+    if (a.second->isOpen) {
+      return a.second;
+    }
+  }
+  return nullptr;
+}
+#endif
 
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const pallas::File& eventFile,
