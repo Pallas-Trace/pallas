@@ -1,3 +1,8 @@
+/***
+ * All of this code comes from the following GitHub page:
+ * https://github.com/AlexeyAB/object_threadsafe
+ */
+
 #pragma once
 #ifndef SAFE_PTR_H
 #define SAFE_PTR_H
