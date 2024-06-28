@@ -174,6 +174,7 @@ class File {
 typedef struct BufferTimestamps {
   uint64_t* arrayTimestamps;          /**< Pointer to the start of the buffer.*/
   size_t usedSpace;                   /**< Number of bytes currently in the buffer (write) or already readed (read)*/
+  size_t loadedSize;                  /**< Number of bytes loaded in the buffer from the file(read)*/
 } BufferTimestamps;
 
 
@@ -192,19 +193,14 @@ BufferFile::BufferFile(const char* path, const char* mode) : File(path, mode) {
   bufferTimestamps = new BufferTimestamps;
   bufferTimestamps->arrayTimestamps = new uint64_t[SIZE_BUFFER_TIMESTAMP];
   bufferTimestamps->usedSpace = 0;
-  if (mode[0]=='r'){
-    printf("==== [DEBUG] ouvert en lecture \n");
-    bufferTimestamps->usedSpace = SIZE_BUFFER_TIMESTAMP;
-  }
+  bufferTimestamps->loadedSize = 0;
+  
 }
 
 BufferFile::~BufferFile() {
   printf("==== [DEBUG] ~BufferFile() (%p) %s\n",this,path);
-  /*if (isOpen) {
-      File::close();
-    }
-  // delete file;
-  free(path);*/
+  printf("==== [DEBUG] usedSpace:%ld loadedSize:%ld\n",bufferTimestamps->usedSpace,bufferTimestamps->loadedSize);
+  
   if (bufferTimestamps != nullptr && bufferTimestamps->arrayTimestamps != nullptr) {
       printf("==== [DEBUG]  delete[] bufferTimestamps->arrayTimestamps\n");
       delete[] bufferTimestamps->arrayTimestamps;
@@ -776,6 +772,7 @@ void pallas::LinkedVector::load_timestamps() {
   auto temp = f._pallas_compress_read(size);
   last = new SubVector(size, temp);
   first = last;
+
 }
 
 /**************** Storage Functions ****************/
@@ -1021,18 +1018,22 @@ void pallas::BufferFile::_pallas_compress_write(uint64_t* src, size_t n) {
 // TODO faire documentation
 uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
   // buff->usedSpace is the number of bytes already readed from the buffer
+  // buff->loadedSize is the number of bytes loaded from the duration file (after decompression)
 
-  printf("\n==== [DEBUG] BufferFile::_pallas_compress_read ====\n");                     
+  printf("\n==== [DEBUG] BufferFile::_pallas_compress_read %s ====\n",this->path);                     
   FILE* file = this->file;
   BufferTimestamps* buff = this->bufferTimestamps;
   size_t expectedSize = n * sizeof(uint64_t);
-  size_t readeableSizeBuffer = SIZE_BUFFER_TIMESTAMP - buff->usedSpace;
-  uint64_t* startBuffer = buff->arrayTimestamps + buff->usedSpace;
+  size_t readeableSizeBuffer = buff->loadedSize - buff->usedSpace;
+  assert(buff->loadedSize >= buff->usedSpace);
+  uint64_t* startBuffer = buff->arrayTimestamps + (buff->usedSpace/sizeof(uint64_t));
   uint64_t* uncompressedArray = nullptr;
+  uncompressedArray = new uint64_t[n];
   printf("==== [DEBUG] expectedSize:%ld | readeableSizeBuffer:%ld | startBuffer:%p | buff->usedSpace:%ld\n",expectedSize,readeableSizeBuffer,startBuffer,buff->usedSpace);
 
   // Can just load the uncompressedArray from the buffer
   if(expectedSize <= readeableSizeBuffer){
+    memcpy(uncompressedArray,startBuffer,expectedSize);
     uncompressedArray = startBuffer;
     buff->usedSpace += expectedSize;
     printf("\n\n");
@@ -1046,17 +1047,17 @@ uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
   // Load data in the buffer
 
   // Need to read what we can from the buffer then load the next batch of timestamps
-  uncompressedArray = new uint64_t[n];
   if (readeableSizeBuffer > 0){
     memcpy(uncompressedArray,startBuffer,readeableSizeBuffer);
   }
 
   // Pointer where put next data
-  uint64_t* startUncompressedArray = uncompressedArray + readeableSizeBuffer;
+  uint64_t* startUncompressedArray = uncompressedArray + (readeableSizeBuffer/sizeof(uint64_t));
 
   size_t compressedSize;
   size_t uncompressedSize;
   byte* compressedArray = nullptr;
+
 
   uint64_t* uncompressedArrayBuffer = nullptr;
 
@@ -1067,14 +1068,20 @@ uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
   _pallas_fread(&uncompressedSize, sizeof(uncompressedSize), 1, file);
   _pallas_fread(&compressedSize, sizeof(compressedSize), 1, file);
   compressedArray = new byte[compressedSize];
-  int readed = fread(compressedArray, compressedSize, 1, file)
-  if (readed != compressedSize) {
+  int readed = fread(compressedArray, compressedSize, 1, file);
+
+  // DEBUG
+  if (readed != 1) {
     if (ferror(file)) {
-        pallas_error("Error reading file");
-    } else {
+        pallas_error("Error reading file readed = %d, attendu : 1",readed);
+    } 
+    else {
         pallas_error("End of file reached\n");
     }
-}
+  }
+
+
+  // Decompress in the buffer of the struct
   auto compressionAlgorithm = pallas::parameterHandler->getCompressionAlgorithm();
   //auto encodingAlgorithm = pallas::parameterHandler->getEncodingAlgorithm();
   switch (compressionAlgorithm) {
@@ -1114,22 +1121,25 @@ uint64_t* pallas::BufferFile::_pallas_compress_read(size_t n) {
   #endif
   #ifdef WITH_SZ
     case pallas::CompressionAlgorithm::SZ:
-      uncompressedArrayBuffer = new uint64_t[n];
-      _pallas_sz_decompress(compressedArray, compressedSize,uncompressedArrayBuffer);
+      _pallas_sz_decompress(compressedArray, compressedSize,buff->arrayTimestamps);
       break;
   #endif
     default:
       pallas_error("Invalid Compression algorithm\n");
   }
   delete[] compressedArray;
-
+  
+  // if the compressor allocate the array copy it in the buffer
+  if(uncompressedArrayBuffer != nullptr){
+    memcpy(buff->arrayTimestamps,uncompressedArrayBuffer,uncompressedSize);
+  }
   // Full the UncompressedArray with the start of the new batch
-  memcpy(startUncompressedArray,uncompressedArrayBuffer,expectedSize - readeableSizeBuffer);
+  memcpy(startUncompressedArray,buff->arrayTimestamps,expectedSize - readeableSizeBuffer);
   
 
-  // Then put the rest in the buffer
-  memcpy(buff->arrayTimestamps,uncompressedArrayBuffer,uncompressedSize);
-  buff->usedSpace = uncompressedSize;
+  
+  buff->loadedSize = uncompressedSize;
+  buff->usedSpace = uncompressedSize-expectedSize;
 
   return uncompressedArray;
 
