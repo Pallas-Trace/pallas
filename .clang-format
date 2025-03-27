@@ -3,7 +3,7 @@ Language: Cpp
 BasedOnStyle: Chromium
 TabWidth: 2
 IndentWidth: 2
-ColumnLimit: 120
+ColumnLimit: 180
 UseTab: Never
 IndentCaseLabels: false
 ContinuationIndentWidth: 2

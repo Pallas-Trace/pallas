@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.13.0)
+
 project(Pallas
         VERSION 0.2.0
         LANGUAGES CXX C
@@ -20,17 +21,6 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_modules)
 # C++ standard
 set (CMAKE_CXX_STANDARD 17)
-set (CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Testing library
-include(FetchContent)
-FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-)
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
 
 # Look for libraries
 
@@ -39,6 +29,8 @@ option(ENABLE_OTF2 "Enable OTF2 compatibility layer" ON)
 option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
+option(ENABLE_PYTHON "Enable the Python interface" ON)
+
 
 # if (ENABLE_MPI)
 # find_program(MPICC mpicc REQUIRED)
@@ -143,6 +135,9 @@ add_subdirectory(libraries/pallas)
 if (ENABLE_OTF2)
     add_subdirectory(libraries/otf2)
 endif ()
+if (ENABLE_PYTHON)
+    add_subdirectory(libraries/pallas_python)
+endif()
 #add_subdirectory (tracer)
 add_subdirectory(apps)
 add_subdirectory(test)

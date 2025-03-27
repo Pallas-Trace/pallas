@@ -314,10 +314,22 @@ void GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, Co
   pthread_mutex_unlock(&lock);
 }
 
+GlobalArchive::~GlobalArchive() {
+  delete[] dir_name;
+  delete[] trace_name;
+  delete[] fullpath;
+  for (size_t i = 0; i < nb_archives; i ++) {
+    delete archive_list[i];
+  }
+  delete[] archive_list;
+};
+
 Archive::~Archive() {
   free(dir_name);
   delete[] trace_name;
-  delete[] fullpath;
+  for (size_t i = 0; i < nb_threads; i ++) {
+    delete threads[i];
+  }
   delete[] threads;
 }
 
@@ -328,12 +340,12 @@ const char* Archive::getName() const {
 } /* namespace pallas*/
 
 /********************** C Bindings **********************/
-pallas::Archive* pallas_archive_new() {
-  return new pallas::Archive();
-};
+pallas::Archive* pallas_archive_new(const char* dir_name, const char* trace_name, pallas::LocationGroupId location_group) {
+  return new pallas::Archive(dir_name, trace_name, location_group);
+}
 
-pallas::GlobalArchive * pallas_global_archive_new() {
-  return new pallas::GlobalArchive ();
+pallas::GlobalArchive * pallas_global_archive_new(const char* dirname, const char* trace_name) {
+  return new pallas::GlobalArchive (dirname, trace_name);
 }
 
 pallas::Thread* pallas_archive_get_thread(pallas::Archive * archive, pallas::ThreadId thread_id) {

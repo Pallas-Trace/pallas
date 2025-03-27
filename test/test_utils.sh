@@ -299,7 +299,7 @@ function trace_check_timestamp_order {
     thread_name=$2
 
     ((nb_test++))
-    echo " > Checking the order of timestamps for thread $thread_name"
+    echo " > Checking the order of timestamps for thread $thread_name."
 
     timestamps=$("$PALLAS_PRINT_PATH" "$trace_filename" 2>/dev/null |grep "[[:space:]]$thread_name[[:space:]]" |awk '{print $1}')
     generated_timestamps=$(echo $timestamps | sed 's/ /\n/g')
@@ -320,11 +320,11 @@ function trace_check_timestamp_values {
     thread_name=$2
 
     ((nb_test++))
-    echo " > Checking the order of timestamps for thread $thread_name"
+    echo " > Checking the values of timestamps for thread $thread_name"
 
     timestamps=$("$PALLAS_PRINT_PATH" "$trace_filename" 2>/dev/null |grep "[[:space:]]$thread_name[[:space:]]" |awk '{print $1}' | sed 's/0\.//' | perl -pe 's/ ^0+ //xg' |tr '\n' ' ')
     nblines=$(echo $timestamps |wc -w)
-    expected_timestamps=" "$(seq 1 $nblines |tr '\n' ' ')
+    expected_timestamps=$(seq 1 $nblines |tr '\n' ' ')
 
     if [ "$timestamps" != "$expected_timestamps" ]; then
 	print_error "failed"

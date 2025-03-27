@@ -134,7 +134,7 @@ typedef struct GlobalArchive {
    * @param dirname Path to the file.
    * @param given_trace_name Name of the trace.
    */
-  void open(const char* dirname, const char* given_trace_name);
+  GlobalArchive(const char* dirname, const char* given_trace_name);
   void defineLocationGroup(LocationGroupId id, StringRef name, LocationGroupId parent);
   void defineLocation(ThreadId id, StringRef name, LocationGroupId parent);
   void close();
@@ -144,6 +144,7 @@ typedef struct GlobalArchive {
   Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
   void freeArchive(LocationGroupId archiveId);
   [[nodiscard]] struct Archive* getArchiveFromLocation(ThreadId) const;
+  ~GlobalArchive();
 #endif
 } GlobalArchive;
 
@@ -155,8 +156,6 @@ typedef struct Archive {
   char* dir_name;
   /** Name of the trace. */
   char* trace_name;
-  /** \todo Complete this. */
-  char* fullpath;
   /** Archive-wise lock, used for synchronising some threads. */
   pthread_mutex_t lock;
 
@@ -168,22 +167,17 @@ typedef struct Archive {
   /** Array of Thread.
    * The memory of each thread is handled by their reader / writer individually. */
   struct Thread** threads CXX({nullptr});
-  int nb_threads;           /**< Number of Thread in #threads. */
-  int nb_allocated_threads; /**< Size of #threads. */
+  size_t nb_threads;           /**< Number of Thread in #threads. */
+  size_t nb_allocated_threads; /**< Size of #threads. */
 #ifdef __cplusplus
   [[nodiscard]] Thread* getThread(ThreadId);
-  [[nodiscard]] Thread* getThreadAt(size_t i);
+  [[nodiscard]] Thread* getThreadAt(size_t index);
   const char* getName() const;
-
   void freeThread(ThreadId);
-  /**
-   * Open a trace file and loads it it that Archive.
-   * @param dirname Path to the file.
-   * @param given_trace_name Name of the trace.
-   * @param archive_id Id of this Archive.
-   */
-  void open(const char* dirname, const char* given_trace_name, LocationGroupId archive_id);
+  void freeThreadAt(size_t);
   void close();
+  Archive(const char* dirname, const char* given_trace_name, LocationGroupId archive_id);
+  Archive(GlobalArchive& global_archive, LocationGroupId archive_id);
   ~Archive();
 #endif
 } Archive;
@@ -194,10 +188,15 @@ extern "C" {
 #endif
 
 /** Constructor for an Archive. In C, always use this to create a new Archive. */
-extern PALLAS(Archive) * pallas_archive_new(void);
+extern PALLAS(Archive) *  pallas_archive_new(const char* dir_name,
+                                        const char* trace_name,
+                                        PALLAS(LocationGroupId) location_group);
 
-/** Constructor for an Archive. In C, always use this to create a new Archive. */
-extern PALLAS(GlobalArchive) * pallas_global_archive_new(void);
+/** Opens a GlobalArchive. In C, always use this to create a new GlobalArchive.
+   * @param dirname Path to the file.
+   * @param given_trace_name Name of the trace.
+ */
+extern PALLAS(GlobalArchive) * pallas_global_archive_new(const char* dirname, const char* given_trace_name);
 /**
  * Getter for a Thread from its id.
  * @returns First Thread matching the given pallas::ThreadId, or nullptr if it doesn't have a match.

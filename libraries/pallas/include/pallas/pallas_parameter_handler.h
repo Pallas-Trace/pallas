@@ -191,6 +191,8 @@ class ParameterHandler {
 
   ParameterHandler();
   ParameterHandler(const std::string& stringConfig);
+  ParameterHandler(FILE* file);
+
   /**
    * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
    * @return String containing itself.

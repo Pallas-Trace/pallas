@@ -19,9 +19,6 @@
 #include "pallas/pallas_log.h"
 
 using namespace pallas;
-
-static GlobalArchive globalArchive;
-static Archive mainProcess;
 static LocationGroupId processID;
 static StringRef processName;
 
@@ -47,10 +44,10 @@ static pthread_barrier_t bench_stop;
 
 #define TIME_DIFF(t1, t2) (((t2).tv_sec - (t1).tv_sec) + ((t2).tv_nsec - (t1).tv_nsec) / 1e9)
 
-static StringRef registerString(const std::string& str) {
+static StringRef registerString(GlobalArchive& trace, const std::string& str) {
   static std::atomic<StringRef> next_ref = 0;
   StringRef ref = next_ref++;
-  globalArchive.addString(ref, str.c_str());
+  trace.addString(ref, str.c_str());
   return ref;
 }
 
@@ -76,19 +73,20 @@ static pallas_timestamp_t get_timestamp() {
   return res;
 }
 
-void* worker(void* arg __attribute__((unused))) {
+void* worker(void* arg) {
   ThreadId threadID = newThread();
-  auto threadWriter = ThreadWriter();
+  auto& archive = *static_cast<Archive*>(arg);
+  //auto threadWriter = ThreadWriter();
 
 #ifdef HAS_FORMAT
   StringRef threadNameRef = registerString(std::format("thread_{}", threadID));
 #else
   std::ostringstream os("thread_");
   os << threadID;
-  StringRef threadNameRef = registerString(os.str());
+  StringRef threadNameRef = registerString(*archive.global_archive, os.str());
 #endif
-  globalArchive.defineLocation(threadID, threadNameRef, processID);
-  threadWriter.open(&mainProcess, threadID);
+  archive.global_archive->defineLocation(threadID, threadNameRef, processID);
+  ThreadWriter threadWriter(archive, threadID);
 
   pthread_barrier_wait(&bench_start);
   auto start = std::chrono::high_resolution_clock::now();
@@ -200,23 +198,19 @@ int main(int argc, char** argv) {
             << "pattern = " << pattern << std::endl
             << "---------------------" << std::endl;
 
-  globalArchive = GlobalArchive();
-  mainProcess = Archive();
-  mainProcess.global_archive = &globalArchive;
-  globalArchive.open("write_benchmark_CPP_trace", "main");
+  GlobalArchive globalArchive("write_benchmark_CPP_trace", "main");
 
   processID = newLocationGroup();
-  processName = registerString("Main process");
+  processName = registerString(globalArchive, "Main process");
   globalArchive.defineLocationGroup(processID, processName, processID);
-
-  mainProcess.open("write_benchmark_CPP_trace", "main", 0);
+  Archive mainProcess(globalArchive, 0);
 
   for (int i = 0; i < nb_functions; i++) {
     std::ostringstream os;
     os << "function_" << i;
     region_names.push_back(os.str());
     os.clear();
-    strings.push_back(registerString(region_names.back()));
+    strings.push_back(registerString(globalArchive, region_names.back()));
     regions.push_back(strings.back());
     globalArchive.addRegion(regions.back(), strings.back());
   }
@@ -224,7 +218,7 @@ int main(int argc, char** argv) {
   std::vector<pthread_t> threadID;
   for (int i = 0; i < nb_threads; i++) {
     pthread_t tid;
-    pthread_create(&tid, nullptr, worker, nullptr);
+    pthread_create(&tid, nullptr, worker, &mainProcess);
     threadID.push_back(tid);
   }
 

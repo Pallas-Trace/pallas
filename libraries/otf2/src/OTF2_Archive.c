@@ -3,17 +3,8 @@
  * See LICENSE in top-level directory.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "pallas/pallas.h"
-#include "pallas/pallas_archive.h"
-#include "pallas/pallas_write.h"
-#include "pallas/pallas_log.h"
-
 #include "otf2/OTF2_Archive.h"
-#include "otf2/otf2.h"
-
+#include "pallas/pallas_storage.h"
 OTF2_Archive* OTF2_Archive_Open(const char* archivePath,
                                 const char* archiveName,
                                 const OTF2_FileMode fileMode,
@@ -22,9 +13,8 @@ OTF2_Archive* OTF2_Archive_Open(const char* archivePath,
                                 const OTF2_FileSubstrate fileSubstrate,
                                 const OTF2_Compression compression) {
   OTF2_Archive* archive = malloc(sizeof(OTF2_Archive));
-  archive->archive = pallas_archive_new();
+  archive->archive = pallas_archive_new(archivePath, archiveName, 0);
 
-  pallas_write_archive_open(archive->archive, archivePath, archiveName, 0); /* TODO: add missing archive_id_t */
 
   archive->globalDefWriter = NULL;
 
@@ -171,26 +161,25 @@ OTF2_ErrorCode OTF2_Archive_GetCompression(OTF2_Archive* archive, OTF2_Compressi
 
 int new_location(OTF2_Archive* archive, OTF2_LocationRef location) {
   int index = archive->nb_locations;
-
-  if (index == 0) {
-    /* TODO: hacky ! we should not have to do that ! */
-    archive->archive->id = location;
-  }
   if (archive->archive->global_archive == NULL && archive->globalDefWriter != NULL) {
     /* TODO: even more hacky, we shouldn't have to do that !!!!*/
     archive->archive->global_archive = archive->globalDefWriter->archive;
   }
 
-  INCREMENT_MEMORY_SPACE(archive->def_writers, archive->nb_locations, OTF2_DefWriter*);
-  archive->nb_locations--;
-  INCREMENT_MEMORY_SPACE(archive->evt_writers, archive->nb_locations, OTF2_EvtWriter*);
+  void* def_save = archive->def_writers;
+  void* evt_save = archive->evt_writers;
+  archive->def_writers = realloc(def_save, (archive->nb_locations+1) * sizeof(void*));
+  if ( archive->def_writers == NULL )
+    pallas_error("Could not allocated enough memory for new DefWriters");
+  archive->evt_writers = realloc(evt_save, (archive->nb_locations+1) * sizeof(void*));
+  if ( archive->evt_writers == NULL )
+    pallas_error("Could not allocated enough memory for new EvtWriters");
+  archive->nb_locations++;
 
   archive->def_writers[index] = malloc(sizeof(OTF2_DefWriter));
   archive->def_writers[index]->locationRef = location;
   archive->def_writers[index]->archive = archive->archive;
-  archive->def_writers[index]->thread_writer = pallas_thread_writer_new();
-
-  pallas_write_thread_open(archive->archive, archive->def_writers[index]->thread_writer, location);
+  archive->def_writers[index]->thread_writer = pallas_thread_writer_new(archive->archive, location);
 
   archive->evt_writers[index] = malloc(sizeof(OTF2_EvtWriter));
   archive->evt_writers[index]->locationRef = location;
@@ -206,8 +195,6 @@ OTF2_EvtWriter* OTF2_Archive_GetEvtWriter(OTF2_Archive* archive, OTF2_LocationRe
     if (archive->evt_writers[i]->locationRef == location) {
       pallas_log(Debug,"\t->%d (.location=%lu, .writer=%p)\n", i, archive->evt_writers[i]->locationRef,
              archive->evt_writers[i]->thread_writer);
-
-      //      pallas_assert(archive->evt_writers[i]->thread_writer->thread_trace.container);
       pthread_mutex_unlock(&archive->lock);
       return archive->evt_writers[i];
     }
@@ -218,15 +205,18 @@ OTF2_EvtWriter* OTF2_Archive_GetEvtWriter(OTF2_Archive* archive, OTF2_LocationRe
   pallas_log(Debug,"New EvtWriter (ref=%lu, writer=%p)\n", archive->evt_writers[index]->locationRef,
          archive->evt_writers[index]->thread_writer);
 
-  //  pallas_assert(archive->evt_writers[index]->thread_writer->thread_trace.container);
+  //  pallas_assert(archive->evt_writers[index]->thread_writer->thread_trace->container);
   pthread_mutex_unlock(&archive->lock);
   return archive->evt_writers[index];
 }
 
 OTF2_DefWriter* OTF2_Archive_GetDefWriter(OTF2_Archive* archive, OTF2_LocationRef location) {
   pthread_mutex_lock(&archive->lock);
+  pallas_log(Debug,"OTF2_Archive_GetDefWriter (%lu)\n",location);
   for (int i = 0; i < archive->nb_locations; i++) {
     if (archive->def_writers[i]->locationRef == location) {
+      pallas_log(Debug,"\t->%d (.location=%lu, .writer=%p)\n", i, archive->def_writers[i]->locationRef,
+             archive->def_writers[i]->thread_writer);
       pthread_mutex_unlock(&archive->lock);
       return archive->def_writers[i];
     }
@@ -242,10 +232,10 @@ OTF2_DefWriter* OTF2_Archive_GetDefWriter(OTF2_Archive* archive, OTF2_LocationRe
 OTF2_GlobalDefWriter* OTF2_Archive_GetGlobalDefWriter(OTF2_Archive* archive) {
   if (archive->globalDefWriter == NULL) {
     archive->globalDefWriter = malloc(sizeof(OTF2_GlobalDefWriter));
-    archive->globalDefWriter->archive = pallas_global_archive_new();
-
-    pallas_write_global_archive_open(archive->globalDefWriter->archive, archive->archive->dir_name,
-                                  archive->archive->trace_name);
+    archive->globalDefWriter->archive = pallas_global_archive_new(
+      archive->archive->dir_name,
+      archive->archive->trace_name);
+    pallas_storage_init(archive->archive->dir_name);
   }
   return archive->globalDefWriter;
 }

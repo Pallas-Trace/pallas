@@ -23,10 +23,8 @@ OTF2_Reader* OTF2_Reader_Open(const char* anchorFilePath) {
   OTF2_Reader* reader = (OTF2_Reader*)malloc(sizeof(OTF2_Reader));
   memset(reader, 0, sizeof(OTF2_Reader));
 
-  reader->archive = (struct GlobalArchive*) pallas_global_archive_new();
-  PALLAS(GlobalArchive)* archive = (PALLAS(GlobalArchive)*)reader->archive;
-
-  pallasReadGlobalArchive(archive, anchorFilePath);
+  pallas::GlobalArchive* archive = pallas_open_trace(anchorFilePath);
+  reader->archive = reinterpret_cast<struct GlobalArchive*>(archive);
 
   for (int i = 0; i < archive->nb_archives; i++) {
     reader->nb_locations += archive->archive_list[i]->nb_threads;

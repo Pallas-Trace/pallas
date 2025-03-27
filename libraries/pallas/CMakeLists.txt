@@ -27,6 +27,7 @@ set(PALLAS_HEADERS
         include/pallas/pallas_timestamp.h
         include/pallas/pallas_write.h
         include/pallas/pallas_record.h
+        include/pallas/pallas_log.h
 )
 
 target_sources(pallas

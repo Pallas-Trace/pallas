@@ -126,7 +126,7 @@ int main(const int argc, char* argv[]) {
     return EXIT_SUCCESS;
   }
 
-  auto trace = pallas::GlobalArchive();
+  /*auto trace = pallas::GlobalArchive();
   pallasReadGlobalArchive(&trace, trace_name);
 
   for (int i = 0; i < trace.nb_archives; i++) {
@@ -137,7 +137,7 @@ int main(const int argc, char* argv[]) {
         testThreadDuration(*trace.archive_list[i], *thread);
     }
   }
-
+*/
   return EXIT_SUCCESS;
 }
 

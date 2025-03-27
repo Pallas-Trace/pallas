@@ -186,10 +186,10 @@ enum Record {
   PALLAS_EVENT_IO_ACQUIRE_LOCK = 49,                    /**< Marks the acquisition of an I/O lock.*/
   PALLAS_EVENT_IO_RELEASE_LOCK = 50,                    /**< Marks the release of an I/O lock.*/
   PALLAS_EVENT_IO_TRY_LOCK = 51,                        /**< Marks when an I/O lock was requested but not granted.*/
-  PALLAS_EVENT_PROGRAM_BEGIN = 52,                      /**< Marks the begin of the program.*/
+  PALLAS_EVENT_PROGRAM_BEGIN = 52,                      /**< Marks the beginning of the program.*/
   PALLAS_EVENT_PROGRAM_END = 53,                        /**< Marks the end of the program.*/
   PALLAS_EVENT_NON_BLOCKING_COLLECTIVE_REQUEST = 54,    /**< Indicates that a non-blocking collective operation was initiated.*/
-  PALLAS_EVENT_NON_BLOCKING_COLLECTIVE_COMPLETE = 55,   /**< Indicates that a non- blocking collective operation completed.*/
+  PALLAS_EVENT_NON_BLOCKING_COLLECTIVE_COMPLETE = 55,   /**< Indicates that a non-blocking collective operation completed.*/
   PALLAS_EVENT_COMM_CREATE = 56,                        /**< Denotes the creation of a communicator.*/
   PALLAS_EVENT_COMM_DESTROY = 57,                       /**< Marks the communicator for destruction at the end of the enclosing MpiCollectiveBegin and MpiCollectiveEnd event pair. */
   PALLAS_EVENT_GENERIC = 58,                            /**< Event record identifier for any other event. */
@@ -292,8 +292,8 @@ struct TokenCountMap : public std::map<Token, size_t> {
  */
 typedef struct Sequence {
   TokenId id CXX({PALLAS_TOKEN_ID_INVALID});         /**< ID of that sequence. */
-  LinkedDurationVector* durations CXX({new LinkedDurationVector()}); /**< Vector of durations for these type of sequences. */
-  LinkedVector* timestamps CXX({new LinkedVector()});
+  LinkedDurationVector* durations; /**< Vector of durations for these type of sequences. */
+  LinkedVector* timestamps;
   uint32_t hash CXX({0});                            /**< Hash value according to the hash32 function.*/
   DEFINE_Vector(Token, tokens);                      /**< Vector of Token to store the sequence of tokens */
   CXX(private:)
@@ -368,9 +368,9 @@ typedef struct EventSummary {
   size_t attribute_buffer_size; /**< Size of #attribute_buffer.*/
   size_t attribute_pos;         /**< Position of #attribute_buffer.*/
 #ifdef __cplusplus
- public:
-  /** Initialize and EventSummary */
-  void initEventSummary(TokenId, const Event&);
+  EventSummary(TokenId, const Event&);
+  EventSummary() = default;
+  void cleanEventSummary();
 #endif
 } EventSummary;
 
@@ -479,12 +479,12 @@ typedef struct Thread {
   ThreadId id;             /**< Id of this Thread. */
 
   EventSummary* events;         /**< Array of events recorded in this Thread. */
-  unsigned nb_allocated_events; /**< Number of blocks of size pallas:EventSummary allocated in #events. */
-  unsigned nb_events;           /**< Number of pallas::EventSummary in #events. */
+  size_t nb_allocated_events; /**< Number of blocks of size pallas:EventSummary allocated in #events. */
+  size_t nb_events;           /**< Number of pallas::EventSummary in #events. */
 
   Sequence** sequences;            /**< Array of pallas::Sequence recorded in this Thread. */
-  unsigned nb_allocated_sequences; /**< Number of blocks of size pallas:Sequence allocated in #sequences. */
-  unsigned nb_sequences;           /**< Number of pallas::Sequence in #sequences. */
+  size_t nb_allocated_sequences; /**< Number of blocks of size pallas:Sequence allocated in #sequences. */
+  size_t nb_sequences;           /**< Number of pallas::Sequence in #sequences. */
 
   pallas_timestamp_t first_timestamp;
   /** Map to associate the hash of the pallas::Sequence to their id.*/
@@ -496,8 +496,8 @@ typedef struct Thread {
   byte hashToEvent[UNO_MAP_SIZE];
 #endif
   Loop* loops;                 /**< Array of pallas::Loop recorded in this Thread. */
-  unsigned nb_allocated_loops; /**< Number of blocks of size pallas:Loop allocated in #loops. */
-  unsigned nb_loops;           /**< Number of pallas::Loop in #loops. */
+  size_t nb_allocated_loops; /**< Number of blocks of size pallas:Loop allocated in #loops. */
+  size_t nb_loops;           /**< Number of pallas::Loop in #loops. */
 #ifdef __cplusplus
   void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
   /** Returns the ID corresponding to the given Event.
@@ -531,17 +531,15 @@ typedef struct Thread {
   size_t getEventCount() const;
 
   /**
-   * Prints the given Token, along with its id.
+   * Get the given Token, along with its id.
    * E_E, E_L, E_S indicates an Enter, Leave or Singleton Event.
    * S and L indicates a Sequence or a Loop.
    */
-  void printToken(Token) const;
   std::string getTokenString(Token) const;
-  void printTokenArray(const Token* array, size_t start_index, size_t len) const; /**< Prints an array of Tokens. */
+  std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const; /**< Returns a string for that array of Tokens */
+  std::string getEventString(Event* e) const; /**< Returns a string describing that Event. */
   void printTokenVector(const std::vector<Token>&) const;                         /**< Prints a vector of Token. */
   void printSequence(Token) const; /**< Prints the Sequence corresponding to the given Token. */
-  void printEvent(Event*) const;   /**< Prints an Event. */
-  void printEventToString(pallas::Event* e, char* output_str, size_t buffer_size) const;
   void printAttribute(AttributeRef) const;    /**< Prints an Attribute. */
   void printString(StringRef) const;          /**< Prints a String (checks for validity first). */
   void printAttributeRef(AttributeRef) const; /**< Prints an AttributeRef (checks for validity first). */
@@ -562,9 +560,6 @@ typedef struct Thread {
   /** Returns the duration for the last - offset given Sequence.*/
   pallas_duration_t getLastSequenceDuration(Sequence* sequence, size_t offset = 0) const;
   void finalizeThread();
-  /** Initializes the Thread from an archive and an id.
-   * This is used when writing the trace, because it creates Threads using malloc. */
-  void initThread(Archive* a, ThreadId id);
 
   /** Create a blank new Thread. This is used when reading the trace. */
   Thread();
@@ -626,10 +621,6 @@ extern "C" {
    */
   extern void pallas_print_token(PALLAS(Thread) * thread, PALLAS(Token) token);
 
-  /**
-   * Print an event
-   */
-  extern void pallas_print_event(PALLAS(Thread) * thread, PALLAS(Event) * e);
 
   /**
    * Return the loop whose id is loop_id
@@ -675,47 +666,26 @@ extern "C" {
 #ifdef __cplusplus
 };
 #endif
-
-/** Doubles the memory allocated for the given buffer. Does not call the constructor for the given objects.
- *
- * Given a buffer, a counter that indicates the number of object it holds, and this object's datatype,
- * doubles the size of the buffer using realloc, or if it fails, malloc and memmove then frees the old buffer.
- * This is better than a realloc because it moves the data around, but it is also slower.
- * Checks for error at malloc.
- */
-#define DOUBLE_MEMORY_SPACE(buffer, counter, datatype)                                           \
-  do {                                                                                           \
-    buffer = (datatype*)pallas_realloc((void*)buffer, counter, (counter) * 2, sizeof(datatype)); \
-    counter = (counter) * 2;                                                                     \
-  } while (0)
-
+#ifdef __cplusplus
 /**
  * Doubles the memory allocated for the given buffer and calls the constructor for the given objects.
- *
- * Given a buffer, a counter that indicates the number of object it holds, and this object's datatype,
- * creates a new buffer using C++'s new keyword, then copies the old data to that buffer, and frees the old buffer.
  */
-#define DOUBLE_MEMORY_SPACE_CONSTRUCTOR(buffer, counter, datatype) \
-  do {                                                             \
-    auto new_buffer = new datatype[counter * 2];                   \
-    std::copy(buffer, &buffer[counter], new_buffer);               \
-    counter *= 2;                                                  \
-    delete[] buffer;                                               \
-    buffer = new_buffer;                                           \
-  } while (0)
+template <typename T> void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
+  T* newArray = new T[counter * 2];
+  // Copy without destructing
+  std::memcpy(newArray, originalArray, counter * sizeof(T));
 
-/** Increments the memory allocated for the given buffer by one.
- *
- * Given a buffer, a counter that indicates the number of object it holds, and this object's datatype,
- * Increments the size of the buffer by 1 using realloc, or if it fails, malloc and memmove then frees the old buffer.
- * This is better than a realloc because it moves the data around, but it is also slower.
- * Checks for error at malloc.
- */
-#define INCREMENT_MEMORY_SPACE(buffer, counter, datatype)                                        \
-  do {                                                                                           \
-    buffer = (datatype*)pallas_realloc((void*)buffer, counter, (counter) + 1, sizeof(datatype)); \
-    counter = (counter) + 1;                                                                     \
-  } while (0)
+  // Create the new objects by calling there constructors
+  for (size_t i = counter; i < counter * 2; ++i) {
+    new (&newArray[i]) T();
+  }
+
+  // Delete then replace the original array
+  delete[]originalArray;
+  originalArray = newArray;
+  counter *= 2;
+}
+#endif
 
 /**
  * Primitive for DOFOR loops

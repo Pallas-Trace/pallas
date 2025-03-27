@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.13)
+
+enable_testing()
 # add_subdirectory(mpi)
 
 add_compile_options(-Wall -Wextra -Wpedantic -Wno-sign-compare ${WARNINGS})
@@ -8,16 +10,9 @@ find_package(Threads REQUIRED)
 link_libraries(pallas Threads::Threads)
 
 
-enable_testing()
+#####################################################
+# write_benchmark
 
-add_executable(test_collection test_collection.cpp)
-target_link_libraries(test_collection GTest::gtest_main)
-
-
-include(GoogleTest)
-gtest_discover_tests(test_collection)
-
-####################################################
 add_executable(write_benchmark write_benchmark.c)
 add_executable(write_benchmark_CPP write_benchmark.cpp)
 
@@ -72,3 +67,15 @@ set_tests_properties(info_benchmark_logical print_benchmark_logical print_benchm
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(benchmark_checks_logical PROPERTIES
         REQUIRED "info_benchmark_logical;print_benchmark_logical;print_benchmark_structure_logical")
+
+add_executable(find_loop find_loop.cpp)
+add_test(NAME find_loop COMMAND find_loop 50 100)
+
+add_executable(sequence_duration sequence_durations.cpp)
+add_test(NAME sequence_duration COMMAND sequence_duration)
+
+add_executable(test_vector test_vector.cpp)
+add_test(NAME test_vector COMMAND test_vector 100)
+
+add_executable(test_hash test_hash.cpp)
+#add_test(NAME test_hash COMMAND test_hash)

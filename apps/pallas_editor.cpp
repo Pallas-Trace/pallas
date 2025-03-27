@@ -53,8 +53,7 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  auto trace = GlobalArchive();
-  pallasReadGlobalArchive(&trace, trace_name);
+  auto& trace = *pallas_open_trace(trace_name);
   if (compressionAlgorithm != pallas::CompressionAlgorithm::Invalid &&
       compressionAlgorithm != parameterHandler->getCompressionAlgorithm()) {
     char* newDirName = new char[strlen(trace.dir_name) + 10];

@@ -56,8 +56,7 @@ static void printEvent(const pallas::Thread* thread, const pallas::Token token, 
   if (verbose) {
     std::cout << std::right << std::setw(10) << thread->getTokenString(token);
   }
-  std::cout << std::setw(4) << " ";
-  thread->printEvent(e.event);
+  std::cout << std::setw(4) << " " << thread->getEventString(e.event);
   thread->printEventAttribute(&e);
   std::cout << std::endl;
 }
@@ -75,6 +74,7 @@ struct thread_data {
   std::vector<std::string> callstack{};
   std::vector<pallas_duration_t> callstack_duration{};
   std::vector<pallas_timestamp_t> callstack_timestamp{};
+  pallas_timestamp_t last_timestamp;
 };
 
 void printFlame(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
@@ -134,7 +134,6 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
 
   // This lambda prints the callstack in the flamegraph format
   auto  _print_callstack = [&]() {
-    static pallas_timestamp_t last_timestamp = 0;
     pallas_duration_t duration = 0;
     if(! threads_data[min_reader].callstack_duration.empty()) {
       duration = threads_data[min_reader].callstack_duration.back();
@@ -152,7 +151,7 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
       first_line = false;
     }
 
-    std::cout<<min_reader->thread_trace->getName()<<", ";
+    std::cout<<min_reader->thread_trace->getName()<<",";
     if(threads_data[min_reader].callstack.empty())
       std::cout<<"main";
     else
@@ -160,7 +159,9 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
 
     std::cout<<","<<first_timestamp<<","<<first_timestamp+duration<<","<<duration<<std::endl;
 
-    pallas_assert_always(last_timestamp <= first_timestamp);
+     // Check that timestamps to not overlap
+    pallas_assert_always(threads_data[min_reader].last_timestamp <= first_timestamp);
+    threads_data[min_reader].last_timestamp = first_timestamp + duration;
   };
 
   if(e.event->record == pallas::PALLAS_EVENT_ENTER) {
@@ -200,18 +201,33 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
   }
 }
 
+/** Print the trace as a CSV. Each line contains:
+ *   - Thread: the thread that called a function
+ *   - Function: the name of the function
+ *   - Start: the timestamp of the begining of the function
+ *   - Finish: the timestamp of the end of the function
+ *   - Duration: the duration of the function
+ *
+ * Unlike with printCSV, the function calls timestamp may overlap: if
+ * foo calls bar, this will look like this:
+ * T0,foo,17,25,8
+ * T0,bar,19,22,3 
+ *
+ * Moreover, the timestamps are not sorted
+ */
 void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
   static bool first_line = true;
-
   for (auto & reader : readers) {
+    std::map<pallas::Sequence*, std::string> sequence_names;
+    reader.guessSequencesNames(sequence_names);
 
-    for(int i=0; i<reader.thread_trace->nb_sequences; i++) {
-      auto &s = reader.thread_trace->sequences[i];
-      const auto &seq_name = s->guessName(reader.thread_trace);
+    // iterate over the sequences (ignoring sequence 0), and dump their timestamps
+    for(int i=1; i<reader.thread_trace->nb_sequences; i++) {
+      auto s = reader.thread_trace->sequences[i];
+      const auto &seq_name = sequence_names[s];
 
       pallas_duration_t duration = s->durations->at(0);
       pallas_timestamp_t ts = s->timestamps->at(0);
-
 
       for(int occurence_id = 0; occurence_id < s->durations->size; occurence_id++) {
 	pallas_duration_t duration = s->durations->at(occurence_id);
@@ -221,7 +237,7 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
 	  std::cout<<"Thread,Function,Start,Finish,Duration\n";
 	  first_line = false;
 	}
-	
+
 	std::cout<<reader.thread_trace->getName()<<",";
 	std::cout<<seq_name<<","<<ts<<","<<ts+duration<<","<<duration<<"\n";
       }
@@ -230,7 +246,26 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
 }
 
 void printTrace(const pallas::GlobalArchive& trace) {
+  if (per_thread) {
+    for (int i = 0; i < trace.nb_archives; i++) {
+      for (int j = 0; j < trace.archive_list[i]->nb_threads; j++) {
+        auto thread = trace.archive_list[i]->getThreadAt(j);
+        if (thread == nullptr)  continue;
+        if(!(thread_to_print < 0 || thread->id == thread_to_print)) continue;
 
+        auto reader = pallas::ThreadReader(trace.archive_list[i], thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
+        _print_timestamp_header();
+        _print_duration_header();
+        do {
+          auto token = reader.pollCurToken();
+          if (token.type == pallas::TypeEvent) {
+            printEvent(reader.thread_trace, token, reader.getEventOccurence(token, reader.currentState.currentFrame->tokenCount[token]));
+          }
+        } while (reader.getNextToken().isValid());
+      }
+    }
+    return;
+  }
   std::map<pallas::ThreadReader*, struct thread_data> threads_data;
 
   auto readers = std::vector<pallas::ThreadReader>();
@@ -425,13 +460,14 @@ int main(const int argc, char* argv[]) {
     return EXIT_SUCCESS;
   }
 
-  auto trace = pallas::GlobalArchive();
-  pallasReadGlobalArchive(&trace, trace_name);
+  auto trace = pallas_open_trace(trace_name);
+  if(trace == nullptr)
+    return EXIT_FAILURE;
 
   if (show_structure)
-    printStructure(flags, trace);
+    printStructure(flags, *trace);
   else
-    printTrace(trace);
+    printTrace(*trace);
 
   return EXIT_SUCCESS;
 }

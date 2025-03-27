@@ -32,19 +32,13 @@ void pallasStoreArchive(PALLAS(Archive) * archive);
  * @param archive Archive to be written to a folder.
  */
 void pallasStoreGlobalArchive(PALLAS(GlobalArchive) * archive);
-/**
- * Returns the path of the archive's folder.
- * @param dir_name Directory for the archive's storage.
- * @param trace_name Name of the trace.
- * @return Path to the archive's folder.
- */
-char* pallas_archive_fullpath(char* dir_name, char* trace_name);
-/**
- * Read an archive from a `main.pallas` file.
- * @param globalArchive Pointer to an allocated archive.
- * @param main_filename Path to a `main.pallas` file.
- */
-void pallasReadGlobalArchive(PALLAS(GlobalArchive) * globalArchive, const char* main_filename);
+
+   /**
+   * Allocate and read an archive from a `main.pallas` file.
+   * @param trace_filename Path to a `main.pallas` file.
+   * @return Pointer to a GlobalArchive if successful, else nullptr.
+   */
+PALLAS(GlobalArchive*) pallas_open_trace(const char* trace_filename);
 #ifdef __cplusplus
 };
 #endif

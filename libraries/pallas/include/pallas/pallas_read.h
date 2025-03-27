@@ -185,6 +185,9 @@ typedef struct ThreadReader {
   /** Returns a pointer to the AttributeList for the given occurence of the given Event. */
   [[nodiscard]] AttributeList* getEventAttributeList(Token event_id, size_t occurence_id) const;
 
+  /** Returns a map that assigns names to sequences */
+  void guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const;
+
   //******************* EXPLORATION FUNCTIONS ********************
 
   /** Gets the current Token. */

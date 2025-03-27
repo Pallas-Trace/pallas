@@ -13,8 +13,8 @@
 #include "pallas/pallas_log.h"
 
 
-static struct GlobalArchive* global_archive;
-static struct Archive* trace;
+static struct GlobalArchive* trace;
+static struct Archive* archive;
 static LocationGroupId process_id;
 static StringRef process_name;
 
@@ -35,6 +35,7 @@ static RegionRef* regions;
 static char** region_names;
 static StringRef* strings;
 
+static pthread_barrier_t thread_ready;
 static pthread_barrier_t bench_start;
 static pthread_barrier_t bench_stop;
 
@@ -44,7 +45,7 @@ static StringRef _register_string(char* str) {
   static _Atomic StringRef next_ref = 0;
   StringRef ref = next_ref++;
 
-  pallas_archive_register_string(global_archive, ref, str);
+  pallas_archive_register_string(trace, ref, str);
   return ref;
 }
 
@@ -75,16 +76,17 @@ void* worker(void* arg __attribute__((unused))) {
   static _Atomic int nb_threads = 0;
   int my_rank = nb_threads++;
 
-  thread_writers[my_rank] = malloc(sizeof(struct ThreadWriter));
-  struct ThreadWriter* thread_writer = thread_writers[my_rank];
   char thread_name[20];
   snprintf(thread_name, 20, "thread_%d", my_rank);
   StringRef thread_name_id = _register_string(thread_name);
 
   ThreadId thread_id = _new_thread();
-  pallas_write_define_location(global_archive, thread_id, thread_name_id, process_id);
 
-  pallas_write_thread_open(trace, thread_writer, thread_id);
+  pallas_write_define_location(trace, thread_id, thread_name_id, process_id);
+
+  thread_writers[my_rank] = pallas_thread_writer_new(archive, thread_id);
+  struct ThreadWriter* thread_writer = thread_writers[my_rank];
+  pthread_barrier_wait(&thread_ready);
 
   struct timespec t1, t2;
   pthread_barrier_wait(&bench_start);
@@ -180,6 +182,7 @@ int main(int argc, char** argv) {
   }
 
   pthread_t tid[nb_threads];
+  pthread_barrier_init(&thread_ready, NULL, 2);
   pthread_barrier_init(&bench_start, NULL, nb_threads + 1);
   pthread_barrier_init(&bench_stop, NULL, nb_threads + 1);
   thread_writers = malloc(sizeof(struct pallas_thread_writer*) * nb_threads);
@@ -190,16 +193,13 @@ int main(int argc, char** argv) {
   printf("pattern = %d\n", pattern);
   printf("---------------------\n");
 
-  global_archive = pallas_global_archive_new();
-  trace = pallas_archive_new();
-  pallas_write_global_archive_open(global_archive, "write_benchmark_trace", "main");
+  trace = pallas_global_archive_new("write_benchmark_trace", "main");
+  archive = pallas_archive_new("write_benchmark_trace", "main", 0);
   process_id = _new_location_group();
   process_name = _register_string("Process");
 
-  pallas_write_archive_open(trace, "write_benchmark_trace", "main", process_id);
 
-
-  pallas_write_define_location_group(global_archive, process_id, process_name, PALLAS_LOCATION_GROUP_ID_INVALID);
+  pallas_write_define_location_group(trace, process_id, process_name, PALLAS_LOCATION_GROUP_ID_INVALID);
 
   regions = malloc(sizeof(RegionRef) * nb_functions);
   strings = malloc(sizeof(StringRef) * nb_functions);
@@ -209,11 +209,14 @@ int main(int argc, char** argv) {
     snprintf(region_names[i], 50, "function_%d", i);
     strings[i] = _register_string(region_names[i]);
     regions[i] = strings[i];
-    pallas_archive_register_region(global_archive, regions[i], strings[i]);
+    pallas_archive_register_region(trace, regions[i], strings[i]);
   }
 
-  for (int i = 0; i < nb_threads; i++)
+  for (int i = 0; i < nb_threads; i++) {
     pthread_create(&tid[i], NULL, worker, NULL);
+    /* make sure the thread is fully initialized before creating the next one */
+    pthread_barrier_wait(&thread_ready);
+  }
 
   struct timespec t1, t2;
   pthread_barrier_wait(&bench_start);
@@ -232,8 +235,8 @@ int main(int argc, char** argv) {
 
   printf("TOTAL: %d events in %lf s -> %lf Me/s \n", nb_events, duration, events_per_second / 1e6);
 
-  pallas_write_archive_close(trace);
-  pallas_write_global_archive_close(global_archive);
+  pallas_write_archive_close(archive);
+  pallas_write_global_archive_close(trace);
   return EXIT_SUCCESS;
 }
 

@@ -13,10 +13,7 @@ LinkedVector::LinkedVector() {
   last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector() {
-  first = new SubVector(defaultSize);
-  last = first;
-}
+LinkedDurationVector::LinkedDurationVector() = default;
 
 void LinkedDurationVector::updateStats() {
   if (size > 1) {
@@ -85,6 +82,21 @@ uint64_t& LinkedVector::back() {
   return last->at(size - 1);
 }
 
+
+void LinkedVector::deleteTimestamps() {
+  if (first == nullptr)
+    return;
+  pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
+  auto* sub = first;
+  while (sub) {
+    delete[] sub->array;
+    auto* temp = sub->next;
+    delete sub;
+    sub = temp;
+  }
+  first = nullptr;
+  last = nullptr;
+}
 void LinkedVector::print() {
   std::cout << "[";
   if (size) {
@@ -94,14 +106,9 @@ void LinkedVector::print() {
   } else
     std::cout << "]";
 }
+
 LinkedVector::~LinkedVector() {
-  auto* sub = first;
-  while (sub) {
-    delete[] sub->array;
-    auto* temp = sub->next;
-    delete sub;
-    sub = temp;
-  }
+  deleteTimestamps();
 }
 
 /* C++ Callbacks for C Usage */

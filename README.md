@@ -17,61 +17,53 @@ which are tools made to read Pallas traces, as well as the Pallas library, and a
 If you want to enable SZ and ZFP, you should install them, and then add `-DSZ_ROOT_DIR=<your SZ installation>`
 and `-DZFP_ROOT_DIR=<your ZFP installation>` to the cmake command line. Documentation is built automatically if Doxygen is installed.
 
+## Python Library
+Pallas comes with a Python library to read your traces.
+You need to enable building it with `-DENABLE_PYTHON=ON`
+
+Its requirements are the following:
+- Python >=3.11
+- Numpy
+- pybind11
+
+You can then read it like this:
+```
+$ export PYTHONPATH=PATH_TO_PALLAS/lib
+$ python
+>>> import pallas_python as pallas
+>>> trace=pallas.open_trace("eztrace_log.pallas")
+...
+
+```
+
+Make sure these are installed (locally using a venv or globally) before building.
 ## Usage
 ### In your application
-These few lines are all you need
-```C
-// In C
-#include <pallas/pallas.h>
-#include <pallas/pallas_write.h>
+To use Pallas to log your application, you need to understand the hierarchical structure:
+- There's one *GlobalArchive* that stores global information.
+- Each *Archive* corresponds to a process / a self-contained information group.
+They're identified by LocationGroup
+- Each *Thread* refers to a group of events that are to be logged.
+They're identified by Location
 
-int main() {
-    // Setup everything
-    GlobalArchive* global_archive = pallas_global_archive_new(); // Create the main trace
-    pallas_write_global_archive_open(global_archive, "<your trace name>", "main");
-    // The Global Archive is where all the Strings, 
-    // information about Threads and Processes, and Regions are stored.
-    
-    pallas_archive_register_string(...);     // Register a String
-    pallas_write_define_location_group(<processID>); // Register a LocationGroup
-    Archive* archive = pallas_new_archive();
-    pallas_write_archive_open(global_archive, archive, <processID>);
-    // That creates an Archive, which is where you'll store local events.
-            
-    pallas_write_define_location(<threadID>);     // Register a Location
-    ThreadWriter thread_writer;
-    pallas_write_thread_open(global_archive, &thread_writer, <threadID>);
-    // A ThreadWriter is the interface made to log some events
-    
-    // Start logging
-    pallas_record_generic(&thread_writer, <custom Attribute>, <timestamp>, <name>);
-    
-    // Write the trace to file
-    pallas_write_thread_close(thread_writer);
-    pallas_write_global_archive_close(global_archive);
-}
-```
+There is a bit more nuance, but it's what you need for now.
+The following code should give you an idea of what to do to start logging your app in C++.
+There's also a C API that functions pretty much the same way, as you'd expect it to.
 ```CPP
-// In C++
 #include <pallas/pallas.h>
 #include <pallas/pallas_write.h>
 namespace pallas;
 int main() {
-    // Setup everything
-    GlobalArchive globalArchive = Archive(); // Create the main trace
-    globalArchive.openGlobal("<your trace name>", "main");
-    // The Global Archive is where all the Strings, 
-    // information about Threads and Processes, and Regions are stored.
-    
+    GlobalArchive globalArchive("<trace directory>", "<main trace file name>"); 
     globalArchive.addString(...);                   // Register a String
+    
+    // Add a process
     globalArchive.addLocationGroup(<processID>);    // Register a LocationGroup
-    Archive archive = Archive();
-    archive.open(globalArchive, <processID>);
-    // That creates an Archive, which is where you'll store local events.
+    Archive archive(globalArchive, <processID>);
 
+    // Add a Thread
     globalArchive.addLocation(<threadID>);         // Register a Location
-    ThreadWriter threadWriter;
-    threadWriter.openThread(globalArchive, <threadID>);
+    ThreadWriter threadWriter(archive, <threadID>);
     // A ThreadWriter is the interface made to log some events
 
     // Start logging
@@ -84,8 +76,6 @@ int main() {
 ```
 
 
-
-
 ### Using EZTrace
 
 After compiling Pallas and its OTF2 API, install [EZTrace](https://eztrace.gitlab.io/eztrace).
@@ -96,6 +86,13 @@ Make sure to enable the relevant ezTrace modules.
 Then trace any program by running `mpirun -np N eztrace -t <your modules> <your programm>`.
 The trace file will be generated in the `<your programm>_trace` folder.
 You can then read it using `pallas_print <your programm>_trace/eztrace_log.pallas`
+
+### Visualizing Pallas traces
+
+[Blup](https://gitlab.inria.fr/blup/blup) is a web-based trace
+visualizer able to display Pallas traces. It uses Pallas Python API.
+
+![](https://gitlab.inria.fr/blup/blup/-/raw/main/doc/screenshot.png)
 
 ## About
 

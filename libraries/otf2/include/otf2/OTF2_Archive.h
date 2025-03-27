@@ -164,7 +164,6 @@
  */
 
 #include <stdint.h>
-
 #include "otf2_compiler.h"
 
 #include <otf2/OTF2_ErrorCodes.h>
@@ -183,6 +182,7 @@
 #include <otf2/OTF2_SnapReader.h>
 #include <otf2/OTF2_SnapWriter.h>
 #include <otf2/OTF2_Thumbnail.h>
+#include "otf2/otf2.h"
 
 #ifdef __cplusplus
 extern "C" {

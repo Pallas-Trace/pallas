@@ -3,6 +3,9 @@
 //
 
 #pragma once
+#include <inttypes.h>
+extern __thread size_t thread_rank;
+extern unsigned int pallas_mpi_rank;
 
 /** Stops the execution. */
 #define pallas_abort() abort()
@@ -10,7 +13,7 @@
 #define _pallas_log(fd, _debug_level_, format, ...)                           \
   do {                                                                        \
     if (C_CXX(pallas_debug_level_get(), pallas::debugLevel) >= _debug_level_) \
-      fprintf(fd, "[Pallas - %lx] " format, pthread_self(), ##__VA_ARGS__);        \
+      fprintf(fd, "[P%dT%" PRIu64 "] " format, pallas_mpi_rank, thread_rank, ##__VA_ARGS__);        \
   } while (0)
 /** Logs a formated message to stdout if the given debugLevel is high enough. */
 #define pallas_log(_debug_level_, format, ...) _pallas_log(stdout, _debug_level_, format, ##__VA_ARGS__)

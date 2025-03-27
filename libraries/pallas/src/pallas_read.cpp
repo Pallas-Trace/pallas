@@ -82,7 +82,7 @@ const Token& ThreadReader::getTokenInCallstack(int frame_number) const {
   return thread_trace->getToken(sequence, currentState.callstack[frame_number].frame_index);
 }
 void ThreadReader::printCurToken() const {
-  thread_trace->printToken(pollCurToken());
+  std::cout << thread_trace->getTokenString(pollCurToken()) << std::endl;
 }
 const Token& ThreadReader::getCurIterable() const {
   return currentState.currentFrame->callstack_iterable;
@@ -98,7 +98,7 @@ void ThreadReader::printCallstack() const {
     auto current_token = getTokenInCallstack(i);
 
     printf("%.*s[%d] ", i * 2, "                       ", i);
-    thread_trace->printToken(current_sequence_id);
+    std::cout << thread_trace->getTokenString(current_sequence_id) << std::endl;
 
     if (current_sequence_id.type == TypeLoop) {
       auto* loop = thread_trace->getLoop(current_sequence_id);
@@ -111,9 +111,7 @@ void ThreadReader::printCallstack() const {
       pallas_assert(currentState.callstack[i].frame_index < MAX_CALLSTACK_DEPTH);
     }
 
-    printf("\t-> ");
-    thread_trace->printToken(current_token);
-    printf("\n");
+    std::cout << "\t-> " << thread_trace->getTokenString(current_token) << std::endl;
   }
 }
 EventSummary* ThreadReader::getEventSummary(Token event) const {
@@ -247,6 +245,60 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occure
   }
   return nullptr;
 }
+
+void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const{
+  // Let's call the main sequence "main"
+  names[thread_trace->sequences[0]]="main";
+
+  for(int i=1; i<thread_trace->nb_sequences; i++) {
+    pallas::Sequence*s = thread_trace->sequences[i];
+
+    if(names.count(s) == 0) {
+      // The sequence is not named yet
+
+      bool name_found = false;
+      if (s->size() <= 4) {
+	// for small (enter/leave function) sequence, use the name of the function
+	pallas::Token t_start = s->tokens[0];
+	if (t_start.type == pallas::TypeEvent) {
+	  pallas::Event* event = thread_trace->getEvent(t_start);
+	  if(event->record == pallas::PALLAS_EVENT_ENTER) {
+	    const char* event_name = thread_trace->getRegionStringFromEvent(event);
+	    // TODO: if that's an MPI call (eg MPI_Send, MPI_Allreduce, ...)
+	    // we may want to get the function parameters (eg. dest, tag, ...)
+	    names[s] = std::string(event_name);
+	    name_found = true;
+	  } else if(event->record == pallas::PALLAS_EVENT_THREAD_BEGIN) {
+	    names[s]="main";
+	    name_found = true;
+	  }
+	}
+      }
+
+      if(!name_found) {
+	// is it a loop ?
+	for(int j=0; j<thread_trace->nb_loops; j++) {
+	  pallas::Loop& l = thread_trace->loops[j];
+	  if(thread_trace->getSequence(l.repeated_token) == s) {
+	    char buff[128];
+	    snprintf(buff, sizeof(buff), "Loop_%d", l.self_id.id);
+	    names[s] = std::string(buff);
+	    name_found = true;
+	    break;
+	  }
+	}
+      }
+
+      if(!name_found) {
+	// probably a complex/long sequence. Just name it randomly
+	char buff[128];
+	snprintf(buff, sizeof(buff), "Sequence_%d", s->id);
+	names[s] = std::string(buff);
+      }
+    }
+  }
+}
+
 
 //******************* EXPLORATION FUNCTIONS ********************
 
