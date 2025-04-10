@@ -1,6 +1,6 @@
 # Pallas
 [![BSD-3 License](https://img.shields.io/badge/License-BSD3-yellow.svg)](https://opensource.org/license/bsd-3-clause)
-![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/main/pipeline.svg?=test)
+![Main Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/main/pipeline.svg)
 
 
 Pallas provides an interface to write and read trace data.
