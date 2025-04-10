@@ -7,7 +7,8 @@
 #include "otf2/otf2.h"
 
 OTF2_ErrorCode OTF2_DefWriter_GetLocationID(const OTF2_DefWriter* writer, OTF2_LocationRef* location) {
-  NOT_IMPLEMENTED;
+  *location = writer->locationRef;
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteMappingTable(OTF2_DefWriter* writer,
@@ -24,7 +25,8 @@ OTF2_ErrorCode OTF2_DefWriter_WriteClockOffset(OTF2_DefWriter* writer,
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteString(OTF2_DefWriter* writer, OTF2_StringRef self, const char* string) {
-  NOT_IMPLEMENTED;
+  pallas_archive_register_string(writer->archive, self, string);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteAttribute(OTF2_DefWriter* writer,
@@ -32,7 +34,8 @@ OTF2_ErrorCode OTF2_DefWriter_WriteAttribute(OTF2_DefWriter* writer,
                                              OTF2_StringRef name,
                                              OTF2_StringRef description,
                                              OTF2_Type type) {
-  NOT_IMPLEMENTED;
+  pallas_archive_register_attribute(writer->archive, self, name, description, OTF2_PALLAS_TYPE(type));
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteSystemTreeNode(OTF2_DefWriter* writer,
@@ -54,11 +57,9 @@ OTF2_ErrorCode OTF2_DefWriter_WriteLocationGroup(OTF2_DefWriter* writer,
                                                  OTF2_LocationGroupType locationGroupType,
                                                  OTF2_SystemTreeNodeRef systemTreeParent,
                                                  OTF2_LocationGroupRef creatingLocationGroup) {
-  NOT_IMPLEMENTED;
   LocationGroupId lg_id = _otf_register_location_group(self);
   LocationGroupId parent_id = _otf_get_location_group_id(creatingLocationGroup);
-
-  pallas_write_define_location_group(writer->archive->global_archive, lg_id, name, parent_id);
+  pallas_archive_define_location_group(writer->archive, lg_id, name, parent_id);
 
   return OTF2_SUCCESS;
 }
@@ -70,13 +71,12 @@ OTF2_ErrorCode OTF2_DefWriter_WriteLocation(OTF2_DefWriter* writer,
                                             uint64_t numberOfEvents,
                                             OTF2_LocationGroupRef locationGroup) {
   ThreadId thread_id = _otf_register_location(self);
-  LocationGroupId parent_id = _otf_get_location_group_id(locationGroup);
   static int first_call = 1;
   if (first_call) {
     if (writer->archive->id == 0)
-      writer->archive->id = parent_id;
+      writer->archive->id = locationGroup;
   }
-  pallas_write_define_location(writer->archive->global_archive, thread_id, name, parent_id);
+  pallas_archive_define_location(writer->archive, thread_id, name, locationGroup);
   return OTF2_SUCCESS;
 }
 
@@ -91,7 +91,8 @@ OTF2_ErrorCode OTF2_DefWriter_WriteRegion(OTF2_DefWriter* writer,
                                           OTF2_StringRef sourceFile,
                                           uint32_t beginLineNumber,
                                           uint32_t endLineNumber) {
-  NOT_IMPLEMENTED;
+  pallas_archive_register_region(writer->archive, self, name);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteCallsite(OTF2_DefWriter* writer,
@@ -118,7 +119,8 @@ OTF2_ErrorCode OTF2_DefWriter_WriteGroup(OTF2_DefWriter* writer,
                                          OTF2_GroupFlag groupFlags,
                                          uint32_t numberOfMembers,
                                          const uint64_t* members) {
-  NOT_IMPLEMENTED;
+  pallas_archive_register_group(writer->archive, self, name, numberOfMembers, members);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteMetricMember(OTF2_DefWriter* writer,
@@ -158,7 +160,9 @@ OTF2_ErrorCode OTF2_DefWriter_WriteComm(OTF2_DefWriter* writer,
                                         OTF2_GroupRef group,
                                         OTF2_CommRef parent,
                                         OTF2_CommFlag flags) {
-  NOT_IMPLEMENTED;
+  pallas_archive_register_comm(writer->archive, self, name, group, parent);
+
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_DefWriter_WriteParameter(OTF2_DefWriter* writer,

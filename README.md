@@ -1,4 +1,7 @@
 # Pallas
+[![BSD-3 License](https://img.shields.io/badge/License-BSD3-yellow.svg)](https://opensource.org/license/bsd-3-clause)
+![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/dev/pipeline.svg?=test)
+
 
 Pallas provides an interface to write and read trace data.
 
@@ -30,7 +33,7 @@ You can then read it like this:
 ```
 $ export PYTHONPATH=PATH_TO_PALLAS/lib
 $ python
->>> import pallas_python as pallas
+>>> import pallas
 >>> trace=pallas.open_trace("eztrace_log.pallas")
 ...
 
@@ -60,11 +63,14 @@ int main() {
     // Add a process
     globalArchive.addLocationGroup(<processID>);    // Register a LocationGroup
     Archive archive(globalArchive, <processID>);
+    // An Archive is the interface used to store local definitions
+    // It's analogous to a process
 
     // Add a Thread
-    globalArchive.addLocation(<threadID>);         // Register a Location
+    archive.addLocation(<threadID>);         // Register a Location
     ThreadWriter threadWriter(archive, <threadID>);
-    // A ThreadWriter is the interface made to log some events
+    // A ThreadWriter is the interface used to log events
+    // It's analogous to a Thread
 
     // Start logging
     pallas_record_generic(&threadWriter, <custom Attribute>, <timestamp>, <name>);

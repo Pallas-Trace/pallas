@@ -173,7 +173,6 @@ bool ThreadReader::isEndOfTrace() const {
 
 pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
   pallas_assert(loop_id.type == TypeLoop);
-  pallas_duration_t sum = 0;
   const auto* loop = thread_trace->getLoop(loop_id);
   const auto* sequence = thread_trace->getSequence(loop->repeated_token);
 
@@ -185,11 +184,7 @@ pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
   else
     offset = currentState.callstack[currentState.current_frame_index - 1].tokenCount.get_value(sequence_id);
   const size_t nIterations = loop->nb_iterations;
-  DOFOR(i, nIterations) {
-    sum += sequence->durations->at(offset + i);
-  }
-  // TODO Use sequence's timestamps !
-  return sum;
+  return sequence->timestamps->at(offset+nIterations-1) - sequence->timestamps->at(offset) + sequence->durations->at(offset + nIterations-1);
 }
 
 EventOccurence ThreadReader::getEventOccurence(Token event_id, size_t occurence_id) const {
@@ -446,14 +441,24 @@ bool ThreadReader::moveToNextToken(int flags) {
     pallas_error("Token is Invalid");
   }
 #ifdef DEBUG
-  // Some error checking, helps debugging writing errors
-  if (currentState.currentFrame->referential_timestamp + token_duration <
-      currentState.currentFrame->referential_timestamp) {
-    pallas_error("Token duration negative for (%c.%d): %lu\n", PALLAS_TOKEN_TYPE_C(current_token), current_token.id,
-                 token_duration);
+  if (current_token.isIterable()) {
+    auto future_timestamp = currentState.currentFrame->referential_timestamp + token_duration;
+    auto upper_callstack_timestamp = currentState.callstack[currentState.current_frame_index+1].referential_timestamp;
+    if (current_token.type == TypeSequence) {
+      auto seq = thread_trace->getSequence(current_token);
+      auto seq_timestamp = seq->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
+      long delta = seq_timestamp - currentState.currentFrame->referential_timestamp;
+      if ( delta != 0 ) {
+        pallas_error("Sequence starting timestamp and callstack starting timestamp do not agree: %f\n", delta/1e9);
+      }
+    }
+    if(upper_callstack_timestamp > future_timestamp) {
+      auto seq = thread_trace->getSequence(current_token);
+      token_duration = seq->durations->at(currentState.currentFrame->tokenCount[current_token]);
+      pallas_error("Incorrect duration: %lu instead of %lu + d\n", token_duration, upper_callstack_timestamp - currentState.currentFrame->referential_timestamp);
+    }
   }
 #endif
-
   currentState.currentFrame->referential_timestamp += token_duration;
   currentState.currentFrame->tokenCount[current_token]++;
   currentState.currentFrame->frame_index++;
@@ -620,6 +625,17 @@ void ThreadReader::enterBlock() {
     currentState.callstack[currentState.current_frame_index - 1].referential_timestamp;
   currentState.currentFrame->callstack_iterable = new_block;
   currentState.currentFrame->tokenCount = (currentState.currentFrame - 1)->tokenCount;
+#ifdef DEBUG
+  if (new_block.type == TypeSequence) {
+    auto current_timestamp = currentState.currentFrame->referential_timestamp;
+    auto seq = thread_trace->getSequence(new_block);
+    auto theorical_timestamp = seq->timestamps->at(currentState.currentFrame->tokenCount[new_block]);
+    if (theorical_timestamp != current_timestamp) {
+      int a = 1;
+    }
+    //pallas_assert(theorical_timestamp == current_timestamp);
+  }
+#endif
 }
 
 void ThreadReader::leaveBlock() {
@@ -668,12 +684,10 @@ bool ThreadReader::enterIfStartOfBlock(int flags) {
   if (!current_token.isIterable())
     return false;
   if (current_token.type == TypeSequence && flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE) {
-    /* We've reached the end of a sequence. Leave the block. */
     enterBlock();
     return true;
   }
   if (current_token.type == TypeLoop && flags & PALLAS_READ_FLAG_UNROLL_LOOP) {
-    /* We've reached the end of the loop. Leave the block. */
     enterBlock();
     return true;
   }

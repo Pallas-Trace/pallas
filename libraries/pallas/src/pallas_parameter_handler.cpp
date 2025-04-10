@@ -7,6 +7,7 @@
 
 #include <pallas_config.h>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -227,7 +228,6 @@ class ConfigFile {
         config[key] = value;
       }
     }
-    configFile.close();
   }
 };
 
@@ -247,25 +247,26 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
 
 ParameterHandler::ParameterHandler() {
   std::string configPath;
+  bool useDefault = false;
   if (const char* givenConfigFile = getenv("PALLAS_CONFIG_PATH"); givenConfigFile) {
     pallas_log(DebugLevel::Debug, "Loading configuration file from %s\n", givenConfigFile);
 
     std::ifstream configFile(givenConfigFile);
     if (!configFile.good()) {
       pallas_warn("Provided config file didn't exist, or couldn't be read: %s.\n", givenConfigFile);
-      goto elseJump;
+      useDefault = true;
     }
     configPath = givenConfigFile;
-    configFile.close();
   } else {
-  elseJump:
+    useDefault = true;
+  }
+  if (useDefault) {
     pallas_log(DebugLevel::Debug, "No config file provided, using default: %s\n", defaultConfigFile);
     std::ifstream configFile(defaultConfigFile);
     if (!configFile.good()) {
       pallas_warn("No config file found at default install path ! Check your installation.\n");
       return;
     }
-    configFile.close();
     configPath = defaultConfigFile;
   }
 

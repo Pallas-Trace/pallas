@@ -89,7 +89,6 @@ void LinkedVector::deleteTimestamps() {
   pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
   auto* sub = first;
   while (sub) {
-    delete[] sub->array;
     auto* temp = sub->next;
     delete sub;
     sub = temp;
@@ -164,6 +163,11 @@ LinkedVector::SubVector::SubVector(size_t size, uint64_t* array) {
   this->size = size;
   this->array = array;
 }
+
+LinkedVector::SubVector::~SubVector() {
+  delete[] array;
+}
+
 
 void LinkedVector::SubVector::copyToArray(uint64_t* given_array) const {
   memcpy(given_array, array, size * sizeof(uint64_t));

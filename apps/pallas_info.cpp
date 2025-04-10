@@ -19,34 +19,33 @@
 
 using namespace pallas;
 
-int thread_to_print   = -1;
-int archive_to_print  = -1;
+int thread_to_print = -1;
+int archive_to_print = -1;
 
 enum command {
-  none                    = 0,
-  show_thread_content     = 1<<0,
-  show_definitions        = 1<<1,
-  show_sequence_content   = 1<<2,
-  show_sequence_durations = 1<<3,
-  list_archives           = 1<<4,
-  show_archive_details    = 1<<5,
-  list_threads            = 1<<6,
+  none = 0,
+  show_thread_content = 1 << 0,
+  show_definitions = 1 << 1,
+  show_sequence_content = 1 << 2,
+  show_sequence_durations = 1 << 3,
+  list_archives = 1 << 4,
+  show_archive_details = 1 << 5,
+  list_threads = 1 << 6,
 };
 
 int cmd = none;
 
 static bool _should_print_thread(int thread_id) {
-  return thread_to_print <0 || thread_to_print == thread_id;
+  return thread_to_print < 0 || thread_to_print == thread_id;
 }
 
 static bool _should_print_archive(int archive_id) {
-  return archive_to_print <0 || archive_to_print == archive_id;
+  return archive_to_print < 0 || archive_to_print == archive_id;
 }
 
 static double ns2s(uint64_t ns) {
-  return ns*1.0/1e9;
+  return ns * 1.0 / 1e9;
 }
-
 
 void info_archive_header();
 void info_archive(Archive* archive);
@@ -65,25 +64,22 @@ void print_sequence(const Sequence* s, const Thread* t) {
 }
 
 std::string getTokenString(Thread* thread, Token t) {
-  switch(t.type) {
-  case TypeEvent:
-    {
-      Event* e = thread->getEvent(t);
-      return thread->getEventString(e);
-      break;
-    }
-  case TypeSequence:
-    {
-      Sequence* s = thread->getSequence(t);
-      return s->guessName(thread);
-      break;
-    }
-  case TypeLoop:
-    {
-      Loop* l = thread->getLoop(t);
-      return l->guessName(thread);
-      break;
-    }
+  switch (t.type) {
+  case TypeEvent: {
+    Event* e = thread->getEvent(t);
+    return thread->getEventString(e);
+    break;
+  }
+  case TypeSequence: {
+    Sequence* s = thread->getSequence(t);
+    return s->guessName(thread);
+    break;
+  }
+  case TypeLoop: {
+    Loop* l = thread->getLoop(t);
+    return l->guessName(thread);
+    break;
+  }
   default:
     return "Unknown token";
   }
@@ -103,12 +99,12 @@ void info_event_header() {
 void info_event(Thread* t, int index) {
   EventSummary* e = &t->events[index];
 
-  std::cout << std::left<< "E"<<std::setw(14) <<std::left <<index;
-  std::cout << std::setw(35) << std::left<< t->getEventString(&e->event);
+  std::cout << std::left << "E" << std::setw(14) << std::left << index;
+  std::cout << std::setw(35) << std::left << t->getEventString(&e->event);
   std::cout << std::setw(20) << std::right << e->durations->size;
-  std::cout << std::setw(20) << std::right << (e->durations->min == UINT64_MAX? 0 : e->durations->min);
-  std::cout << std::setw(20) << std::right << (e->durations->max == UINT64_MAX? 0 : e->durations->max);
-  std::cout << std::setw(20) << std::right << (e->durations->mean == UINT64_MAX? 0 : e->durations->mean);
+  std::cout << std::setw(20) << std::right << (e->durations->min == UINT64_MAX ? 0 : e->durations->min);
+  std::cout << std::setw(20) << std::right << (e->durations->max == UINT64_MAX ? 0 : e->durations->max);
+  std::cout << std::setw(20) << std::right << (e->durations->mean == UINT64_MAX ? 0 : e->durations->mean);
   std::cout << std::endl;
 }
 
@@ -127,56 +123,54 @@ void info_sequence_header() {
   std::cout << std::endl;
 }
 
-float contention_score(Thread*t, Sequence *s) {
+float contention_score(Thread* t, Sequence* s) {
   pallas_duration_t delta_duration = s->durations->size * (s->durations->mean - s->durations->min);
   pallas_duration_t thread_duration = t->getDuration();
-  if(delta_duration > thread_duration)
+  if (delta_duration > thread_duration)
     return -1;
   return (float)delta_duration / thread_duration;
 }
 
-void info_sequence(Thread*t, int index, bool details=false) {
+void info_sequence(Thread* t, int index, bool details = false) {
   Sequence* s = t->sequences[index];
 
-
-  if(details) {
+  if (details) {
     info_sequence_header();
   }
 
   std::string sequence_name = s->guessName(t);
-  
-  std::cout << std::left<< "S"<<std::setw(14) <<std::left <<index;
-  std::cout << std::setw(35) << std::left<< sequence_name;
+
+  std::cout << std::left << "S" << std::setw(14) << std::left << index;
+  std::cout << std::setw(35) << std::left << sequence_name;
   std::cout << std::setw(18) << std::right << s->durations->size;
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->min == UINT64_MAX? 0 : s->durations->min);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->max == UINT64_MAX? 0 : s->durations->max);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX? 0 : s->durations->mean);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX? 0 : s->durations->mean * s->durations->size);
+  std::cout << std::setw(18) << std::right << ns2s(s->durations->min == UINT64_MAX ? 0 : s->durations->min);
+  std::cout << std::setw(18) << std::right << ns2s(s->durations->max == UINT64_MAX ? 0 : s->durations->max);
+  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX ? 0 : s->durations->mean);
+  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX ? 0 : s->durations->mean * s->durations->size);
   std::cout << std::setw(18) << std::right << s->size();
 
   std::cout << std::setw(18) << std::right << contention_score(t, s);
   // std::cout << std::setw(18) << std::right << s->getEventCount(t);
   std::cout << std::endl;
 
-  if(details) {
-    if(cmd & show_sequence_content) {
-      std::cout<<std::endl<<"------------------- Sequence" << s->id << " contains:" << std::endl;
-      for(auto token: s->tokens) {
-	std::cout << "\t" << std::left << getTokenString(t, token) <<std::endl;
+  if (details) {
+    if (cmd & show_sequence_content) {
+      std::cout << std::endl << "------------------- Sequence" << s->id << " contains:" << std::endl;
+      for (auto token : s->tokens) {
+        std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
-      std::cout<<"------------------- End of sequence"<< s->id << std::endl;
-      std::cout<<std::endl;
+      std::cout << "------------------- End of sequence" << s->id << std::endl;
+      std::cout << std::endl;
     }
 
-    if(cmd & show_sequence_durations) {
-      std::cout<<std::endl<<"------------------- Sequence" << s->id << " duration:" << std::endl;
-      for(int i=0; i<s->durations->size; i++) {
-	uint64_t duration = s->durations->at(i);
-	std::cout<<"\t"<<duration<<std::endl;
+    if (cmd & show_sequence_durations) {
+      std::cout << std::endl << "------------------- Sequence" << s->id << " duration:" << std::endl;
+      for (int i = 0; i < s->durations->size; i++) {
+        uint64_t duration = s->durations->at(i);
+        std::cout << "\t" << duration << std::endl;
       }
-      std::cout<<std::endl<<"------------------- End of sequence" << s->id << " durations." << std::endl;
+      std::cout << std::endl << "------------------- End of sequence" << s->id << " durations." << std::endl;
     }
-    
   }
 }
 
@@ -196,17 +190,17 @@ void info_loop(Thread* t, int index) {
 
   std::string loop_name = l->guessName(t);
 
-  std::cout << std::left<< "L"<<std::setw(14) <<std::left <<index;
-  std::cout << std::setw(35) << std::left<< loop_name;
+  std::cout << std::left << "L" << std::setw(14) << std::left << index;
+  std::cout << std::setw(35) << std::left << loop_name;
   std::cout << std::setw(18) << std::right << l->nb_iterations;
   std::cout << std::endl;
 }
 
 void info_thread(Thread* t) {
-  if(! _should_print_thread(t->id))
+  if (!_should_print_thread(t->id))
     return;
 
-  if((cmd & show_thread_content) == 0)
+  if ((cmd & show_thread_content) == 0)
     return;
 
   info_thread_header();
@@ -223,27 +217,60 @@ void info_thread(Thread* t) {
   for (unsigned i = 0; i < t->nb_sequences; i++) {
     info_sequence(t, i);
   }
-  
+
   printf("\nLoops {.nb_loops: %lu}\n", t->nb_loops);
   info_loop_header();
   for (unsigned i = 0; i < t->nb_loops; i++) {
     info_loop(t, i);
   }
 
-  if((cmd & show_sequence_content) ||
-     (cmd & show_sequence_durations)) {
+  if ((cmd & show_sequence_content) || (cmd & show_sequence_durations)) {
     info_sequence_header();
     for (unsigned i = 0; i < t->nb_sequences; i++) {
       info_sequence(t, i, true);
     }
+  }
+}
 
+void info_definitions(Definition& definitions) {
+  if (!definitions.strings.empty()) {
+    printf("\tStrings {.nb_strings: %zu } :\n", definitions.strings.size());
+
+    for (auto& [stringRef, string] : definitions.strings) {
+      printf("\t\t%d: '%s'\n", string.string_ref, string.str);
+    }
+  }
+
+  if (!definitions.regions.empty()) {
+    printf("\tRegions {.nb_regions: %zu } :\n", definitions.regions.size());
+    for (auto& [regionRef, region] : definitions.regions) {
+      printf("\t\t%d: %s\n", region.region_ref, definitions.getString(region.string_ref)->str);
+    }
+  }
+
+  if (!definitions.groups.empty()) {
+    printf("\tGroups {.nb_groups: %zu } :\n", definitions.groups.size());
+    for (auto& [groupRef, group] : definitions.groups) {
+      printf("\t\t%d: '%s' [", group.group_ref, definitions.getString(group.name)->str);
+      for (uint32_t i = 0; i < group.numberOfMembers; i++) {
+        printf("%s%lu", i > 0 ? ", " : "", group.members[i]);
+      }
+      printf("]\n");
+    }
+  }
+
+  if (!definitions.comms.empty()) {
+    printf("\tComms {.nb_comms: %zu } :\n", definitions.comms.size());
+    for (auto& [commRef, comm] : definitions.comms) {
+      printf("\t\t%d: '%s' (group, %d, parent: %d) \n", comm.comm_ref, definitions.getString(comm.name)->str, comm.group, comm.parent);
+    }
   }
 }
 
 void info_global_archive(GlobalArchive* archive) {
   printf("Main archive:\n");
 
-  if(cmd & show_archive_details) {
+  if (cmd & show_archive_details) {
     printf("\tdir_name:   %s\n", archive->dir_name);
     printf("\ttrace_name: %s\n", archive->trace_name);
   }
@@ -251,72 +278,37 @@ void info_global_archive(GlobalArchive* archive) {
   printf("\tfullpath:    %s\n", archive->fullpath);
   printf("\tnb_archives: %d\n", archive->nb_archives);
   printf("\tnb_process: %lu\n", archive->location_groups.size());
-  printf("\tnb_threads: %lu\n", archive->locations.size());
+  if (archive->nb_archives)
+    printf("\tArchives {.nb_archives: %d}\n", archive->nb_archives);
+  // printf("\tnb_threads: %lu\n", archive->locations.size());
 
-  if(cmd & show_definitions) {
-    if (!archive->definitions.strings.empty()) {
-      printf("\tStrings {.nb_strings: %zu } :\n", archive->definitions.strings.size());
-
-      for (auto& [stringRef, string] : archive->definitions.strings) {
-	printf("\t\t%d: '%s'\n", string.string_ref, string.str);
-      }
-    }
-
-    if (!archive->definitions.regions.empty()) {
-      printf("\tRegions {.nb_regions: %zu } :\n", archive->definitions.regions.size());
-      for (auto& [regionRef, region] : archive->definitions.regions) {
-	printf("\t\t%d: %s\n", region.region_ref, archive->getString(region.string_ref)->str);
-      }
-    }
-
-    if (!archive->definitions.groups.empty()) {
-      printf("\tGroups {.nb_groups: %zu } :\n", archive->definitions.groups.size());
-      for (auto& [groupRef, group] : archive->definitions.groups) {
-	printf("\t\t%d: '%s' [", group.group_ref, archive->getString(group.name)->str);
-	for(uint32_t i = 0; i<group.numberOfMembers; i++) {
-	  printf("%s%lu", i>0?", ":"", group.members[i]);
-	}
-	printf("]\n");
-      }
-    }
-
-    if (!archive->definitions.comms.empty()) {
-      printf("\tComms {.nb_comms: %zu } :\n", archive->definitions.comms.size());
-      for (auto& [commRef, comm] : archive->definitions.comms) {
-	printf("\t\t%d: '%s' (group, %d, parent: %d) \n", comm.comm_ref, archive->getString(comm.name)->str, comm.group, comm.parent);
-      }
-    }
-
+  if (cmd & show_definitions) {
+    info_definitions(archive->definitions);
     if (!archive->location_groups.empty()) {
       printf("\tLocation_groups {.nb_lg: %zu }:\n", archive->location_groups.size());
       for (auto& locationGroup : archive->location_groups) {
-	printf("\t\t%d: %s", locationGroup.id, archive->getString(locationGroup.name)->str);
-	if (locationGroup.parent != PALLAS_LOCATION_GROUP_ID_INVALID)
-	  printf(", parent: %d", locationGroup.parent);
-	if (locationGroup.mainLoc != PALLAS_THREAD_ID_INVALID)
-	  printf(", mainLocation: %d", locationGroup.mainLoc);
-	printf("\n");
+        printf("\t\t%d: %s", locationGroup.id, archive->getString(locationGroup.name)->str);
+        if (locationGroup.parent != PALLAS_LOCATION_GROUP_ID_INVALID)
+          printf(", parent: %d", locationGroup.parent);
+        printf("\n");
       }
     }
 
-    if (!archive->locations.empty()) {
-      printf("\tLocations {.nb_loc: %zu }:\n", archive->locations.size());
-      for (auto location : archive->locations) {
-	printf("\t\t%d: %s, parent: %d\n", location.id, archive->getString(location.name)->str, location.parent);
+    if (!archive->getLocationList().empty()) {
+      printf("\tLocations {.nb_loc: %zu }:\n", archive->getLocationList().size());
+      for (auto location : archive->getLocationList()) {
+        printf("\t\t%d: %s, parent: %d\n", location.id, archive->getArchive(location.parent)->getString(location.name)->str, location.parent);
       }
     }
-
-    if (archive->nb_archives)
-      printf("\tArchives {.nb_archives: %d}\n", archive->nb_archives);
   }
 
   printf("\n");
 }
 
 static bool _archiveContainsThread(Archive* archive, int thread_id) {
-  for(int i=0; i< archive->nb_threads; i++) {
+  for (int i = 0; i < archive->nb_threads; i++) {
     auto thread = archive->getThreadAt(i);
-    if(thread->id == thread_id)
+    if (thread->id == thread_id)
       return true;
   }
   return false;
@@ -324,42 +316,68 @@ static bool _archiveContainsThread(Archive* archive, int thread_id) {
 
 void info_archive_header() {
   std::cout << std::left << "#";
-  std::cout << std::setw(14) << std::left  << "Archive_id";
-  std::cout << std::setw(20) << std::left  << "Archive_name";
+  std::cout << std::setw(14) << std::left << "Archive_id";
+  std::cout << std::setw(20) << std::left << "Archive_name";
   std::cout << std::setw(15) << std::right << "Nb_threads";
   std::cout << std::endl;
 }
 
 void info_archive(Archive* archive) {
-  if(! _should_print_archive(archive->id)) {
+  if (!_should_print_archive(archive->id)) {
     return;
   }
 
-  std::cout << std::setw(15) << std::left  << archive->id;
-  std::cout << std::setw(20) << std::left  << archive->getName();
-  std::cout << std::setw(15) << std::right << archive->nb_threads;
-  std::cout << std::endl;
+    std::cout << std::setw(15) << std::left << archive->id;
+    std::cout << std::setw(20) << std::left << archive->getName();
+    std::cout << std::setw(15) << std::right << archive->nb_threads;
+    std::cout << std::endl;
+}
+
+void info_archive_definition(Archive* archive) {
+  if (!_should_print_archive(archive->id)) {
+    return;
+  }
+  printf("Archive %d:\n", archive->id);
+  if (cmd & show_definitions) {
+    info_definitions(archive->definitions);
+    if (!archive->location_groups.empty()) {
+      printf("\tLocation_groups {.nb_lg: %zu }:\n", archive->location_groups.size());
+      for (auto& locationGroup : archive->location_groups) {
+        printf("\t\t%d: %s", locationGroup.id, archive->getString(locationGroup.name)->str);
+        if (locationGroup.parent != PALLAS_LOCATION_GROUP_ID_INVALID)
+          printf(", parent: %d", locationGroup.parent);
+        printf("\n");
+      }
+    }
+
+    if (!archive->locations.empty()) {
+      printf("\tLocations {.nb_loc: %zu }:\n", archive->locations.size());
+      for (auto location : archive->locations) {
+        printf("\t\t%d: %s, parent: %d\n", location.id, archive->getString(location.name)->str, location.parent);
+      }
+    }
+  }
 }
 
 void info_thread_header() {
-  std::cout<< std::left << "#";
-  std::cout << std::setw(19) << std::left  << "Thread_name";
-  std::cout << std::setw(15) << std::left  << "Thread_id";
-  std::cout << std::setw(15) << std::right <<"First_ts";
-  std::cout << std::setw(15) << std::right <<"Last_ts";
-  std::cout << std::setw(15) << std::right <<"Duration(s)";
-  std::cout << std::setw(15) << std::right <<"Event_count";
-  std::cout << std::setw(15) << std::right <<"Nb_events";
-  std::cout << std::setw(15) << std::right <<"Nb_sequences";
-  std::cout << std::setw(15) << std::right <<"Nb_loops";
-  std::cout << std::setw(15) << std::right <<"Archive_id";
+  std::cout << std::left << "#";
+  std::cout << std::setw(19) << std::left << "Thread_name";
+  std::cout << std::setw(15) << std::left << "Thread_id";
+  std::cout << std::setw(15) << std::right << "First_ts";
+  std::cout << std::setw(15) << std::right << "Last_ts";
+  std::cout << std::setw(15) << std::right << "Duration(s)";
+  std::cout << std::setw(15) << std::right << "Event_count";
+  std::cout << std::setw(15) << std::right << "Nb_events";
+  std::cout << std::setw(15) << std::right << "Nb_sequences";
+  std::cout << std::setw(15) << std::right << "Nb_loops";
+  std::cout << std::setw(15) << std::right << "Archive_id";
   std::cout << std::endl;
 }
 
 void info_thread_summary(Thread* thread) {
   if (thread && _should_print_thread(thread->id)) {
-    std::cout << std::setw(20) << std::left  << thread->getName();
-    std::cout << std::setw(15) << std::left  << thread->id;
+    std::cout << std::setw(20) << std::left << thread->getName();
+    std::cout << std::setw(15) << std::left << thread->id;
     std::cout << std::setw(15) << std::right << thread->getFirstTimestamp();
     std::cout << std::setw(15) << std::right << thread->getLastTimestamp();
     std::cout << std::setw(15) << std::right << ns2s(thread->getDuration());
@@ -373,8 +391,9 @@ void info_thread_summary(Thread* thread) {
 }
 
 void info_threads(Archive* archive) {
-  if(! (cmd & list_threads)) return ;
-  if(thread_to_print >= 0 && ! _archiveContainsThread(archive, thread_to_print)) {
+  if (!(cmd & list_threads))
+    return;
+  if (thread_to_print >= 0 && !_archiveContainsThread(archive, thread_to_print)) {
     return;
   }
 
@@ -389,26 +408,30 @@ void info_threads(Archive* archive) {
 void info_trace(GlobalArchive* trace) {
   info_global_archive(trace);
 
-  if(cmd & list_archives) {
+  if (cmd & list_archives) {
     info_archive_header();
     for (int i = 0; i < trace->nb_archives; i++) {
       info_archive(trace->archive_list[i]);
     }
+    printf("\n");
+    for (int i = 0; i < trace->nb_archives; i++) {
+      info_archive_definition(trace->archive_list[i]);
+    }
   }
 
-  if(cmd & list_threads) {
+  if (cmd & list_threads) {
     info_thread_header();
     for (int i = 0; i < trace->nb_archives; i++) {
       info_threads(trace->archive_list[i]);
     }
   }
 
-  if(cmd & show_thread_content) {
+  if (cmd & show_thread_content) {
     for (int i = 0; i < trace->nb_archives; i++) {
       for (int j = 0; j < trace->archive_list[i]->nb_threads; j++) {
-	auto thread = trace->archive_list[i]->getThreadAt(j);
-	if (thread)
-	  info_thread(thread);
+        auto thread = trace->archive_list[i]->getThreadAt(j);
+        if (thread)
+          info_thread(thread);
       }
     }
   }
@@ -456,10 +479,10 @@ int main(int argc, char** argv) {
     } else if (!strcmp(argv[nb_opts], "-da")) {
       cmd |= show_archive_details;
     } else if (!strcmp(argv[nb_opts], "--archive")) {
-      archive_to_print = atoi(argv[nb_opts+1]);
+      archive_to_print = atoi(argv[nb_opts + 1]);
       nb_opts++;
     } else if (!strcmp(argv[nb_opts], "--thread")) {
-      thread_to_print = atoi(argv[nb_opts+1]);
+      thread_to_print = atoi(argv[nb_opts + 1]);
       nb_opts++;
     } else if (!strcmp(argv[nb_opts], "-h") || !strcmp(argv[nb_opts], "-?") || !strcmp(argv[nb_opts], "--help")) {
       printf("invalid option '%s'\n", argv[nb_opts]);
@@ -481,11 +504,12 @@ int main(int argc, char** argv) {
   }
 
   auto trace = pallas_open_trace(trace_name);
-  if ( trace == nullptr) {
+  if (trace == nullptr) {
     return EXIT_FAILURE;
   }
   info_trace(trace);
 
+  delete trace;
   return EXIT_SUCCESS;
 }
 

@@ -39,7 +39,7 @@ OTF2_Reader* OTF2_Reader_Open(const char* anchorFilePath) {
   reader->thread_readers = (pallas::ThreadReader**) calloc(reader->nb_locations, sizeof(pallas::ThreadReader*));
 
   for(int i = 0; i< reader->nb_locations; i++) {
-    reader->locations[i] =   archive->locations[i].id;
+    // reader->locations[i] =   archive->locations[i].id;
     reader->evt_readers[i].location = OTF2_UNDEFINED_LOCATION;
     reader->def_readers[i].location = OTF2_UNDEFINED_LOCATION;
   }
@@ -949,7 +949,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalDefinitions(OTF2_Reader* reader,
   }
 
   if(defReader->callbacks.OTF2_GlobalDefReaderCallback_Location_callback) {
-    for ( const auto &loc : archive->locations ) {
+    /*for ( const auto &loc : archive->locations ) {
       CHECK_OTF2_CALLBACK_SUCCESS(defReader->callbacks.OTF2_GlobalDefReaderCallback_Location_callback
 				  (defReader->user_data,
 				   loc.id, // self
@@ -959,6 +959,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalDefinitions(OTF2_Reader* reader,
 				   loc.parent // locationGroup
 				   ));
     }
+    */
   }
 
   // todo: handle the other definitions

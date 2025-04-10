@@ -1,6 +1,7 @@
-//
-// Created by khatharsis on 08/07/24.
-//
+/*
+ * Copyright (C) Telecom SudParis
+ * See LICENSE in top-level directory.
+ */
 
 #include "pallas/pallas_record.h"
 #include "pallas/pallas_log.h"
@@ -891,3 +892,12 @@ namespace pallas {
 
   
 }  // namespace pallas
+
+
+/* -*-
+   mode: c;
+   c-file-style: "k&r";
+   c-basic-offset 2;
+   tab-width 2 ;
+   indent-tabs-mode nil
+   -*- */

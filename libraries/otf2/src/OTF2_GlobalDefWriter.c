@@ -57,7 +57,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteString(OTF2_GlobalDefWriter* writerHand
                                                 OTF2_StringRef self,
                                                 const char* string) {
   //  NOT_IMPLEMENTED;
-  pallas_archive_register_string(writerHandle->archive, self, string);
+  pallas_global_archive_register_string(writerHandle->archive, self, string);
   return OTF2_SUCCESS;
 }
 
@@ -66,7 +66,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteAttribute(OTF2_GlobalDefWriter* writerH
                                                    OTF2_StringRef name,
                                                    OTF2_StringRef description,
                                                    OTF2_Type type) {
-  pallas_archive_register_attribute(writerHandle->archive, self, name, description, OTF2_PALLAS_TYPE(type));
+  pallas_global_archive_register_attribute(writerHandle->archive, self, name, description, OTF2_PALLAS_TYPE(type));
   return OTF2_SUCCESS;
 }
 
@@ -155,9 +155,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteLocationGroup(OTF2_GlobalDefWriter* wri
                                                        OTF2_LocationGroupRef creatingLocationGroup) {
   LocationGroupId lg_id = _otf_register_location_group(self);
   LocationGroupId parent_id = _otf_get_location_group_id(creatingLocationGroup);
-
-  //  pallas_write_global_add_subarchive(&writerHandle->archive, self);
-  pallas_write_define_location_group(writerHandle->archive, lg_id, name, parent_id);
+  pallas_global_archive_define_location_group(writerHandle->archive, lg_id, name, parent_id);
 
   return OTF2_SUCCESS;
 }
@@ -170,11 +168,8 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteLocation(OTF2_GlobalDefWriter* writerHa
                                                   OTF2_LocationGroupRef locationGroup) {
   ThreadId thread_id = _otf_register_location(self);
   LocationGroupId parent_id = _otf_get_location_group_id(locationGroup);
-
-  pallas_write_define_location(writerHandle->archive, thread_id, name, parent_id);
-
+  pallas_global_archive_define_location(writerHandle->archive, thread_id, name, parent_id);
   return OTF2_SUCCESS;
-  //  NOT_IMPLEMENTED;
 }
 
 OTF2_ErrorCode OTF2_GlobalDefWriter_WriteRegion(OTF2_GlobalDefWriter* writerHandle,
@@ -193,7 +188,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteRegion(OTF2_GlobalDefWriter* writerHand
    * - uppon thread creation, copy the write region to the new thread regions
    * - when creating a global region, add it to the existing threads region
    */
-  pallas_archive_register_region(writerHandle->archive, self, name);
+  pallas_global_archive_register_region(writerHandle->archive, self, name);
   return OTF2_SUCCESS;
 }
 
@@ -221,7 +216,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteGroup(OTF2_GlobalDefWriter* writerHandl
                                                OTF2_GroupFlag groupFlags,
                                                uint32_t numberOfMembers,
                                                const uint64_t* members) {
-  pallas_archive_register_group(writerHandle->archive, self, name, numberOfMembers, members);
+  pallas_global_archive_register_group(writerHandle->archive, self, name, numberOfMembers, members);
   return OTF2_SUCCESS;
 }
 
@@ -262,7 +257,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteComm(OTF2_GlobalDefWriter* writerHandle
                                               OTF2_GroupRef group,
                                               OTF2_CommRef parent,
                                               OTF2_CommFlag flags) {
-  pallas_archive_register_comm(writerHandle->archive, self, name, group, parent);
+  pallas_global_archive_register_comm(writerHandle->archive, self, name, group, parent);
 
   return OTF2_SUCCESS;
 }

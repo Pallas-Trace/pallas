@@ -10,16 +10,15 @@ if (Python3_FOUND)
         return(-1)
     endif()
 endif()
-option(PythonInstallLocal "Install the Python Lib locally instead of globally" ON)
-set(PythonLocalLib $ENV{HOME}/.local/lib/python3.${Python3_VERSION_MINOR}/site-packages)
-set(PythonGlobalLib ${Python3_SITELIB})
+
+option(Python3_INSTALL_LOCALLY "Install the Pallas Python library in the user local directory instead of system-wide" ON)
 
 execute_process(COMMAND pybind11-config --cmakedir OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
 find_package(pybind11 CONFIG REQUIRED)
 
 
 pybind11_add_module(pallas_python MODULE pallas_python.cpp)
-set_target_properties(pallas_python PROPERTIES OUTPUT_NAME "pallas")
+set_target_properties(pallas_python PROPERTIES OUTPUT_NAME "pallas_trace")
 pybind11_extension(pallas_python)
 if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
     # Strip unnecessary sections of the binary on Linux/macOS
@@ -45,8 +44,12 @@ target_link_libraries(pallas_python
         ${Python3_LIBRARIES}
 )
 
-if (PythonInstallLocal)
-    install(TARGETS pallas_python DESTINATION ${PythonLocalLib})
+if (Python3_INSTALL_LOCALLY)
+    execute_process(COMMAND ${Python3_EXECUTABLE} -m site --user-site OUTPUT_VARIABLE Python3_USERSITELIB OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message("Installing Python library locally to ${Python3_USERSITELIB}")
+    install(TARGETS pallas_python DESTINATION ${Python3_USERSITELIB})
 else()
-    install(TARGETS pallas_python DESTINATION ${PythonGlobalLib})
+    execute_process(COMMAND ${Python3_EXECUTABLE}  -c "import site; print(site.getsitepackages()[0])" OUTPUT_VARIABLE Python3_USERSITELIB OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message("Installing Python library globally to ${Python3_SITELIB}")
+    install(TARGETS pallas_python DESTINATION ${Python3_SITELIB})
 endif()

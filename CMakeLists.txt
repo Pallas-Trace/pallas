@@ -30,11 +30,8 @@ option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
 option(ENABLE_PYTHON "Enable the Python interface" ON)
+option(ENABLE_MPI_TEST "MPI tests" ON)
 
-
-# if (ENABLE_MPI)
-# find_program(MPICC mpicc REQUIRED)
-# endif()
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD libzstd REQUIRED)
@@ -138,12 +135,9 @@ endif ()
 if (ENABLE_PYTHON)
     add_subdirectory(libraries/pallas_python)
 endif()
-#add_subdirectory (tracer)
 add_subdirectory(apps)
 add_subdirectory(test)
-# if (ENABLE_MPI)
-# add_subdirectory (test/mpi)
-# endif()
+
 
 include(PrintOpts)
 

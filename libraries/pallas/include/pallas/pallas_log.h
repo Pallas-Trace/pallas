@@ -1,9 +1,10 @@
-//
-// Created by khatharsis on 23/07/24.
-//
-
+/*
+ * Copyright (C) Telecom SudParis
+ * See LICENSE in top-level directory.
+ */
 #pragma once
 #include <inttypes.h>
+#include <stddef.h>
 extern __thread size_t thread_rank;
 extern unsigned int pallas_mpi_rank;
 
@@ -45,3 +46,12 @@ extern unsigned int pallas_mpi_rank;
 /** Asserts a condition only if in Debug mode (if DEBUG is defined). */
 #define pallas_assert(cond) pallas_assert_always(cond)
 #endif
+
+
+/* -*-
+   mode: c;
+   c-file-style: "k&r";
+   c-basic-offset 2;
+   tab-width 2 ;
+   indent-tabs-mode nil
+   -*- */

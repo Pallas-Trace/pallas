@@ -3,18 +3,21 @@
  * See LICENSE in top-level directory.
  */
 #include <mpi.h>
+#include <pallas/pallas_log.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "pallas.h"
-#include "pallas_archive.h"
-#include "pallas_write.h"
+#include "pallas/pallas.h"
+#include "pallas/pallas_archive.h"
+#include "pallas/pallas_record.h"
+#include "pallas/pallas_write.h"
 
-static struct pallas_archive trace;
-static LocationGroupId_t process_id;
+static GlobalArchive * trace = NULL;
+static Archive * archive = NULL;
+static LocationGroupId process_id;
 
-static int nb_iter_default = 100000;
+static int nb_iter_default = 1000;
 static int nb_functions_default = 2;
 static int nb_threads_default = 4;
 static int pattern_default = 0;
@@ -24,33 +27,40 @@ static int nb_functions;
 static int nb_threads;
 static int pattern;
 
-struct pallas_thread_writer** thread_writers;
-static pallas_region_ref_t* regions;
-static pallas_string_ref_t* strings;
+ThreadWriter** thread_writers = NULL;
+static RegionRef* regions = NULL;
+static StringRef* strings = NULL;
 
 static pthread_barrier_t bench_start;
 static pthread_barrier_t bench_stop;
 
 #define TIME_DIFF(t1, t2) (((t2).tv_sec - (t1).tv_sec) + ((t2).tv_nsec - (t1).tv_nsec) / 1e9)
 
-static pallas_region_ref_t next_region_ref = 0;
-static pallas_string_ref_t next_string_ref = 0;
-static _Atomic ThreadId_t next_thread_id = 0;
+static RegionRef next_region_ref = 0;
+static StringRef next_string_ref = 0;
+_Atomic ThreadId next_thread_id = 0;
+static ThreadId base_thread_id = 0;
 
-static pallas_string_ref_t _register_string(char* str) {
-  pallas_string_ref_t ref = next_string_ref++;
-  pallas_archive_register_string(&trace, ref, str);
+static StringRef _register_string_global(char* str) {
+  StringRef ref = next_string_ref++;
+  pallas_global_archive_register_string(trace, ref, str);
   return ref;
 }
 
-static pallas_region_ref_t _register_region(pallas_string_ref_t string_ref) {
-  pallas_region_ref_t id = next_region_ref++;
-  pallas_archive_register_region(&trace, id, string_ref);
+static StringRef _register_string_local(char* str) {
+  StringRef ref = next_string_ref++;
+  pallas_archive_register_string(archive, ref, str);
+  return ref;
+}
+
+static RegionRef _register_region(StringRef string_ref) {
+  RegionRef id = next_region_ref++;
+  pallas_archive_register_region(archive, id, string_ref);
   return id;
 }
 
-static ThreadId_t _new_thread() {
-  ThreadId_t id = next_thread_id++;
+static ThreadId _new_thread() {
+  ThreadId id = next_thread_id++;
   return id;
 }
 
@@ -58,19 +68,16 @@ static int mpi_rank;
 static int mpi_comm_size;
 
 void* worker(void* arg __attribute__((unused))) {
-  static _Atomic int nb_threads = 0;
-  int my_rank = nb_threads++;
+  ThreadId local_thread_id = _new_thread();
+  thread_rank = local_thread_id;
+  ThreadId global_thread_id = local_thread_id + base_thread_id;
+  ThreadWriter* thread_writer =  pallas_thread_writer_new(archive, global_thread_id);;
+  thread_writers[local_thread_id] = thread_writer;
 
-  thread_writers[my_rank] = malloc(sizeof(struct pallas_thread_writer));
-  struct pallas_thread_writer* thread_writer = thread_writers[my_rank];
   char thread_name[20];
-  snprintf(thread_name, 20, "P#%dT#%d", mpi_rank, my_rank);
-  pallas_string_ref_t thread_name_id = _register_string(thread_name);
-
-  ThreadId_t thread_id = _new_thread();
-  pallas_write_define_location(&trace, thread_id, thread_name_id, process_id);
-
-  pallas_write_thread_open(&trace, thread_writer, thread_id);
+  snprintf(thread_name, 20, "P#%dT#%d", mpi_rank, global_thread_id);
+  StringRef thread_name_id = _register_string_local(thread_name);
+  pallas_archive_define_location(archive, global_thread_id, thread_name_id, process_id);
 
   struct timespec t1, t2;
   pthread_barrier_wait(&bench_start);
@@ -111,9 +118,9 @@ void* worker(void* arg __attribute__((unused))) {
   int nb_events = nb_iter * nb_event_per_iter;
   double duration_per_event = duration / nb_events;
 
-  printf("T#%d: %d events in %lf s -> %lf ns per event\n", my_rank, nb_events, duration, duration_per_event * 1e9);
+  pallas_log(Normal, "%d events in %lf s -> %lf ns per event\n", nb_events, duration, duration_per_event * 1e9);
 
-  pallas_write_thread_close(thread_writer);
+  pallas_thread_writer_close(thread_writer);
   return NULL;
 }
 
@@ -165,6 +172,11 @@ int main(int argc, char** argv) {
 
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_comm_size);
+  pallas_mpi_rank = mpi_rank;
+
+  if (mpi_rank == 0) {
+    trace = pallas_global_archive_new("mpi_benchmark_trace", "main");
+  }
 
   printf("Hello from %d/%d\n", mpi_rank, mpi_comm_size);
 
@@ -173,12 +185,12 @@ int main(int argc, char** argv) {
   int chunk_size = mpi_comm_size * 100;
   next_region_ref = mpi_rank * chunk_size;
   next_string_ref = mpi_rank * chunk_size;
-  next_thread_id = mpi_rank * chunk_size;
+  base_thread_id = mpi_rank * chunk_size;
 
   pthread_t tid[nb_threads];
   pthread_barrier_init(&bench_start, NULL, nb_threads + 1);
   pthread_barrier_init(&bench_stop, NULL, nb_threads + 1);
-  thread_writers = malloc(sizeof(struct pallas_thread_writer*) * nb_threads);
+  thread_writers = malloc(sizeof(ThreadWriter*) * nb_threads);
 
   printf("nb_iter = %d\n", nb_iter);
   printf("nb_functions = %d\n", nb_functions);
@@ -186,16 +198,24 @@ int main(int argc, char** argv) {
   printf("pattern = %d\n", pattern);
   printf("---------------------\n");
 
-  pallas_write_archive_open(&trace, "mpi_benchmark_trace", "main", mpi_rank);
-
-  regions = malloc(sizeof(pallas_region_ref_t) * nb_functions);
-  strings = malloc(sizeof(pallas_string_ref_t) * nb_functions);
+  archive = pallas_archive_new("mpi_benchmark_trace", mpi_rank);
+  if (mpi_rank == 0) {
+    for (int i = 0; i < mpi_comm_size; i++) {
+      char rank_name_str[100];
+      snprintf(rank_name_str, 100, "Rank#%d", i);
+      StringRef rank_name = _register_string_global(rank_name_str);
+      pallas_global_archive_define_location_group(trace, i, rank_name, PALLAS_LOCATION_GROUP_ID_INVALID);
+    }
+  }
+  regions = malloc(sizeof(RegionRef) * nb_functions);
+  strings = malloc(sizeof(StringRef) * nb_functions);
   for (int i = 0; i < nb_functions; i++) {
     char str[50];
     snprintf(str, 50, "function_%d", i);
-    strings[i] = _register_string(str);
+    strings[i] = _register_string_local(str);
     regions[i] = _register_region(strings[i]);
   }
+
 
   for (int i = 0; i < nb_threads; i++)
     pthread_create(&tid[i], NULL, worker, NULL);
@@ -215,25 +235,17 @@ int main(int argc, char** argv) {
   int nb_events = nb_iter * nb_event_per_iter * nb_threads;
   double events_per_second = nb_events / duration;
 
-  printf("TOTAL: %d events in %lf s -> %lf Me/s \n", nb_events, duration, events_per_second / 1e6);
+  pallas_log(Normal, "TOTAL: %d events in %lf s -> %lf Me/s \n", nb_events, duration, events_per_second / 1e6);
 
-  pallas_write_archive_close(&trace);
+  pallas_archive_close(archive);
 
-  if (mpi_rank == 0) {
-    struct pallas_archive global_archive;
-    pallas_write_global_archive_open(&global_archive, "mpi_benchmark_trace", "main");
-
-    for (int i = 0; i < mpi_comm_size; i++) {
-      char rank_name_str[100];
-      snprintf(rank_name_str, 100, "Rank#%d", i);
-      pallas_string_ref_t rank_name = _register_string(rank_name_str);
-      pallas_write_define_location_group(&global_archive, i, rank_name, PALLAS_LOCATION_GROUP_ID_INVALID);
-    }
-
-    pallas_write_global_archive_close(&global_archive);
-  }
+  MPI_Barrier(MPI_COMM_WORLD);
 
   MPI_Finalize();
+
+  if (mpi_rank == 0) {
+    pallas_global_archive_close(trace);
+  }
   return EXIT_SUCCESS;
 }
 

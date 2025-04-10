@@ -245,39 +245,33 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
   }
 }
 
-void printTrace(const pallas::GlobalArchive& trace) {
+void printTrace(pallas::GlobalArchive& trace) {
   if (per_thread) {
-    for (int i = 0; i < trace.nb_archives; i++) {
-      for (int j = 0; j < trace.archive_list[i]->nb_threads; j++) {
-        auto thread = trace.archive_list[i]->getThreadAt(j);
-        if (thread == nullptr)  continue;
-        if(!(thread_to_print < 0 || thread->id == thread_to_print)) continue;
-
-        auto reader = pallas::ThreadReader(trace.archive_list[i], thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
+    for (auto thread : trace.getThreadList()) {
+      size_t last_timestamp = 0;
+        if(thread_to_print >= 0 && thread->id != thread_to_print) continue;
+        auto reader = pallas::ThreadReader(thread->archive, thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
         _print_timestamp_header();
         _print_duration_header();
         do {
+          pallas_assert_always(last_timestamp <= reader.currentState.currentFrame->referential_timestamp);
+          last_timestamp = reader.currentState.currentFrame->referential_timestamp;
           auto token = reader.pollCurToken();
           if (token.type == pallas::TypeEvent) {
             printEvent(reader.thread_trace, token, reader.getEventOccurence(token, reader.currentState.currentFrame->tokenCount[token]));
           }
         } while (reader.getNextToken().isValid());
-      }
     }
     return;
   }
   std::map<pallas::ThreadReader*, struct thread_data> threads_data;
 
   auto readers = std::vector<pallas::ThreadReader>();
-  for (int i = 0; i < trace.nb_archives; i++) {
-    for (int j = 0; j < trace.archive_list[i]->nb_threads; j++) {
-      auto thread = trace.archive_list[i]->getThreadAt(j);
+  for (auto * thread: trace.getThreadList()) {
       if (thread == nullptr)  continue;
       if(!(thread_to_print < 0 || thread->id == thread_to_print)) continue;
-
-      readers.emplace_back(trace.archive_list[i], thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
+      readers.emplace_back(thread->archive, thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
       threads_data[&readers.back()] = {};
-    }
   }
 
   _print_timestamp_header();
@@ -377,21 +371,15 @@ void printThreadStructure(pallas::ThreadReader& tr) {
   }
 }
 
-void printStructure(const int flags, const pallas::GlobalArchive& trace) {
-  for (int i = 0; i < trace.nb_archives; i++) {
-    for (int j = 0; j < trace.archive_list[i]->nb_threads; j++) {
-      auto thread = trace.archive_list[i]->getThreadAt(j);
-      if (thread == nullptr)
-        continue;
-      if(!(thread_to_print < 0 || thread->id == thread_to_print)) continue;
-    	continue;
-      pallas::ThreadReader tr = pallas::ThreadReader(
-        trace.archive_list[i],
+void printStructure(const int flags, pallas::GlobalArchive& trace) {
+  for (auto * thread: trace.getThreadList()) {
+      if(thread_to_print >= 0 && thread->id != thread_to_print) continue;
+      auto tr = pallas::ThreadReader(
+        thread->archive,
         thread->id,
         flags
         );
       printThreadStructure(tr);
-    }
   }
 }
 
@@ -469,6 +457,7 @@ int main(const int argc, char* argv[]) {
   else
     printTrace(*trace);
 
+  delete trace;
   return EXIT_SUCCESS;
 }
 

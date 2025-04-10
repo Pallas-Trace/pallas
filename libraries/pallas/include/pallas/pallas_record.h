@@ -1,6 +1,7 @@
-//
-// Created by khatharsis on 08/07/24.
-//
+/*
+ * Copyright (C) Telecom SudParis
+ * See LICENSE in top-level directory.
+ */
 #pragma once
 #ifdef __cplusplus
 #include <cstdint>
@@ -323,3 +324,12 @@ namespace pallas {
 }
 #endif
 extern C_CXX(_Thread_local, thread_local) int pallas_recursion_shield;
+
+
+/* -*-
+   mode: c;
+   c-file-style: "k&r";
+   c-basic-offset 2;
+   tab-width 2 ;
+   indent-tabs-mode nil
+   -*- */

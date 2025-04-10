@@ -14,9 +14,9 @@
 
 namespace pallas {
 void Thread::printAttribute(AttributeRef ref) const {
-  const Attribute* attr = archive->global_archive->getAttribute(ref);
+  const Attribute* attr = archive->getAttribute(ref);
   if (attr) {
-    const String* attr_string = archive->global_archive->getString(attr->name);
+    const String* attr_string = archive->getString(attr->name);
     if (attr_string) {
       printf("\"%s\" <%d>", attr_string->str, ref);
       return;
@@ -43,7 +43,7 @@ static enum AttributeType _guess_attribute_size(const AttributeData* attr) {
 }
 
 void Thread::printString(StringRef string_ref) const {
-  auto* str = archive->global_archive->getString(string_ref);
+  auto* str = archive->getString(string_ref);
   if (str)
     printf("%s <%d>", str->str, string_ref);
   else
@@ -51,7 +51,7 @@ void Thread::printString(StringRef string_ref) const {
 }
 
 void Thread::printAttributeRef(AttributeRef attribute_ref) const {
-  auto* attr = archive->global_archive->getAttribute(attribute_ref);
+  auto* attr = archive->getAttribute(attribute_ref);
   if (attr)
     printf("attribute <%d>", attribute_ref);
   else
@@ -59,7 +59,7 @@ void Thread::printAttributeRef(AttributeRef attribute_ref) const {
 }
 
 void Thread::printLocation(Ref location_ref) const {
-  auto* attr = archive->global_archive->getLocation(location_ref);
+  auto* attr = archive->getLocation(location_ref);
   if (attr)
     printf("location <%d>", location_ref);
   else
@@ -67,7 +67,7 @@ void Thread::printLocation(Ref location_ref) const {
 }
 
 void Thread::printRegion(Ref region_ref) const {
-  auto* attr = archive->global_archive->getRegion(region_ref);
+  auto* attr = archive->getRegion(region_ref);
   if (attr)
     printf("region <%d>", region_ref);
   else
@@ -205,9 +205,9 @@ void Thread::printAttribute(const struct AttributeData* attr) const {
   const char* attr_string = "INVALID";
   enum AttributeType type = _guess_attribute_size(attr);
 
-  auto* a = archive->global_archive->getAttribute(attr->ref);
+  auto* a = archive->getAttribute(attr->ref);
   if (a) {
-    auto* str = archive->global_archive->getString(a->name);
+    auto* str = archive->getString(a->name);
     if (str) {
       attr_string = str->str;
     }

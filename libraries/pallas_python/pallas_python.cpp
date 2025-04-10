@@ -1,6 +1,7 @@
-//
-// Created by khatharsis on 23/01/25.
-//
+/*
+ * Copyright (C) Telecom SudParis
+ * See LICENSE in top-level directory.
+ */
 #include "pallas_python.h"
 
 std::string Token_toString(pallas::Token t) {
@@ -200,22 +201,54 @@ std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
 }
 
 struct PyLocationGroup {
-  const pallas::LocationGroup& lg;
-  const pallas::GlobalArchive& trace;
+  const pallas::LocationGroupId id;
+  const std::string name;
+  const pallas::LocationGroup* parent = {nullptr};
 };
+
 struct PyLocation {
-  pallas::Location& loc;
-  const pallas::GlobalArchive& trace;
+  const pallas::ThreadId id;
+  const std::string name;
+  const pallas::LocationGroup* parent;
 };
+
 struct PyRegion {
-  pallas::Region& reg;
-  const pallas::GlobalArchive& trace;
+  const pallas::RegionRef id;
+  const std::string name;
 };
+
+
+std::map<pallas::StringRef, std::string>& Archive_get_strings(pallas::Archive& archive) {
+  auto& map = *new std::map<pallas::StringRef, std::string>();
+  for (auto& [key, r] : archive.definitions.strings) {
+    map.insert(std::pair(key, archive.getString(r.string_ref)->str));
+  }
+  return map;
+}
+
+std::map<pallas::ThreadId, PyLocation>& Archive_get_locations(pallas::Archive& archive) {
+  auto& map = *new std::map<pallas::ThreadId, PyLocation>();
+  for (auto& loc : archive.locations) {
+    map.insert(std::pair(loc.id, PyLocation{loc.id, archive.getString(loc.name)->str, archive.getLocationGroup(loc.parent)}));
+  }
+  return map;
+}
+
+std::map<pallas::RegionRef, PyRegion>& Archive_get_regions(pallas::Archive& archive) {
+  auto& map = *new std::map<pallas::RegionRef, PyRegion>();
+  for (auto& [key, r] : archive.definitions.regions) {
+    map.insert(std::pair(key, PyRegion{r.region_ref, archive.getString(r.string_ref)->str}));
+  }
+  return map;
+}
 
 std::map<pallas::ThreadId, PyLocation>& Trace_get_locations(pallas::GlobalArchive& trace) {
   auto& map = *new std::map<pallas::ThreadId, PyLocation>();
-  for (auto& loc : trace.locations) {
-    map.insert(std::pair(loc.id, PyLocation{loc, trace}));
+  for (auto& lg : trace.location_groups) {
+    auto a = trace.getArchive(lg.id);
+    for (const auto& [key, value] : Archive_get_locations(*a)) {
+      map.insert(std::pair(key, value));
+    }
   }
   return map;
 }
@@ -223,7 +256,15 @@ std::map<pallas::ThreadId, PyLocation>& Trace_get_locations(pallas::GlobalArchiv
 std::map<pallas::LocationGroupId, PyLocationGroup>& Trace_get_location_groups(pallas::GlobalArchive& trace) {
   auto& map = *new std::map<pallas::LocationGroupId, PyLocationGroup>();
   for (auto& lg : trace.location_groups) {
-    map.insert(std::pair(lg.id, PyLocationGroup{lg, trace}));
+    map.insert(std::pair(lg.id, PyLocationGroup{lg.id, trace.getString(lg.name)->str, trace.getLocationGroup(lg.parent)}));
+  }
+  return map;
+}
+
+std::map<pallas::StringRef, std::string>& Trace_get_strings(pallas::GlobalArchive& trace) {
+  auto& map = *new std::map<pallas::StringRef, std::string>();
+  for (auto& [key, r] : trace.definitions.strings) {
+    map.insert(std::pair(key, trace.getString(r.string_ref)->str));
   }
   return map;
 }
@@ -231,7 +272,7 @@ std::map<pallas::LocationGroupId, PyLocationGroup>& Trace_get_location_groups(pa
 std::map<pallas::RegionRef, PyRegion>& Trace_get_regions(pallas::GlobalArchive& trace) {
   auto& map = *new std::map<pallas::RegionRef, PyRegion>();
   for (auto& [key, r] : trace.definitions.regions) {
-    map.insert(std::pair(key, PyRegion{r, trace}));
+    map.insert(std::pair(key, PyRegion{r.region_ref, trace.getString(r.string_ref)->str}));
   }
   return map;
 }
@@ -240,7 +281,7 @@ py::list& Trace_get_archives(pallas::GlobalArchive& trace) {
   auto& list = *new py::list(trace.location_groups.size());
   int i = 0;
   for (auto& locationGroup : trace.location_groups) {
-      list[i++] = trace.getArchive(locationGroup.id);
+    list[i++] = trace.getArchive(locationGroup.id);
   }
   return list;
 }
@@ -268,7 +309,7 @@ class DataHolder {
   }
 };
 
-PYBIND11_MODULE(pallas, m) {
+PYBIND11_MODULE(pallas_trace, m) {
   m.doc() = "Python API for the Pallas library";
 
   setupEnums(m);
@@ -298,7 +339,7 @@ PYBIND11_MODULE(pallas, m) {
   py::class_<pallas::EventSummary>(m, "EventSummary", "A Pallas Event Summary, that stores info about an event.")
     .def_readonly("id", &pallas::EventSummary::id)
     .def_readonly("event", &pallas::EventSummary::event)
-    .def_readonly("nb_occurences", &pallas::EventSummary::nb_occurences)
+    .def_readonly("nb_occurrences", &pallas::EventSummary::nb_occurences)
     .def_property_readonly("durations", [](const pallas::EventSummary& self) { return (new DataHolder(*self.durations))->get_array(); })
     .def_property_readonly("max_duration", [](const pallas::EventSummary& self) { return self.durations->max; })
     .def_property_readonly("min_duration", [](const pallas::EventSummary& self) { return self.durations->min; })
@@ -315,32 +356,33 @@ PYBIND11_MODULE(pallas, m) {
     .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; });
 
   py::class_<PyLocationGroup>(m, "LocationGroup", "A group of Pallas locations. Usually means a process.")
-    .def_property_readonly("id", [](const PyLocationGroup& lg) { return lg.lg.id; })
-    .def_property_readonly("name", [](const PyLocationGroup& lg) { return lg.trace.definitions.getString(lg.lg.name); })
-    .def_property_readonly("parent", [](const PyLocationGroup& lg) { return lg.trace.getLocationGroup(lg.lg.parent); })
-    .def_property_readonly("main_location", [](const PyLocationGroup& lg) { return lg.trace.getLocation(lg.lg.mainLoc); })
-    .def("__repr__", [](const PyLocationGroup& self) {
-      return "<pallas_python.LocationGroup " + std::to_string(self.lg.id) + ": '" + self.trace.definitions.getString(self.lg.name)->str + "'>";
-    });
+    .def_readonly("id", &PyLocationGroup::id)
+    .def_readonly("name", &PyLocationGroup::name)
+    .def_readonly("parent", &PyLocationGroup::parent)
+    .def("__repr__",
+         [](const PyLocationGroup& self) {
+             return "<pallas_python.LocationGroup " + std::to_string(self.id) + ": '" + self.name  + "'>";
+         });
   py::class_<PyLocation>(m, "Location", "A Pallas location. Usually means an execution thread.")
-    .def_property_readonly("id", [](const PyLocation& lg) { return lg.loc.id; })
-    .def_property_readonly("name", [](const PyLocation& lg) { return lg.trace.definitions.getString(lg.loc.name); })
-    .def_property_readonly("parent", [](const PyLocation& lg) { return lg.trace.getLocationGroup(lg.loc.parent); })
-    .def("__repr__", [](const PyLocation& self) {
-      auto name = self.trace.definitions.getString(self.loc.name);
-      return "<pallas_python.Location " + std::to_string(self.loc.id) + ": '" + name->str + "'>";
-    });
+    .def_readonly("id", &PyLocation::id)
+    .def_readonly("name", &PyLocation::name)
+    .def_readonly("parent", &PyLocation::parent)
+    .def("__repr__",
+       [](const PyLocation& self) {
+           return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>";
+       });
   py::class_<PyRegion>(m, "Region", "A Pallas region.")
-    .def_property_readonly("id", [](const PyRegion& reg) { return reg.reg.region_ref; })
-    .def_property_readonly("name", [](const PyRegion& reg) { return reg.trace.definitions.getString(reg.reg.string_ref); })
+    .def_readonly("id", &PyRegion::id)
+    .def_readonly("name", &PyRegion::name)
     .def("__repr__", [](const PyRegion& self) {
-      auto name = self.trace.definitions.getString(self.reg.string_ref);
-      return "<pallas_python.Region " + std::to_string(self.reg.region_ref) + ": '" + name->str + "'>";
+      return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
     });
 
   py::class_<pallas::Archive>(m, "Archive", "A Pallas archive. If it exists, it's already been loaded.")
     .def_readonly("dir_name", &pallas::Archive::dir_name)
-    .def_readonly("trace_name", &pallas::Archive::trace_name)
+  .def_property_readonly("locations", &Archive_get_locations)
+  .def_property_readonly("strings", &Archive_get_strings)
+  .def_property_readonly("regions", &Archive_get_regions)
     .def_property_readonly("threads", &Archive_get_threads);
 
   m.def("open_trace", &open_trace, "Open a Pallas trace");
@@ -352,7 +394,15 @@ PYBIND11_MODULE(pallas, m) {
     .def_readonly("fullpath", &pallas::GlobalArchive::fullpath)
     .def_property_readonly("locations", &Trace_get_locations)
     .def_property_readonly("location_groups", &Trace_get_location_groups)
-    .def_property_readonly("strings", [](pallas::GlobalArchive& trace) { return trace.definitions.strings; })
+    .def_property_readonly("strings", &Trace_get_strings)
     .def_property_readonly("regions", &Trace_get_regions)
     .def_property_readonly("archives", &Trace_get_archives);
 }
+
+/* -*-
+   mode: c;
+   c-file-style: "k&r";
+   c-basic-offset 2;
+   tab-width 2 ;
+   indent-tabs-mode nil
+   -*- */

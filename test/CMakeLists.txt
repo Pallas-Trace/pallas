@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 
 enable_testing()
-# add_subdirectory(mpi)
+
+if (ENABLE_MPI_TEST)
+    add_subdirectory(mpi)
+endif()
 
 add_compile_options(-Wall -Wextra -Wpedantic -Wno-sign-compare ${WARNINGS})
 include_directories(${CMAKE_SOURCE_DIR}/src/)
@@ -16,15 +19,15 @@ link_libraries(pallas Threads::Threads)
 add_executable(write_benchmark write_benchmark.c)
 add_executable(write_benchmark_CPP write_benchmark.cpp)
 
-SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace)
+SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace/main.pallas)
 SET(N_THREADS 4)
 SET(N_ITER 40)
 
 add_test(NAME write_benchmark COMMAND write_benchmark -n ${N_ITER} -t ${N_THREADS})
 
-add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME}/main.pallas)
+add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME})
+add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME})
+add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
 
 add_test (benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
@@ -38,9 +41,9 @@ set_tests_properties(benchmark_checks PROPERTIES
 
 add_test(NAME write_benchmark_CPP COMMAND write_benchmark -n ${N_ITER} -t ${N_THREADS})
 
-add_test(NAME info_benchmark_CPP COMMAND pallas_info ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark_CPP COMMAND pallas_print ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark_structure_CPP COMMAND pallas_print -S ${TRACE_NAME}/main.pallas)
+add_test(NAME info_benchmark_CPP COMMAND pallas_info ${TRACE_NAME})
+add_test(NAME print_benchmark_CPP COMMAND pallas_print ${TRACE_NAME})
+add_test(NAME print_benchmark_structure_CPP COMMAND pallas_print -S ${TRACE_NAME})
 
 add_test (benchmark_checks_CPP bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
@@ -54,9 +57,9 @@ set_tests_properties(benchmark_checks_CPP PROPERTIES
 
 add_test(NAME write_benchmark_logical COMMAND write_benchmark -n ${N_ITER} -t ${N_THREADS} -l)
 
-add_test(NAME info_benchmark_logical COMMAND pallas_info ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark_logical COMMAND pallas_print ${TRACE_NAME}/main.pallas)
-add_test(NAME print_benchmark_structure_logical COMMAND pallas_print -S ${TRACE_NAME}/main.pallas)
+add_test(NAME info_benchmark_logical COMMAND pallas_info ${TRACE_NAME})
+add_test(NAME print_benchmark_logical COMMAND pallas_print ${TRACE_NAME})
+add_test(NAME print_benchmark_structure_logical COMMAND pallas_print -S ${TRACE_NAME})
 
 add_test (benchmark_checks_logical bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"

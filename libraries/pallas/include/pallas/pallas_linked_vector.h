@@ -88,6 +88,7 @@ typedef struct LinkedVector {
      * @param given_array An allocated array of correct size.
      */
     void copyToArray(uint64_t* given_array) const;
+    ~SubVector();
   };
   size_t defaultSize CXX({DEFAULT_VECTOR_SIZE}); /**< Default size of the newly created SubVectors.*/
   C_CXX(void, SubVector) * first;                /**< First SubVector in the LinkedList structure.*/

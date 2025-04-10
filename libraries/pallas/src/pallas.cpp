@@ -62,16 +62,19 @@ Sequence* Thread::getSequence(Token token) const {
 }
 
 Loop* Thread::getLoop(Token token) const {
-  if (token.type != TokenType::TypeLoop) {
+  if (token.type != TypeLoop) {
     pallas_error("Trying to getLoop of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
   }
   pallas_assert(token.id < this->nb_loops);
-  return &this->loops[token.id];
+  auto* l = &this->loops[token.id];
+  pallas_assert(l->repeated_token.isValid());
+  pallas_assert(l->self_id.isValid());
+  return l;
 }
 
 Token& Thread::getToken(Token sequenceToken, int index) const {
   if (sequenceToken.type == TypeSequence) {
-    auto sequence = getSequence(sequenceToken);
+    auto* sequence = getSequence(sequenceToken);
     if (!sequence) {
       pallas_error("Invalid sequence ID: %d\n", sequenceToken.id);
     }
@@ -80,7 +83,7 @@ Token& Thread::getToken(Token sequenceToken, int index) const {
     }
     return sequence->tokens[index];
   } else if (sequenceToken.type == TypeLoop) {
-    auto loop = getLoop(sequenceToken);
+    auto* loop = getLoop(sequenceToken);
     if (!loop) {
       pallas_error("Invalid loop ID: %d\n", sequenceToken.id);
     }
@@ -187,20 +190,20 @@ const char* Thread::getRegionStringFromEvent(pallas::Event* e) const {
   case PALLAS_EVENT_ENTER: {
     RegionRef region_ref;
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
-    region = archive->global_archive->getRegion(region_ref);
+    region = archive->getRegion(region_ref);
     break;
   }
   case PALLAS_EVENT_LEAVE: {
     RegionRef region_ref;
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
-    region = archive->global_archive->getRegion(region_ref);
+    region = archive->getRegion(region_ref);
     break;
   }
   default:
     region = NULL;
   }
 
-  return region ? archive->global_archive->getString(region->string_ref)->str : "INVALID";
+  return region ? archive->getString(region->string_ref)->str : "INVALID";
 }
 std::string Thread::getEventString(Event* e) const {
   byte* cursor = nullptr;
@@ -209,8 +212,8 @@ std::string Thread::getEventString(Event* e) const {
     RegionRef region_ref;
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
     if (archive->global_archive) {
-      const Region* region = archive->global_archive->getRegion(region_ref);
-      const char* region_name = region ? archive->global_archive->getString(region->string_ref)->str : "INVALID";
+      const Region* region = archive->getRegion(region_ref);
+      const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
       return "Enter " + std::to_string(region_ref) + "(" + region_name + ")";
     } else {
       return "Enter" + std::to_string(region_ref);
@@ -220,8 +223,8 @@ std::string Thread::getEventString(Event* e) const {
     RegionRef region_ref;
     pop_data(e, &region_ref, sizeof(region_ref), cursor);
     if (archive->global_archive) {
-      const Region* region = archive->global_archive->getRegion(region_ref);
-      const char* region_name = region ? archive->global_archive->getString(region->string_ref)->str : "INVALID";
+      const Region* region = archive->getRegion(region_ref);
+      const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
       return "Leave " + std::to_string(region_ref) + "(" + region_name + ")";
     } else {
       return "Leave " + std::to_string(region_ref);
@@ -406,7 +409,7 @@ std::string Thread::getEventString(Event* e) const {
   case PALLAS_EVENT_GENERIC: {
     StringRef eventNameRef;
     pop_data(e, &eventNameRef, sizeof(eventNameRef), cursor);
-    auto eventName = archive->global_archive->getString(eventNameRef);
+    auto eventName = archive->getString(eventNameRef);
     return eventName->str;
   }
   default:
@@ -434,11 +437,11 @@ Thread::Thread() {
 }
 
 Thread::~Thread() {
-  for (size_t i = 0; i < nb_events; i++) {
+  for (size_t i = 0; i < nb_allocated_events; i++) {
     events[i].cleanEventSummary();
   }
   delete[] events;
-  for (size_t i = 0; i < nb_sequences; i++) {
+  for (size_t i = 0; i < nb_allocated_sequences; i++) {
     delete sequences[i];
   }
   delete[] sequences;
@@ -446,7 +449,7 @@ Thread::~Thread() {
 }
 
 const char* Thread::getName() const {
-  return archive->global_archive->getString(archive->global_archive->getLocation(id)->name)->str;
+  return archive->getString(archive->getLocation(id)->name)->str;
 }
 
 bool Sequence::isFunctionSequence(const struct Thread* thread) const {
@@ -458,24 +461,34 @@ bool Sequence::isFunctionSequence(const struct Thread* thread) const {
   return false;
 };
 
+ Group::~Group() {
+  delete[] this->members;
+}
+ String::~String() {
+  free(this->str);
+}
+
+
 std::string Sequence::guessName(const pallas::Thread* thread) {
   if (this->size() < 4) {
     Token t_start = this->tokens[0];
     if (t_start.type == TypeEvent) {
       Event* event = thread->getEvent(t_start);
-      const char* event_name = thread->getRegionStringFromEvent(event);
-      std::string prefix(event_name);
+      if (event->record == PALLAS_EVENT_ENTER) {
+        const char* event_name = thread->getRegionStringFromEvent(event);
+        std::string prefix(event_name);
 
-      if (this->size() == 3) {
-        // that's probably an MPI call. To differentiate calls (eg
-        // MPI_Send(dest=5) vs MPI_Send(dest=0)), we can add the
-        // the second token to the name
-        Token t_second = this->tokens[1];
+        if (this->size() == 3) {
+          // that's probably an MPI call. To differentiate calls (eg
+          // MPI_Send(dest=5) vs MPI_Send(dest=0)), we can add the
+          // the second token to the name
+          Token t_second = this->tokens[1];
 
-        std::string res = prefix + "_" + thread->getTokenString(t_second);
-        return res;
+          std::string res = prefix + "_" + thread->getTokenString(t_second);
+          return res;
+        }
+        return prefix;
       }
-      return prefix;
     }
   }
   char buff[128];
@@ -536,58 +549,35 @@ TokenCountMap Sequence::getTokenCountReading(const Thread* thread, const TokenCo
   return tokenCount;
 }
 
-void _sequenceGetTokenCountWriting(Sequence* seq, const Thread* thread, TokenCountMap& reverseTokenCount);
-
-inline static void _loopGetTokenCountWriting(const Loop* loop, const Thread* thread, TokenCountMap& reverseTokenCount) {
+static void _loopGetTokenCountWriting(const Loop* loop, const Thread* thread, TokenCountMap& tokenCount) {
   size_t loop_nb_iterations = loop->nb_iterations;
   auto* loop_sequence = thread->getSequence(loop->repeated_token);
   auto temp = loop_sequence->getTokenCountWriting(thread);
-  reverseTokenCount += temp * loop_nb_iterations;
-  reverseTokenCount[loop->repeated_token] += loop_nb_iterations;
-}
-
-void _sequenceGetTokenCountWriting(Sequence* seq, const Thread* thread, TokenCountMap& reverseTokenCount) {
-  for (auto& token : seq->tokens) {
-    if (token.type == TypeSequence) {
-      auto* s = thread->getSequence(token);
-      _sequenceGetTokenCountWriting(s, thread, reverseTokenCount);
-    }
-    if (token.type == TypeLoop) {
-      auto* loop = thread->getLoop(token);
-      _loopGetTokenCountWriting(loop, thread, reverseTokenCount);
-    }
-    reverseTokenCount[token]++;
+  DOFOR(i, loop->nb_iterations) {
+    tokenCount += temp;
   }
+  if ( tokenCount.find(loop->repeated_token) == tokenCount.end() ) {
+    tokenCount[loop->repeated_token] = 0;
+  }
+  tokenCount[loop->repeated_token] += loop_nb_iterations;
 }
 
-TokenCountMap Sequence::getTokenCountWriting(const Thread* thread, const TokenCountMap* offset) {
-  bool canStoreTokenCount = true;
-  if (tokenCount.empty()) {
-    TokenCountMap updatingOffset;
-    if (offset)
-      updatingOffset = TokenCountMap(*offset);
-    else
-      updatingOffset = TokenCountMap();
-    for (int i = tokens.size() - 1; i >= 0; i--) {
-      auto& token = tokens[i];
-      updatingOffset[token]++;
+TokenCountMap Sequence::getTokenCountWriting(const Thread* thread) {
+   if (tokenCount.empty()) {
+    for (auto& token : tokens) {
+      if (tokenCount.find(token) == tokenCount.end()) {
+        tokenCount[token] = 0;
+      }
+      tokenCount[token]++;
       if (token.type == TypeSequence) {
         auto* s = thread->getSequence(token);
-        _sequenceGetTokenCountWriting(s, thread, updatingOffset);
+        tokenCount += s->getTokenCountWriting(thread);
       }
       if (token.type == TypeLoop) {
-        canStoreTokenCount = false;
-        auto* loop = thread->getLoop(token);
-        _loopGetTokenCountWriting(loop, thread, updatingOffset);
+        const auto* loop = thread->getLoop(token);
+        _loopGetTokenCountWriting(loop, thread, tokenCount);
       }
     }
-
-    if (offset)
-      updatingOffset -= *offset;
-    if (!canStoreTokenCount) {
-      return updatingOffset;
-    }
-    tokenCount = updatingOffset;
   }
   return tokenCount;
 }

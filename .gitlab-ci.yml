@@ -6,56 +6,109 @@ build:gcc:
   stage: build
   image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags: ['ci.inria.fr', 'linux', 'small']
+  variables:
+    CC: "gcc"
+    CXX: "g++"
+    OMPI_CC: "gcc"
+    OMPI_CXX: "g++"
   script:
     # Build Pallas
-    - mkdir build install
+    - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
     - make
-    - make install
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/pallas
-      - $CI_PROJECT_DIR/build
 
 build:clang:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: build
+  variables:
+     CC: "clang"
+     CXX: "clang++"
+     OMPI_CC: "clang"
+     OMPI_CXX: "clang++"
   script:
     # Build Pallas
-    - mkdir build install
+    - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
     - make
-    - make install
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/pallas
 
 build:intel-oneapi:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: build
+  variables:
+    CC: "icx"
+    CXX: "icpx"
+    OMPI_CC: "icx"
+    OMPI_CXX: "icpx"
   script:
     # Build Pallas
-    - mkdir build install
+    - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=icx
     - make
-    - make install
-  artifacts:
-    paths:
-      - $CI_PROJECT_DIR/pallas
 
-test:unit:
+test:gcc:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: test
+  variables:
+    CC: "gcc"
+    CXX: "g++"
+    OMPI_CC: "gcc"
+    OMPI_CXX: "g++"
   dependencies:
   - build:gcc
   script:
-    # Run tests for ompt module
-    - export PATH="$PATH:$CI_PROJECT_DIR/pallas/bin/"
-    - cd $CI_PROJECT_DIR/build/
+    - mkdir build
+    - cd build/
+    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - make
     - ctest --output-on-failure
+  artifacts:
+    paths:
+    - $CI_PROJECT_DIR/build
+
+test:clang:
+  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  tags: ['ci.inria.fr', 'linux', 'small']
+  stage: test
+  variables:
+    CC: "clang"
+    CXX: "clang++"
+    OMPI_CC: "clang"
+    OMPI_CXX: "clang++"
+  dependencies:
+    - build:clang
+  script:
+    - mkdir build
+    - cd build/
+    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - make
+    - ctest --output-on-failure
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/build
+
+test:intel-oneapi:
+  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  tags: ['ci.inria.fr', 'linux', 'small']
+  stage: test
+  variables:
+    CC: "icx"
+    CXX: "icpx"
+    OMPI_CC: "icx"
+    OMPI_CXX: "icpx"
+  dependencies:
+    - build:intel-oneapi
+  script:
+    - mkdir build
+    - cd build/
+    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - make
+    - ctest --output-on-failure
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/build

@@ -13,10 +13,15 @@ OTF2_Archive* OTF2_Archive_Open(const char* archivePath,
                                 const OTF2_FileSubstrate fileSubstrate,
                                 const OTF2_Compression compression) {
   OTF2_Archive* archive = malloc(sizeof(OTF2_Archive));
-  archive->archive = pallas_archive_new(archivePath, archiveName, 0);
+  archive->archive = pallas_archive_new(archivePath, 0);
 
 
   archive->globalDefWriter = NULL;
+  if (pallas_mpi_rank == 0) {
+    archive->globalDefWriter = malloc(sizeof(OTF2_GlobalDefWriter));
+    archive->globalDefWriter->archive = pallas_global_archive_new(archivePath,archiveName);
+    pallas_storage_init(archive->archive->dir_name);
+  }
 
   archive->def_writers = NULL;
   archive->evt_writers = NULL;
@@ -27,7 +32,11 @@ OTF2_Archive* OTF2_Archive_Open(const char* archivePath,
 }
 
 OTF2_ErrorCode OTF2_Archive_Close(OTF2_Archive* archive) {
-  pallas_write_archive_close(archive->archive);
+  pallas_archive_close(archive->archive);
+  if (archive->archive->global_archive == NULL) {
+    pallas_archive_delete(archive->archive);
+    archive->archive = NULL;
+  }
   return OTF2_SUCCESS;
 }
 
@@ -231,11 +240,7 @@ OTF2_DefWriter* OTF2_Archive_GetDefWriter(OTF2_Archive* archive, OTF2_LocationRe
 
 OTF2_GlobalDefWriter* OTF2_Archive_GetGlobalDefWriter(OTF2_Archive* archive) {
   if (archive->globalDefWriter == NULL) {
-    archive->globalDefWriter = malloc(sizeof(OTF2_GlobalDefWriter));
-    archive->globalDefWriter->archive = pallas_global_archive_new(
-      archive->archive->dir_name,
-      archive->archive->trace_name);
-    pallas_storage_init(archive->archive->dir_name);
+    pallas_warn("OTF2_Archive_GetGlobalDefWriter: globalDefWriter == NULL, this shouldn't happen\n");
   }
   return archive->globalDefWriter;
 }
@@ -292,7 +297,9 @@ OTF2_MarkerReader* OTF2_Archive_GetMarkerReader(OTF2_Archive* archive) {
 
 OTF2_ErrorCode OTF2_Archive_CloseEvtWriter(OTF2_Archive* archive, OTF2_EvtWriter* writer) {
   //  NOT_IMPLEMENTED;
-  pallas_write_thread_close(writer->thread_writer);
+  pallas_thread_writer_close(writer->thread_writer);
+  pallas_thread_writer_delete(writer->thread_writer);
+  writer->thread_writer = NULL;
   return OTF2_SUCCESS;
 }
 
@@ -312,7 +319,9 @@ OTF2_ErrorCode OTF2_Archive_CloseSnapWriter(OTF2_Archive* archive, OTF2_SnapWrit
 }
 
 OTF2_ErrorCode OTF2_Archive_CloseGlobalDefWriter(OTF2_Archive* archive, OTF2_GlobalDefWriter* writer) {
-  pallas_write_global_archive_close(writer->archive);
+  pallas_global_archive_close(writer->archive);
+  pallas_global_archive_delete(writer->archive);
+  writer->archive = NULL;
   return OTF2_SUCCESS;
 }
 

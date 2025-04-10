@@ -110,7 +110,7 @@ typedef struct Token {
   bool operator<(const Token& other) const { return (type < other.type || (type == other.type && id < other.id)); }
   /** Returns true if the Token is a Sequence or a Loop. */
   [[nodiscard]] inline bool isIterable() const { return type == TypeSequence || type == TypeLoop; }
-  [[nodiscard]] inline bool isValid() const { return type != TypeInvalid; }
+  [[nodiscard]] inline bool isValid() const { return type != TypeInvalid && id != PALLAS_TOKEN_ID_INVALID; }
 #endif
 } Token;
 /** Creates a Token for an Event. */
@@ -314,7 +314,7 @@ typedef struct Sequence {
    * If need be, counts the number of Token in that Sequence to initialize it.
    * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
    * @returns Reference to #tokenCount.*/
-  TokenCountMap getTokenCountWriting(const Thread* thread, const TokenCountMap* offset = nullptr);
+  TokenCountMap getTokenCountWriting(const Thread* thread);
   /** Getter for #tokenCount during the reading process.
    * If need be, counts the number of Token in that Sequence to initialize it.
    * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
@@ -408,6 +408,7 @@ typedef struct String {
   StringRef string_ref; /**< Id of that String.*/
   char* str;            /**< Actual C String */
   int length;           /**< Length of #str.*/
+  CXX(~String();)
 } String;
 
 /** Reference for a pallas::Region */
@@ -452,6 +453,7 @@ typedef struct Group {
   StringRef name;
   uint32_t numberOfMembers;
   uint64_t* members;
+  CXX(~Group();)
 } Group;
 
 /** Reference for a pallas::Comm */

@@ -36,8 +36,13 @@ done
 nb_failed=0
 nb_pass=0
 
-trace_dir="$2"
-trace_filename="$trace_dir/main.pallas"
+if [ -f "$2" ]; then
+  trace_dir="$(dirname -- "$(realpath -- "$2")")"
+  trace_filename="$2"
+else
+  trace_dir="$2"
+  trace_filename="$trace_dir/main.pallas"
+fi
 cd "$BUILD_DIR"
 # trace_check_enter_leave_parity "$trace_filename"
 trace_check_nb_function "$trace_filename" function_0 $(expr $n_iter \* $n_threads)

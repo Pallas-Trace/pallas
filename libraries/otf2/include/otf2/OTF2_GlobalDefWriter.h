@@ -333,7 +333,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteLocation(OTF2_GlobalDefWriter* writerHa
                                                   OTF2_StringRef name,
                                                   OTF2_LocationType locationType,
                                                   uint64_t numberOfEvents,
-                                                  OTF2_LocationGroupRef locationGroup);
+                                                  OTF2_LocationGroupRef locationGroup) __attribute__((deprecated("Locations should be defined locally, not globally.")));
 
 /** @brief Writes a @eref{Region} definition record into the GlobalDefWriter.
  *

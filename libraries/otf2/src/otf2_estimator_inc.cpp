@@ -1,6 +1,3 @@
-//
-// Created by khatharsis on 06/06/24.
-//
 /*
  * This file is part of the Score-P software (http://www.score-p.org)
  *
