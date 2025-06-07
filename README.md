@@ -158,3 +158,22 @@ Contribution to Pallas are welcome. Just send us a pull request.
 Pallas is distributed under the terms of both the BSD 3-Clause license.
 
 See [LICENSE](LICENSE) for details
+
+## Citing Pallas
+
+Feel free to use the following publications to reference Pallas:
+
+- ["Pallas: a generic trace format for large HPC trace analysis". IPDPS 2025](https://inria.hal.science/hal-04970114)
+
+```
+@inproceedings{guelque:hal-04970114,
+  TITLE = {{Pallas: a generic trace format for large HPC trace analysis}},
+  AUTHOR = {Guelque, Catherine and Honor{\'e}, Valentin and Swartvagher, Philippe and Thomas, Ga{\"e}l and Trahay, Fran{\c c}ois},
+  URL = {https://inria.hal.science/hal-04970114},
+  BOOKTITLE = {{IPDPS 2025: 39th IEEE International Parallel \& Distributed Processing Symposium}},
+  ADDRESS = {Milan, Italy},
+  YEAR = {2025},
+  MONTH = Jun,
+}
+```
+
