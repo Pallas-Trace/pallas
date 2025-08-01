@@ -2,7 +2,7 @@
 set -e
 
 DOC_BRANCH="gh-pages"
-GITHUB_REPO="https://${GITHUB_TOKEN}@github.com/Pallas-Trace/pallas"
+GITHUB_REPO="https://${GITHUB_TOKEN}@github.com/Pallas-Trace/pallas.git"
 TMP_DIR=$(mktemp -d)
 
 
