@@ -60,7 +60,7 @@ Complete technical reference for developers and advanced users.
 
 New to Pallas? Start here:
 
-1. **🏃‍♂️ [Quick Start Guide](01-quick-start/)** - Get running in 5 minutes
+1. **🏃‍♂️ **Quick Start Guide**: - [Get running in 5 minutes](01-quick-start/01-quick-start.md)
 2. **🔧 Choose your format and trace with EZTrace**: [OTF2](02-tracing-otf2/index.md) or [Pallas](03-tracing-pallas/index.md)
 3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
 4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
