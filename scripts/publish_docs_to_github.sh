@@ -2,7 +2,7 @@
 set -e
 
 DOC_BRANCH="gh-pages"
-GITHUB_REPO="https://${GITHUB_TOKEN}@github.com/Pallas-Trace/pallas.git"
+GITHUB_REPO="git@github.com:Pallas-Trace/pallas.git"
 TMP_DIR=$(mktemp -d)
 
 echo "📂 Cloning GitHub repository (branch $DOC_BRANCH) into $TMP_DIR"
@@ -27,8 +27,8 @@ cp "$CI_PROJECT_DIR/Makefile" "$TMP_DIR" 2>/dev/null || true
 echo "GITHUB_USER = ${GITHUB_USER}"
 echo "GITHUB_USER_EMAIL = ${GITHUB_USER_EMAIL}"
 
-git config user.email "${GITHUB_USER_EMAIL:-ci@pallas.io}"
-git config user.name "${GITHUB_USER:-CI Bot}"
+git config user.email "${GITHUB_USER_EMAIL}"
+git config user.name "${GITHUB_USER}"
 
 git add .
 if git diff --cached --quiet; then
