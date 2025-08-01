@@ -1,0 +1,7 @@
+{
+  "title": "Ma Super Doc",
+  "docs_path": "docs",
+  "html": true,
+  "theme": "default",
+  "clean_urls": true
+}

@@ -1,0 +1,11 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+includedir=@INSTALL_INCLUDEDIR@
+libdir=@INSTALL_LIBDIR@
+sharedlibdir=@INSTALL_LIBDIR@
+
+Name: Pallas
+Description: Pallas: Hierarchical Trace Format library
+Version: @CMAKE_PROJECT_VERSION@
+Cflags: -I@INSTALL_INCLUDEDIR@/
+Libs: -L@INSTALL_LIBDIR@ -lpallas
