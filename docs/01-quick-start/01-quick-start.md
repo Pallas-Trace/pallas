@@ -158,8 +158,6 @@ Contribution to Pallas are welcome. Just send us a pull request.
 ## License
 Pallas is distributed under the terms of both the BSD 3-Clause license.
 
-See [LICENSE](../../LICENSE) for details
-
 ## Citing Pallas
 
 Feel free to use the following publications to reference Pallas:
