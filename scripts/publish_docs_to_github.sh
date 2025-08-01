@@ -2,7 +2,7 @@
 set -e
 
 DOC_BRANCH="gh-pages"
-GITHUB_REPO="git@github.com:Pallas-Trace/pallas.git"
+GITHUB_REPO="https://${GITHUB_TOKEN}@github.com/Pallas-Trace/pallas.git"
 TMP_DIR=$(mktemp -d)
 
 echo "📂 Cloning GitHub repository (branch $DOC_BRANCH) into $TMP_DIR"
