@@ -5,8 +5,7 @@ DOC_BRANCH="gh-pages"
 GITHUB_REPO="https://${GITHUB_TOKEN}@github.com/Pallas-Trace/pallas"
 TMP_DIR=$(mktemp -d)
 
-git config --global user.email "${GIT_USER_EMAIL:-ci@pallas-trace.org}"
-git config --global user.name "${GIT_USER_NAME:-Pallas Documentation Bot}"
+
 
 echo "📂 Cloning GitHub repository (branch $DOC_BRANCH) into $TMP_DIR"
 if ! git clone --depth 1 --branch $DOC_BRANCH $GITHUB_REPO "$TMP_DIR"; then
@@ -26,8 +25,10 @@ cp "$CI_PROJECT_DIR/composer.json" "$TMP_DIR"
 cp "$CI_PROJECT_DIR/Makefile" "$TMP_DIR" 2>/dev/null || true
 
 cd "$TMP_DIR"
-git config user.email "${GITHUB_USER_EMAIL}"
-git config user.name "${GITHUB_USER}"
+
+
+git config user.email "${GITHUB_USER_EMAIL:-ci@pallas.io}"
+git config user.name "${GITHUB_USER:-CI Bot}"
 
 git add .
 if git diff --cached --quiet; then
