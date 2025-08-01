@@ -37,6 +37,9 @@ deploy_doc:
   needs:
     - job: build_doc
       artifacts: true
+  before_script:
+    - git config --global user.email "${GITLAB_USER_EMAIL:-ci@pallas.org}"
+    - git config --global user.name "${GITLAB_USER_NAME:-Pallas CI Bot}"
   script:
-  - apt-get update && apt-get install -y git
-  - bash scripts/publish_docs_to_github.sh
+    - apt-get update && apt-get install -y git
+    - bash scripts/publish_docs_to_github.sh
