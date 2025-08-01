@@ -19,7 +19,7 @@ Pallas is a library offering a complete OTF2 interface, so that it can be used w
 
 This documentation is organized into six main sections, presenting both how to install EZTrace, Pallas, OTF2 and how to trace in these formats and perform trace analysis.
 
-### 🏃‍♂️ [Quick Start](01-quick-start/quick-start.md)
+### 🏃‍♂️ [Quick Start](01-quick-start/01-quick-start.md)
 Quickly get up and running with EZTrace+Pallas.
 
 ### 📊 [OTF2 Tracing with EZTrace](02-tracing-otf2/index.md)
