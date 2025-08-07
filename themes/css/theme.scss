@@ -1,0 +1,195 @@
+@import "../../daux.io/src/css/theme_daux/theme.scss";
+
+//Daux.io Swissquote Theme
+:root {
+    --color-primary: #fa5b35;
+    --color-primary-light: color(var(--color-primary) blend(#ddd 20%));
+    --color-primary-lighter: color(var(--color-primary) blend(#fff 30%));
+
+    --color-secondary: var(--color-primary-light);
+
+    --sidebar-background: #f7f7f7;
+    --sidebar-link-active-background: var(--lighter-gray);
+    --dark: var(--color-primary);
+    --light: var(--color-primary-lighter);
+
+    --link-color: var(--color-primary);
+    --homepage-hero-background: var(--color-primary-lighter);
+    --homepage-hero-color: #fff;
+    --hero-button-block-background: var(--lighter-gray);
+
+    --hero-button-primary-border-color: var(--color-primary);
+    --hero-button-primary-background: var(--color-primary);
+    --hero-button-secondary-color: var(--color-primary);
+    --hero-button-secondary-border-color: var(--color-primary);
+
+    --homepage-navbar-background: #fff;
+    --brand-color: var(--color-primary);
+    --brand-background: var(--homepage-navbar-background);
+
+    --homepage-footer-color: var(--dark);
+    --homepage-footer-background: var(--lightest-gray);
+
+    --border-radius: 6px;
+}
+
+/* stylelint-disable-next-line selector-class-pattern */
+.dark {
+    --color-text: #fff;
+    --sidebar-background: #000;
+    --sidebar-link-active-background: var(--dark-gray);
+    --sidebar-link-color: var(--color-primary);
+
+    --homepage-navbar-background: var(--color-secondary);
+    --brand-background: var(--homepage-navbar-background);
+    --brand-color: #fff;
+
+    --hero-button-primary-border-color: #fff;
+    --hero-buttom-primary-background: #fff;
+    --hero-button-secondary-color: #fff;
+    --hero-button-secondary-border-color: #fff;
+
+    --search-field-color: #555;
+    --search-field-border-color: #0b044a;
+    --search-field-background: #323138;
+}
+
+/* stylelint-disable-next-line selector-class-pattern */
+.dark .HomepageFooter__links a {
+    color: white;
+}
+
+.Brand {
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.25);
+}
+
+@media (min-width: 850px) {
+    .Brand {
+        text-align: center;
+    }
+}
+
+.Navbar .Brand {
+    box-shadow: none;
+    float: none;
+}
+
+.HomepageTitle {
+    padding: 60px 0;
+}
+
+.Page__header {
+    border-bottom-width: 0;
+}
+
+@media screen and (max-width: 768px) {
+    .Columns__left {
+        border-bottom: 1px solid var(--lighter-gray);
+    }
+}
+
+.TableOfContentsContainer {
+    color: var(--sidebar-link-secondary-color);
+    background-color: var(--sidebar-background);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+    border-radius: var(--border-radius);
+    padding: 0 !important;
+    margin-bottom: 1em;
+
+    @media (min-width: 1024px) {
+        position: relative;
+        float: right;
+        width: 40%;
+        max-width: 30rem;
+        margin-left: 2rem;
+        z-index: 10;
+    }
+}
+
+.TableOfContentsContainer__title {
+    margin: 0 !important;
+    padding: 0.5rem 1rem;
+    font-weight: bold;
+    color: #fff;
+    font-family: var(--font-family-text);
+    font-size: var(--type-size-5);
+    background: var(--color-primary-light);
+    border-bottom-width: 0;
+    border-top-left-radius: calc(var(--border-radius) - 1px);
+    border-top-right-radius: calc(var(--border-radius) - 1px);
+}
+
+.TableOfContentsContainer__content {
+    border: none;
+}
+
+.TableOfContents {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    list-style: none;
+    border-width: 0 !important;
+
+    p {
+        margin: 0 !important;
+    }
+
+    a {
+        color: var(--sidebar-link-secondary-color);
+        border-bottom-color: var(--lightest-gray);
+        padding: 0.3em 0 0.3em 0.75em !important;
+    }
+
+    a:hover {
+        color: var(--sidebar-link-secondary-color);
+        background: var(--sidebar-link-hover-background);
+        text-decoration: underline;
+    }
+
+    li {
+        margin-bottom: 0;
+    }
+
+    li .TableOfContents > li a {
+        border-bottom: none;
+    }
+}
+
+.Search__field {
+    border-top: 1px solid var(--search-field-border-color);
+}
+
+.SearchResults__url a {
+    color: var(--color-primary) !important;
+}
+
+.SearchResults__url a:hover {
+    color: var(--color-primary) !important;
+    text-decoration: underline;
+}
+
+.SearchResults {
+    position: fixed !important;
+}
+
+.SearchResults .Search__field {
+    border-top-width: 0;
+}
+
+.SearchResultsBackdrop {
+    position: fixed !important;
+}
+
+.Navbar .Container {
+    position: relative;
+}
+
+.Navbar .Search {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.Navbar .Search__field {
+    border: 1px solid var(--lighter-gray);
+}
