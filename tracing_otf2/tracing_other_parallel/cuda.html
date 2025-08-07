@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <title>CUDA - Pallas Documentation 🚀</title>
+    <meta name="description" content="Trace format tailored for Exascale tracing">
+    <meta name="author" content="Catherine GUELQUE, François TRAHAY, Valentin HONORE">
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <link rel="icon" href="../../themes/swissquote/img/favicon.png" type="image/x-icon">
+
+    <!-- Mobile -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- JS -->
+    <script>
+        window.base_url = "../../";
+        document.documentElement.classList.remove('no-js');
+    </script>
+
+    <!-- Font -->
+    
+    <!-- CSS -->
+            <link href='../../themes/swissquote/css/theme.min.css' rel='stylesheet' type='text/css'>
+            <link href='../../daux_libraries/search.css' rel='stylesheet' type='text/css'>
+    </head>
+<body class="">
+    <div class="Columns content">
+    <aside class="Columns__left Collapsible">
+        <button type="button" class="Button Collapsible__trigger" aria-controls="sidebar_content" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="Collapsible__trigger__bar"></span>
+            <span class="Collapsible__trigger__bar"></span>
+            <span class="Collapsible__trigger__bar"></span>
+        </button>
+
+        <a class="Brand" href="../../index.html">Pallas Documentation 🚀</a>
+
+    <form role='search' action="/" method="get" class="Search" id="search_form">
+        <label for="search_input">
+            <span class='u-visuallyHidden'>Search</span>
+        </label>
+        <input
+            type="search"
+            id="search_input"
+            class="Search__field"
+            placeholder="Search..."
+            aria-label="Search..."
+            autocomplete="on"
+            results=25
+            autosave=text_search
+        >
+        <label>
+            <input type="submit" class='u-visuallyHidden' />
+            <span class='u-visuallyHidden'>Search...</span>
+            <svg class="Search__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 451 451">
+                <path d="M447.05 428l-109.6-109.6c29.4-33.8 47.2-77.9 47.2-126.1C384.65 86.2 298.35 0 192.35 0 86.25 0 .05 86.3.05 192.3s86.3 192.3 192.3 192.3c48.2 0 92.3-17.8 126.1-47.2L428.05 447c2.6 2.6 6.1 4 9.5 4s6.9-1.3 9.5-4c5.2-5.2 5.2-13.8 0-19zM26.95 192.3c0-91.2 74.2-165.3 165.3-165.3 91.2 0 165.3 74.2 165.3 165.3s-74.1 165.4-165.3 165.4c-91.1 0-165.3-74.2-165.3-165.4z"/>
+            </svg>
+        </label>
+    </form>
+
+        <div class="Collapsible__content" id="sidebar_content">
+            <!-- Navigation -->
+            <ul class='Nav'><li class='Nav__item '><a href="../../quick_start.html">Quick Start</a></li><li class='Nav__item Nav__item--open has-children'><a href="../../tracing_otf2/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing in OTF2</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_otf2/installing_otf2/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Installing OTF2</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../../tracing_otf2/installing_eztrace/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Installing EZTrace</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../../tracing_otf2/tracing_mpi/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing MPI Applications with EZTrace+OTF2</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_otf2/tracing_mpi/generalities.html">MPI tracing with EZTrace+OTF2</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_mpi/example_nas_benchmarks.html">Example 1 - NAS Benchmarks</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_mpi/example_lulesh.html">Example 2 - Lulesh</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_mpi/example_quicksilver.html">Example 3 - Quicksilver</a></li></ul></li><li class='Nav__item Nav__item--open has-children'><a href="../../tracing_otf2/tracing_other_parallel/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing other Paradigms</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_otf2/tracing_other_parallel/openmp_ompt.html">OpenMP/OMPT</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_other_parallel/pthread.html">Pthread</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_other_parallel/mpi_x.html">MPI+X</a></li><li class='Nav__item Nav__item--active'><a href="../../tracing_otf2/tracing_other_parallel/cuda.html">CUDA</a></li><li class='Nav__item '><a href="../../tracing_otf2/tracing_other_parallel/starpu.html">StarPU</a></li></ul></li><li class='Nav__item '><a href="../../tracing_otf2/create_plugin/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Customized EZTrace plugin</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../../tracing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing with EZTrace in Pallas</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_pallas/presentation/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>About the Pallas Trace Format</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../../tracing_pallas/installing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Installing Pallas</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../../tracing_pallas/installing_eztrace_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>EZtrace with Pallas</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../../tracing_pallas/tracing_mpi/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing MPI with Pallas</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_pallas/tracing_mpi/generalities.html">Tracing MPI codes with Pallas</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_mpi/example_nas_benchmarks.html">Example 1 - NAS</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_mpi/example_lulesh.html">Example 2 - Lulesh</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_mpi/example_quicksilver.html">Example 3 - Quicksilver</a></li></ul></li><li class='Nav__item  has-children'><a href="../../tracing_pallas/tracing_other_parallel/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Tracing other Applications</a><ul class='Nav'><li class='Nav__item '><a href="../../tracing_pallas/tracing_other_parallel/openmp_ompt.html">OpenMP/OMPT</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_other_parallel/pthread.html">Pthread</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_other_parallel/mpi_x.html">MPI+X</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_other_parallel/cuda.html">CUDA</a></li><li class='Nav__item '><a href="../../tracing_pallas/tracing_other_parallel/starpu.html">StarPU</a></li></ul></li><li class='Nav__item '><a href="../../tracing_pallas/trace_own_library/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Trace your own Library</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../../analyzing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Trace Analysis with Pallas</a><ul class='Nav'><li class='Nav__item '><a href="../../analyzing_pallas/generalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Generalities</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../../analyzing_pallas/native_analysis/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Native Analysis Programs</a><ul class='Nav'><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/pallas_print.html">pallas_print</a></li><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/pallas_info.html">pallas_info</a></li><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/pallas_editor.html">pallas_editor</a></li><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/communication_matrix.html">MPI Communication Matrix</a></li><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/contention_score.html">Contention Score</a></li><li class='Nav__item '><a href="../../analyzing_pallas/native_analysis/histograms.html">Duration Histograms of Functions</a></li></ul></li><li class='Nav__item '><a href="../../analyzing_pallas/build_analysis/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Build you own program</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../../visualizing_blup/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Scalable Trace Visualization with BLUP</a><ul class='Nav'><li class='Nav__item '><a href="../../visualizing_blup/generalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Generalities</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../../visualizing_blup/open_trace/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Open a trace with BLUP</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../../visualizing_blup/other_functionalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>Advanced Features</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item '><a href="../../api_reference/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>API Reference Guide</a><ul class='Nav'></ul></li></ul>
+            <div class="Links">
+                                    <hr/>
+                                            <a href="https://github.com/Pallas-Trace/pallas/archive/refs/heads/main.zip" target="_blank"  rel="noopener noreferrer">Download</a>
+                        <br />
+                                            <a href="https://github.com/Pallas-Trace/pallas" target="_blank"  rel="noopener noreferrer">GitHub</a>
+                        <br />
+                                                </div>
+
+                            <div class="CodeToggler">
+                    <hr/>
+                    <label class="Checkbox">Show Code Blocks                        <input type="checkbox" class="CodeToggler__button--main" checked="checked"/>
+                        <div class="Checkbox__indicator"></div>
+                    </label>
+                </div>
+            
+            <div class="DarkModeToggler">
+                <hr/>
+                <label class="Checkbox">Dark Mode                    <input type="checkbox" class="ColorMode__button" />
+                    <div class="Checkbox__indicator"></div>
+                </label>
+            </div>
+
+                
+                        </div>
+    </aside>
+    <div class="Columns__right">
+        <div class="Columns__right__content">
+            <div class="doc_content">
+                <article class="Page">
+
+    <div class="Page__header">
+        <h1><a href="../../tracing_otf2/index.html">Tracing in OTF2</a> <svg class="Page__header--separator" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 477.175 477.175"><path d="M360.73 229.075l-225.1-225.1c-5.3-5.3-13.8-5.3-19.1 0s-5.3 13.8 0 19.1l215.5 215.5-215.5 215.5c-5.3 5.3-5.3 13.8 0 19.1 2.6 2.6 6.1 4 9.5 4 3.4 0 6.9-1.3 9.5-4l225.1-225.1c5.3-5.2 5.3-13.8.1-19z"/></svg> <a href="../../tracing_otf2/tracing_other_parallel/index.html">Tracing other Paradigms</a> <svg class="Page__header--separator" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 477.175 477.175"><path d="M360.73 229.075l-225.1-225.1c-5.3-5.3-13.8-5.3-19.1 0s-5.3 13.8 0 19.1l215.5 215.5-215.5 215.5c-5.3 5.3-5.3 13.8 0 19.1 2.6 2.6 6.1 4 9.5 4 3.4 0 6.9-1.3 9.5-4l225.1-225.1c5.3-5.2 5.3-13.8.1-19z"/></svg> <a href="../../tracing_otf2/tracing_other_parallel/cuda.html">CUDA</a></h1>
+                    </div>
+
+    <div class="s-content">
+        <h1><a id="cuda-tracing" href="#cuda-tracing" class="Permalink" aria-hidden="true" title="Permalink">#</a>CUDA Tracing</h1>
+<p>GPU application tracing with CUDA support in EZtrace.
+TODO</p>
+    </div>
+
+        <nav>
+        <ul class="Pager">
+            <li class=Pager--prev><a href="../../tracing_otf2/tracing_other_parallel/mpi_x.html">Previous</a></li>            <li class=Pager--next><a href="../../tracing_otf2/tracing_other_parallel/starpu.html">Next</a></li>        </ul>
+    </nav>
+    </article>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+    <!-- JS -->
+            <script src="../../themes/swissquote/js/daux.min.js"></script>
+    
+        <script>
+        
+        window.searchLanguage = "";
+        window.searchTranslation = {"Search_one_result":"1 result","Search_results":"!count results","Search_no_results":"Nothing found","Search_common_words_ignored":"Common words are largely ignored","Search_too_short":"Search too short","Search_one_character_or_more":"Should be one character or more","Search_should_be_x_or_more":"Should be !min characters or more","Link_previous":"Previous","Link_next":"Next"};
+    </script>
+
+    <!-- Search -->
+    <script type="text/javascript" src="../../daux_libraries/search.min.js"></script>
+
+    <script>
+        window.search({'base_url': '../../'})
+    </script>
+</body>
+</html>
