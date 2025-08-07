@@ -9,7 +9,6 @@ Welcome to the documentation for **Pallas**, a trace format tailored for Exascal
 ## What is Pallas?
 
 Pallas is a state-of-the-art tracing format designed to help developers and researchers analyze the performance of parallel applications. Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms, Pallas is able to scalably trace and analyze your application's behavior.
-
 Pallas is a library offering a complete OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format. In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
 
 
