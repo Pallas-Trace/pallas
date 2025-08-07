@@ -20,7 +20,6 @@ rm -rf "$TMP_DIR"/*
 
 echo "📁 Copying documentation files"
 cp -r "$CI_PROJECT_DIR/static/"* "$TMP_DIR"
-cp "$CI_PROJECT_DIR/daux.json" "$TMP_DIR"
 cp "$CI_PROJECT_DIR/composer.json" "$TMP_DIR"
 cp "$CI_PROJECT_DIR/Makefile" "$TMP_DIR" 2>/dev/null || true
 
