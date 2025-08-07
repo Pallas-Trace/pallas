@@ -50,7 +50,7 @@ extern unsigned int pallas_mpi_rank;
 /** Asserts a condition only if in Debug mode (if DEBUG is defined). */
 #define pallas_assert(cond)
 /** Checks if a == b */
-#define pallas_assert_equal(a,b)
+#define pallas_assert_equals(a,b)
 #else
 /** Asserts a condition only if in Debug mode (if DEBUG is defined). */
 #define pallas_assert(cond) pallas_assert_always(cond)
