@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="no-js" lang="en">
+<head>
+    <title>-quick-start - My Project</title>
+    <meta name="description" content="My Stylish Documentation">
+    <meta name="author" content="I, Me & Myself">
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <link rel="icon" href="../themes/daux/img/favicon-blue.png" type="image/x-icon">
+
+    <!-- Mobile -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- JS -->
+    <script>
+        window.base_url = "../";
+        document.documentElement.classList.remove('no-js');
+    </script>
+
+    <!-- Font -->
+    
+    <!-- CSS -->
+            <link href='../themes/daux/css/theme-blue.min.css' rel='stylesheet' type='text/css'>
+            <link href='../daux_libraries/search.css' rel='stylesheet' type='text/css'>
+    </head>
+<body class="">
+    <div class="Columns content">
+    <aside class="Columns__left Collapsible">
+        <button type="button" class="Button Collapsible__trigger" aria-controls="sidebar_content" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="Collapsible__trigger__bar"></span>
+            <span class="Collapsible__trigger__bar"></span>
+            <span class="Collapsible__trigger__bar"></span>
+        </button>
+
+        <a class="Brand" href="../index.html">My Project</a>
+
+    <form role='search' action="/" method="get" class="Search" id="search_form">
+        <label for="search_input">
+            <span class='u-visuallyHidden'>Search</span>
+        </label>
+        <input
+            type="search"
+            id="search_input"
+            class="Search__field"
+            placeholder="Search..."
+            aria-label="Search..."
+            autocomplete="on"
+            results=25
+            autosave=text_search
+        >
+        <label>
+            <input type="submit" class='u-visuallyHidden' />
+            <span class='u-visuallyHidden'>Search...</span>
+            <svg class="Search__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 451 451">
+                <path d="M447.05 428l-109.6-109.6c29.4-33.8 47.2-77.9 47.2-126.1C384.65 86.2 298.35 0 192.35 0 86.25 0 .05 86.3.05 192.3s86.3 192.3 192.3 192.3c48.2 0 92.3-17.8 126.1-47.2L428.05 447c2.6 2.6 6.1 4 9.5 4s6.9-1.3 9.5-4c5.2-5.2 5.2-13.8 0-19zM26.95 192.3c0-91.2 74.2-165.3 165.3-165.3 91.2 0 165.3 74.2 165.3 165.3s-74.1 165.4-165.3 165.4c-91.1 0-165.3-74.2-165.3-165.4z"/>
+            </svg>
+        </label>
+    </form>
+
+        <div class="Collapsible__content" id="sidebar_content">
+            <!-- Navigation -->
+            <ul class='Nav'><li class='Nav__item Nav__item--open has-children'><a href="#" class="Nav__item__link Nav__item__link--nopage"><i class="Nav__arrow">&nbsp;</i>-quick-start</a><ul class='Nav'><li class='Nav__item Nav__item--active'><a href="../quick_start/quick_start.html">-quick-start</a></li></ul></li><li class='Nav__item  has-children'><a href="../tracing_otf2/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-otf2</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_otf2/installing_otf2/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-installing-otf2</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../tracing_otf2/installing_eztrace/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-installing-eztrace</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../tracing_otf2/tracing_mpi/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-mpi</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_otf2/tracing_mpi/.1_generalities.html">.1-generalities</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_mpi/.2_example_nas_benchmarks.html">.2-example-nas-benchmarks</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_mpi/.3_example_lulesh.html">.3-example-lulesh</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_mpi/.4_example_quicksilver.html">.4-example-quicksilver</a></li></ul></li><li class='Nav__item  has-children'><a href="../tracing_otf2/tracing_other_parallel/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-other-parallel</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_otf2/tracing_other_parallel/.1_openmp_ompt.html">.1-openmp-ompt</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_other_parallel/.2_pthread.html">.2-pthread</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_other_parallel/.3_mpi_x.html">.3-mpi-x</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_other_parallel/.4_cuda.html">.4-cuda</a></li><li class='Nav__item '><a href="../tracing_otf2/tracing_other_parallel/.5_starpu.html">.5-starpu</a></li></ul></li><li class='Nav__item '><a href="../tracing_otf2/create_plugin/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-create-plugin</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../tracing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-pallas</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_pallas/presentation/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-presentation</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../tracing_pallas/installing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-installing-pallas</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../tracing_pallas/installing_eztrace_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-installing-eztrace-pallas</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../tracing_pallas/tracing_mpi/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-mpi</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_pallas/tracing_mpi/.1_generalities.html">.1-generalities</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_mpi/.2_example_nas_benchmarks.html">.2-example-nas-benchmarks</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_mpi/.3_example_lulesh.html">.3-example-lulesh</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_mpi/.4_example_quicksilver.html">.4-example-quicksilver</a></li></ul></li><li class='Nav__item  has-children'><a href="../tracing_pallas/tracing_other_parallel/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-tracing-other-parallel</a><ul class='Nav'><li class='Nav__item '><a href="../tracing_pallas/tracing_other_parallel/.1_openmp_ompt.html">.1-openmp-ompt</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_other_parallel/.2_pthread.html">.2-pthread</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_other_parallel/.3_mpi_x.html">.3-mpi-x</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_other_parallel/.4_cuda.html">.4-cuda</a></li><li class='Nav__item '><a href="../tracing_pallas/tracing_other_parallel/.5_starpu.html">.5-starpu</a></li></ul></li><li class='Nav__item '><a href="../tracing_pallas/trace_own_library/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-trace-own-library</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../analyzing_pallas/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-analyzing-pallas</a><ul class='Nav'><li class='Nav__item '><a href="../analyzing_pallas/generalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-generalities</a><ul class='Nav'></ul></li><li class='Nav__item  has-children'><a href="../analyzing_pallas/native_analysis/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-native-analysis</a><ul class='Nav'><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.1_pallas_print.html">.1-pallas-print</a></li><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.2_pallas_info.html">.2-pallas-info</a></li><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.3_pallas_editor.html">.3-pallas-editor</a></li><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.4_communication_matrix.html">.4-communication-matrix</a></li><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.5_contention_score.html">.5-contention-score</a></li><li class='Nav__item '><a href="../analyzing_pallas/native_analysis/.6_histograms.html">.6-histograms</a></li></ul></li><li class='Nav__item '><a href="../analyzing_pallas/build_analysis/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-build-analysis</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item  has-children'><a href="../visualizing_blup/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-visualizing-blup</a><ul class='Nav'><li class='Nav__item '><a href="../visualizing_blup/generalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-generalities</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../visualizing_blup/open_trace/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-open-trace</a><ul class='Nav'></ul></li><li class='Nav__item '><a href="../visualizing_blup/other_functionalities/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-other-functionalities</a><ul class='Nav'></ul></li></ul></li><li class='Nav__item '><a href="../api_reference/index.html" class="Nav__item__link"><i class="Nav__arrow">&nbsp;</i>-api-reference</a><ul class='Nav'></ul></li></ul>
+            <div class="Links">
+                            </div>
+
+                            <div class="CodeToggler">
+                    <hr/>
+                    <label class="Checkbox">Show Code Blocks                        <input type="checkbox" class="CodeToggler__button--main" checked="checked"/>
+                        <div class="Checkbox__indicator"></div>
+                    </label>
+                </div>
+            
+            <div class="DarkModeToggler">
+                <hr/>
+                <label class="Checkbox">Dark Mode                    <input type="checkbox" class="ColorMode__button" />
+                    <div class="Checkbox__indicator"></div>
+                </label>
+            </div>
+
+                
+                        </div>
+    </aside>
+    <div class="Columns__right">
+        <div class="Columns__right__content">
+            <div class="doc_content">
+                <article class="Page">
+
+    <div class="Page__header">
+        <h1><a href="../quick_start/quick_start.html">-quick-start</a> <svg class="Page__header--separator" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 477.175 477.175"><path d="M360.73 229.075l-225.1-225.1c-5.3-5.3-13.8-5.3-19.1 0s-5.3 13.8 0 19.1l215.5 215.5-215.5 215.5c-5.3 5.3-5.3 13.8 0 19.1 2.6 2.6 6.1 4 9.5 4 3.4 0 6.9-1.3 9.5-4l225.1-225.1c5.3-5.2 5.3-13.8.1-19z"/></svg> <a href="../quick_start/quick_start.html">-quick-start</a></h1>
+                    </div>
+
+    <div class="s-content">
+        <h1><a id="pallas-quick-start-guide" href="#pallas-quick-start-guide" class="Permalink" aria-hidden="true" title="Permalink">#</a>Pallas Quick Start Guide</h1>
+<p><a href="https://opensource.org/license/bsd-3-clause" class="Link--external" rel="noopener noreferrer"><img src="https://img.shields.io/badge/License-BSD3-yellow.svg" alt="BSD-3 License" /></a>
+<img src="https://gitlab.inria.fr/pallas/pallas/badges/main/pipeline.svg" alt="Main Pipeline" />
+<img src="https://img.shields.io/badge/Maintained%3F-Yes-%3Ccolour%3E.svg" alt="HAL Badge" />
+<a href="https://inria.hal.science/hal-04970114/" class="Link--external" rel="noopener noreferrer"><img src="https://img.shields.io/badge/HAL-04970114-white.svg" alt="HAL Badge" /></a></p>
+<p>Pallas provides an interface to write and read trace data.</p>
+<h2><a id="building" href="#building" class="Permalink" aria-hidden="true" title="Permalink">#</a>Building</h2>
+<p>You need to have ZSTD installed before you try to build this.
+To build and install, simply run:</p>
+<pre><code class="hljs bash">mkdir build &amp;&amp; <span class="hljs-built_in">cd</span> build
+cmake .. -DCMAKE_INSTALL_PREFIX=<span class="hljs-variable">$INSTALLATION_DIR</span>
+make &amp;&amp; make install
+</code></pre>
+<p>This will build and install <code>pallas_info</code> and <code>pallas_print</code>,
+which are tools made to read Pallas traces, as well as the Pallas library, and a modified OTF2 library.</p>
+<p>If you want to enable SZ and ZFP, you should install them, and then add <code>-DSZ_ROOT_DIR=&lt;your SZ installation&gt;</code>
+and <code>-DZFP_ROOT_DIR=&lt;your ZFP installation&gt;</code> to the cmake command line. Documentation is built automatically if Doxygen is installed.</p>
+<h2><a id="python-library" href="#python-library" class="Permalink" aria-hidden="true" title="Permalink">#</a>Python Library</h2>
+<p>Pallas comes with a Python library to read your traces.
+You need to enable building it with <code>-DENABLE_PYTHON=ON</code></p>
+<p>Its requirements are the following:</p>
+<ul>
+<li>Python &gt;=3.11</li>
+<li>Numpy</li>
+<li>pybind11</li>
+</ul>
+<p>You can then read it like this:</p>
+<pre><code>$ export PYTHONPATH=PATH_TO_PALLAS/lib
+$ python
+&gt;&gt;&gt; import pallas
+&gt;&gt;&gt; trace=pallas.open_trace(&quot;eztrace_log.pallas&quot;)
+...
+
+</code></pre>
+<p>Make sure these are installed (locally using a venv or globally) before building.</p>
+<h2><a id="usage" href="#usage" class="Permalink" aria-hidden="true" title="Permalink">#</a>Usage</h2>
+<h3><a id="in-your-application" href="#in-your-application" class="Permalink" aria-hidden="true" title="Permalink">#</a>In your application</h3>
+<p>To use Pallas to log your application, you need to understand the hierarchical structure:</p>
+<ul>
+<li>There’s one <em>GlobalArchive</em> that stores global information.</li>
+<li>Each <em>Archive</em> corresponds to a process / a self-contained information group.
+They’re identified by LocationGroup</li>
+<li>Each <em>Thread</em> refers to a group of events that are to be logged.
+They’re identified by Location</li>
+</ul>
+<p>There is a bit more nuance, but it’s what you need for now.
+The following code should give you an idea of what to do to start logging your app in C++.
+There’s also a C API that functions pretty much the same way, as you’d expect it to.</p>
+<pre><code class="language-CPP">#include &lt;pallas/pallas.h&gt;
+#include &lt;pallas/pallas_write.h&gt;
+namespace pallas;
+int main() {
+    GlobalArchive globalArchive(&quot;&lt;trace directory&gt;&quot;, &quot;&lt;main trace file name&gt;&quot;);
+    globalArchive.addString(...);                   // Register a String
+
+    // Add a process
+    globalArchive.addLocationGroup(&lt;processID&gt;);    // Register a LocationGroup
+    Archive archive(globalArchive, &lt;processID&gt;);
+    // An Archive is the interface used to store local definitions
+    // It's analogous to a process
+
+    // Add a Thread
+    archive.addLocation(&lt;threadID&gt;);         // Register a Location
+    ThreadWriter threadWriter(archive, &lt;threadID&gt;);
+    // A ThreadWriter is the interface used to log events
+    // It's analogous to a Thread
+
+    // Start logging
+    pallas_record_generic(&amp;threadWriter, &lt;custom Attribute&gt;, &lt;timestamp&gt;, &lt;name&gt;);
+
+    // Write the trace to file
+    threadWriter.close();
+    globalArchive.close();
+}
+</code></pre>
+<h3><a id="using-eztrace" href="#using-eztrace" class="Permalink" aria-hidden="true" title="Permalink">#</a>Using EZTrace</h3>
+<p>After compiling Pallas and its OTF2 API, install <a href="https://eztrace.gitlab.io/eztrace" class="Link--external" rel="noopener noreferrer">EZTrace</a>.
+Make sure to build it from source, and to use the Pallas OTF2 library, not the normal OTF2 library.
+You can check <code>which otf2-config</code> to see if you have the correct one. If not, check your PATH and LD_LIBRARY_PATH variables.</p>
+<p>Make sure to enable the relevant ezTrace modules.
+Then trace any program by running <code>mpirun -np N eztrace -t &lt;your modules&gt; &lt;your programm&gt;</code>.
+The trace file will be generated in the <code>&lt;your programm&gt;_trace</code> folder.
+You can then read it using <code>pallas_print &lt;your programm&gt;_trace/eztrace_log.pallas</code></p>
+<h3><a id="visualizing-pallas-traces" href="#visualizing-pallas-traces" class="Permalink" aria-hidden="true" title="Permalink">#</a>Visualizing Pallas traces</h3>
+<p><a href="https://gitlab.inria.fr/blup/blup" class="Link--external" rel="noopener noreferrer">Blup</a> is a web-based trace
+visualizer able to display Pallas traces. It uses Pallas Python API.</p>
+<p><img src="https://gitlab.inria.fr/blup/blup/-/raw/main/doc/screenshot.png" alt="" /></p>
+<h2><a id="about" href="#about" class="Permalink" aria-hidden="true" title="Permalink">#</a>About</h2>
+<p>Pallas implements a subset of the <a href="https://www.vi-hps.org/projects/score-p" class="Link--external" rel="noopener noreferrer">OTF2</a> API.
+It also implements the <a href="https://github.com/PeterScott/murmur3" class="Link--external" rel="noopener noreferrer">Murmur3 hashing function</a>.</p>
+<h2><a id="configuration" href="#configuration" class="Permalink" aria-hidden="true" title="Permalink">#</a>Configuration</h2>
+<p>A config file can be given to Pallas with the PALLAS_CONFIG_PATH environment variable.
+If that variable is empty, Pallas will try to load a pallas.config in the current directory.
+If that file does not exist, a default config will be loaded.
+That file is a mirror image of the ParameterHandler class in <code>libraries/pallas/src/ParameterHandler.h</code>
+An example config file is given here as pallas.config, each line has one <code>key=value</code> pair.</p>
+<p>Here are the configuration options with specific values:</p>
+<ul>
+<li><code>compressionAlgorithm</code>: Specifies which compression algorithm is used for storing the timestamps. Its values are:
+<ul>
+<li><code>None</code></li>
+<li><code>ZSTD</code></li>
+<li><code>SZ</code></li>
+<li><code>ZFP</code></li>
+<li><code>Histogram</code></li>
+<li><code>ZSTD_Histogram</code></li>
+</ul>
+</li>
+<li><code>encodingAlgorithm</code>: Specifies which encoding algorithm is used for storing the timestamps. If the specified
+compression algorithm is lossy, this is defaulted to None. Its values are:
+<ul>
+<li><code>None</code></li>
+<li><code>Masking</code></li>
+<li><code>LeadingZeroes</code></li>
+</ul>
+</li>
+<li><code>loopFindingAlgorithm</code>: Specifies what loop-finding algorithm is used. Its values are:
+<ul>
+<li><code>None</code></li>
+<li><code>Basic</code></li>
+<li><code>BasicTruncated</code></li>
+<li><code>Filter</code></li>
+</ul>
+</li>
+</ul>
+<p>Here are the configuration options with number values:</p>
+<ul>
+<li><code>zstdCompressionLevel</code>: Specifies the compression level used by ZSTD. Integer.</li>
+<li><code>maxLoopLength</code>: Specifies the maximum loop length, if using a truncated loop finding algorithm. Integer.</li>
+</ul>
+<p>You can also override each of these configuration manually with an environment variable.
+Here are the default values for each of them:</p>
+<table>
+<thead>
+<tr>
+<th>Config Key Name</th>
+<th>Env Variable Name</th>
+<th>Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>compressionAlgorithm</td>
+<td>PALLAS_COMPRESSION</td>
+<td>None</td>
+</tr>
+<tr>
+<td>encodingAlgorithm</td>
+<td>PALLAS_ENCODING</td>
+<td>None</td>
+</tr>
+<tr>
+<td>loopFindingAlgorithm</td>
+<td>PALLAS_LOOP_FINDING</td>
+<td>BasicTruncated</td>
+</tr>
+<tr>
+<td>zstdCompressionLevel</td>
+<td>PALLAS_ZSTD_LVL</td>
+<td>3</td>
+</tr>
+<tr>
+<td>maxLoopLength</td>
+<td>PALLAS_LOOP_LENGTH</td>
+<td>100</td>
+</tr>
+</tbody>
+</table>
+<h2><a id="contributing" href="#contributing" class="Permalink" aria-hidden="true" title="Permalink">#</a>Contributing</h2>
+<p>Contribution to Pallas are welcome. Just send us a pull request.</p>
+<h2><a id="license" href="#license" class="Permalink" aria-hidden="true" title="Permalink">#</a>License</h2>
+<p>Pallas is distributed under the terms of both the BSD 3-Clause license.</p>
+<h2><a id="citing-pallas" href="#citing-pallas" class="Permalink" aria-hidden="true" title="Permalink">#</a>Citing Pallas</h2>
+<p>Feel free to use the following publications to reference Pallas:</p>
+<ul>
+<li><a href="https://inria.hal.science/hal-04970114" class="Link--external" rel="noopener noreferrer">“Pallas: a generic trace format for large HPC trace analysis“. IPDPS 2025</a></li>
+</ul>
+<pre><code>@inproceedings{guelque:hal-04970114,
+  TITLE = {{Pallas: a generic trace format for large HPC trace analysis}},
+  AUTHOR = {Guelque, Catherine and Honor{\'e}, Valentin and Swartvagher, Philippe and Thomas, Ga{\&quot;e}l and Trahay, Fran{\c c}ois},
+  URL = {https://inria.hal.science/hal-04970114},
+  BOOKTITLE = {{IPDPS 2025: 39th IEEE International Parallel \&amp; Distributed Processing Symposium}},
+  ADDRESS = {Milan, Italy},
+  YEAR = {2025},
+  MONTH = Jun,
+}
+</code></pre>
+    </div>
+
+        <nav>
+        <ul class="Pager">
+            <li class=Pager--prev><a href="../index.html">Previous</a></li>            <li class=Pager--next><a href="../tracing_otf2/index.html">Next</a></li>        </ul>
+    </nav>
+    </article>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+    <!-- JS -->
+            <script src="../themes/daux/js/daux.min.js"></script>
+    
+        <script>
+        
+        window.searchLanguage = "";
+        window.searchTranslation = {"Search_one_result":"1 result","Search_results":"!count results","Search_no_results":"Nothing found","Search_common_words_ignored":"Common words are largely ignored","Search_too_short":"Search too short","Search_one_character_or_more":"Should be one character or more","Search_should_be_x_or_more":"Should be !min characters or more","Link_previous":"Previous","Link_next":"Next"};
+    </script>
+
+    <!-- Search -->
+    <script type="text/javascript" src="../daux_libraries/search.min.js"></script>
+
+    <script>
+        window.search({'base_url': '../'})
+    </script>
+</body>
+</html>

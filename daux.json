@@ -1,0 +1,11 @@
+{
+  "title": "Pallas trace format for Exascale Computing",
+  "docs_path": "docs",
+  "html": true,
+  "theme": "default",
+  "clean_urls": true,
+  "options": {
+            "generation_date": "<?php echo date('c'); ?>"
+  }
+}
+
