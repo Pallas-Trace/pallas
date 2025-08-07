@@ -1,5 +1,4 @@
 
----
 # Pallas Documentation 🚀
 
 Welcome to the documentation for **Pallas**, a trace format tailored for Exascale tracing.
@@ -96,3 +95,7 @@ Need help? Here are your options:
 *Happy tracing! 🎉*
 
 ---
+
+
+
+<sub><sup>Theme by [Swissquote](https://github.com/swissquote/swissquote-daux-theme)</sup></sub>
