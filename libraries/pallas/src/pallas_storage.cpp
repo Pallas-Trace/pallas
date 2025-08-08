@@ -28,6 +28,8 @@
 #include "pallas/pallas_storage.h"
 
 #include <algorithm>
+#include <iostream>
+#include <filesystem>
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
@@ -1609,56 +1611,48 @@ void pallas::Archive::freeThreadAt(size_t i) {
 };
 
 pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
-  auto* temp_main_filename = strdup(trace_filename);
-  char* trace_name = strdup(basename(temp_main_filename));
-  char* dir_name = strdup(dirname(temp_main_filename));
-  free(temp_main_filename);
+    std::filesystem::path path (trace_filename);
+    path = std::filesystem::absolute(path);
+    std::string trace_name = path.filename();
+    std::string dir_name = path.parent_path();
 
-  File file = File(trace_filename, "r");
-  if(!file.is_open())
-    return nullptr;
-  uint8_t abi_version;
-  file.read(&abi_version, sizeof(abi_version), 1);
-  if (abi_version != PALLAS_ABI_VERSION) {
-    pallas_error("This trace uses Pallas ABI version %d, but the current installation only supports version %d\n",
-                abi_version, PALLAS_ABI_VERSION);
-  }
-  if (pallas::parameterHandler == nullptr) {
-    pallas::parameterHandler = new pallas::ParameterHandler(file.file);
-  }
-  auto* trace = new pallas::GlobalArchive(dir_name, trace_name);
+    File file = File(path.c_str(), "r");
+    if (!file.is_open())
+        return nullptr;
+    uint8_t abi_version;
+    file.read(&abi_version, sizeof(abi_version), 1);
+    if (abi_version != PALLAS_ABI_VERSION) {
+        pallas_error("This trace uses Pallas ABI version %d, but the current installation only supports version %d\n", abi_version, PALLAS_ABI_VERSION);
+    }
+    if (pallas::parameterHandler == nullptr) {
+        pallas::parameterHandler = new pallas::ParameterHandler(file.file);
+    }
+    auto* trace = new pallas::GlobalArchive(dir_name.c_str(), trace_name.c_str());
 
-  pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name,
-             trace->trace_name);
+    pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name, trace->trace_name);
 
-
-  pallasReadDefinitions(trace->definitions, file);
-  pallasReadLocationGroups(trace->location_groups, file);
-  pallasReadLocations(trace->locations, file);
+    pallasReadDefinitions(trace->definitions, file);
+    pallasReadLocationGroups(trace->location_groups, file);
+    pallasReadLocations(trace->locations, file);
     pallasReadAdditionalContent(trace->additional_content, file);
-  trace->nb_archives = trace->location_groups.size();
-  trace->nb_allocated_archives = trace->location_groups.size();
-  if (trace->location_groups.size()) {
-    delete[] trace->archive_list;
-    trace->archive_list = new pallas::Archive*[trace->location_groups.size()]();
-  }
-  else
-    trace->archive_list = nullptr;
+    trace->nb_archives = trace->location_groups.size();
+    trace->nb_allocated_archives = trace->location_groups.size();
+    if (trace->location_groups.size()) {
+        delete[] trace->archive_list;
+        trace->archive_list = new pallas::Archive*[trace->location_groups.size()]();
+    } else
+        trace->archive_list = nullptr;
 
-  file.close();
+    file.close();
 
-  for (auto& locationGroup : trace->location_groups) {
-    auto* archive = trace->getArchive(locationGroup.id);
-    std::copy_if(trace->locations.begin(), trace->locations.end(),
-      std::back_inserter(archive->locations), [locationGroup](pallas::Location l) {
-        return l.parent == locationGroup.id;
-      });
-  }
-  trace->locations.clear();
-  // This weird bit of code with the location is just to make sure that they stay local
-  free(dir_name);
-  free(trace_name);
-  return trace;
+    for (auto& locationGroup : trace->location_groups) {
+        auto* archive = trace->getArchive(locationGroup.id);
+        std::copy_if(trace->locations.begin(), trace->locations.end(), std::back_inserter(archive->locations),
+                     [locationGroup](pallas::Location l) { return l.parent == locationGroup.id; });
+    }
+    trace->locations.clear();
+    // This weird bit of code with the location is just to make sure that they stay local
+    return trace;
 }
 
 /* -*-
