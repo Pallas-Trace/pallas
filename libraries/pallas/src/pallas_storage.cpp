@@ -1627,6 +1627,9 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     if (pallas::parameterHandler == nullptr) {
         pallas::parameterHandler = new pallas::ParameterHandler(file.file);
     }
+    else {
+        fseek(file.file, 32, SEEK_CUR);
+    }
     auto* trace = new pallas::GlobalArchive(dir_name.c_str(), trace_name.c_str());
 
     pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name, trace->trace_name);
