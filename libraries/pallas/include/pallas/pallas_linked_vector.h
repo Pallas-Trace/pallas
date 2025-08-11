@@ -85,6 +85,11 @@ class LinkedVector {
      */
     void write_to_file(FILE* infoFile, FILE* dataFile);
 
+    /**
+     * Resets the offsets of all the subvectors.
+     */
+    void reset_offsets();
+
    private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
@@ -178,6 +183,8 @@ class LinkedVector {
     void load_data(SubArray* sub);
 
    public:
+    /** Loads all the subvectors. */
+    void load_all_data();
     /**
      * Creates a new LinkedVector.
      */
@@ -256,6 +263,11 @@ class LinkedDurationVector {
      * @param valueFile  File where data is stored (most of the time).
      */
     void write_to_file(FILE* vectorFile, FILE* valueFile);
+
+    /**
+     * Resets the offsets of all the subvectors.
+     */
+    void reset_offsets();
 
    private:
     /** Path to the file storing this vector. */
@@ -374,7 +386,10 @@ class LinkedDurationVector {
     void update_statistics();
 
    public:
-
+    /**
+     * Loads all the subvectors.
+     */
+    void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
     void final_update_mean() { mean /= size;}
 

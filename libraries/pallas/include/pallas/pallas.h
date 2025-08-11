@@ -516,6 +516,10 @@ typedef struct Thread {
   size_t nb_loops;           /**< Number of pallas::Loop in #loops. */
 #ifdef __cplusplus
   void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
+    /**
+     * Resets the offsets of all the timestamp / duration vectors.
+     */
+    void resetVectorsOffsets();
   /** Returns the ID corresponding to the given Event.
    * If there isn't already one, creates a corresponding EventSummary.
    */

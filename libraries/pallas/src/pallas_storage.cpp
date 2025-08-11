@@ -843,7 +843,7 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
 }
 
 void pallas::LinkedVector::load_data(SubArray* sub) {
-  pallas_log(DebugLevel::Debug, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
+  pallas_log(DebugLevel::Normal, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
   File& f = *fileMap[filePath];
   if (!f.isOpen) {
     f.open("r");
@@ -944,7 +944,7 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const File& f
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const File& eventFile,
                              const File& durationFile) {
-  pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+  pallas_log(pallas::DebugLevel::Normal, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
       std::cout << event.timestamps->to_string() << std::endl;
   }
@@ -987,7 +987,7 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile) {
-  pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
+  pallas_log(pallas::DebugLevel::Normal, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
              sequence.durations->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
     //    th->printSequence(sequence);
@@ -1405,17 +1405,15 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive) {
   if (!archive)
     return;
 
-  char* fullpath;
-  size_t fullpath_len;
-  fullpath_len = strlen(archive->dir_name) + strlen(archive->trace_name) + strlen("%s/%s.pallas");
-  fullpath = new char[fullpath_len];
-  snprintf(fullpath, fullpath_len, "%s/%s.pallas", archive->dir_name, archive->trace_name);
+  std::filesystem::path fullpath(std::string(archive->dir_name) + "/" + std::string(archive->trace_name));
+    if (fullpath.extension() != ".pallas") {
+        fullpath += ".pallas";
+    }
 
-  File file = File(fullpath, "w");
+  File file = File(fullpath.c_str(), "w");
   if(!file.is_open())
     pallas_abort();
 
-  delete[] fullpath;
   uint8_t version = PALLAS_ABI_VERSION;
   file.write(&version, sizeof(version), 1);
   pallas::parameterHandler->writeToFile(file.file);

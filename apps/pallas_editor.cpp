@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
         auto* t = a->getThread(loc.id);
         parameterHandler->compressionAlgorithm = originalCompressionAlgorithm;
         t->loadTimestamps();
+          t->resetVectorsOffsets();
         a->dir_name = newDirName;
         std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
         parameterHandler->compressionAlgorithm = compressionAlgorithm;
