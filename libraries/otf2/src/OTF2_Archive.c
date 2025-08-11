@@ -39,7 +39,6 @@ OTF2_ErrorCode OTF2_Archive_Close(OTF2_Archive* archive) {
     pallas_archive_delete(archive->archive);
     archive->archive = NULL;
   }
-  fprintf(stdout, "\nICICIICIC   %d \n\n", k);
   write_duration_details("write", "write_details", &durations[WRITE]);
   return OTF2_SUCCESS;
 }
@@ -326,7 +325,6 @@ OTF2_ErrorCode OTF2_Archive_CloseGlobalDefWriter(OTF2_Archive* archive, OTF2_Glo
   pallas_global_archive_close(writer->archive);
   pallas_global_archive_delete(writer->archive);
   writer->archive = NULL;
-  fprintf(stdout, "FIIIIIIIIIIIIN222\n\n");
 
   return OTF2_SUCCESS;
 }

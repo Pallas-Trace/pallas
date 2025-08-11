@@ -1570,8 +1570,6 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive) {
     pallasStoreAdditionalContent(archive->additional_content, file);
 
   file.close();
-  fprintf(stdout, "pallasStoreGlobalArchive - \n");
-  // write_duration_details("write", "write_details", &durations[WRITE]);
 
 }
 
@@ -1606,7 +1604,6 @@ void pallasStoreArchive(pallas::Archive* archive) {
   pallasStoreLocations(archive->locations, file);
     pallasStoreAdditionalContent(archive->additional_content, file);
   file.close();
-  fprintf(stdout, "\n\nArchive\n\n");
 }
 
 static char* pallas_archive_filename(pallas::GlobalArchive* archive, pallas::LocationGroupId id) {
@@ -1773,9 +1770,11 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     pallas_error("This trace uses Pallas ABI version %d, but the current installation only supports version %d\n",
                 abi_version, PALLAS_ABI_VERSION);
   }
-  if (pallas::parameterHandler == nullptr) {
+if (pallas::parameterHandler == nullptr) {
     pallas::parameterHandler = new pallas::ParameterHandler(file.file);
-  }
+} else {
+  fseek(file.file, 32, SEEK_CUR );
+}
   auto* trace = new pallas::GlobalArchive(dir_name, trace_name);
 
   pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name,
