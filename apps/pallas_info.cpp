@@ -291,12 +291,12 @@ void info_global_archive(GlobalArchive* archive) {
   }
 
   std::cout << "\nConfiguration:\n"
-            << "\tCompression Algorithm: " << toString(parameterHandler->compressionAlgorithm) << "\n"
-            << "\tEncoding algorithm: " << toString(parameterHandler->encodingAlgorithm) << "\n"
-            << "\tLoop-finding algorithm: " << toString(parameterHandler->loopFindingAlgorithm) << "\n"
-            << "\tMax loop length: " << parameterHandler->maxLoopLength << "\n"
-            << "\tZSTD compression level: " << parameterHandler->zstdCompressionLevel << "\n"
-            << "\tTimestamp storage: " << toString(parameterHandler->timestampStorage) << "\n";
+            << "\tCompression Algorithm: " << toString(archive->parameter_handler->compressionAlgorithm) << "\n"
+            << "\tEncoding algorithm: " << toString(archive->parameter_handler->encodingAlgorithm) << "\n"
+            << "\tLoop-finding algorithm: " << toString(archive->parameter_handler->loopFindingAlgorithm) << "\n"
+            << "\tMax loop length: " << archive->parameter_handler->maxLoopLength << "\n"
+            << "\tZSTD compression level: " << archive->parameter_handler->zstdCompressionLevel << "\n"
+            << "\tTimestamp storage: " << toString(archive->parameter_handler->timestampStorage) << "\n";
 
   if (cmd & show_definitions) {
     info_definitions(archive->definitions);

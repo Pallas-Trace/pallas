@@ -213,6 +213,7 @@ int main(int argc, char** argv) {
   processName = registerString(globalArchive, "Main process");
   globalArchive.defineLocationGroup(processID, processName, processID);
   Archive mainProcess(globalArchive, 0);
+    mainProcess.global_archive = &globalArchive;
 
   for (int i = 0; i < nb_functions; i++) {
     std::ostringstream os;

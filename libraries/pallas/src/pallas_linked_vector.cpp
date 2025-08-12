@@ -45,12 +45,12 @@ std::string LinkedDurationVector::to_string() {
     return output.str();
 }
 
-LinkedVector::LinkedVector() {
+LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector() {
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }

@@ -54,37 +54,37 @@ static Token getLastEvent(Token t, const Thread* thread) {
     return t;
 }
 
-Token Thread::getSequenceIdFromArray(pallas::Token* token_array, size_t array_len) {
+Token ThreadWriter::getSequenceIdFromArray(pallas::Token* token_array, size_t array_len) {
     uint32_t hash = hash32((uint8_t*)(token_array), array_len * sizeof(pallas::Token), SEED);
     pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_len, hash);
-    auto& sequencesWithSameHash = hashToSequence[hash];
+    auto& sequencesWithSameHash = thread->hashToSequence[hash];
     if (!sequencesWithSameHash.empty()) {
         if (sequencesWithSameHash.size() > 1) {
             pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
         }
         for (const auto sid : sequencesWithSameHash) {
-            if (_pallas_arrays_equal(token_array, array_len, sequences[sid]->tokens.data(), sequences[sid]->size())) {
+            if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid]->tokens.data(), thread->sequences[sid]->size())) {
                 pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: \t found with id=%u\n", sid);
                 return PALLAS_SEQUENCE_ID(sid);
             }
         }
     }
 
-    if (nb_sequences >= nb_allocated_sequences) {
+    if (thread->nb_sequences >= thread->nb_allocated_sequences) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
-        doubleMemorySpaceConstructor(sequences, nb_allocated_sequences);
-        for (uint i = nb_allocated_sequences / 2; i < nb_allocated_sequences; i++) {
-            sequences[i] = new Sequence;
-            sequences[i]->durations = new LinkedDurationVector();
-            sequences[i]->timestamps = new LinkedVector();
+        doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
+        for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
+            thread->sequences[i] = new Sequence;
+            thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
         }
     }
 
-    const auto index = nb_sequences++;
+    const auto index = thread->nb_sequences++;
     const auto sid = PALLAS_SEQUENCE_ID(index);
     pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: \tSequence not found. Adding it with id=S%lu\n", index);
 
-    Sequence* s = getSequence(sid);
+    Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
     memcpy(s->tokens.data(), token_array, sizeof(Token) * array_len);
     s->hash = hash;
@@ -176,7 +176,7 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         loop_sequence_id = curTokenSeq[index_first_iteration];
 
     } else {
-        loop_sequence_id = thread->getSequenceIdFromArray(&curTokenSeq[index_first_iteration], loop_len);
+        loop_sequence_id = getSequenceIdFromArray(&curTokenSeq[index_first_iteration], loop_len);
     }
     Loop* loop = createLoop(loop_sequence_id);
     Sequence* loop_sequence = thread->getSequence(loop_sequence_id);
@@ -368,16 +368,17 @@ void ThreadWriter::findSequence(size_t n) {
     }
 }
 
-auto ThreadWriter::findLoop() -> void {
-    if (parameterHandler->getLoopFindingAlgorithm() == LoopFindingAlgorithm::None) {
+void ThreadWriter::findLoop() {
+    auto loopFindingAlgorithm = parameter_handler->getLoopFindingAlgorithm();
+    if (loopFindingAlgorithm == LoopFindingAlgorithm::None) {
         return;
     }
-    size_t maxLoopLength = (parameterHandler->getLoopFindingAlgorithm() == LoopFindingAlgorithm::BasicTruncated) ? parameterHandler->getMaxLoopLength() : SIZE_MAX;
+    size_t maxLoopLength = (loopFindingAlgorithm == LoopFindingAlgorithm::BasicTruncated) ? parameter_handler->getMaxLoopLength() : SIZE_MAX;
     // First we check if the last tokens are of a Sequence we already know
     findSequence(maxLoopLength);
 
     // Then we check for loops we haven't found yet
-    switch (parameterHandler->getLoopFindingAlgorithm()) {
+    switch (loopFindingAlgorithm) {
     case LoopFindingAlgorithm::None:
         return;
     case LoopFindingAlgorithm::Basic:
@@ -467,7 +468,7 @@ void ThreadWriter::recordExitFunction() {
                 e.record = expected_record;
                 memcpy(e.event_data, first_event->event_data, first_event->event_size);
                 e.event_size = first_event->event_size;
-                TokenId e_id = thread->getEventId(&e);
+                TokenId e_id = getEventId(&e);
                 pallas_warn("\tInserting %s as E%d at end of curSequence\n", thread->getEventString(&e).c_str(), e_id);
                 storeEvent(PALLAS_BLOCK_END, e_id, getTimestamp(), nullptr);
                 pallas_warn("\tInserting %s as E%d at end of layer under curSequence\n", thread->getEventString(last_event).c_str(), last_token.id);
@@ -483,7 +484,7 @@ void ThreadWriter::recordExitFunction() {
     }
 #endif
 
-    const Token seq_id = thread->getSequenceIdFromArray(curTokenSeq.data(), curTokenSeq.size());
+    const Token seq_id = getSequenceIdFromArray(curTokenSeq.data(), curTokenSeq.size());
     auto* seq = thread->sequences[seq_id.id];
 
     const pallas_timestamp_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
@@ -561,6 +562,10 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     pallas_recursion_shield++;
 
     pallas_log(DebugLevel::Debug, "ThreadWriter(%u)::open\n", thread_id);
+    parameter_handler = new ParameterHandler();
+    if (a.global_archive) {
+        a.global_archive->parameter_handler = parameter_handler;
+    }
 
     pthread_mutex_lock(&a.lock);
     while (a.nb_threads >= a.nb_allocated_threads) {
@@ -581,8 +586,8 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
         thread->sequences[i] = new Sequence();
-        thread->sequences[i]->durations = new LinkedDurationVector();
-        thread->sequences[i]->timestamps = new LinkedVector();
+        thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -618,32 +623,36 @@ void GlobalArchive::close() {
     pallasStoreGlobalArchive(this);
 }
 
-TokenId Thread::getEventId(Event* e) {
+TokenId ThreadWriter::getEventId(Event* e) {
     pallas_log(DebugLevel::Max, "getEventId: Searching for event {.event_type=%d}\n", e->record);
 
     uint32_t hash = hash32(reinterpret_cast<uint8_t*>(e), sizeof(Event), SEED);
-    auto& eventWithSameHash = hashToEvent[hash];
+    auto& eventWithSameHash = thread->hashToEvent[hash];
     if (!eventWithSameHash.empty()) {
         if (eventWithSameHash.size() > 1) {
             pallas_log(DebugLevel::Debug, "Found more than one event with the same hash: %lu\n", eventWithSameHash.size());
         }
         for (const auto eid : eventWithSameHash) {
-            if (memcmp(e, &events[eid].event, e->event_size) == 0) {
+            if (memcmp(e, &thread->events[eid].event, e->event_size) == 0) {
                 pallas_log(DebugLevel::Debug, "getEventId: \t found with id=%u\n", eid);
                 return eid;
             }
         }
     }
 
-    if (nb_events >= nb_allocated_events) {
+    if (thread->nb_events >= thread->nb_allocated_events) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of events for thread trace %p\n", this);
-        doubleMemorySpaceConstructor(events, nb_allocated_events);
+        doubleMemorySpaceConstructor(thread->events, thread->nb_allocated_events);
     }
 
-    TokenId index = nb_events++;
+    TokenId index = thread->nb_events++;
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
-    auto* new_event = new (&events[index]) EventSummary(index, *e);
-    hashToEvent[hash].push_back(index);
+
+    auto* new_event = new (&thread->events[index]) EventSummary(index, *e);
+    new_event->timestamps = new LinkedVector(*parameter_handler);
+
+    // In-place initialisation
+    thread->hashToEvent[hash].push_back(index);
 
     return index;
 }

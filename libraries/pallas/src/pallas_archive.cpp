@@ -164,9 +164,6 @@ GlobalArchive::GlobalArchive(const char* dirname, const char* given_trace_name) 
     return;
   pallas_recursion_shield++;
   pallas_debug_level_init();
-  if (!parameterHandler) {
-    parameterHandler = new ParameterHandler();
-  }
   dir_name = strdup(dirname);
   trace_name = strdup(given_trace_name);
   fullpath = pallas_global_archive_fullpath(dir_name, trace_name);
@@ -340,10 +337,6 @@ Archive::Archive(const char* dirname, LocationGroupId archive_id) {
     return;
   pallas_recursion_shield++;
   pallas_debug_level_init();
-  if (!parameterHandler) {
-    parameterHandler = new ParameterHandler();
-  }
-
   dir_name = strdup(dirname);
   id = archive_id;
   global_archive = nullptr;

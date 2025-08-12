@@ -516,14 +516,10 @@ typedef struct Thread {
   size_t nb_loops;           /**< Number of pallas::Loop in #loops. */
 #ifdef __cplusplus
   void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
-    /**
-     * Resets the offsets of all the timestamp / duration vectors.
-     */
-    void resetVectorsOffsets();
-  /** Returns the ID corresponding to the given Event.
-   * If there isn't already one, creates a corresponding EventSummary.
-   */
-  TokenId getEventId(Event* e);
+  /**
+       * Resets the offsets of all the timestamp / duration vectors.
+       */
+  void resetVectorsOffsets();
   /** Returns the Event corresponding to the given Token. */
   [[nodiscard]] Event* getEvent(Token) const;
   /** Returns the EventSummary corresponding to the given Token. */
@@ -573,10 +569,6 @@ typedef struct Thread {
   void printAttributeList(const struct AttributeList* attribute_list) const;            /**< Prints an AttributeList. */
   void printEventAttribute(const struct EventOccurence* es) const; /**< Prints an EventOccurence. */
   [[nodiscard]] const char* getName() const;                       /**< Returns the name of this thread. */
-  /** Search for a sequence_id that matches the given array as a Sequence.
-   * If none of the registered sequence match, register a new Sequence.
-   */
-  Token getSequenceIdFromArray(Token* token_array, size_t array_len);
   void finalizeThread();
 
   /** Create a blank new Thread. This is used when reading the trace. */

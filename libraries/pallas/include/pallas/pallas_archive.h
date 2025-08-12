@@ -11,11 +11,13 @@
 #pragma once
 
 #include "pallas.h"
+#include "pallas_parameter_handler.h"
 
 #define GLOBAL_ARCHIVE_DEPRECATED_LOCATION CXX([[deprecated("You should record Locations on the Archives")]])
 
 #ifdef __cplusplus
 namespace pallas {
+class ParameterHandler;
 #endif
 
 /**
@@ -139,6 +141,8 @@ typedef struct GlobalArchive {
 
   /** LinkedList of additional_content we want to add to the archive. */
   AdditionalContent CXX(<void>)* additional_content CXX( = nullptr);
+    /** List of parameters. Only used when reading the trace. */
+    ParameterHandler* parameter_handler;
 
 #ifdef __cplusplus
   /* Adds an additional content node.  */
@@ -215,7 +219,7 @@ typedef struct GlobalArchive {
   void addComm(CommRef, StringRef, GroupRef, CommRef);
 
   /**
-   * Open the Global Archive.
+   * Create a GlobalArchive. Does not read or write anything in the given .
    * @param dirname Path to the file.
    * @param given_trace_name Name of the trace.
    */

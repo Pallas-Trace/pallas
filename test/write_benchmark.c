@@ -185,6 +185,7 @@ int main(int argc, char** argv) {
 
   trace = pallas_global_archive_new("write_benchmark_trace", "main");
   archive = pallas_archive_new("write_benchmark_trace", 0);
+    archive->global_archive = trace;
   process_id = 0; // main process
   process_name = _register_string("Process");
 

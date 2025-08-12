@@ -52,7 +52,6 @@ EventSummary::EventSummary(TokenId token_id, const Event& e) {
   attribute_buffer = nullptr;
   attribute_buffer_size = 0;
   attribute_pos = 0;
-  timestamps = new LinkedVector();
   event = e;
 }
 
