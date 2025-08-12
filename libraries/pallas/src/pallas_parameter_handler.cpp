@@ -232,7 +232,7 @@ class ConfigFile {
 };
 
 const char* defaultConfigFile = PALLAS_CONFIG_PATH;
-ParameterHandler* parameterHandler = nullptr;
+
 ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   ConfigFile config(stringConfig);
   compressionAlgorithm = config.loadCompressionAlgorithmConfig();

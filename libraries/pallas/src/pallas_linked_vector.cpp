@@ -45,12 +45,12 @@ std::string LinkedDurationVector::to_string() {
     return output.str();
 }
 
-LinkedVector::LinkedVector() {
+LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector() {
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }
@@ -137,6 +137,15 @@ uint64_t* LinkedVector::add(uint64_t val) {
     return last->add(val);
 }
 
+SAME_FOR_BOTH_VECTORS(void, load_all_data() {
+    auto* v = first;
+    while (v) {
+        load_data(v);
+        v = v->next;
+    }
+})
+
+
 SAME_FOR_BOTH_VECTORS(
     uint64_t&,
     at(size_t pos) {
@@ -193,6 +202,14 @@ LinkedVector::~LinkedVector() {
 LinkedDurationVector::~LinkedDurationVector() {
     free_data();
 }
+
+SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
+    auto* v = first;
+    while (v != nullptr) {
+        v->offset = 0;
+        v = v->next;
+    }
+})
 
 // Sub-LinkedVector methods
 

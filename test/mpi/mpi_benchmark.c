@@ -209,6 +209,7 @@ int main(int argc, char** argv) {
 
   archive = pallas_archive_new("mpi_benchmark_trace", mpi_rank);
   if (mpi_rank == 0) {
+      archive->global_archive = trace;
     for (int i = 0; i < mpi_comm_size; i++) {
       char rank_name_str[100];
       snprintf(rank_name_str, 100, "Rank#%d", i);

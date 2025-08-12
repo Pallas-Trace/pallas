@@ -7,6 +7,7 @@
  * and a class that stores all the different parameters used during the execution.
  */
 #pragma once
+#ifdef __cplusplus
 #include <cstddef>
 #include <string>
 
@@ -200,6 +201,8 @@ class ParameterHandler {
   [[nodiscard]] std::string to_string() const;
 };
 
-/** Global ParameterHandler. This is supposed to be the only instance of that class. */
-extern ParameterHandler* parameterHandler;
 }  // namespace pallas
+#else
+/** Struct for the CPP ParameterHandler class. Don't manipulate in C. */
+typedef struct {} ParameterHandler;
+#endif

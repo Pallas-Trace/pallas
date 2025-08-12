@@ -17,13 +17,24 @@ unsigned int pallas_mpi_rank = 0;
 namespace pallas {
 void Thread::loadTimestamps() {
   DOFOR(i, nb_events) {
-    size_t loaded_timestamps = events[i].timestamps->front();
+    events[i].timestamps->load_all_data();
   }
   DOFOR(i, nb_sequences) {
-    size_t loaded_duration = sequences[i]->durations->front();
-    size_t loaded_timestamps = sequences[i]->timestamps->front();
+    sequences[i]->durations->load_all_data();
+    sequences[i]->timestamps->load_all_data();
   }
 }
+
+void Thread::resetVectorsOffsets() {
+    DOFOR(i, nb_events) {
+        events[i].timestamps->reset_offsets();
+    }
+    DOFOR(i, nb_sequences) {
+        sequences[i]->durations->reset_offsets();
+        sequences[i]->timestamps->reset_offsets();
+    }
+}
+
 
 Event* Thread::getEvent(Token token) const {
   return &getEventSummary(token)->event;
@@ -42,7 +53,6 @@ EventSummary::EventSummary(TokenId token_id, const Event& e) {
   attribute_buffer = nullptr;
   attribute_buffer_size = 0;
   attribute_pos = 0;
-  timestamps = new LinkedVector();
   event = e;
 }
 

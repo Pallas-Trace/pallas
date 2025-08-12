@@ -65,11 +65,12 @@ int main(int argc, char** argv) {
   }
 
   auto trace = *pallas_open_trace(trace_name);
-  if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameterHandler->getCompressionAlgorithm()) {
+    auto& parameter_handler = *trace.parameter_handler;
+  if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler.getCompressionAlgorithm()) {
     auto newDirName = strdup((std::string(trace.dir_name) + "_" + toString(compressionAlgorithm)).c_str());
     auto originalDirName = trace.dir_name;
     auto newFullpath = strdup((std::string(newDirName) + trace.trace_name).c_str());
-    auto originalCompressionAlgorithm = parameterHandler->compressionAlgorithm;
+    auto originalCompressionAlgorithm = parameter_handler.compressionAlgorithm;
 
     for (auto& lg : trace.location_groups) {
       trace.dir_name = originalDirName;
@@ -80,11 +81,12 @@ int main(int argc, char** argv) {
         a->dir_name = originalDirName;
         std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
         auto* t = a->getThread(loc.id);
-        parameterHandler->compressionAlgorithm = originalCompressionAlgorithm;
+        parameter_handler.compressionAlgorithm = originalCompressionAlgorithm;
         t->loadTimestamps();
+          t->resetVectorsOffsets();
         a->dir_name = newDirName;
         std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
-        parameterHandler->compressionAlgorithm = compressionAlgorithm;
+        parameter_handler.compressionAlgorithm = compressionAlgorithm;
         t->finalizeThread();
         a->freeThread(loc.id);
       }

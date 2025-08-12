@@ -33,6 +33,8 @@ typedef struct ThreadWriter {
     pallas_timestamp_t* sequence_start_timestamp;
     /** The first recorded timestamp for this thread.*/
     C_CXX(uint8_t firstTimestamp[TIMEPOINT_SIZE], Timepoint firstTimestamp = {});
+    /** Parameter handler for the whole trace. */
+    ParameterHandler* parameter_handler;
 #ifdef __cplusplus
 
    private:
@@ -84,6 +86,10 @@ typedef struct ThreadWriter {
     void recordEnterFunction();
     /** Close a Sequence and move down the callstack. */
     void recordExitFunction();
+    /** Search for a sequence_id that matches the given array as a Sequence.
+     * If none of the registered sequence match, register a new Sequence.
+     */
+    Token getSequenceIdFromArray(Token* token_array, size_t array_len);
     /** Returns the current timestamp. */
     pallas_timestamp_t getTimestamp();
     /** Returns t if it's valid, of the current timestamp. */
@@ -96,6 +102,10 @@ typedef struct ThreadWriter {
     // void addDurationToComplete(pallas_duration_t* duration);
 
    public:
+    /** Returns the ID corresponding to the given Event.
+     * If there isn't already one, creates a corresponding EventSummary.
+     */
+    TokenId getEventId(Event* e);
     ThreadWriter(Archive& archive, ThreadId thread_id);
     void threadClose();
     /** Creates the new Event and stores it. Returns the occurence index of that new Event. */

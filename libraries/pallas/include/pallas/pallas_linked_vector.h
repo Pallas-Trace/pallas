@@ -19,6 +19,8 @@
 #include <memory>
 #include <utility>
 #include <vector>
+
+#include "pallas_parameter_handler.h"
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 
@@ -85,9 +87,17 @@ class LinkedVector {
      */
     void write_to_file(FILE* infoFile, FILE* dataFile);
 
+    /**
+     * Resets the offsets of all the subvectors.
+     */
+    void reset_offsets();
+
    private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
+
+    /** Parameter handler for the whole trace. */
+    const ParameterHandler& parameter_handler;
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -149,7 +159,7 @@ class LinkedVector {
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
          */
-        void write_to_file(FILE* file);
+        void write_to_file(FILE* file, const ParameterHandler& parameter_handler);
 
         ~SubArray();
 
@@ -178,13 +188,15 @@ class LinkedVector {
     void load_data(SubArray* sub);
 
    public:
+    /** Loads all the subvectors. */
+    void load_all_data();
     /**
      * Creates a new LinkedVector.
      */
-    LinkedVector();
+    LinkedVector(ParameterHandler& p);
 
     /** Creates a new LinkedVector from a file. Doesn't actually load it until and element is accessed. */
-    LinkedVector(FILE* vectorFile, const char* valueFilePath);
+    LinkedVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler);
 
     /**
      * Classic destructor. Calls free_data().
@@ -257,9 +269,16 @@ class LinkedDurationVector {
      */
     void write_to_file(FILE* vectorFile, FILE* valueFile);
 
+    /**
+     * Resets the offsets of all the subvectors.
+     */
+    void reset_offsets();
+
    private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
+    /** Parameter handler for the whole trace. */
+    const ParameterHandler& parameter_handler;
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -340,7 +359,7 @@ class LinkedDurationVector {
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
          */
-        void write_to_file(FILE* file);
+        void write_to_file(FILE* file,  const ParameterHandler& parameter_handler);
 
         ~SubArray();
 
@@ -374,7 +393,10 @@ class LinkedDurationVector {
     void update_statistics();
 
    public:
-
+    /**
+     * Loads all the subvectors.
+     */
+    void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
     void final_update_mean() { mean /= size;}
 
@@ -390,12 +412,12 @@ class LinkedDurationVector {
      * Loads a LinkedDurationVector from a file.
      * Only loads the statistics, doesn't load the timestamps until they're accessed.
      */
-    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath);
+    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler);
 
     /**
      * Creates a new LinkedDurationVector.
      */
-    LinkedDurationVector();
+    LinkedDurationVector(ParameterHandler& p );
 };
 }  // namespace pallas
 
