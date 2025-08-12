@@ -42,16 +42,16 @@ void getTraceTimepstamps(char* name) {
   auto* slash = strrchr(copy, '/');
   if (slash != nullptr)
     *slash = '\0';
+  fprintf(stdout, "%s\n", name);
+  auto* trace = pallas_open_trace(name);
 
-  auto trac = pallas_open_trace(name);
-  auto trace = *trac;
-
-  for (uint aid = 0; aid < (uint) trace.nb_archives; aid++) {
-    auto archive = trace.archive_list[aid];
+  for (uint aid = 0; aid < (uint) trace->nb_archives; aid++) {
+    fprintf(stdout, "%s %d\n", name, aid);
+    auto archive = trace->archive_list[aid];
       for (uint i = 0; i < archive->nb_threads; i++) {
 	    const pallas::Thread *thread = archive->getThreadAt(i);
 
-        for (unsigned j = 0; j < thread->nb_events; j++) {
+      for (unsigned j = 0; j < thread->nb_events; j++) {
           pallas::EventSummary& e = thread->events[j];
             auto* timestamps = e.timestamps;
 
@@ -60,15 +60,16 @@ void getTraceTimepstamps(char* name) {
               write_csv_details(copy, t);
             }
             timestamps->free_data();
+            e.cleanEventSummary();
         }
       archive->freeThreadAt(i);
       }
-  
-      }
+   }
+
   free(copy);
 
-  delete trac; 
- exit(EXIT_SUCCESS);
+trace->close();
+exit(EXIT_SUCCESS);
 }
 
 
@@ -122,7 +123,7 @@ double CompareTimestamps(const char* trace1, const char* trace2){
     }
 
     double y, val2;
-    double ss_res, ss_tot = 0.0;
+    double ss_res = 0.0, ss_tot = 0.0;
     double mean_y = mean(trace1);
 
     while ((fscanf(file1, "%lf", &y)==1) && (fscanf(file2, "%lf", &val2)==1)) {
@@ -183,26 +184,25 @@ int main(const int argc, char* argv[]) {
       exit(EXIT_SUCCESS);
     }
 
-    int status1;
-    waitpid(pid1, &status1, 0);
-    if (!WIFEXITED(status1)) {
-        std::cerr << "First process failed" << std::endl;
-        return EXIT_FAILURE;
-    }
+    // int status1;
+    // waitpid(pid1, &status1, 0);
+    // if (!WIFEXITED(status1)) {
+    //     std::cerr << "First process failed" << std::endl;
+    //     return EXIT_FAILURE;
+    // }
 
-    pid_t pid2 = fork();
-    if (pid2 == 0){
-      getTraceTimepstamps(argv[2]);
-      fprintf(stdout, "second trace ok\n");
-      exit(EXIT_SUCCESS);
-    }
+    // pid_t pid2 = fork();
+    // if (pid2 == 0){
+    //   getTraceTimepstamps(argv[2]);
+    //   exit(EXIT_SUCCESS);
+    // }
 
-    int status2;
-    waitpid(pid2, &status2, 0);
-    if (!WIFEXITED(status2)) {
-        std::cerr << "Second process failed" << std::endl;
-        return EXIT_FAILURE;
-    }
+    // int status2;
+    // waitpid(pid2, &status2, 0);
+    // if (!WIFEXITED(status2)) {
+    //     std::cerr << "Second process failed" << std::endl;
+    //     return EXIT_FAILURE;
+    // }
 
     double res = CompareTimestamps(trace_csv_1.c_str(), trace_csv_2.c_str());
 
@@ -212,7 +212,7 @@ int main(const int argc, char* argv[]) {
     std::cout << std::right << std::setw(30) << std::fixed << "Result: R^2 = ";
     std::cout << std::right << std::setw(12) << std::fixed << res << std::endl;
     std::cout << "------------------------------------------------------------------" << std::endl;
-
+    
 
     return EXIT_SUCCESS;
 }

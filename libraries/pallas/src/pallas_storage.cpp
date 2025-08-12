@@ -29,8 +29,8 @@
 
 #include <algorithm>
 
-#define SHOW_DETAILS 1
-#define TRACK_PERF 1
+#define SHOW_DETAILS 0
+#define TRACK_PERF 0
 
 
 
@@ -1773,7 +1773,13 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
 if (pallas::parameterHandler == nullptr) {
     pallas::parameterHandler = new pallas::ParameterHandler(file.file);
 } else {
-  fseek(file.file, 32, SEEK_CUR );
+fseek(file.file, sizeof(pallas::ParameterHandler::compressionAlgorithm) + 
+sizeof(pallas::ParameterHandler::encodingAlgorithm) + 
+sizeof(pallas::ParameterHandler::zstdCompressionLevel) + 
+sizeof(pallas::ParameterHandler::loopFindingAlgorithm) +  
+sizeof(pallas::ParameterHandler::maxLoopLength) + 
+sizeof(pallas::ParameterHandler::timestampStorage), SEEK_CUR );
+
 }
   auto* trace = new pallas::GlobalArchive(dir_name, trace_name);
 
