@@ -39,7 +39,23 @@ OTF2_ErrorCode OTF2_Archive_Close(OTF2_Archive* archive) {
     pallas_archive_delete(archive->archive);
     archive->archive = NULL;
   }
-  write_duration_details("write", "write_details", &durations[WRITE]);
+  // write_duration_details("write", "write_details", &durations[WRITE]);
+  // write_duration_details("zstd", "zstd_details", &durations[ZSTD]);
+  // write_duration_details("zstd_histogram", "zstd_histogram_details", &durations[ZSTD_HISTOGRAM]);
+  // write_duration_details("zfp", "zfp_details", &durations[ZFP]);
+  // write_duration_details("sz", "sz_details", &durations[SZ]);
+  // write_duration_details("write_subvec", "write_subvec_details", &durations[WRITE_SUBVEC]);
+  write_duration_details("write_dur_subvec", "write_dur_subvec_details", &durations[WRITE_DUR_SUBVEC]);
+  // write_duration_details("write_vector", "write_vector_details", &durations[WRITE_VECTOR]);
+  // write_duration_details("write_dur_vect", "write_dur_vect_details", &durations[WRITE_DUR_VECT]);
+  write_duration_details("pcw_enc_alg", "pcw_enc_alg_details", &durations[PCW_ENC_ALG]);
+  write_duration_details("pcw", "pcw_details", &durations[PCW]);
+  write_duration_details("pcw_comp_alg", "pcw_comp_alg_details", &durations[PCW_COMP_ALG]);
+  write_duration_details("pcw_write", "pcw_write_details", &durations[PCW_WRITE]);
+  write_duration_details("write_dur_subvec_ftell", "write_dur_subvec_ftell_details", &durations[WRITE_DUR_SUBVEC_FTELL]);
+  write_duration_details("write_dur_subvec_pcw", "write_dur_subvec_pcw_details", &durations[WRITE_DUR_SUBVEC_PCW]);
+  write_duration_details("write_dur_subvec_delete", "write_dur_subvec_delete_details", &durations[WRITE_DUR_SUBVEC_DELETE]);
+
   return OTF2_SUCCESS;
 }
 

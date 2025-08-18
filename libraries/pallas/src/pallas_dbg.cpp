@@ -7,7 +7,7 @@
 #include "pallas/pallas_log.h"
 
 namespace pallas {
-enum DebugLevel debugLevel = DebugLevel::Debug;
+enum DebugLevel debugLevel = DebugLevel::Quiet;
 
 }
 

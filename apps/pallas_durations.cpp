@@ -11,66 +11,11 @@
 #include <fstream>
 #include <float.h>
 #include "pallas/pallas_dbg.h"
-#include <sys/wait.h>
-#include <malloc.h>
+
 
 #define EPSILON 1e-12
 
 bool details = true;
-
-int thread_to_print = -1;
-
-/**
- * Adds a timestamp t to the .csv file filename
- */
-void write_csv_details(const char* filename, pallas_timestamp_t t){
-    std::ofstream file(std::string(filename) + ".csv", std::ios::app);
-    file << t << "\n";
-}
-
-pallas_timestamp_t get_timestamp(const pallas::EventOccurence e){ 
-    return(e.timestamp);
-}
-
-
-/**
- * name is a path for a .pallas trace file. It fills a .csv file with all the timestamps of the trace without any header.
- */
-void getTraceTimepstamps(char* name) {
-
-  auto* copy = strdup(name);
-  auto* slash = strrchr(copy, '/');
-  if (slash != nullptr)
-    *slash = '\0';
-  fprintf(stdout, "%s\n", name);
-  auto* trace = pallas_open_trace(name);
-
-  for (uint aid = 0; aid < (uint) trace->nb_archives; aid++) {
-    fprintf(stdout, "%s %d\n", name, aid);
-    auto archive = trace->archive_list[aid];
-      for (uint i = 0; i < archive->nb_threads; i++) {
-	    const pallas::Thread *thread = archive->getThreadAt(i);
-
-      for (unsigned j = 0; j < thread->nb_events; j++) {
-          pallas::EventSummary& e = thread->events[j];
-            auto* timestamps = e.timestamps;
-
-            for (size_t k =0; k<timestamps->size; k++){
-              uint64_t t = timestamps->at(k);
-              write_csv_details(copy, t);
-            }
-            timestamps->free_data();
-            e.cleanEventSummary();
-        }
-      archive->freeThreadAt(i);
-      }
-   }
-
-  free(copy);
-
-trace->close();
-exit(EXIT_SUCCESS);
-}
 
 
 /**
@@ -167,44 +112,14 @@ auto get_name_w_csv(char* c){
 int main(const int argc, char* argv[]) {
 
     if (argc != 3){
-        std::cerr << "Usage: " << argv[0] << " <trace1.pallas> <trace2.pallas> " << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <trace_1.csv> <trace_2.csv> " << std::endl;
         return EXIT_FAILURE;
     }
 
     auto trace_csv_1 = get_name_w_csv(argv[1]);
     auto trace_csv_2 = get_name_w_csv(argv[2]);
 
-    std::ofstream(trace_csv_1, std::ios::trunc);
-    std::ofstream(trace_csv_2, std::ios::trunc);
-
-    pid_t pid1 = fork();
-
-    if (pid1 == 0){
-      getTraceTimepstamps(argv[1]);
-      exit(EXIT_SUCCESS);
-    }
-
-    // int status1;
-    // waitpid(pid1, &status1, 0);
-    // if (!WIFEXITED(status1)) {
-    //     std::cerr << "First process failed" << std::endl;
-    //     return EXIT_FAILURE;
-    // }
-
-    // pid_t pid2 = fork();
-    // if (pid2 == 0){
-    //   getTraceTimepstamps(argv[2]);
-    //   exit(EXIT_SUCCESS);
-    // }
-
-    // int status2;
-    // waitpid(pid2, &status2, 0);
-    // if (!WIFEXITED(status2)) {
-    //     std::cerr << "Second process failed" << std::endl;
-    //     return EXIT_FAILURE;
-    // }
-
-    double res = CompareTimestamps(trace_csv_1.c_str(), trace_csv_2.c_str());
+    double res = CompareTimestamps(argv[1], argv[2]);
 
     std::cout.precision(12);
 

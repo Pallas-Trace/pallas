@@ -31,8 +31,8 @@
 #include <iostream>
 #include <filesystem>
 
-#define SHOW_DETAILS 0
-#define TRACK_PERF 0
+#define SHOW_DETAILS 1
+#define TRACK_PERF 1
 
 
 
@@ -117,10 +117,6 @@ inline size_t write_test(const void* ptr, size_t size, size_t nmemb, FILE* strea
   if (TRACK_PERF){
   duration_write_csv("write", &durations[WRITE]);
   }
-
-  // if (SHOW_DETAILS) {
-  //   write_duration_details("write", "write_details", &durations[WRITE]);
-  // }
 
   return ret11; 
 }
@@ -562,6 +558,8 @@ size_t numberCompressedBytes = 0;
  * @param file File to write in.
  */
 inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler& parameter_handler) {
+  struct timespec t5, t6, t7, t8;
+  clock_gettime(CLOCK_MONOTONIC, &t5);
     size_t size = n * sizeof(uint64_t);
     uint64_t* encodedArray = nullptr;
     size_t encodedSize;
@@ -581,7 +579,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
     default:
         pallas_error("Invalid Encoding algorithm\n");
     }
-
+    clock_gettime(CLOCK_MONOTONIC, &t6);
+    update_durations(&durations[PCW_ENC_ALG], t5, t6, size);
     byte* compressedArray = nullptr;
     size_t compressedSize;
     switch (parameter_handler.getCompressionAlgorithm()) {
@@ -599,14 +598,10 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         }
         clock_gettime(CLOCK_MONOTONIC, &t2);
           if (TRACK_PERF){
-        update_duration(&durations[ZSTD], t1, t2);
+        update_durations(&durations[ZSTD], t1, t2, size*n);
         duration_write_csv("zstd", &durations[ZSTD]);
           }
-          static char info[128];
-          snprintf(info, sizeof(info), "%zu,%zu,%zu", size, compressedSize, n);
-          if (SHOW_DETAILS) {
-          write_csv_details("zstd", "zstd_details", info, t1, t2);
-          }
+
 
         break;
       }
@@ -632,14 +627,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         delete[] tempCompressedArray;
         clock_gettime(CLOCK_MONOTONIC, &t2);
           if (TRACK_PERF){
-        update_duration(&durations[ZSTD_HISTOGRAM], t1, t2);
+        update_durations(&durations[ZSTD_HISTOGRAM], t1, t2, size*n);
         duration_write_csv("zstd_histogram", &durations[ZSTD_HISTOGRAM]);     
-          }
-
-          if (SHOW_DETAILS) {
-          static char info[128];
-          snprintf(info, sizeof(info), "%zu,%zu,%zu", size, compressedSize, n);
-          write_csv_details("zstd_histogram", "zstd_histrogram_details", info, t1, t2);
           }
 
         break;
@@ -653,13 +642,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         compressedSize = _pallas_zfp_compress(src, n, compressedArray, compressedSize);
         clock_gettime(CLOCK_MONOTONIC, &t2);
           if (TRACK_PERF){
-        update_duration(&durations[ZFP], t1, t2);
+        update_durations(&durations[ZFP], t1, t2, size*n);
         duration_write_csv("zfp", &durations[ZFP]);     
-          }
-          static char info[128];
-          snprintf(info, sizeof(info), "%zu,%zu,%zu", size, compressedSize, n);
-          if (SHOW_DETAILS) {
-          write_csv_details("zfp", "zfp_details", info, t1, t2);
           }
 
         break;
@@ -671,14 +655,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         compressedArray = _pallas_sz_compress(src, n, compressedSize);
         clock_gettime(CLOCK_MONOTONIC, &t2);
           if (TRACK_PERF){
-        update_duration(&durations[SZ], t1, t2);
+        update_durations(&durations[SZ], t1, t2, size*n);
         duration_write_csv("sz", &durations[SZ]);   
-          }
-        
-          static char info[128];
-          snprintf(info, sizeof(info), "%zu,%zu,%zu", size, compressedSize, n);
-          if (SHOW_DETAILS) {
-          write_csv_details("sz", "sz_details", info, t1, t2);
           }
 
         break;
@@ -686,7 +664,8 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
     default:
         pallas_error("Invalid Compression algorithm\n");
     }
-
+    clock_gettime(CLOCK_MONOTONIC, &t8);
+    update_durations(&durations[PCW_COMP_ALG], t6, t8, size);
     if (parameter_handler.getCompressionAlgorithm() != pallas::CompressionAlgorithm::None) {
         pallas_log(pallas::DebugLevel::Debug, "Compressing %lu bytes as %lu bytes\n", size, compressedSize);
         _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
@@ -707,6 +686,9 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         delete[] compressedArray;
     if (parameter_handler.getEncodingAlgorithm() != pallas::EncodingAlgorithm::None)
         delete[] encodedArray;
+    clock_gettime(CLOCK_MONOTONIC, &t7);
+    update_durations(&durations[PCW_WRITE], t8, t7, size);
+    update_durations(&durations[PCW], t5, t7, size);
 }
 
 /**
@@ -822,37 +804,31 @@ void pallas::LinkedVector::SubArray::write_to_file(FILE* file,  const ParameterH
     array = nullptr;
     clock_gettime(CLOCK_MONOTONIC, &t2);
       if (TRACK_PERF){
-    update_duration(&durations[WRITE_SUBVEC], t1, t2);
+    update_durations(&durations[WRITE_SUBVEC], t1, t2, size);
     duration_write_csv("write_subvec", &durations[WRITE_SUBVEC]);
       }
-    if (SHOW_DETAILS) {
-      static char info[128];
-      snprintf(info, sizeof(info), "%zu", size);
-      write_csv_details("write_subvec", "write_subvec_details", info, t1, t2);
-    }
 
 }
 
 
 void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file,  const ParameterHandler& parameter_handler) {
-      struct timespec t1, t2;
+      struct timespec t1, t2, t3, t4;
     clock_gettime(CLOCK_MONOTONIC, &t1);
     offset = ftell(file);
+    clock_gettime(CLOCK_MONOTONIC, &t3);
     _pallas_compress_write(array, size, file, parameter_handler);
+    clock_gettime(CLOCK_MONOTONIC, &t4);
     delete [] array;
     array = nullptr;
     clock_gettime(CLOCK_MONOTONIC, &t2);
       if (TRACK_PERF){
-    update_duration(&durations[WRITE_DUR_SUBVEC], t1, t2);
+    update_durations(&durations[WRITE_DUR_SUBVEC], t1, t2, size);
+    update_durations(&durations[WRITE_DUR_SUBVEC_FTELL], t1, t3, size);
+    update_durations(&durations[WRITE_DUR_SUBVEC_PCW], t3, t4, size);
+    update_durations(&durations[WRITE_DUR_SUBVEC_DELETE], t4, t2, size);
     duration_write_csv("write_dur_subvec", &durations[WRITE_DUR_SUBVEC]);
       }
 
-
-    if (SHOW_DETAILS) {
-    static char info[128];
-    snprintf(info, sizeof(info), "%zu", size);
-    write_csv_details("write_dur_subvec", "write_dur_subvec_details", info, t1, t2);
-    }
 }
 
 void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile) {
@@ -876,15 +852,10 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile) {
     free_data();
     clock_gettime(CLOCK_MONOTONIC, &t2);
       if (TRACK_PERF){
-    update_duration(&durations[WRITE_VECTOR], t1, t2);
+    update_durations(&durations[WRITE_VECTOR], t1, t2, size);
     duration_write_csv("write_vector",&durations[WRITE_VECTOR]);
       }
 
-    if (SHOW_DETAILS) {
-      static char info[128];
-      snprintf(info, sizeof(info), "%zu", size);
-      write_csv_details("write_vector", "write_vector_details", info, t1, t2);
-    }
 }
 
 pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
@@ -948,14 +919,9 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     free_data();
     clock_gettime(CLOCK_MONOTONIC, &t2);
       if (TRACK_PERF){
-    update_duration(&durations[WRITE_DUR_VECT], t1, t2);
+    update_durations(&durations[WRITE_DUR_VECT], t1, t2, size);
     duration_write_csv("write_duration_vector", &durations[WRITE_DUR_VECT]);
       }
-    static char info[128];
-    snprintf(info, sizeof(info), "%zu,%u", size,accu);
-    if (SHOW_DETAILS) {
-    write_csv_details("write_duration_vector", "write_duration_vector_details", info, t1, t2);
-    }
 
 }
 
