@@ -325,6 +325,7 @@ PYBIND11_MODULE(pallas_trace, m) {
     .def_readonly("tokens", &pallas::Sequence::tokens)
     .def_property_readonly("timestamps", [](const pallas::Sequence& self) { return (new DataHolder(self.timestamps))->get_array(); })
     .def_property_readonly("durations", [](const pallas::Sequence& self) { return (new DataHolder(self.durations))->get_array(); })
+    .def_property_readonly("exclusive_durations", [](const pallas::Sequence& self) { return (new DataHolder(self.exclusive_durations))->get_array(); } )
     .def_property_readonly("max_duration", [](const pallas::Sequence& self) { return self.durations->max; })
     .def_property_readonly("min_duration", [](const pallas::Sequence& self) { return self.durations->min; })
     .def_property_readonly("mean_duration", [](const pallas::Sequence& self) { return self.durations->mean; })
