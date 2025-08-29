@@ -46,16 +46,39 @@ extern unsigned int pallas_mpi_rank;
             pallas_error("Equality failed: %s=%lu != %s=%lu\n", #a, (size_t)a, #b, (size_t)b); \
     } while (0)
 
+/** Asserts a < b whatever the build mode (ie. Debug or Release). */
+#define pallas_assert_inferior_always(a, b)                                                 \
+do {                                                                                  \
+if (a >= b)                                                                       \
+pallas_error("Inequality failed: %s=%lu >= %s=%lu\n", #a, (size_t)a, #b, (size_t)b); \
+} while (0)
+
+/** Asserts a <= b whatever the build mode (ie. Debug or Release). */
+#define pallas_assert_inferior_equal_always(a, b)                                                 \
+do {                                                                                  \
+if (a > b)                                                                       \
+pallas_error("Inequality failed: %s=%lu > %s=%lu\n", #a, (size_t)a, #b, (size_t)b); \
+} while (0)
+
+
 #ifdef NDEBUG
 /** Asserts a condition only if in Debug mode (if DEBUG is defined). */
 #define pallas_assert(cond)
 /** Checks if a == b */
 #define pallas_assert_equals(a,b)
+/** Checks if a < b */
+#define pallas_assert_inferior(a, b)
+/** Checks if a <= b */
+#define pallas_assert_inferior_equal(a, b)
 #else
 /** Asserts a condition only if in Debug mode (if DEBUG is defined). */
 #define pallas_assert(cond) pallas_assert_always(cond)
 /** Checks if a == b */
 #define pallas_assert_equals(a,b) pallas_assert_equals_always(a,b)
+/** Checks if a < b */
+#define pallas_assert_inferior(a, b) pallas_assert_inferior_always(a, b)
+/** Checks if a <= b */
+#define pallas_assert_inferior_equal(a, b) pallas_assert_inferior_equal_always(a, b)
 #endif
 
 
