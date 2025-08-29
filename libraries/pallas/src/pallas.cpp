@@ -15,13 +15,15 @@ unsigned int pallas_mpi_rank = 0;
 
 namespace pallas {
 void Thread::loadTimestamps() {
-  DOFOR(i, nb_events) {
-    events[i].timestamps->load_all_data();
-  }
-  DOFOR(i, nb_sequences) {
-    sequences[i]->durations->load_all_data();
-    sequences[i]->timestamps->load_all_data();
-  }
+    DOFOR(i, nb_events) {
+        events[i].timestamps->load_all_data();
+    }
+    DOFOR(i, nb_sequences) {
+        auto* s = sequences[i];
+        s->durations->load_all_data();
+        s->exclusive_durations->load_all_data();
+        s->timestamps->load_all_data();
+    }
 }
 
 void Thread::resetVectorsOffsets() {
@@ -29,8 +31,10 @@ void Thread::resetVectorsOffsets() {
         events[i].timestamps->reset_offsets();
     }
     DOFOR(i, nb_sequences) {
-        sequences[i]->durations->reset_offsets();
-        sequences[i]->timestamps->reset_offsets();
+        auto* s = sequences[i];
+        s->durations->reset_offsets();
+        s->exclusive_durations->reset_offsets();
+        s->timestamps->reset_offsets();
     }
 }
 

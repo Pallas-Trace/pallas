@@ -159,6 +159,7 @@ void info_sequence(Thread* t, int index, bool details = false) {
       for (auto token : s->tokens) {
         std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
+        // TODO show exclusive durations
       std::cout << "------------------- End of sequence" << s->id << std::endl;
       std::cout << std::endl;
     }

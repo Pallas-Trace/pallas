@@ -301,48 +301,58 @@ struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_u
  * Structure to store a sequence in PALLAS format.
  */
 typedef struct Sequence {
-  /** ID of that sequence. */
-  TokenId id CXX({PALLAS_TOKEN_ID_INVALID});
-  /** Vector of the durations of each sequence. */
-  LinkedDurationVector* durations;
-  /** Vector of the timestamps of each sequence. */
-  LinkedVector* timestamps;
-  /** Hash value according to the hash32 function.*/
-  uint32_t hash CXX({0});
-  /** Vector of Token to store the sequence of tokens */
-  DEFINE_Vector(Token, tokens);
-  CXX(private:)
-  /**
-   * A TokenCountMap counting each token in this Sequence (recursively).
-   * It might not be initialized, which is why ::getTokenCount (writing or reading) exists.*/
-  DEFINE_TokenCountMap(tokenCount);
+    /** ID of that sequence. */
+    TokenId id CXX({PALLAS_TOKEN_ID_INVALID});
+    /** Vector of the durations of each sequence. */
+    LinkedDurationVector* durations;
+    /** Vector of the exclusive durations of each sequence.
+     * Equals duration - sum(duration) of the contained sequences.*/
+    LinkedDurationVector* exclusive_durations;
+    /** Vector of the timestamps of each sequence. */
+    LinkedVector* timestamps;
+    /** Hash value according to the hash32 function.*/
+    uint32_t hash CXX({0});
+    /** Vector of Token to store the sequence of tokens */
+    DEFINE_Vector(Token, tokens);
+    /**
+     * A TokenCountMap counting each token in this Sequence (recursively).
+     * It might not be initialized, which is why ::getTokenCount (writing or reading) exists.*/
+    DEFINE_TokenCountMap(tokenCount);
 #ifdef __cplusplus
- public:
-  /** Getter for the size of that Sequence.
-   * @returns Number of tokens in that Sequence. */
-  [[nodiscard]] size_t size() const { return tokens.size(); }
-  /** Indicates whether this Sequence comes from a function
-   * (ie begins with Enter and ends with End) or a detected sequence.
-   */
-  bool isFunctionSequence(const struct Thread* thread) const;
-  /** Getter for #tokenCount during the writting process.
-   * If need be, counts the number of Token in that Sequence to initialize it.
-   * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
-   * @returns Reference to #tokenCount.*/
-  TokenCountMap& getTokenCountWriting(const Thread* thread);
-  /** Getter for #tokenCount during the reading process.
-   * If need be, counts the number of Token in that Sequence to initialize it.
-   * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
-   * @returns Reference to #tokenCount.*/
-  TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
-                              const TokenCountMap& threadReaderTokenCountMap,
-                              bool isReversedOrder = false);
 
-  /** Tries to guess the name of the sequence
-   * @returns A string that describes the sequence.
-   */
-  std::string guessName(const pallas::Thread* thread);
-  ~Sequence() { delete durations; delete timestamps; };
+public:
+    /** Getter for the size of that Sequence.
+     * @returns Number of tokens in that Sequence. */
+    [[nodiscard]] size_t size() const { return tokens.size(); }
+    /** Indicates whether this Sequence comes from a function
+     * (ie begins with Enter and ends with End) or a detected sequence.
+     */
+    bool isFunctionSequence(const struct Thread* thread) const;
+
+    /** Getter for #tokenCount during the writting process.
+     * If need be, counts the number of Token in that Sequence to initialize it.
+     * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
+     * @returns Reference to #tokenCount.*/
+    TokenCountMap& getTokenCountWriting(const Thread* thread);
+
+    /** Getter for #tokenCount during the reading process.
+     * If need be, counts the number of Token in that Sequence to initialize it.
+     * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
+     * @returns Reference to #tokenCount.*/
+    TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
+                                        const TokenCountMap& threadReaderTokenCountMap,
+                                        bool isReversedOrder = false);
+
+    /** Tries to guess the name of the sequence
+     * @returns A string that describes the sequence.
+     */
+    std::string guessName(const pallas::Thread* thread);
+
+    ~Sequence() {
+        delete durations;
+        delete exclusive_durations;
+        delete timestamps;
+    };
 #endif
 } Sequence;
 

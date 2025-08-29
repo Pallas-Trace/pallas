@@ -994,40 +994,44 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile) {
-  pallas_log(pallas::DebugLevel::Normal, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
-             sequence.durations->size);
-  if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
-    //    th->printSequence(sequence);
-    std::cout << "Durations: " << sequence.durations->to_string() << "\nTimestamps: " << sequence.timestamps->to_string() << std::endl;
-  }
-  size_t size = sequence.size();
-  sequenceFile.write(&size, sizeof(size), 1);
-  sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
+    pallas_log(pallas::DebugLevel::Normal, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
+               sequence.id, sequence.size(), sequence.durations->size);
+    if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
+        //    th->printSequence(sequence);
+        std::cout << "Durations: " << sequence.durations->to_string() << "\n"
+                << "Exclusive Durations:" << sequence.exclusive_durations->to_string() << "\n"
+                << "Timestamps: " << sequence.timestamps->to_string() << std::endl;
+    }
+    size_t size = sequence.size();
+    sequenceFile.write(&size, sizeof(size), 1);
+    sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
 #ifdef DEBUG
-  for (const auto& t: sequence.tokens) {
-    pallas_assert(t.isValid());
-  }
+    for (const auto& t : sequence.tokens) {
+        pallas_assert(t.isValid());
+    }
 #endif
-  if (STORE_TIMESTAMPS) {
-    sequence.durations->write_to_file(sequenceFile.file, durationFile.file);
-    sequence.timestamps->write_to_file(sequenceFile.file, durationFile.file);
-  }
+    if (STORE_TIMESTAMPS) {
+        sequence.durations->write_to_file(sequenceFile.file, durationFile.file);
+        sequence.exclusive_durations->write_to_file(sequenceFile.file, durationFile.file);
+        sequence.timestamps->write_to_file(sequenceFile.file, durationFile.file);
+    }
 }
 
 static void pallasReadSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
                                const pallas::ParameterHandler& parameter_handler) {
-  size_t size;
-  sequenceFile.read(&size, sizeof(size), 1);
-  sequence.tokens.resize(size);
-  sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
-  if (STORE_TIMESTAMPS) {
-    sequence.durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
-    sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler);
-  }
-  pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
-             sequence.durations->size);
+    size_t size;
+    sequenceFile.read(&size, sizeof(size), 1);
+    sequence.tokens.resize(size);
+    sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
+    if (STORE_TIMESTAMPS) {
+        sequence.durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
+        sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
+        sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler);
+    }
+    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
+               sequence.durations->size);
 }
 
 static void pallasStoreLoop(pallas::Loop& loop, const File& loopFile) {

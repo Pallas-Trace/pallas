@@ -76,6 +76,7 @@ Token ThreadWriter::getSequenceIdFromArray(pallas::Token* token_array, size_t ar
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
             thread->sequences[i] = new Sequence;
             thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
             thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
         }
     }
@@ -193,11 +194,13 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         // We need to go back in the current sequence in order to correctly calculate our durations
         // But only if those are new sequences
         // Compute the durations
-        const pallas_duration_t duration_first_iteration = getLastSequenceDuration(loop_sequence, 1);
-        const pallas_duration_t duration_second_iteration = getLastSequenceDuration(loop_sequence, 0);
+        const auto [duration_first_iteration, exclusive_duration_first_iteration] = getLastSequenceDuration(loop_sequence, 1);
+        const auto [duration_second_iteration, exclusive_duration_second_iteration] = getLastSequenceDuration(loop_sequence, 0);
 
         loop_sequence->durations->add(duration_first_iteration);
+        loop_sequence->exclusive_durations->add(exclusive_duration_first_iteration);
         loop_sequence->durations->add(duration_second_iteration);
+        loop_sequence->exclusive_durations->add(exclusive_duration_second_iteration);
 
         // And add that timestamp to the vectors
         auto& tokenCount = loop_sequence->getTokenCountWriting(thread);
@@ -354,8 +357,9 @@ void ThreadWriter::findSequence(size_t n) {
             auto sequence_token = Token(TypeSequence, found_sequence_id);
             auto sequence = thread->getSequence(sequence_token);
 
-            const pallas_duration_t sequence_duration = getLastSequenceDuration(sequence, 0);
+            const auto [sequence_duration, exclusive_sequence_duration] = getLastSequenceDuration(sequence, 0);
             sequence->durations->add(sequence_duration);
+            sequence->exclusive_durations->add(exclusive_sequence_duration);
             sequence->timestamps->add(last_timestamp - sequence_duration);
 
             curTokenSeq.resize(curTokenSeq.size() - array_len);
@@ -487,9 +491,11 @@ void ThreadWriter::recordExitFunction() {
     const Token seq_id = getSequenceIdFromArray(curTokenSeq.data(), curTokenSeq.size());
     auto* seq = thread->sequences[seq_id.id];
 
-    const pallas_timestamp_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
+
+    const auto  [computed_duration, computed_exclusive_duration] =
+        getLastSequenceDuration(seq, 0);
 #ifdef DEBUG
-    const pallas_timestamp_t computed_duration = getLastSequenceDuration(seq, 0);
+    const pallas_duration_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
     pallas_log(DebugLevel::Debug, "Computed duration = %lu\nSequence duration = %lu\n", computed_duration, sequence_duration);
     pallas_assert(computed_duration == sequence_duration);
 #endif
@@ -501,7 +507,8 @@ void ThreadWriter::recordExitFunction() {
     auto& upperTokenSeq = getCurrentTokenSequence();
 
     seq->timestamps->add(sequence_start_timestamp[cur_depth]);
-    seq->durations->add(sequence_duration);
+    seq->exclusive_durations->add(computed_exclusive_duration);
+    seq->durations->add(computed_duration);
     storeToken(seq_id, seq->timestamps->size - 1);
 
     curTokenSeq.clear();
@@ -547,6 +554,8 @@ void ThreadWriter::threadClose() {
     pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence->tokens.back().type, mainSequence->tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
     mainSequence->durations->add(duration);
+    mainSequence->exclusive_durations->add(duration);
+    // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
     mainSequence->timestamps->add(thread->first_timestamp);
     thread->finalizeThread();
 }
@@ -587,6 +596,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
         thread->sequences[i] = new Sequence();
         thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
         thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
     }
 
@@ -657,7 +667,7 @@ TokenId ThreadWriter::getEventId(Event* e) {
     return index;
 }
 
-pallas_duration_t ThreadWriter::getLastSequenceDuration(Sequence* sequence, size_t offset) const {
+std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence* sequence, size_t offset) const {
     pallas_timestamp_t start_ts;
     pallas_timestamp_t end_ts;
     auto& curIndexSeq = getCurrentIndexSequence();
@@ -701,8 +711,31 @@ pallas_duration_t ThreadWriter::getLastSequenceDuration(Sequence* sequence, size
     default:
         pallas_error("Incorrect Token\n");
     }
+    auto inclusive_duration = end_ts - start_ts;
+    auto exclusive_duration = inclusive_duration;
+    // Then we need to compute the exclusive duration
+    for (size_t i = start_index; i < end_index; i ++) {
+        auto token = sequence->tokens[i];
+        if (token.type == TypeEvent) {
+            continue;
+        }
+        if (token.type == TypeSequence) {
+            auto* s = thread->getSequence(token);
+            exclusive_duration -= s->durations->at(curIndexSeq[i]);
+            continue;
+        }
+        if (token.type == TypeLoop) {
+            auto* l = thread->getLoop(token);
+            auto* s = thread->getSequence(l->repeated_token);
+            for (size_t j = 0; j < l->nb_iterations; j ++) {
+                exclusive_duration -= s->durations->at(curIndexSeq[i] - j);
+            }
+            continue;
+        }
+    }
+    pallas_assert_inferior_equal(exclusive_duration,  inclusive_duration);
 
-    return end_ts - start_ts;
+    return {inclusive_duration, inclusive_duration};
 }
 }  // namespace pallas
 
