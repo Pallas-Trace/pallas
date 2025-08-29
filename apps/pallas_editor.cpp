@@ -98,4 +98,5 @@ int main(int argc, char** argv) {
     }
     trace.close();
   }
+    return 0;
 }

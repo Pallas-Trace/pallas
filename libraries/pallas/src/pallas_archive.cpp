@@ -311,6 +311,7 @@ void GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, Co
 }
 
 GlobalArchive::~GlobalArchive() {
+    pallas_log(DebugLevel::Debug, "Deleting GlobalArchive\n");
   free(dir_name);
   free(trace_name);
   delete[] fullpath;
@@ -321,6 +322,7 @@ GlobalArchive::~GlobalArchive() {
 };
 
 Archive::~Archive() {
+    pallas_log(DebugLevel::Debug, "Deleting Archive %d\n", id);
   free(dir_name);
   for (size_t i = 0; i < nb_threads; i++) {
     delete threads[i];

@@ -1410,6 +1410,7 @@ void pallas_storage_finalize_thread(pallas::Thread* thread) {
 }
 
 void pallasStoreGlobalArchive(pallas::GlobalArchive* archive) {
+    pallas_log(pallas::DebugLevel::Debug, "Storing global archive\n");
   if (!archive)
     return;
 
@@ -1444,6 +1445,7 @@ char* pallas_archive_fullpath(pallas::Archive* a) {
 }
 
 void pallasStoreArchive(pallas::Archive* archive) {
+    pallas_log(pallas::DebugLevel::Debug, "Storing archive %d\n", archive->id);
   if (!archive)
     return;
 

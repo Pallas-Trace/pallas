@@ -447,6 +447,7 @@ Thread::Thread() {
 }
 
 Thread::~Thread() {
+    pallas_log(DebugLevel::Debug, "Deleting Thread %d\n", id);
   for (size_t i = 0; i < nb_allocated_events; i++) {
     events[i].cleanEventSummary();
   }
