@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
       trace.dir_name = originalDirName;
       std::cout << "Reading archive " << lg.id << " @ " << trace.dir_name << std::endl;
       auto* a = trace.getArchive(lg.id);
-      free(a->dir_name);
+      // free(a->dir_name);
       for (auto& loc : a->locations) {
         a->dir_name = originalDirName;
         std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;

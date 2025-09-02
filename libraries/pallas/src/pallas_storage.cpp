@@ -275,7 +275,7 @@ inline static uint64_t* _pallas_zstd_read(size_t& realSize, void* compArray, siz
   ZSTD_decompress(dest, realSize, compArray, compSize);
   return reinterpret_cast<uint64_t*>(dest);
 }
-
+double tolerance = 0.5;
 #ifdef WITH_ZFP
 /**
  * Gives a conservative upper bound for the size of the compressed data.
@@ -287,7 +287,7 @@ inline static size_t _pallas_zfp_bound(uint64_t* src, size_t n) {
   zfp_type type = zfp_type_int64;                 // array scalar type
   zfp_field* field = zfp_field_1d(src, type, n);  // array metadata
   zfp_stream* zfp = zfp_stream_open(nullptr);     // compressed stream and parameters
-  zfp_stream_set_accuracy(zfp, .1);               // set tolerance for fixed-accuracy mode, this is absolute error
+  zfp_stream_set_accuracy(zfp, tolerance);               // set tolerance for fixed-accuracy mode, this is absolute error
   size_t bufsize = zfp_stream_maximum_size(zfp, field);
   zfp_stream_close(zfp);
   return bufsize;
@@ -305,7 +305,7 @@ inline static size_t _pallas_zfp_compress(uint64_t* src, size_t n, void* dest, s
   zfp_type type = zfp_type_int64;                 // array scalar type
   zfp_field* field = zfp_field_1d(src, type, n);  // array metadata
   zfp_stream* zfp = zfp_stream_open(nullptr);     // compressed stream and parameters
-  zfp_stream_set_accuracy(zfp, .1);               // set tolerance for fixed-accuracy mode, this is absolute error
+  zfp_stream_set_accuracy(zfp, tolerance);               // set tolerance for fixed-accuracy mode, this is absolute error
   size_t bufsize = zfp_stream_maximum_size(zfp, field);  // capacity of compressed buffer (conservative)
   pallas_assert(bufsize <= destSize);
   bitstream* stream = stream_open(dest, bufsize);  // bit stream to compress to
@@ -330,7 +330,7 @@ inline static uint64_t* _pallas_zfp_decompress(size_t n, void* compressedArray, 
   zfp_type type = zfp_type_int64;                  // array scalar type
   zfp_field* field = zfp_field_1d(dest, type, n);  // array metadata
   zfp_stream* zfp = zfp_stream_open(nullptr);      // compressed stream and parameters
-  zfp_stream_set_accuracy(zfp, .1);                // set tolerance for fixed-accuracy mode, this is absolute error
+  zfp_stream_set_accuracy(zfp, tolerance);                // set tolerance for fixed-accuracy mode, this is absolute error
   bitstream* stream = stream_open(compressedArray, compressedSize);  // bit stream to read from
   zfp_stream_set_bit_stream(zfp, stream);                            // associate with compressed stream
   zfp_stream_rewind(zfp);                                            // rewind stream to beginning
