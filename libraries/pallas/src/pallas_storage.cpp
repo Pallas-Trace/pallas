@@ -194,13 +194,13 @@ static void pallasReadEvent(pallas::EventSummary& event,
                             const File& eventFile,
                             const File& durationFile,
                             const char* durationFileName,
-                            const pallas::ParameterHandler& parameter_handler);
+                            pallas::ParameterHandler& parameter_handler);
 
 static void pallasReadLoop(pallas::Loop& loop, const File& loopFile);
 static void pallasReadSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
-                               const pallas::ParameterHandler& parameter_handler);
+                               pallas::ParameterHandler& parameter_handler);
 
 static void pallasReadString(pallas::Definition& definitions, File& file);
 static void pallasReadRegions(pallas::Definition& definitions, File& file);
@@ -766,7 +766,7 @@ pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     }
 }
 
-pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler) : parameter_handler(parameter_handler) {
+pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler) : parameter_handler(parameter_handler) {
     filePath = valueFilePath;
     first = nullptr;
     last = nullptr;
@@ -825,7 +825,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
 }
 
 
-pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler): parameter_handler(parameter_handler) {
+pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler): parameter_handler(parameter_handler) {
     filePath = valueFilePath;
     first = nullptr;
     last = nullptr;
@@ -861,6 +861,7 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
     ret = fseek(f.file, sub->offset, 0);
   }
   sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
+    parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
 }
 
 
@@ -877,6 +878,7 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
         ret = fseek(f.file, sub->offset, 0);
     }
     sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
+    parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
 }
 
 /**************** Storage Functions ****************/
@@ -969,7 +971,7 @@ static void pallasReadEvent(pallas::EventSummary& event,
                             const File& eventFile,
                             const File& durationFile,
                             const char* durationFileName,
-                            const pallas::ParameterHandler& parameter_handler) {
+                            pallas::ParameterHandler& parameter_handler) {
   eventFile.read(&event.event, sizeof(pallas::Event), 1);
   eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
   event.attribute_pos = 0;
@@ -1020,7 +1022,7 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
 static void pallasReadSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
-                               const pallas::ParameterHandler& parameter_handler) {
+                               pallas::ParameterHandler& parameter_handler) {
     size_t size;
     sequenceFile.read(&size, sizeof(size), 1);
     sequence.tokens.resize(size);

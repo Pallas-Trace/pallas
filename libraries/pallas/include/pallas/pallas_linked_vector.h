@@ -97,7 +97,7 @@ class LinkedVector {
     const char* filePath = nullptr;
 
     /** Parameter handler for the whole trace. */
-    const ParameterHandler& parameter_handler;
+    ParameterHandler& parameter_handler;
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -196,7 +196,7 @@ class LinkedVector {
     LinkedVector(ParameterHandler& p);
 
     /** Creates a new LinkedVector from a file. Doesn't actually load it until and element is accessed. */
-    LinkedVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler);
+    LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler);
 
     /**
      * Classic destructor. Calls free_data().
@@ -278,7 +278,7 @@ class LinkedDurationVector {
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
     /** Parameter handler for the whole trace. */
-    const ParameterHandler& parameter_handler;
+    ParameterHandler& parameter_handler;
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -412,7 +412,7 @@ class LinkedDurationVector {
      * Loads a LinkedDurationVector from a file.
      * Only loads the statistics, doesn't load the timestamps until they're accessed.
      */
-    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, const ParameterHandler& parameter_handler);
+    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler);
 
     /**
      * Creates a new LinkedDurationVector.

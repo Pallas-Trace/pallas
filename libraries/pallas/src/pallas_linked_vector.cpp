@@ -170,7 +170,15 @@ SAME_FOR_BOTH_VECTORS(
           correct_sub = correct_sub->previous;
       }
       if (correct_sub->array == nullptr) {
+          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+            parameter_handler.subvector_queue.pop_front();
+            delete temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
           load_data(correct_sub);
+          parameter_handler.subvector_queue.emplace_back(correct_sub);
       }
       return (*correct_sub)[pos];
   })
