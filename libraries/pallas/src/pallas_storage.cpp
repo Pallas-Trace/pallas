@@ -862,6 +862,7 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
   }
   sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
     parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
+    parameter_handler.subvector_queue.emplace_back(sub);
 }
 
 
@@ -879,6 +880,7 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
     }
     sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
     parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
+    parameter_handler.subvector_queue.emplace_back(sub);
 }
 
 /**************** Storage Functions ****************/

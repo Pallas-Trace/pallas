@@ -431,6 +431,23 @@ std::string Thread::getEventString(Event* e) const {
   }
 }
 
+std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive) {
+    auto output = std::vector<pallas_duration_t>();
+    output.resize(nb_sequences);
+    for (size_t i = 0; i < nb_sequences; i ++) {
+        auto* s = sequences[i];
+        if (end_exclusive <= s->timestamps->front() || s->timestamps->back() < start_inclusive) {
+            output[i] = 0;
+            continue;
+        }
+        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start_inclusive);
+        size_t end_index = s->timestamps->getFirstOccurrenceAfter(end_exclusive);
+        output[i] = s->exclusive_durations->computeDurationBetween(start_index, end_index);
+        output[i] = std::min(output[i], end_exclusive - start_inclusive);
+    }
+    return output;
+}
+
 Thread::Thread() {
   archive = nullptr;
   id = PALLAS_THREAD_ID_INVALID;

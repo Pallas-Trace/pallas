@@ -157,6 +157,13 @@ SAME_FOR_BOTH_VECTORS(
           correct_sub = correct_sub->previous;
       }
       if (correct_sub->array == nullptr) {
+          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+            parameter_handler.subvector_queue.pop_front();
+            delete temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
           load_data(correct_sub);
       }
       return correct_sub->at(pos);
@@ -178,14 +185,116 @@ SAME_FOR_BOTH_VECTORS(
             parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
         }
           load_data(correct_sub);
-          parameter_handler.subvector_queue.emplace_back(correct_sub);
       }
       return (*correct_sub)[pos];
   })
 
-SAME_FOR_BOTH_VECTORS(uint64_t&, front() { return at(0); })
+size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
+    auto current_subarray = first;
+    // First, we find the correct subarray
+    while (current_subarray->last_value < ts) {
+        if (current_subarray->next &&  ts < current_subarray->next->first_value) {
+            return current_subarray->next->starting_index - 1;
+        }
+        current_subarray = current_subarray->next;
+        if (current_subarray == nullptr) {
+            return -1;
+        }
+    }
+    // Then we do a dichotomy on it.
+    size_t start = 0;
+    size_t end = current_subarray->size;
+    if (current_subarray->array == nullptr) {
+        load_data(current_subarray);
+    }
+    while (start + 1 < end) {
+        size_t middle = (start + end ) / 2;
+        if (current_subarray->array[middle] <= ts) {
+            start = middle;
+        } else {
+            end = middle;
+        }
+    }
+    if (ts == current_subarray->array[end]) {
+        return end + current_subarray->starting_index;
+    }
+    return start+ current_subarray->starting_index;
+}
 
-SAME_FOR_BOTH_VECTORS(uint64_t&, back() { return at(size - 1); })
+size_t LinkedVector::getFirstOccurrenceAfter(pallas_timestamp_t ts) {
+    auto current_subarray = first;
+    // First, we find the correct subarray
+    while (current_subarray->last_value < ts) {
+        if (current_subarray->next && ts < current_subarray->next->first_value) {
+            return current_subarray->next->starting_index;
+        }
+        current_subarray = current_subarray->next;
+        if (current_subarray == nullptr) {
+            return -1;
+        }
+    }
+    // Then we do a dichotomy on it.
+    size_t start = 0;
+    size_t end = current_subarray->size;
+    if (current_subarray->array == nullptr) {
+        load_data(current_subarray);
+    }
+    while (start + 1 < end) {
+        size_t middle = (start + end ) / 2;
+        if (current_subarray->array[middle] < ts) {
+            start = middle;
+        } else {
+            end = middle;
+        }
+    }
+    if (ts == current_subarray->array[start]) {
+        return start+ current_subarray->starting_index;
+    }
+    return end+ current_subarray->starting_index;
+}
+
+pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {
+    auto* start_subarray = first;
+    while (start_subarray->starting_index + start_subarray->size < start_index) {
+        start_subarray = start_subarray->next;
+    }
+    pallas_duration_t sum = 0;
+    if ( start_subarray->starting_index != start_index ) {
+        for (size_t i = start_index; i < start_subarray->starting_index + start_subarray->size && i <= end_index; i++) {
+            sum += at(i);
+        }
+        start_subarray = start_subarray->next;
+    }
+    while (start_subarray != nullptr && start_subarray->starting_index + start_subarray->size < end_index) {
+        sum += start_subarray->mean * start_subarray->size;
+        start_subarray = start_subarray->next;
+    }
+    if (start_subarray == nullptr) return sum;
+    for (size_t i = start_subarray->starting_index; i < end_index; i++) {
+        sum += at(i);
+    }
+    return sum;
+}
+
+
+
+
+uint64_t& LinkedVector::front() {
+    return first->first_value;
+}
+
+uint64_t& LinkedVector::back() {
+    return last->last_value;
+}
+
+
+uint64_t& LinkedDurationVector::front() {
+    return at(0);
+}
+
+uint64_t& LinkedDurationVector::back() {
+    return at(size - 1);
+}
 
 SAME_FOR_BOTH_VECTORS(
   void,

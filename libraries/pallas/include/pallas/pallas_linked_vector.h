@@ -9,6 +9,7 @@
 #pragma once
 
 #include "pallas_dbg.h"
+#include "pallas_timestamp.h"
 #ifndef __cplusplus
 #include <stdint.h>
 #endif
@@ -190,6 +191,10 @@ class LinkedVector {
    public:
     /** Loads all the subvectors. */
     void load_all_data();
+    /** Returns the index of the first value <= ts. */
+    size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
+    /** Returns the index of the first value > ts. */
+    size_t getFirstOccurrenceAfter(pallas_timestamp_t ts);
     /**
      * Creates a new LinkedVector.
      */
@@ -313,8 +318,8 @@ class LinkedDurationVector {
         void update_statistics();
 
        public:
-      /** Replace the sum (being stored in the mean) by the actual mean. */
-      void final_update_mean() { mean /= size;}
+        /** Replace the sum (being stored in the mean) by the actual mean. */
+        void final_update_mean() { mean /= size; }
         /** Max element stored in the array. */
         uint64_t min = UINT64_MAX;
 
@@ -332,7 +337,6 @@ class LinkedDurationVector {
          * @return Pointer to the new element.
          */
         uint64_t* add(uint64_t val);
-
 
         /**
          * Returns a reference to the element at specified location `pos`, with bounds checking.
@@ -359,7 +363,7 @@ class LinkedDurationVector {
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
          */
-        void write_to_file(FILE* file,  const ParameterHandler& parameter_handler);
+        void write_to_file(FILE* file, const ParameterHandler& parameter_handler);
 
         ~SubArray();
 
@@ -398,7 +402,9 @@ class LinkedDurationVector {
      */
     void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
-    void final_update_mean() { mean /= size;}
+    void final_update_mean() { mean /= size; }
+ /** Returns the sum of the durations between the two indexes. */
+    pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
 
     ~LinkedDurationVector();
 
@@ -417,7 +423,7 @@ class LinkedDurationVector {
     /**
      * Creates a new LinkedDurationVector.
      */
-    LinkedDurationVector(ParameterHandler& p );
+    LinkedDurationVector(ParameterHandler& p);
 };
 }  // namespace pallas
 

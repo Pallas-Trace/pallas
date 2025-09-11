@@ -581,6 +581,11 @@ typedef struct Thread {
   [[nodiscard]] const char* getName() const;                       /**< Returns the name of this thread. */
   void finalizeThread();
 
+  /**
+   * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
+   */
+  std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive);
+
   /** Create a blank new Thread. This is used when reading the trace. */
   Thread();
 
