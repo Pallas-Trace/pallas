@@ -849,7 +849,7 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
 }
 
 void pallas::LinkedVector::load_data(SubArray* sub) {
-  pallas_log(DebugLevel::Normal, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
+  pallas_log(DebugLevel::Debug, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
   File& f = *fileMap[filePath];
   if (!f.isOpen) {
     f.open("r");
@@ -954,7 +954,7 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const File& f
 static void pallasStoreEvent(pallas::EventSummary& event,
                              const File& eventFile,
                              const File& durationFile) {
-  pallas_log(pallas::DebugLevel::Normal, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+  pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
       std::cout << event.timestamps->to_string() << std::endl;
   }
@@ -998,7 +998,7 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile) {
-    pallas_log(pallas::DebugLevel::Normal, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
+    pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
                sequence.id, sequence.size(), sequence.durations->size);
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         //    th->printSequence(sequence);
@@ -1083,7 +1083,7 @@ static void pallasReadString(pallas::Definition& definitions, File& file) {
     string.str = (char*) calloc(string.length, sizeof(char));
     pallas_assert(string.str);
     file.read(string.str, sizeof(char), string.length);
-    pallas_log(pallas::DebugLevel::Normal, "\tLoad String {.ref=%d, .length=%d, .str='%s'}\n", string.string_ref,
+    pallas_log(pallas::DebugLevel::Debug, "\tLoad String {.ref=%d, .length=%d, .str='%s'}\n", string.string_ref,
                string.length, string.str);
   }
 }

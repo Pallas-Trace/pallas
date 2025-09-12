@@ -22,7 +22,7 @@ static inline void check_event_allocation(Thread* thread_trace, unsigned id) {
     pallas_log(DebugLevel::Max, "Searching for event {.id=%d}\n", id);
 
     while (id > thread_trace->nb_allocated_events) {
-        pallas_log(DebugLevel::Normal, "Doubling mem space of events for thread trace %p\n", (void*)thread_trace);
+        pallas_log(DebugLevel::Debug, "Doubling mem space of events for thread trace %p\n", (void*)thread_trace);
         doubleMemorySpaceConstructor(thread_trace->events, thread_trace->nb_allocated_events);
     }
     if (thread_trace->nb_events < id + 1) {
