@@ -302,9 +302,10 @@ class DataHolder {
                            py::capsule(this, [](void* p) {
                                auto* holder = reinterpret_cast<DataHolder*>(p);
                                if (--holder->data->ref == 0) {
-                                   holder->data->free_data();
+                                   //holder->data->free_data();
                                }
-                               delete holder;
+                               // delete holder;
+                               // TODO Python is shit so I had to remove these lines to make sure I don't have issues with Pallas.
                            }));
     }
 };
