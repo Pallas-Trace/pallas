@@ -193,8 +193,6 @@ class LinkedVector {
     void load_all_data();
     /** Returns the index of the first value <= ts. */
     size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
-    /** Returns the index of the first value > ts. */
-    size_t getFirstOccurrenceAfter(pallas_timestamp_t ts);
     /**
      * Creates a new LinkedVector.
      */

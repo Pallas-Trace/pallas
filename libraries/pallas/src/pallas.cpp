@@ -441,9 +441,27 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_
             continue;
         }
         size_t start_index = s->timestamps->getFirstOccurrenceBefore(start_inclusive);
-        size_t end_index = s->timestamps->getFirstOccurrenceAfter(end_exclusive);
-        output[i] = s->exclusive_durations->computeDurationBetween(start_index, end_index);
-        output[i] = std::min(output[i], end_exclusive - start_inclusive);
+        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end_exclusive);
+        // Both of these indexes may be bordering the start/end timestamps
+        // We only call computeDurationBetween for whole durations.
+        if ( start_index + 1 < end_index ) {
+            output[i] = s->exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+        }
+        // Then we need to compute the pro-ratio of the starting and the end events
+        // Starting event:
+        pallas_timestamp_t start_event_start = s->timestamps->at(start_index);
+        pallas_duration_t start_event_duration = s->durations->at(start_index);
+        pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
+        pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start_inclusive, start_event_start), std::min(start_event_end, end_exclusive));
+        output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        // Ending event
+        if (end_index != start_index) {
+            pallas_timestamp_t end_event_start = s->timestamps->at(end_index);
+            pallas_duration_t end_event_duration = s->durations->at(end_index);
+            pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
+            pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start_inclusive, end_event_start),std::min(end_event_end, end_exclusive));
+            output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+        }
     }
     return output;
 }
