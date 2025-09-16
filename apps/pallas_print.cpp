@@ -285,7 +285,6 @@ void printTrace(pallas::GlobalArchive& trace) {
     auto readers = std::vector<pallas::ThreadReader>();
     auto thread_list = trace.getThreadList();
     for (auto* thread : thread_list) {
-        std::cout << thread->id << std::endl;
         if (thread == nullptr)
             continue;
         if (!(thread_to_print < 0 || thread->id == thread_to_print))
@@ -307,9 +306,9 @@ void printTrace(pallas::GlobalArchive& trace) {
         pallas::ThreadReader* min_reader = &readers[0];
         pallas_timestamp_t min_timestamp = std::numeric_limits<unsigned long>::max();
         for (auto& reader : readers) {
-            if (!reader.isEndOfTrace() && reader.currentState.currentFrame->referential_timestamp < min_timestamp) {
+            if (!reader.isEndOfTrace() && reader.currentState.currentFrame->current_timestamp < min_timestamp) {
                 min_reader = &reader;
-                min_timestamp = reader.currentState.currentFrame->referential_timestamp;
+                min_timestamp = reader.currentState.currentFrame->current_timestamp;
             }
         }
 
