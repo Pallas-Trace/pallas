@@ -735,7 +735,7 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence*
     }
     pallas_assert_inferior_equal(exclusive_duration,  inclusive_duration);
 
-    return {inclusive_duration, inclusive_duration};
+    return {inclusive_duration, exclusive_duration};
 }
 }  // namespace pallas
 
