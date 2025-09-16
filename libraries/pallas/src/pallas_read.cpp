@@ -392,16 +392,18 @@ bool ThreadReader::moveToNextToken(int flags) {
     auto current_token = this->pollCurToken();
 
     // If we can enter a block, then we enter
-    if (enterIfStartOfBlock(flags))
+    if (enterIfStartOfBlock(flags)) {
         return true;
+    }
 
     // Exit every block we can
     bool exited = exitIfEndOfBlock(flags);
     while (exitIfEndOfBlock(flags)) {
     }
 
-    if (isEndOfCurrentBlock())
+    if (isEndOfCurrentBlock()) {
         return false;
+    }
 
     current_token = this->pollCurToken();
 
