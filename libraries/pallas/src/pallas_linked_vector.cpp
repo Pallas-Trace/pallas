@@ -312,6 +312,19 @@ SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
     }
 })
 
+SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
+    load_all_data();
+    auto * output = new uint64_t[size];
+    auto * start = first;
+    size_t i = 0;
+    while (start != nullptr) {
+        std::memcpy(&output[i], start->array, start->size * sizeof(uint64_t));
+        i += start->size;
+        start = start->next;
+    }
+    return output;
+})
+
 // Sub-LinkedVector methods
 
 }  // namespace pallas

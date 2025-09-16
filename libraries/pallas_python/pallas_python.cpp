@@ -297,16 +297,21 @@ class DataHolder {
    public:
     explicit DataHolder(VectorType* data_) { data = data_; };
     py::array_t<uint64_t> get_array() {
-        data->ref++;
-        return py::array_t({data->size}, {sizeof(uint64_t)}, &data->front(),  //
-                           py::capsule(this, [](void* p) {
-                               auto* holder = reinterpret_cast<DataHolder*>(p);
-                               if (--holder->data->ref == 0) {
-                                   //holder->data->free_data();
-                               }
-                               // delete holder;
-                               // TODO Python is shit so I had to remove these lines to make sure I don't have issues with Pallas.
-                           }));
+        /* Since we're currently still using np.array, and not out-of-cores custom ones, we need to actually
+         * get all the values as a single flat array. This single flat array is owned by the Numpy Array.
+         * This whole DataHolder class is a relic from when we didn't have LinkedArray like that when reading.
+         */
+        // data->ref++;
+        return py::array_t({data->size}, {sizeof(uint64_t)}, data->as_flat_array() //
+                           // py::capsule(this, [](void* p) {
+                           //     auto* holder = reinterpret_cast<DataHolder*>(p);
+                           //     if (--holder->data->ref == 0) {
+                           //         //holder->data->free_data();
+                           //     }
+                           //     // delete holder;
+                           //     // TODO Python is shit so I had to remove these lines to make sure I don't have issues with Pallas.
+                           // })
+                           );
     }
 };
 
