@@ -13,6 +13,7 @@ using namespace pallas;
 
 static pallas_timestamp_t ts = 0;
 static pallas_timestamp_t step = 1;
+
 static pallas_timestamp_t get_timestamp() {
     ts += step;
     return ts;
@@ -32,10 +33,11 @@ static inline void check_event_allocation(Thread* thread_trace, unsigned id) {
 
 static inline void print_sequence_info(Sequence* s, Thread* t) {
     std::cout << "Information on sequence " << s->id << ":\n"
-                      << "\tNumber of tokens: " << s->tokens.size() << ": ";
+            << "\tNumber of tokens: " << s->tokens.size() << ": ";
     t->printTokenVector(s->tokens);
     std::cout << "\tNumber of iterations: " << s->durations->size << "\n"
-              << "\tDurations: " << s->durations->to_string() << std::endl;
+            << "\tDurations: " << s->durations->to_string() << "\n"
+            << "\tTimestamps: " << s->timestamps->to_string() << std::endl;
 }
 
 int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) {
@@ -56,7 +58,6 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
      * And then we'll check that the durations of all the sequences is oki doki
      */
     pallas_record_enter(&thread_writer, nullptr, get_timestamp(), 0);
-
 
     int OUTER_LOOP_SIZE = 4;
     int INNER_LOOP_SIZE = 5;
@@ -99,10 +100,10 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
     }
     auto outer_sequence = thread_writer.thread->sequences[MAX_SUBSEQUENCE_NUMBER + 1];
     print_sequence_info(outer_sequence, thread_writer.thread);
-    pallas_assert_equals_always(outer_sequence->timestamps->size,OUTER_LOOP_SIZE);
+    pallas_assert_equals_always(outer_sequence->timestamps->size, OUTER_LOOP_SIZE);
     pallas_assert_equals_always(outer_sequence->tokens.size(), MAX_SUBSEQUENCE_NUMBER);
     // theoretical_length = INNER_LOOP_SIZE * sum(i=0;MAX_SUBSEQUENCE_NUMBER) { i +  2 }
-    size_t theoretical_length = INNER_LOOP_SIZE * (2 * MAX_SUBSEQUENCE_NUMBER + (MAX_SUBSEQUENCE_NUMBER * (MAX_SUBSEQUENCE_NUMBER - 1) / 2) ) - 1;
+    size_t theoretical_length = INNER_LOOP_SIZE * (2 * MAX_SUBSEQUENCE_NUMBER + (MAX_SUBSEQUENCE_NUMBER * (MAX_SUBSEQUENCE_NUMBER - 1) / 2)) - 1;
     pallas_assert_equals_always(theoretical_length, outer_sequence->durations->min);
     pallas_assert_equals_always(theoretical_length, outer_sequence->durations->max);
 
