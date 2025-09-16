@@ -501,16 +501,12 @@ void ThreadWriter::recordExitFunction() {
 #endif
 
     pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%lu\n", thread->getTokenString(seq_id).c_str(), sequence_start_timestamp[cur_depth]);
-
-    cur_depth--;
-    /* upper_seq is the sequence that called cur_seq */
-    auto& upperTokenSeq = getCurrentTokenSequence();
-
     seq->timestamps->add(sequence_start_timestamp[cur_depth]);
     seq->exclusive_durations->add(computed_exclusive_duration);
     seq->durations->add(computed_duration);
-    storeToken(seq_id, seq->timestamps->size - 1);
 
+    cur_depth--;
+    storeToken(seq_id, seq->timestamps->size - 1);
     curTokenSeq.clear();
     index_stack[cur_depth+1].clear();
 
