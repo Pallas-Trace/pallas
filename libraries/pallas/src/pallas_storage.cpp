@@ -45,7 +45,7 @@ void pallas_storage_option_init() {
     STORE_HASHING = 1;
 }
 
-static int pallasRecursiveMkdir(const char* dir, __mode_t mode) {
+static int pallasRecursiveMkdir(const char* dir, mode_t mode) {
   char tmp[1024];
   char* p = nullptr;
   size_t len;
