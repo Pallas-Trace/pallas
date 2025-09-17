@@ -266,6 +266,7 @@ void printThread(pallas::Thread* thread) {
         if (current_token.type == pallas::TypeEvent) {
             auto event = reader.getEventOccurence(current_token, reader.currentState.currentFrame->tokenCount[current_token]);
             pallas_assert_inferior_equal_always(last_timestamp, event.timestamp);
+            pallas_assert_equals_always(event.timestamp, reader.currentState.currentFrame->current_timestamp);
             last_timestamp = event.timestamp;
             printEvent(reader.thread_trace, current_token, event);
         }

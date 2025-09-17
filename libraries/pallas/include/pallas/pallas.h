@@ -340,7 +340,6 @@ public:
      * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
     TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
-                                        const TokenCountMap& threadReaderTokenCountMap,
                                         bool isReversedOrder = false);
 
     /** Tries to guess the name of the sequence

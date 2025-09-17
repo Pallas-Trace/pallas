@@ -389,9 +389,7 @@ bool ThreadReader::moveToNextToken(int flags) {
 
     pallas_assert(getCurIterable().isIterable());
 
-    auto current_token = this->pollCurToken();
-
-    // If we can enter a block, then we enter
+   // If we can enter a block, then we enter
     if (enterIfStartOfBlock(flags)) {
         return true;
     }
@@ -405,38 +403,49 @@ bool ThreadReader::moveToNextToken(int flags) {
         return false;
     }
 
-    current_token = this->pollCurToken();
+    auto previous_token = this->pollCurToken();
+    auto& currentTokenCount = currentState.currentFrame->tokenCount;
 
-    // Update referential timestamp and token count according to current token
+    // Update token count according to current token
+    if (previous_token.type == TypeSequence) {
+        auto seq = thread_trace->getSequence(previous_token);
+        currentTokenCount += seq->getTokenCountReading(thread_trace);
+    }
+    if (previous_token.type == TypeLoop) {
+        auto loop = thread_trace->getLoop(previous_token);
+        auto loop_sequence = thread_trace->getSequence(loop->repeated_token);
+        auto loopCount = loop->nb_iterations;
+        for (size_t i = 0; i < loopCount; i++) {
+            currentTokenCount += loop_sequence->getTokenCountReading(thread_trace);
+            currentTokenCount[loop->repeated_token] += 1;
+        }
+    }
+
+    currentTokenCount[previous_token]++;
+    currentState.currentFrame->frame_index++;
+    auto current_token = pollCurToken();
+
+    /* Update the current timestamp. */
+    pallas_timestamp_t& new_timestamp = currentState.currentFrame->current_timestamp;
     switch (current_token.type) {
     case TypeEvent:
-        currentState.currentFrame->current_timestamp = getEventSummary(current_token)->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
+        new_timestamp = getEventSummary(current_token)->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
         break;
-
     case TypeLoop: {
         auto loop = thread_trace->getLoop(current_token);
         auto loop_sequence = thread_trace->getSequence(loop->repeated_token);
-        currentState.currentFrame->current_timestamp = loop_sequence->timestamps->at(currentState.currentFrame->tokenCount[loop->repeated_token]);
-        auto loopCount = loop->nb_iterations;
-        for (size_t i = 0; i < loopCount; i++) {
-            currentState.currentFrame->tokenCount += loop_sequence->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount);
-            currentState.currentFrame->tokenCount[loop->repeated_token] += 1;
-        }
+        new_timestamp = loop_sequence->timestamps->at(currentState.currentFrame->tokenCount[loop->repeated_token]);
         break;
     }
-
     case TypeSequence: {
         auto seq = thread_trace->getSequence(current_token);
         currentState.currentFrame->current_timestamp = seq->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
-        currentState.currentFrame->tokenCount += seq->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount);
         break;
     }
 
     case TypeInvalid:
         pallas_error("Token is Invalid");
     }
-    currentState.currentFrame->tokenCount[current_token]++;
-    currentState.currentFrame->frame_index++;
     return true;
 }
 
@@ -454,12 +463,13 @@ bool ThreadReader::moveToPrevToken(int flags) {
     if (flags == PALLAS_READ_FLAG_NONE)
         flags = pallas_read_flag;
 
-    pallas_assert(currentState.currentFrame->callstack_iterable.isIterable());
+    pallas_assert(getCurIterable().isIterable());
 
     if (currentState.currentFrame->frame_index == 0) {
-        if (currentState.current_frame_index <= 1)
+        if (currentState.current_frame_index <= 1) {
             return false;
-        Token current_iterable_token = currentState.currentFrame->callstack_iterable;
+        }
+        Token current_iterable_token = getCurIterable();
         if (current_iterable_token.type == TypeSequence && !(flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE)) {
             return false;
         }
@@ -470,89 +480,36 @@ bool ThreadReader::moveToPrevToken(int flags) {
         return true;
     }
 
-    /* Move to the previous event in the Sequence */
+    /* Get the previous token in the current sequence. */
+    auto current_token = pollCurToken();
     auto previous_token = pollPrevToken(PALLAS_READ_FLAG_NO_UNROLL);
 
-    while (previous_token.isIterable()) {
-        size_t ntokens;
-        TokenCountMap previous_token_count;
-        if (previous_token.type == TypeSequence && flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE) {
-            ntokens = thread_trace->getSequence(previous_token)->size();
-        } else if (previous_token.type == TypeLoop && flags & PALLAS_READ_FLAG_UNROLL_LOOP) {
-            ntokens = thread_trace->getLoop(previous_token)->nb_iterations;
-        } else {
-            break;
+    auto& currentTokenCount = currentState.currentFrame->tokenCount;
+    currentState.currentFrame->frame_index --;
+    if (previous_token.type == TypeEvent) {
+        currentState.currentFrame->current_timestamp = getEventTimestamp(previous_token, currentTokenCount[previous_token]);
+    }
+    if (previous_token.type == TypeSequence) {
+        pallas_error("Not implemented yet");
+        auto* s = thread_trace->getSequence(previous_token);
+        /* TODO This following line should only be done when we don't unroll the sequences. */
+        currentTokenCount -= s->getTokenCountReading(thread_trace);
+        currentState.currentFrame->current_timestamp = s->timestamps->at(currentTokenCount[previous_token]);
+        if (flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE ) {
+            /* This isn't as straightforward as you may think
+             * Because you need to do
+             * while (the last token is a Loop/Sequence)
+             *    Get inside of it
+            `*/
         }
-        // Save cursor before entering
-        // TODO : Optimiser ça
-        moveToPrevToken(PALLAS_READ_FLAG_NO_UNROLL);
-        if (!moveToNextToken(PALLAS_READ_FLAG_NO_UNROLL)) {  // If we didn't come back, we come back manually
-            Token current_token = pollCurToken();
-            pallas_duration_t token_duration = 0;
-            switch (current_token.type) {
-            case TypeEvent:
-                token_duration = getEventSummary(current_token)->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
-                break;
-
-            case TypeLoop:
-                token_duration = getLoopDuration(current_token);
-                for (int i = 0; i < thread_trace->getLoop(current_token)->nb_iterations; i++) {
-                    currentState.currentFrame->tokenCount += thread_trace->getSequence(thread_trace->getLoop(current_token)->repeated_token)
-                                                               ->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount, true);
-                    currentState.currentFrame->tokenCount[thread_trace->getLoop(current_token)->repeated_token]++;
-                }
-                break;
-
-            case TypeSequence:
-                token_duration = thread_trace->getSequence(current_token)->durations->at(currentState.currentFrame->tokenCount[current_token]);
-                currentState.currentFrame->tokenCount += thread_trace->getSequence(current_token)->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount, true);
-                break;
-
-            case TypeInvalid:
-                pallas_error("Token is Invalid");
-            }
-
-            currentState.currentFrame->current_timestamp += token_duration;
-            currentState.currentFrame->tokenCount[current_token]++;
-            currentState.currentFrame->frame_index++;
-        }
-        currentState.currentFrame->tokenCount[previous_token]--;
-        // Enter block
-        currentState.current_frame_index++;
-        currentState.currentFrame++;
-        currentState.currentFrame->callstack_iterable = previous_token;
-        currentState.currentFrame->frame_index = ntokens;
-        previous_token = pollPrevToken(PALLAS_READ_FLAG_NO_UNROLL);
     }
-
-    currentState.currentFrame->tokenCount[previous_token]--;
-    currentState.currentFrame->frame_index--;
-
-    switch (previous_token.type) {
-    case TypeEvent:
-        currentState.currentFrame->current_timestamp -= getEventSummary(previous_token)->timestamps->at(currentState.currentFrame->tokenCount[previous_token]);
-        break;
-
-    case TypeLoop: {
-        auto prev_loop = thread_trace->getLoop(previous_token);
-        for (int i = 0; i < prev_loop->nb_iterations; i++) {
-            currentState.currentFrame->tokenCount -=
-              thread_trace->getSequence(prev_loop->repeated_token)->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount, true);
-            currentState.currentFrame->tokenCount[prev_loop->repeated_token]--;
-        }
-        currentState.currentFrame->current_timestamp -= getLoopDuration(previous_token);
-        break;
+    if (previous_token.type == TypeLoop) {
+        // TODO Implement this
+        pallas_error("Not implemented yet");
     }
-    case TypeSequence: {
-        auto prev_sequence = thread_trace->getSequence(previous_token);
-        currentState.currentFrame->tokenCount -= prev_sequence->getTokenCountReading(thread_trace, currentState.currentFrame->tokenCount, true);
-        currentState.currentFrame->current_timestamp -= prev_sequence->durations->at(currentState.currentFrame->tokenCount[previous_token]);
-        break;
-    }
-    case TypeInvalid:
-        pallas_error("Token is Invalid");
-    }
+    currentTokenCount[previous_token] --;
     return true;
+
 }
 bool ThreadReader::moveToPrevTokenInBlock() {
     return moveToPrevToken(PALLAS_READ_FLAG_NO_UNROLL);
