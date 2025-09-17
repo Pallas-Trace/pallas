@@ -58,6 +58,24 @@ void Thread::printAttributeRef(AttributeRef attribute_ref) const {
     printf("INVALID_ATTRIBUTE <%d>", attribute_ref);
 }
 
+void Thread::printCommRef(CommRef comm_ref) const {
+    auto* comm = archive->getComm(comm_ref);
+    if (comm) {
+        auto* name = archive->getString(comm->name);
+        printf("Comm %s %d <%d>", name->str, comm->group, comm_ref);
+    } else
+        printf("INVALID_COMM <%d>", comm_ref);
+}
+
+void Thread::printGroupRef(GroupRef group_ref) const {
+    auto* group = archive->getGroup(group_ref);
+    if (group) {
+        auto* name = archive->getString(group->name);
+        printf("Group %s <%d>", name->str, group_ref);
+    } else
+        printf("INVALID_GROUP <%d>", group_ref);
+}
+
 void Thread::printLocation(Ref location_ref) const {
   auto* attr = archive->getLocation(location_ref);
   if (attr)

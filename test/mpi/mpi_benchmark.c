@@ -17,7 +17,7 @@ static GlobalArchive * trace = NULL;
 static Archive * archive = NULL;
 static LocationGroupId process_id;
 
-static int nb_iter_default = 1000;
+static int nb_iter_default = 2000;
 static int nb_functions_default = 2;
 static int nb_threads_default = 4;
 static int pattern_default = 0;
@@ -64,6 +64,16 @@ static ThreadId _new_thread() {
   return id;
 }
 
+static pallas_timestamp_t get_timestamp(void) {
+    pallas_timestamp_t res = PALLAS_TIMESTAMP_INVALID;
+    // if(use_logical_clock) {
+    //     static _Thread_local int next_ts = 1;
+    //     res = next_ts++;
+    // }
+    return res;
+}
+
+
 static int mpi_rank;
 static int mpi_comm_size;
 
@@ -89,8 +99,7 @@ void* worker(void* arg __attribute__((unused))) {
        * E_f1 L_f1 E_f2 L_f2 E_f3 L_f3 ...
        */
       for (int j = 0; j < nb_functions; j++) {
-        pallas_record_enter(thread_writer, NULL, PALLAS_TIMESTAMP_INVALID, regions[j]);
-        pallas_record_leave(thread_writer, NULL, PALLAS_TIMESTAMP_INVALID, regions[j]);
+          pallas_record_generic(thread_writer, NULL, get_timestamp(), strings[j]);
       }
       break;
 
@@ -200,6 +209,7 @@ int main(int argc, char** argv) {
 
   archive = pallas_archive_new("mpi_benchmark_trace", mpi_rank);
   if (mpi_rank == 0) {
+      archive->global_archive = trace;
     for (int i = 0; i < mpi_comm_size; i++) {
       char rank_name_str[100];
       snprintf(rank_name_str, 100, "Rank#%d", i);

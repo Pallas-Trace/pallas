@@ -15,13 +15,14 @@ int main(int argc, char** argv) {
     pallas_error("Too many arguments ! 1 argument required.\n");
   }
   size_t TEST_SIZE = std::stoi(argv[1]);
+    auto parameter_handler = pallas::ParameterHandler();
 
-  pallas::LinkedDurationVector vector = pallas::LinkedDurationVector();
+  pallas::LinkedDurationVector vector = pallas::LinkedDurationVector(parameter_handler);
 
   for (size_t i = 0; i < TEST_SIZE; i++) {
     vector.add(i);
   }
-  vector.finalUpdateStats();
+  vector.final_update_mean();
   pallas_assert_always(vector.size == TEST_SIZE);
   pallas_assert_always(vector.min == 0);
   pallas_assert_always(vector.max == TEST_SIZE - 1);

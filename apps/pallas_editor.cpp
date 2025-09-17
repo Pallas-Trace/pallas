@@ -5,37 +5,48 @@
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_dbg.h"
+#include "pallas/pallas_log.h"
 #include "pallas/pallas_parameter_handler.h"
 #include "pallas/pallas_read.h"
 #include "pallas/pallas_storage.h"
 #include "pallas/pallas_write.h"
-#include "pallas/pallas_log.h"
 
 using namespace pallas;
-
-std::string test() {
-  return "test";
-}
+std::vector compressionValues = {
+  CompressionAlgorithm::None,
+  CompressionAlgorithm::ZSTD,
+  CompressionAlgorithm::Histogram,
+#ifdef WITH_SZ
+  CompressionAlgorithm::SZ,
+#endif
+#ifdef WITH_ZFP
+  CompressionAlgorithm::ZFP,
+#endif
+  CompressionAlgorithm::ZSTD_Histogram,
+};
 
 void usage() {
   std::cout << "Usage: pallas_editor [OPTION] trace_file" << std::endl;
-  //  std::cout << "\t-f [name]: Filter out any event matching that name" << std::endl;
-  std::cout << "\t-c [compression]: Changes the compression from the trace to the new one." << std::endl;
+  std::cout << "\t-c, --compression: Changes the compression from the trace to the new one. Possible values:" << std::endl;
+  for (auto v : compressionValues) {
+    std::cout << "\t\t - " << toString(v) << std::endl;
+  }
 }
 
 int main(int argc, char** argv) {
   int nb_opts = 0;
   char* trace_name = nullptr;
-  CompressionAlgorithm compressionAlgorithm = pallas::CompressionAlgorithm::Invalid;
+  auto compressionAlgorithm = CompressionAlgorithm::Invalid;
+  auto encodingAlgorithm = EncodingAlgorithm::Invalid;
 
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "-v")) {
-      pallas_debug_level_set(DebugLevel::Debug);
+      pallas_debug_level_set(DebugLevel::Verbose);
       nb_opts++;
     } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-?")) {
       usage();
       return EXIT_SUCCESS;
-    } else if (!strcmp(argv[i], "-c")) {
+    } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compression")) {
       nb_opts += 2;
       compressionAlgorithm = compressionAlgorithmFromString(argv[++i]);
       break;
@@ -53,29 +64,39 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  auto& trace = *pallas_open_trace(trace_name);
-  if (compressionAlgorithm != pallas::CompressionAlgorithm::Invalid &&
-      compressionAlgorithm != parameterHandler->getCompressionAlgorithm()) {
-    char* newDirName = new char[strlen(trace.dir_name) + 10];
-    sprintf(newDirName, "%s_%s", trace.dir_name, toString(compressionAlgorithm).c_str());
-    trace.dir_name = newDirName;
-    trace.trace_name[strlen(trace.trace_name) - strlen(".pallas")] = '\0';
-    DOFOR(i, trace.nb_archives) {
-      trace.archive_list[i]->dir_name = newDirName;
-    }
-    auto originalCompressionAlgorithm = parameterHandler->compressionAlgorithm;
-//    DOFOR(i, trace.nb_threads) {
-//      std::cout << "Reading thread " << i << std::endl;
-//      parameterHandler->compressionAlgorithm = originalCompressionAlgorithm;
-//      trace.threads[i]->loadTimestamps();
-//      std::cout << "Compressing thread " << i << std::endl;
-//      parameterHandler->compressionAlgorithm = compressionAlgorithm;
-//      trace.threads[i]->finalizeThread();
-//    }
-  }
+  auto trace = *pallas_open_trace(trace_name);
+    auto& parameter_handler = *trace.parameter_handler;
+  if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler.getCompressionAlgorithm()) {
+    auto newDirName = strdup((std::string(trace.dir_name) + "_" + toString(compressionAlgorithm)).c_str());
+    auto originalDirName = trace.dir_name;
+    auto newFullpath = strdup((std::string(newDirName) + trace.trace_name).c_str());
+    auto originalCompressionAlgorithm = parameter_handler.compressionAlgorithm;
 
-  DOFOR(i, trace.nb_archives) {
-    trace.archive_list[i]->close();
+    for (auto& lg : trace.location_groups) {
+      trace.dir_name = originalDirName;
+      std::cout << "Reading archive " << lg.id << " @ " << trace.dir_name << std::endl;
+      auto* a = trace.getArchive(lg.id);
+      free(a->dir_name);
+      for (auto& loc : a->locations) {
+        a->dir_name = originalDirName;
+        std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
+        auto* t = a->getThread(loc.id);
+        parameter_handler.compressionAlgorithm = originalCompressionAlgorithm;
+        t->loadTimestamps();
+          t->resetVectorsOffsets();
+        a->dir_name = newDirName;
+        std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
+        parameter_handler.compressionAlgorithm = compressionAlgorithm;
+        t->finalizeThread();
+        a->freeThread(loc.id);
+      }
+      trace.dir_name = newDirName;
+      std::cout << "Writing archive " << lg.id << " @ " << trace.dir_name << std::endl;
+      a->close();
+      a->dir_name = nullptr;
+      trace.freeArchive(lg.id);
+    }
+    trace.close();
   }
-  trace.close();
+    return 0;
 }

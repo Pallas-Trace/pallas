@@ -32,7 +32,6 @@ namespace pallas {
 typedef struct EventOccurence {
   struct Event* event;          /**< Pointer to the Event.*/
   pallas_timestamp_t timestamp; /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;   /**< Duration of that occurence.*/
   AttributeList* attributes;    /**< Attributes for that occurence.*/
 } EventOccurence;
 
@@ -84,8 +83,8 @@ typedef struct TokenOccurence {
 } TokenOccurence;
 
 typedef struct CallstackFrame {
-  /** The current referential timestamp. */
-  pallas_timestamp_t referential_timestamp;
+  /** The current timestamp. */
+  pallas_timestamp_t current_timestamp;
 
   /** Stack containing the sequences/loops being read. */
   Token callstack_iterable;

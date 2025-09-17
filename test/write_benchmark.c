@@ -17,7 +17,7 @@ static struct Archive* archive = NULL;
 static LocationGroupId process_id;
 static StringRef process_name;
 
-static int nb_iter_default = 100000;
+static int nb_iter_default = 2000;
 static int nb_functions_default = 2;
 static int nb_threads_default = 4;
 static int pattern_default = 0;
@@ -115,7 +115,8 @@ void* worker(void* arg __attribute__((unused))) {
   int nb_events = nb_iter * nb_event_per_iter;
   double duration_per_event = duration / nb_events;
 
-  printf("T#%u: %d events in %lf s -> %lf ns per event\n", thread_id, nb_events, duration, duration_per_event * 1e9);
+  printf("T#%u: %d events in %lf s -> %lf ns per event\n",
+  thread_id, nb_events, duration, duration_per_event * 1e9);
 
   pallas_thread_writer_close(thread_writer);
   return NULL;
@@ -184,6 +185,7 @@ int main(int argc, char** argv) {
 
   trace = pallas_global_archive_new("write_benchmark_trace", "main");
   archive = pallas_archive_new("write_benchmark_trace", 0);
+    archive->global_archive = trace;
   process_id = 0; // main process
   process_name = _register_string("Process");
 
@@ -222,7 +224,8 @@ int main(int argc, char** argv) {
   int nb_events = nb_iter * nb_event_per_iter * nb_threads;
   double events_per_second = nb_events / duration;
 
-  printf("TOTAL: %d events in %lf s -> %lf Me/s \n", nb_events, duration, events_per_second / 1e6);
+  printf("TOTAL: %d events in %lf s -> %lf Me/s \n",
+  nb_events, duration, events_per_second / 1e6);
 
   pallas_archive_close(archive);
   pallas_global_archive_close(trace);

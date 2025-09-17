@@ -7,7 +7,9 @@
  * and a class that stores all the different parameters used during the execution.
  */
 #pragma once
+#ifdef __cplusplus
 #include <cstddef>
+#include <queue>
 #include <string>
 
 #ifdef WITH_SZ
@@ -145,61 +147,70 @@ TimestampStorage timestampStorageFromString(const std::string& str);
  * A simple data class that contains information on different parameters.
  */
 class ParameterHandler {
- public:
-  /** The compression algorithm used during the execution. */
-  CompressionAlgorithm compressionAlgorithm{CompressionAlgorithmDefault};
-  /** The ZSTD compression level. */
-  size_t zstdCompressionLevel{zstdCompressionLevelDefault};
-  /** The encoding algorithm used during the execution. */
-  EncodingAlgorithm encodingAlgorithm{EncodingAlgorithmDefault};
-  /** The compression algorithm used during the execution. */
-  LoopFindingAlgorithm loopFindingAlgorithm{LoopFindingAlgorithmDefault};
-  /** The max length the LoopFindingAlgorithm::BasicTruncated will go to.*/
-  size_t maxLoopLength{maxLoopLengthDefault};
+   public:
+    /** The compression algorithm used during the execution. */
+    CompressionAlgorithm compressionAlgorithm{CompressionAlgorithmDefault};
+    /** The ZSTD compression level. */
+    size_t zstdCompressionLevel{zstdCompressionLevelDefault};
+    /** The encoding algorithm used during the execution. */
+    EncodingAlgorithm encodingAlgorithm{EncodingAlgorithmDefault};
+    /** The compression algorithm used during the execution. */
+    LoopFindingAlgorithm loopFindingAlgorithm{LoopFindingAlgorithmDefault};
+    /** The max length the LoopFindingAlgorithm::BasicTruncated will go to.*/
+    size_t maxLoopLength{maxLoopLengthDefault};
 
-  TimestampStorage timestampStorage{TimestampStorageDefault};
+    /** Timestamp storage method. */
+    TimestampStorage timestampStorage{TimestampStorageDefault};
+    /** Amount of durations loaded in memory, in bytes. */
+    size_t loaded_durations_size = 0;
+    /** Max amount of memory taken by timestamps / durations. */
+    size_t max_memory_durations = sizeof(size_t) * 1024 * 1024;
+    /** Least recently loaded queue for the durations and timestamps subvectors. */
+    std::deque<void*> subvector_queue;
 
- public:
-  /** Getter for #maxLoopLength. Error if you're not supposed to have a maximum loop length.
-   * @returns Value of #maxLoopLength. */
-  [[nodiscard]] size_t getMaxLoopLength() const;
-  /** Getter for #zstdCompressionLevel. Error if you're not using ZSTD.
-   * @returns Value of #zstdCompressionLevel. */
-  [[nodiscard]] u_int8_t getZstdCompressionLevel() const;
-  /** Getter for #compressionAlgorithm.
-   * @returns Value of #compressionAlgorithm. */
-  [[nodiscard]] CompressionAlgorithm getCompressionAlgorithm() const;
-  /**
-   * Getter for #encodingAlgorithm.
-   * @returns Value of #encodingAlgorithm. If the #compressionAlgorithm is lossy, returns EncodingAlgorithm::None. */
-  [[nodiscard]] EncodingAlgorithm getEncodingAlgorithm() const;
-  /**
-   * Getter for #loopFindingAlgorithm.
-   * @returns Value of #loopFindingAlgorithm.
-   */
-  [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
-  /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
-   */
+   public:
+    /** Getter for #maxLoopLength. Error if you're not supposed to have a maximum loop length.
+     * @returns Value of #maxLoopLength. */
+    [[nodiscard]] size_t getMaxLoopLength() const;
+    /** Getter for #zstdCompressionLevel. Error if you're not using ZSTD.
+     * @returns Value of #zstdCompressionLevel. */
+    [[nodiscard]] u_int8_t getZstdCompressionLevel() const;
+    /** Getter for #compressionAlgorithm.
+     * @returns Value of #compressionAlgorithm. */
+    [[nodiscard]] CompressionAlgorithm getCompressionAlgorithm() const;
+    /**
+     * Getter for #encodingAlgorithm.
+     * @returns Value of #encodingAlgorithm. If the #compressionAlgorithm is lossy, returns EncodingAlgorithm::None. */
+    [[nodiscard]] EncodingAlgorithm getEncodingAlgorithm() const;
+    /**
+     * Getter for #loopFindingAlgorithm.
+     * @returns Value of #loopFindingAlgorithm.
+     */
+    [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
+    /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
+     */
 
-  /**
-   * Getter for #timestampStorage.
-   * @returns Value of #timestampStorage. */
-  [[nodiscard]] TimestampStorage getTimestampStorage() const;
+    /**
+     * Getter for #timestampStorage.
+     * @returns Value of #timestampStorage. */
+    [[nodiscard]] TimestampStorage getTimestampStorage() const;
 
-  void writeToFile(FILE* file) const;
-  void readFromFile(FILE* file);
+    void writeToFile(FILE* file) const;
+    void readFromFile(FILE* file);
 
-  ParameterHandler();
-  ParameterHandler(const std::string& stringConfig);
-  ParameterHandler(FILE* file);
+    ParameterHandler();
+    ParameterHandler(const std::string& stringConfig);
+    ParameterHandler(FILE* file);
 
-  /**
-   * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
-   * @return String containing itself.
-   */
-  [[nodiscard]] std::string to_string() const;
+    /**
+     * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
+     * @return String containing itself.
+     */
+    [[nodiscard]] std::string to_string() const;
 };
 
-/** Global ParameterHandler. This is supposed to be the only instance of that class. */
-extern ParameterHandler* parameterHandler;
 }  // namespace pallas
+#else
+/** Struct for the CPP ParameterHandler class. Don't manipulate in C. */
+typedef struct {} ParameterHandler;
+#endif

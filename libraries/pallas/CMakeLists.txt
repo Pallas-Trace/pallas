@@ -81,6 +81,7 @@ message("Warning list: ${WARNINGS}")
 target_link_libraries(pallas
         PUBLIC
         dl
+        unordered_dense::unordered_dense
         PRIVATE
         ${CMAKE_DL_LIBS}
         rt

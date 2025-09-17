@@ -17,7 +17,8 @@
 #ifdef __cplusplus
 #include <cstring>
 #include <map>
-#include <unordered_map>
+#include <ankerl/unordered_dense.h>
+
 #else
 #include <stdbool.h>
 #include <string.h>
@@ -140,13 +141,13 @@ enum Record {
   PALLAS_EVENT_LEAVE = 3,                               /**< Indicates that the program leaves a code region. */
   PALLAS_EVENT_MPI_SEND = 4,                            /**< Indicates that an MPI send operation was initiated (MPI_SEND).  */
   PALLAS_EVENT_MPI_ISEND = 5,                           /**< Indicates that a non-blocking MPI send operation was initiated (MPI_ISEND). */
-  PALLAS_EVENT_MPI_ISEND_COMPLETE = 6,                  /**< Indicates the completion of a non- blocking MPI send operation.  */
+  PALLAS_EVENT_MPI_ISEND_COMPLETE = 6,                  /**< Indicates the completion of a non-blocking MPI send operation.  */
   PALLAS_EVENT_MPI_IRECV_REQUEST = 7,                   /**< Indicates that a non-blocking MPI receive operation was initiated (MPI_IRECV). */
   PALLAS_EVENT_MPI_RECV = 8,                            /**< Indicates that an MPI message was received (MPI_RECV).   */
   PALLAS_EVENT_MPI_IRECV = 9,                           /**< Indicates the completion of a non-blocking MPI receive operation completed (MPI_IRECV).  */
-  PALLAS_EVENT_MPI_REQUEST_TEST = 10,                   /**< This events appears if the program tests if a request has already completed but the test failed. */
-  PALLAS_EVENT_MPI_REQUEST_CANCELLED = 11,              /**< This events appears if the program canceled a request. */
-  PALLAS_EVENT_MPI_COLLECTIVE_BEGIN = 12,               /**< An MpiCollectiveBegin record marks the begin of an MPI collective operation (MPI_GATHER, MPI_SCATTER etc.). */
+  PALLAS_EVENT_MPI_REQUEST_TEST = 10,                   /**< This event appears if the program tests if a request has already completed but the test failed. */
+  PALLAS_EVENT_MPI_REQUEST_CANCELLED = 11,              /**< This event appears if the program canceled a request. */
+  PALLAS_EVENT_MPI_COLLECTIVE_BEGIN = 12,               /**< An MpiCollectiveBegin record marks the start of an MPI collective operation (MPI_GATHER, MPI_SCATTER etc.). */
   PALLAS_EVENT_MPI_COLLECTIVE_END = 13,                 /**< Marks the end of an MPI collective */
   PALLAS_EVENT_OMP_FORK = 14,                           /**< Marks that an OpenMP Thread forks a thread team. */
   PALLAS_EVENT_OMP_JOIN = 15,                           /**< Marks that a team of threads is joint and only the master thread continues execution. */
@@ -169,7 +170,7 @@ enum Record {
   PALLAS_EVENT_THREAD_TASK_SWITCH = 32,                 /**< Indicates that the execution of the current task will be suspended and another task starts/restarts its execution. Please note that this may change the current call stack of the executing location. */
   PALLAS_EVENT_THREAD_TASK_COMPLETE = 33,               /**< Indicates that the execution of an OpenMP task has finished. */
   PALLAS_EVENT_THREAD_CREATE = 34,                      /**< The location created successfully a new thread. */
-  PALLAS_EVENT_THREAD_BEGIN = 35,                       /**< Marks the begin of a thread created by another thread. */
+  PALLAS_EVENT_THREAD_BEGIN = 35,                       /**< Marks the beginning of a thread created by another thread. */
   PALLAS_EVENT_THREAD_WAIT = 36,                        /**< The location waits for the completion of another thread. */
   PALLAS_EVENT_THREAD_END = 37,                         /**< Marks the end of a thread. */
   PALLAS_EVENT_IO_CREATE_HANDLE = 38,                   /**< Marks the creation of a new active I/O handle that can be used by subsequent I/O operation events.*/
@@ -177,7 +178,7 @@ enum Record {
   PALLAS_EVENT_IO_SEEK = 41,                            /**< Marks a change of the position, e.g., within a file.*/
   PALLAS_EVENT_IO_CHANGE_STATUS_FLAGS = 42,             /**< Marks a change to the status flags associated with an active I/O handle.*/
   PALLAS_EVENT_IO_DELETE_FILE = 43,                     /**< Marks the deletion of an I/O file.*/
-  PALLAS_EVENT_IO_OPERATION_BEGIN = 44,                 /**< Marks the begin of a file operation (read, write, etc.).*/
+  PALLAS_EVENT_IO_OPERATION_BEGIN = 44,                 /**< Marks the beginning of a file operation (read, write, etc.).*/
   PALLAS_EVENT_IO_DUPLICATE_HANDLE = 40,                /**< Marks the duplication of an already existing active I/O handle.*/
   PALLAS_EVENT_IO_OPERATION_TEST = 45,                  /**< Marks an unsuccessful test whether an I/O operation has already finished.*/
   PALLAS_EVENT_IO_OPERATION_ISSUED = 46,                /**< Marks the successful initiation of a non-blocking operation (read, write, etc.) on an active I/O handle.*/
@@ -207,8 +208,17 @@ typedef struct Event {
                            // todo: align on 256
 } __attribute__((packed)) Event;
 
-/*************************** Sequences **********************/
 #ifdef __cplusplus
+
+struct custom_hash_unique_object_representation {
+    using is_avalanching = void;
+
+    [[nodiscard]] auto operator()(Token const& f) const noexcept -> uint64_t {
+        static_assert(std::has_unique_object_representations_v<Token>);
+        return ankerl::unordered_dense::detail::wyhash::hash(&f, sizeof(f));
+    }
+};
+/*************************** Sequences **********************/
 /**
  * A Map for counting Tokens.
  *
@@ -216,7 +226,7 @@ typedef struct Event {
  *
  *  This class also comes with addition and multiplication, so that we can easily use them.
  */
-struct TokenCountMap : public std::map<Token, size_t> {
+struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_unique_object_representation> {
   /** Adds each (key, value) pair of the other map to this one. */
   void operator+=(const TokenCountMap& other) {
     for (const auto& [key, value] : other) {
@@ -291,44 +301,58 @@ struct TokenCountMap : public std::map<Token, size_t> {
  * Structure to store a sequence in PALLAS format.
  */
 typedef struct Sequence {
-  TokenId id CXX({PALLAS_TOKEN_ID_INVALID});         /**< ID of that sequence. */
-  LinkedDurationVector* durations; /**< Vector of durations for these type of sequences. */
-  LinkedVector* timestamps;
-  uint32_t hash CXX({0});                            /**< Hash value according to the hash32 function.*/
-  DEFINE_Vector(Token, tokens);                      /**< Vector of Token to store the sequence of tokens */
-  CXX(private:)
-  /**
-   * A TokenCountMap counting each token in this Sequence (recursively).
-   * It might not be initialized, which is why ::getTokenCount (writing or reading) exists.*/
-  DEFINE_TokenCountMap(tokenCount);
+    /** ID of that sequence. */
+    TokenId id CXX({PALLAS_TOKEN_ID_INVALID});
+    /** Vector of the durations of each sequence. */
+    LinkedDurationVector* durations;
+    /** Vector of the exclusive durations of each sequence.
+     * Equals duration - sum(duration) of the contained sequences.*/
+    LinkedDurationVector* exclusive_durations;
+    /** Vector of the timestamps of each sequence. */
+    LinkedVector* timestamps;
+    /** Hash value according to the hash32 function.*/
+    uint32_t hash CXX({0});
+    /** Vector of Token to store the sequence of tokens */
+    DEFINE_Vector(Token, tokens);
+    /**
+     * A TokenCountMap counting each token in this Sequence (recursively).
+     * It might not be initialized, which is why ::getTokenCount (writing or reading) exists.*/
+    DEFINE_TokenCountMap(tokenCount);
 #ifdef __cplusplus
- public:
-  /** Getter for the size of that Sequence.
-   * @returns Number of tokens in that Sequence. */
-  [[nodiscard]] size_t size() const { return tokens.size(); }
-  /** Indicates whether this Sequence comes from a function
-   * (ie begins with Enter and ends with End) or a detected sequence.
-   */
-  bool isFunctionSequence(const struct Thread* thread) const;
-  /** Getter for #tokenCount during the writting process.
-   * If need be, counts the number of Token in that Sequence to initialize it.
-   * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
-   * @returns Reference to #tokenCount.*/
-  TokenCountMap getTokenCountWriting(const Thread* thread);
-  /** Getter for #tokenCount during the reading process.
-   * If need be, counts the number of Token in that Sequence to initialize it.
-   * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
-   * @returns Reference to #tokenCount.*/
-  TokenCountMap getTokenCountReading(const pallas::Thread* thread,
-                              const TokenCountMap& threadReaderTokenCountMap,
-                              bool isReversedOrder = false);
 
-  /** Tries to guess the name of the sequence
-   * @returns A string that describes the sequence.
-   */
-  std::string guessName(const pallas::Thread* thread);
-  size_t getEventCount(const struct Thread* thread);
-  ~Sequence() { delete durations; delete timestamps; };
+public:
+    /** Getter for the size of that Sequence.
+     * @returns Number of tokens in that Sequence. */
+    [[nodiscard]] size_t size() const { return tokens.size(); }
+    /** Indicates whether this Sequence comes from a function
+     * (ie begins with Enter and ends with End) or a detected sequence.
+     */
+    bool isFunctionSequence(const struct Thread* thread) const;
+
+    /** Getter for #tokenCount during the writting process.
+     * If need be, counts the number of Token in that Sequence to initialize it.
+     * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
+     * @returns Reference to #tokenCount.*/
+    TokenCountMap& getTokenCountWriting(const Thread* thread);
+
+    /** Getter for #tokenCount during the reading process.
+     * If need be, counts the number of Token in that Sequence to initialize it.
+     * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
+     * @returns Reference to #tokenCount.*/
+    TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
+                                        const TokenCountMap& threadReaderTokenCountMap,
+                                        bool isReversedOrder = false);
+
+    /** Tries to guess the name of the sequence
+     * @returns A string that describes the sequence.
+     */
+    std::string guessName(const pallas::Thread* thread);
+
+    ~Sequence() {
+        delete durations;
+        delete exclusive_durations;
+        delete timestamps;
+    };
 #endif
 } Sequence;
 
@@ -361,7 +385,7 @@ typedef struct Loop {
 typedef struct EventSummary {
   TokenId id;              /**< ID of the Event */
   Event event;             /**< The Event being summarized.*/
-  LinkedDurationVector* durations; /**< Durations for each occurrence of that Event.*/
+  LinkedVector* timestamps; /**< Timestamps for each occurrence of that Event.*/
   size_t nb_occurences;    /**< Number of times that Event has happened. */
 
   byte* attribute_buffer;       /**< Storage for Attribute.*/
@@ -502,10 +526,10 @@ typedef struct Thread {
   size_t nb_loops;           /**< Number of pallas::Loop in #loops. */
 #ifdef __cplusplus
   void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
-  /** Returns the ID corresponding to the given Event.
-   * If there isn't already one, creates a corresponding EventSummary.
-   */
-  TokenId getEventId(Event* e);
+  /**
+       * Resets the offsets of all the timestamp / duration vectors.
+       */
+  void resetVectorsOffsets();
   /** Returns the Event corresponding to the given Token. */
   [[nodiscard]] Event* getEvent(Token) const;
   /** Returns the EventSummary corresponding to the given Token. */
@@ -555,13 +579,12 @@ typedef struct Thread {
   void printAttributeList(const struct AttributeList* attribute_list) const;            /**< Prints an AttributeList. */
   void printEventAttribute(const struct EventOccurence* es) const; /**< Prints an EventOccurence. */
   [[nodiscard]] const char* getName() const;                       /**< Returns the name of this thread. */
-  /** Search for a sequence_id that matches the given array as a Sequence.
-   * If none of the registered sequence match, register a new Sequence.
-   */
-  Token getSequenceIdFromArray(Token* token_array, size_t array_len);
-  /** Returns the duration for the last - offset given Sequence.*/
-  pallas_duration_t getLastSequenceDuration(Sequence* sequence, size_t offset = 0) const;
   void finalizeThread();
+
+  /**
+   * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
+   */
+  std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive);
 
   /** Create a blank new Thread. This is used when reading the trace. */
   Thread();

@@ -164,9 +164,6 @@ GlobalArchive::GlobalArchive(const char* dirname, const char* given_trace_name) 
     return;
   pallas_recursion_shield++;
   pallas_debug_level_init();
-  if (!parameterHandler) {
-    parameterHandler = new ParameterHandler();
-  }
   dir_name = strdup(dirname);
   trace_name = strdup(given_trace_name);
   fullpath = pallas_global_archive_fullpath(dir_name, trace_name);
@@ -266,7 +263,8 @@ std::vector<Thread*> GlobalArchive::getThreadList() {
   for (auto& lg: location_groups) {
     auto a = getArchive(lg.id);
     for (const auto& l : a->locations) {
-      output.push_back(a->getThread(l.id));
+        auto* t = a->getThread(l.id);
+      output.push_back(t);
     }
   }
   return output;
@@ -313,6 +311,7 @@ void GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, Co
 }
 
 GlobalArchive::~GlobalArchive() {
+    pallas_log(DebugLevel::Debug, "Deleting GlobalArchive\n");
   free(dir_name);
   free(trace_name);
   delete[] fullpath;
@@ -323,6 +322,7 @@ GlobalArchive::~GlobalArchive() {
 };
 
 Archive::~Archive() {
+    pallas_log(DebugLevel::Debug, "Deleting Archive %d\n", id);
   free(dir_name);
   for (size_t i = 0; i < nb_threads; i++) {
     delete threads[i];
@@ -339,10 +339,6 @@ Archive::Archive(const char* dirname, LocationGroupId archive_id) {
     return;
   pallas_recursion_shield++;
   pallas_debug_level_init();
-  if (!parameterHandler) {
-    parameterHandler = new ParameterHandler();
-  }
-
   dir_name = strdup(dirname);
   id = archive_id;
   global_archive = nullptr;
@@ -462,7 +458,7 @@ const Location* Archive::getLocation(ThreadId location_id) const {
 }
 
 const char* Archive::getName() {
-  return getString(global_archive->getLocationGroup(id)->name)->str;
+  return global_archive->getString(global_archive->getLocationGroup(id)->name)->str;
 }
 
 } /* namespace pallas*/

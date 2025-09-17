@@ -15,23 +15,38 @@ unsigned int pallas_mpi_rank = 0;
 
 namespace pallas {
 void Thread::loadTimestamps() {
-  DOFOR(i, nb_events) {
-    size_t loaded_duration = events[i].durations->front();
-  }
-  DOFOR(i, nb_sequences) {
-    size_t loaded_duration = sequences[i]->durations->front();
-    size_t loaded_timestamps = sequences[i]->timestamps->front();
-  }
+    DOFOR(i, nb_events) {
+        events[i].timestamps->load_all_data();
+    }
+    DOFOR(i, nb_sequences) {
+        auto* s = sequences[i];
+        s->durations->load_all_data();
+        s->exclusive_durations->load_all_data();
+        s->timestamps->load_all_data();
+    }
 }
+
+void Thread::resetVectorsOffsets() {
+    DOFOR(i, nb_events) {
+        events[i].timestamps->reset_offsets();
+    }
+    DOFOR(i, nb_sequences) {
+        auto* s = sequences[i];
+        s->durations->reset_offsets();
+        s->exclusive_durations->reset_offsets();
+        s->timestamps->reset_offsets();
+    }
+}
+
 
 Event* Thread::getEvent(Token token) const {
   return &getEventSummary(token)->event;
 }
 
 void EventSummary::cleanEventSummary() {
-  delete durations;
+  delete timestamps;
   delete attribute_buffer;
-  durations = nullptr;
+  timestamps = nullptr;
   attribute_buffer = nullptr;
 }
 
@@ -41,7 +56,6 @@ EventSummary::EventSummary(TokenId token_id, const Event& e) {
   attribute_buffer = nullptr;
   attribute_buffer_size = 0;
   attribute_pos = 0;
-  durations = new LinkedDurationVector();
   event = e;
 }
 
@@ -417,6 +431,41 @@ std::string Thread::getEventString(Event* e) const {
   }
 }
 
+std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive) {
+    auto output = std::vector<pallas_duration_t>();
+    output.resize(nb_sequences);
+    for (size_t i = 0; i < nb_sequences; i ++) {
+        auto* s = sequences[i];
+        if (end_exclusive <= s->timestamps->front() || s->timestamps->back() < start_inclusive) {
+            output[i] = 0;
+            continue;
+        }
+        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start_inclusive);
+        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end_exclusive);
+        // Both of these indexes may be bordering the start/end timestamps
+        // We only call computeDurationBetween for whole durations.
+        if ( start_index + 1 < end_index ) {
+            output[i] = s->exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+        }
+        // Then we need to compute the pro-ratio of the starting and the end events
+        // Starting event:
+        pallas_timestamp_t start_event_start = s->timestamps->at(start_index);
+        pallas_duration_t start_event_duration = s->durations->at(start_index);
+        pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
+        pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start_inclusive, start_event_start), std::min(start_event_end, end_exclusive));
+        output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        // Ending event
+        if (end_index != start_index) {
+            pallas_timestamp_t end_event_start = s->timestamps->at(end_index);
+            pallas_duration_t end_event_duration = s->durations->at(end_index);
+            pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
+            pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start_inclusive, end_event_start),std::min(end_event_end, end_exclusive));
+            output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+        }
+    }
+    return output;
+}
+
 Thread::Thread() {
   archive = nullptr;
   id = PALLAS_THREAD_ID_INVALID;
@@ -437,6 +486,7 @@ Thread::Thread() {
 }
 
 Thread::~Thread() {
+    pallas_log(DebugLevel::Debug, "Deleting Thread %d\n", id);
   for (size_t i = 0; i < nb_allocated_events; i++) {
     events[i].cleanEventSummary();
   }
@@ -470,39 +520,22 @@ bool Sequence::isFunctionSequence(const struct Thread* thread) const {
 
 
 std::string Sequence::guessName(const pallas::Thread* thread) {
-  if (this->size() < 4) {
-    Token t_start = this->tokens[0];
-    if (t_start.type == TypeEvent) {
-      Event* event = thread->getEvent(t_start);
-      if (event->record == PALLAS_EVENT_ENTER) {
-        const char* event_name = thread->getRegionStringFromEvent(event);
-        std::string prefix(event_name);
-
-        if (this->size() == 3) {
-          // that's probably an MPI call. To differentiate calls (eg
-          // MPI_Send(dest=5) vs MPI_Send(dest=0)), we can add the
-          // the second token to the name
-          Token t_second = this->tokens[1];
-
-          std::string res = prefix + "_" + thread->getTokenString(t_second);
-          return res;
-        }
-        return prefix;
-      }
+  Token t_start = this->tokens[0];
+  if (t_start.type == TypeEvent) {
+    Event* event = thread->getEvent(t_start);
+    if (event->record == PALLAS_EVENT_ENTER) {
+      const char* event_name = thread->getRegionStringFromEvent(event);
+      return event_name;
+    } else if (event->record == PALLAS_EVENT_THREAD_TEAM_BEGIN ||
+	       event->record == PALLAS_EVENT_THREAD_BEGIN) {
+      return "thread";
     }
   }
+
   char buff[128];
   snprintf(buff, sizeof(buff), "Sequence_%d", this->id);
 
-  return std::string(buff);
-}
-
-size_t Sequence::getEventCount(const struct Thread* thread) {
-  // TODO This function doesn't really makes sense, since the number of event is dependant on iteration of the loops
-  // inside of it.
-  return 0;
-  // TokenCountMap tokenCount = getTokenCount(thread);
-  return tokenCount.getEventCount();
+  return buff;
 }
 
 void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& readerTokenCountMap, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder);
@@ -512,7 +545,7 @@ void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCoun
   size_t loop_nb_iterations = loop->nb_iterations;
   auto* loop_sequence = thread->getSequence(loop->repeated_token);
   // This creates bug idk why ?????
-  TokenCountMap temp = loop_sequence->getTokenCountReading(thread, readerTokenCountMap, isReversedOrder);
+  TokenCountMap& temp = loop_sequence->getTokenCountReading(thread, readerTokenCountMap, isReversedOrder);
   temp *= loop_nb_iterations;
   readerTokenCountMap += temp;
   sequenceTokenCountMap += temp;
@@ -539,7 +572,7 @@ void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCou
   }
 }
 
-TokenCountMap Sequence::getTokenCountReading(const Thread* thread, const TokenCountMap& threadReaderTokenCountMap, bool isReversedOrder) {
+TokenCountMap& Sequence::getTokenCountReading(const Thread* thread, const TokenCountMap& threadReaderTokenCountMap, bool isReversedOrder) {
   if (tokenCount.empty()) {
     auto tokenCountMapCopy = TokenCountMap(threadReaderTokenCountMap);
     auto tempTokenCount = TokenCountMap();
@@ -552,7 +585,7 @@ TokenCountMap Sequence::getTokenCountReading(const Thread* thread, const TokenCo
 static void _loopGetTokenCountWriting(const Loop* loop, const Thread* thread, TokenCountMap& tokenCount) {
   size_t loop_nb_iterations = loop->nb_iterations;
   auto* loop_sequence = thread->getSequence(loop->repeated_token);
-  auto temp = loop_sequence->getTokenCountWriting(thread);
+  auto& temp = loop_sequence->getTokenCountWriting(thread);
   DOFOR(i, loop->nb_iterations) {
     tokenCount += temp;
   }
@@ -562,7 +595,7 @@ static void _loopGetTokenCountWriting(const Loop* loop, const Thread* thread, To
   tokenCount[loop->repeated_token] += loop_nb_iterations;
 }
 
-TokenCountMap Sequence::getTokenCountWriting(const Thread* thread) {
+TokenCountMap& Sequence::getTokenCountWriting(const Thread* thread) {
    if (tokenCount.empty()) {
     for (auto& token : tokens) {
       if (tokenCount.find(token) == tokenCount.end()) {

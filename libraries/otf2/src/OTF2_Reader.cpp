@@ -168,8 +168,8 @@ pallas::ThreadReader* _get_next_global_event(OTF2_Reader* reader, OTF2_GlobalEvt
 
       if(tr->isEndOfTrace())
 	continue;
-      if(tr->currentState.currentFrame->referential_timestamp < min_timestamp) {
-	min_timestamp = tr->currentState.currentFrame->referential_timestamp;
+      if(tr->currentState.currentFrame->current_timestamp < min_timestamp) {
+	min_timestamp = tr->currentState.currentFrame->current_timestamp;
 	retval = tr;
       }
     }

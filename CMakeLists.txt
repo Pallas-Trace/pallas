@@ -36,7 +36,29 @@ option(ENABLE_MPI_TEST "MPI tests" ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD libzstd REQUIRED)
 find_package(Doxygen)
+find_package(unordered_dense CONFIG)
+if (NOT unordered_dense_FOUND)
+    # Download unordered_dense via git submodule
+    find_package(Git QUIET)
+    if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+        # Update submodules as needed
+        option(GIT_SUBMODULE "Check submodules during build" ON)
+        if(GIT_SUBMODULE)
+            message(STATUS "Submodule update")
+            execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    RESULT_VARIABLE GIT_SUBMOD_RESULT)
+            if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+                message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+            endif()
+        endif()
+    endif()
 
+    if(NOT EXISTS "${PROJECT_SOURCE_DIR}/extern/unordered_dense/CMakeLists.txt")
+        message(FATAL_ERROR "The submodules were not downloaded! Please update submodules and try again.")
+    endif()
+    add_subdirectory(extern/unordered_dense)
+endif()
 
 INCLUDE(CheckTypeSize)
 SET(CMAKE_EXTRA_INCLUDE_FILES "map")
@@ -69,6 +91,8 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             -Wno-unused-parameter
             -Wno-string-plus-int
             -Wno-return-type-c-linkage
+            -Wno-deprecated-declarations
+            -Wno-gnu-empty-struct
     )
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(WARNINGS

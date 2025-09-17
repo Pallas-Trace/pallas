@@ -2,173 +2,329 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-
 #include "pallas/pallas_linked_vector.h"
+#include <sstream>
 #include "pallas/pallas_log.h"
-#include <cstring>
-using namespace pallas;
 
-LinkedVector::LinkedVector() {
-  first = new SubVector(defaultSize);
-  last = first;
+#define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
+
+namespace pallas {
+
+std::string LinkedVector::to_string() {
+    if (size == 0)
+        return "[ ]";
+    std::ostringstream output;
+    output << "[";
+    for (size_t i = 0; i < size; i++) {
+        if (i != size - 1) {
+            output << this->at(i) << ", ";
+        }
+        else {
+            output << this->at(i) << "]";
+        }
+    }
+    return output.str();
 }
 
-LinkedDurationVector::LinkedDurationVector() = default;
+std::string LinkedDurationVector::to_string() {
+    if (size == 0)
+        return "[ ]";
+    std::ostringstream output;
+    output << "[";
+    for (size_t i = 0; i < size; i++) {
+        if (i != size - 1) {
+            output << this->at(i) << ", ";
+        }
+        else {
+            output << this->at(i) << "]";
+        }
+    }
+    if (size >= 2) {
+        output << " { " << min << ", " << mean << ", " << max << " }";
+    }
+    return output.str();
+}
 
-void LinkedDurationVector::updateStats() {
-  if (size > 1) {
-    auto& val = at(size - 2);
+LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
+    first = new SubArray(DEFAULT_VECTOR_SIZE);
+    last = first;
+}
+
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
+    first = new SubArray(DEFAULT_VECTOR_SIZE);
+    last = first;
+}
+
+uint64_t* LinkedVector::SubArray::add(uint64_t val) {
+    array[size] = val;
+    return &array[size++];
+}
+
+uint64_t* LinkedDurationVector::SubArray::add(uint64_t val) {
+    array[size++] = val;
+    update_statistics();
+    return &array[size-1];
+}
+
+SAME_FOR_BOTH_VECTORS(
+  uint64_t&,
+  SubArray::at(size_t pos) const {
+      if (pos >= starting_index && pos < size + starting_index) {
+          return array[pos - starting_index];
+      }
+      pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, starting_index, size);
+  })
+
+SAME_FOR_BOTH_VECTORS(uint64_t&, SubArray::operator[](size_t pos) const { return array[pos - starting_index]; })
+
+LinkedVector::SubArray::SubArray(size_t size, LinkedVector::SubArray* previous) {
+    this->previous = previous;
+    starting_index = 0;
+    if (previous) {
+        previous->next = this;
+        starting_index = previous->starting_index + previous->size;
+    }
+    allocated = size;
+    array = new uint64_t[size];
+}
+
+LinkedDurationVector::SubArray::SubArray(size_t size, LinkedDurationVector::SubArray* previous) {
+    this->previous = previous;
+    starting_index = 0;
+    if (previous) {
+        previous->next = this;
+        starting_index = previous->starting_index + previous->size;
+    }
+    allocated = size;
+    array = new uint64_t[size];
+}
+
+
+SAME_FOR_BOTH_VECTORS(, SubArray::~SubArray() { delete[] array; })
+
+SAME_FOR_BOTH_VECTORS(void, SubArray::copy_to_array(uint64_t* given_array) const { memcpy(given_array, array, size * sizeof(uint64_t)); })
+
+void LinkedDurationVector::update_statistics() {
+    auto& val = at(size - 1);
     max = std::max(max, val);
     min = std::min(min, val);
     mean += val;
-  }
 }
 
-void LinkedDurationVector::finalUpdateStats() {
-  auto& val = back();
-  max = std::max(max, val);
-  min = std::min(min, val);
-  mean = (mean + val) / size;
+void LinkedDurationVector::SubArray::update_statistics() {
+    auto& val = at(size - 1 + starting_index);
+        max = std::max(max, val);
+        min = std::min(min, val);
+        mean += val;
 }
 
 uint64_t* LinkedDurationVector::add(uint64_t val) {
-  if (this->last->size >= this->last->allocated) {
-    pallas_log(DebugLevel::Debug, "Adding a new tail to an array: %p\n", this);
-    last = new SubVector(defaultSize, last);
-  }
-  size++;
-  updateStats();
-  return last->add(val);
+    if (this->last->size >= this->last->allocated) {
+        last->final_update_mean();
+        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
+    }
+    size++;
+    auto* out = last->add(val);
+    update_statistics();
+    return out;
 }
+
 uint64_t* LinkedVector::add(uint64_t val) {
-  if (this->last->size >= this->last->allocated) {
-    pallas_log(DebugLevel::Debug, "Adding a new tail to an array: %p\n", this);
-    last = new SubVector(defaultSize, last);
-  }
-  size++;
-  return last->add(val);
+    if (this->last->size >= this->last->allocated) {
+        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
+    }
+    size++;
+    return last->add(val);
 }
 
-uint64_t& LinkedVector::at(size_t pos) {
-  if (pos >= size) {
-    pallas_error("Getting an element whose index (%lu) is bigger than vector size (%lu)\n", pos, size);
-  }
-  if (first == nullptr) {
-    load_timestamps();
-  }
-  struct SubVector* correct_sub = last;
-  while (pos < correct_sub->starting_index) {
-    correct_sub = correct_sub->previous;
-  }
-  return correct_sub->at(pos);
+SAME_FOR_BOTH_VECTORS(void, load_all_data() {
+    auto* v = first;
+    while (v) {
+        load_data(v);
+        v = v->next;
+    }
+})
+
+
+SAME_FOR_BOTH_VECTORS(
+    uint64_t&,
+    at(size_t pos) {
+      if (pos >= size) {
+          pallas_error("Getting an element whose index (%lu) is bigger than LinkedVector size (%lu)\n", pos, size);
+      }
+      SubArray* correct_sub = last;
+      while (pos < correct_sub->starting_index) {
+          correct_sub = correct_sub->previous;
+      }
+      if (correct_sub->array == nullptr) {
+          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+            parameter_handler.subvector_queue.pop_front();
+            delete temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
+          load_data(correct_sub);
+      }
+      return correct_sub->at(pos);
+  })
+
+SAME_FOR_BOTH_VECTORS(
+  uint64_t&,
+  operator[](size_t pos) {
+      SubArray* correct_sub = last;
+      while (pos < correct_sub->starting_index) {
+          correct_sub = correct_sub->previous;
+      }
+      if (correct_sub->array == nullptr) {
+          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+            parameter_handler.subvector_queue.pop_front();
+            delete temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
+          load_data(correct_sub);
+      }
+      return (*correct_sub)[pos];
+  })
+
+size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
+    auto current_subarray = first;
+    // First, we find the correct subarray
+    while (current_subarray->last_value < ts) {
+        current_subarray = current_subarray->next;
+        if (current_subarray == nullptr)
+            return size - 1;
+    }
+    // We need first_value <= ts <= last_value
+    if (ts < current_subarray->first_value) {
+        if (current_subarray->starting_index > 0)
+        return current_subarray->starting_index - 1;
+        return 0;
+    }
+    // Then we do a dichotomy on it.
+    size_t start = 0;
+    size_t end = current_subarray->size - 1;
+    if (current_subarray->array == nullptr) {
+        load_data(current_subarray);
+    }
+    while (start + 1 < end) {
+        size_t middle = (start + end ) / 2;
+        if (current_subarray->array[middle] <= ts) {
+            start = middle;
+        } else {
+            end = middle;
+        }
+    }
+    if (ts == current_subarray->array[end]) {
+        return end + current_subarray->starting_index;
+    }
+    return start+ current_subarray->starting_index;
 }
 
-uint64_t& LinkedVector::operator[](size_t pos) {
-  if (first == nullptr) {
-    load_timestamps();
-  }
-  struct SubVector* correct_sub = last;
-  while (pos < correct_sub->starting_index) {
-    correct_sub = correct_sub->previous;
-  }
-  return (*correct_sub)[pos];
+pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {
+    // Find the correct starting sub-array
+    auto* start_subarray = first;
+    while (start_subarray->starting_index + start_subarray->size < start_index) {
+        start_subarray = start_subarray->next;
+        if (start_subarray == nullptr)
+            return 0;
+    }
+
+    pallas_duration_t sum = 0;
+    if ( start_subarray->starting_index != start_index ) {
+        // Load the sub_array
+        size_t i = start_index;
+        sum += at( i++ );
+        for (; i < start_subarray->starting_index + start_subarray->size && i <= end_index; i++) {
+            sum += start_subarray->at(i);
+        }
+        start_subarray = start_subarray->next;
+        if (start_subarray == nullptr)
+            return sum;
+    }
+
+    while (start_subarray->starting_index + start_subarray->size < end_index) {
+        sum += start_subarray->mean * start_subarray->size;
+        start_subarray = start_subarray->next;
+        if (start_subarray == nullptr)
+            return sum;
+    }
+
+    size_t i = start_subarray->starting_index;
+    sum += at(i ++);
+    for (; i < end_index; i++) {
+        sum += start_subarray->at(i);
+    }
+    return sum;
 }
+
+
+
 
 uint64_t& LinkedVector::front() {
-  return at(0);
+    return first->first_value;
 }
 
 uint64_t& LinkedVector::back() {
-  return last->at(size - 1);
+    return last->last_value;
 }
 
 
-void LinkedVector::deleteTimestamps() {
-  if (first == nullptr)
-    return;
-  pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
-  auto* sub = first;
-  while (sub) {
-    auto* temp = sub->next;
-    delete sub;
-    sub = temp;
-  }
-  first = nullptr;
-  last = nullptr;
+uint64_t& LinkedDurationVector::front() {
+    return at(0);
 }
-void LinkedVector::print() {
-  std::cout << "[";
-  if (size) {
-    for (auto& i : *this) {
-      std::cout << i << ((&i != &this->back()) ? ", " : "]");
-    }
-  } else
-    std::cout << "]";
+
+uint64_t& LinkedDurationVector::back() {
+    return at(size - 1);
 }
+
+SAME_FOR_BOTH_VECTORS(
+  void,
+  free_data() {
+      if (first == nullptr)
+          return;
+      pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
+      SubArray* sub = first;
+      while (sub) {
+          auto* temp = sub->next;
+          delete sub;
+          sub = temp;
+      }
+      first = nullptr;
+      last = nullptr;
+  })
 
 LinkedVector::~LinkedVector() {
-  deleteTimestamps();
+    free_data();
 }
 
-/* C++ Callbacks for C Usage */
-LinkedVector* linked_vector_new() {
-  return new LinkedVector();
-}
-uint64_t* linked_vector_add(LinkedVector* linkedVector, uint64_t val) {
-  return linkedVector->add(val);
-}
-uint64_t* linked_vector_get(LinkedVector* linkedVector, size_t pos) {
-  return &linkedVector->at(pos);
-}
-uint64_t* linked_vector_get_last(LinkedVector* linkedVector) {
-  return &linkedVector->back();
-}
-void print(LinkedVector linkedVector) {
-  return linkedVector.print();
+LinkedDurationVector::~LinkedDurationVector() {
+    free_data();
 }
 
-// Sub-vector methods
+SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
+    auto* v = first;
+    while (v != nullptr) {
+        v->offset = 0;
+        v = v->next;
+    }
+})
 
-uint64_t* LinkedVector::SubVector::add(uint64_t val) {
-  array[size] = val;
-  return &array[size++];
-}
+SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
+    load_all_data();
+    auto * output = new uint64_t[size];
+    auto * start = first;
+    size_t i = 0;
+    while (start != nullptr) {
+        std::memcpy(&output[i], start->array, start->size * sizeof(uint64_t));
+        i += start->size;
+        start = start->next;
+    }
+    return output;
+})
 
-uint64_t& LinkedVector::SubVector::at(size_t pos) const {
-  if (pos >= starting_index && pos < size + starting_index) {
-    return array[pos - starting_index];
-  }
-  pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, starting_index, size);
-}
+// Sub-LinkedVector methods
 
-uint64_t& LinkedVector::SubVector::operator[](size_t pos) const {
-  return array[pos - starting_index];
-}
-
-LinkedVector::SubVector::SubVector(size_t new_array_size, LinkedVector::SubVector* previous_subvector) {
-  previous = previous_subvector;
-  starting_index = 0;
-  if (previous) {
-    previous->next = this;
-    starting_index = previous->starting_index + previous->size;
-  }
-  allocated = new_array_size;
-  array = new uint64_t[new_array_size];
-}
-
-LinkedVector::SubVector::SubVector(size_t size, uint64_t* array) {
-  previous = nullptr;
-  starting_index = 0;
-  allocated = size;
-  this->size = size;
-  this->array = array;
-}
-
-LinkedVector::SubVector::~SubVector() {
-  delete[] array;
-}
-
-
-void LinkedVector::SubVector::copyToArray(uint64_t* given_array) const {
-  memcpy(given_array, array, size * sizeof(uint64_t));
-}
+}  // namespace pallas

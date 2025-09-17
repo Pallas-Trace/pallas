@@ -11,11 +11,13 @@
 #pragma once
 
 #include "pallas.h"
+#include "pallas_parameter_handler.h"
 
 #define GLOBAL_ARCHIVE_DEPRECATED_LOCATION CXX([[deprecated("You should record Locations on the Archives")]])
 
 #ifdef __cplusplus
 namespace pallas {
+class ParameterHandler;
 #endif
 
 /**
@@ -94,13 +96,33 @@ typedef struct Definition {
   void addComm(CommRef, StringRef, GroupRef, CommRef);
 #endif
 } Definition;
+
+#ifdef __cplusplus
+
+template <class content_type>
+struct AdditionalContent {
+  content_type* content = nullptr;
+  size_t (*write_content)(content_type*, FILE*) = nullptr;
+  size_t (*read_content)(content_type*, FILE*) = nullptr;
+  /* Next node in the linked-list structure.*/
+  AdditionalContent<void>* next = nullptr;
+};
+#else
+typedef struct AdditionalContent {
+  struct AdditionalContent* next;
+  void* content;
+  size_t (*write_content)(void*, FILE*);
+  size_t (*read_content)(void*, FILE*);
+} AdditionalContent;
+#endif
+
 /**
  * A GlobalArchive represents a program as a whole.
  */
 typedef struct GlobalArchive {
   char* dir_name;         /**< Name of the directory in which the archive is recorded. */
   char* trace_name;       /**< Name of the trace. */
-  char* fullpath;         /**< \todo Complete this. */
+  char* fullpath;         /**< Name of the directory + name if the trace. */
   pthread_mutex_t lock;   /**< Archive-wise lock, used for synchronising some threads. */
   Definition definitions; /**< Definitions. */
 
@@ -117,7 +139,29 @@ typedef struct GlobalArchive {
   /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
   DEFINE_Vector(LocationGroup, location_groups);
 
+  /** LinkedList of additional_content we want to add to the archive. */
+  AdditionalContent CXX(<void>)* additional_content CXX( = nullptr);
+    /** List of parameters. Only used when reading the trace. */
+    ParameterHandler* parameter_handler;
+
 #ifdef __cplusplus
+  /* Adds an additional content node.  */
+  template <typename T>
+  void add_content(AdditionalContent<T>* o) {
+    pthread_mutex_lock(&lock);
+    auto* void_o = reinterpret_cast<AdditionalContent<void>*>(o);
+    if (additional_content == nullptr) {
+      additional_content = void_o;
+    } else {
+      auto old_next = additional_content->next;
+      additional_content->next = void_o;
+      while (void_o->next != nullptr) {
+        void_o = void_o->next;
+      }
+      void_o->next = old_next;
+    }
+    pthread_mutex_unlock(&lock);
+  };
   /**
    * Getter for a String from its id.
    * @returns First String matching the given pallas::StringRef in this GlobalArchive. Nullptr if none was found.
@@ -175,7 +219,7 @@ typedef struct GlobalArchive {
   void addComm(CommRef, StringRef, GroupRef, CommRef);
 
   /**
-   * Open the Global Archive.
+   * Create a GlobalArchive. Does not read or write anything in the given .
    * @param dirname Path to the file.
    * @param given_trace_name Name of the trace.
    */
@@ -207,7 +251,7 @@ typedef struct GlobalArchive {
    * Aggregates a list of the locations of all the Archives.
    */
   std::vector<Location> getLocationList();
-  /**
+  /**r example, the std::vector template has a default argument for the allocator:
    * Aggregates a list of the Threads of all the Archives.
    */
   std::vector<Thread*> getThreadList();
@@ -245,7 +289,27 @@ typedef struct Archive {
   DEFINE_Vector(Location, locations);
   /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
   DEFINE_Vector(LocationGroup, location_groups);
+  /** LinkedList of additional_content we want to add to the archive. */
+  AdditionalContent CXX(<void>)* additional_content CXX( = nullptr);
 #ifdef __cplusplus
+
+  /* Adds an additional content node.  */
+  template <typename T>
+  void add_content(AdditionalContent<T>* o) {
+    pthread_mutex_lock(&lock);
+    auto* void_o = reinterpret_cast<AdditionalContent<void>*>(o);
+    if (additional_content == nullptr) {
+      additional_content = void_o;
+    } else {
+      auto old_next = additional_content->next;
+      additional_content->next = void_o;
+      while (void_o->next != nullptr) {
+        void_o = void_o->next;
+      }
+      void_o->next = old_next;
+    }
+    pthread_mutex_unlock(&lock);
+  };
   /**
    * Getter for a String from its id.
    * @returns First String matching the given pallas::StringRef in this archive, then global_archive. Nullptr if none was found.

@@ -9,6 +9,8 @@
 #include <format>
 #define HAS_FORMAT
 #endif
+#include <pallas/pallas_parameter_handler.h>
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_log.h"
@@ -28,9 +30,10 @@ enum command {
   show_definitions = 1 << 1,
   show_sequence_content = 1 << 2,
   show_sequence_durations = 1 << 3,
-  list_archives = 1 << 4,
-  show_archive_details = 1 << 5,
-  list_threads = 1 << 6,
+  show_sequence_timestamps = 1 << 4,
+  list_archives = 1 << 5,
+  show_archive_details = 1 << 6,
+  list_threads = 1 << 7,
 };
 
 int cmd = none;
@@ -101,10 +104,7 @@ void info_event(Thread* t, int index) {
 
   std::cout << std::left << "E" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << t->getEventString(&e->event);
-  std::cout << std::setw(20) << std::right << e->durations->size;
-  std::cout << std::setw(20) << std::right << (e->durations->min == UINT64_MAX ? 0 : e->durations->min);
-  std::cout << std::setw(20) << std::right << (e->durations->max == UINT64_MAX ? 0 : e->durations->max);
-  std::cout << std::setw(20) << std::right << (e->durations->mean == UINT64_MAX ? 0 : e->durations->mean);
+  std::cout << std::setw(20) << std::right << e->timestamps->size;
   std::cout << std::endl;
 }
 
@@ -159,6 +159,7 @@ void info_sequence(Thread* t, int index, bool details = false) {
       for (auto token : s->tokens) {
         std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
+        // TODO show exclusive durations
       std::cout << "------------------- End of sequence" << s->id << std::endl;
       std::cout << std::endl;
     }
@@ -171,7 +172,16 @@ void info_sequence(Thread* t, int index, bool details = false) {
       }
       std::cout << std::endl << "------------------- End of sequence" << s->id << " durations." << std::endl;
     }
-  }
+
+    if (cmd & show_sequence_timestamps) {
+      std::cout << std::endl << "------------------- Sequence" << s->id << " timestamps:" << std::endl;
+      for (int i = 0; i < s->timestamps->size; i++) {
+        uint64_t timestamp = s->timestamps->at(i);
+        std::cout << "\t" << timestamp << std::endl;
+      }
+      std::cout << std::endl << "------------------- End of sequence" << s->id << " timestamps." << std::endl;
+    }
+}
 }
 
 void info_loop_header() {
@@ -271,16 +281,23 @@ void info_global_archive(GlobalArchive* archive) {
   printf("Main archive:\n");
 
   if (cmd & show_archive_details) {
-    printf("\tdir_name:   %s\n", archive->dir_name);
-    printf("\ttrace_name: %s\n", archive->trace_name);
+    printf("\tDirectory name:   %s\n", archive->dir_name);
+    printf("\tTrace name: %s\n", archive->trace_name);
   }
 
-  printf("\tfullpath:    %s\n", archive->fullpath);
-  printf("\tnb_archives: %d\n", archive->nb_archives);
-  printf("\tnb_process: %lu\n", archive->location_groups.size());
-  if (archive->nb_archives)
-    printf("\tArchives {.nb_archives: %d}\n", archive->nb_archives);
-  // printf("\tnb_threads: %lu\n", archive->locations.size());
+  printf("\tFullpath:    %s\n", archive->fullpath);
+  printf("\t# Processes: %lu\n", archive->location_groups.size());
+  if (archive->nb_archives) {
+    printf("\t# Archives: %d\n", archive->nb_archives);
+  }
+
+  std::cout << "\nConfiguration:\n"
+            << "\tCompression Algorithm: " << toString(archive->parameter_handler->compressionAlgorithm) << "\n"
+            << "\tEncoding algorithm: " << toString(archive->parameter_handler->encodingAlgorithm) << "\n"
+            << "\tLoop-finding algorithm: " << toString(archive->parameter_handler->loopFindingAlgorithm) << "\n"
+            << "\tMax loop length: " << archive->parameter_handler->maxLoopLength << "\n"
+            << "\tZSTD compression level: " << archive->parameter_handler->zstdCompressionLevel << "\n"
+            << "\tTimestamp storage: " << toString(archive->parameter_handler->timestampStorage) << "\n";
 
   if (cmd & show_definitions) {
     info_definitions(archive->definitions);
@@ -327,10 +344,10 @@ void info_archive(Archive* archive) {
     return;
   }
 
-    std::cout << std::setw(15) << std::left << archive->id;
-    std::cout << std::setw(20) << std::left << archive->getName();
-    std::cout << std::setw(15) << std::right << archive->nb_threads;
-    std::cout << std::endl;
+  std::cout << std::setw(15) << std::left << archive->id;
+  std::cout << std::setw(20) << std::left << archive->getName();
+  std::cout << std::setw(15) << std::right << archive->nb_threads;
+  std::cout << std::endl;
 }
 
 void info_archive_definition(Archive* archive) {
@@ -448,6 +465,7 @@ void usage(const char* prog_name) {
   printf("\t-t             show thread details\n");
   printf("\t--content      show sequence content\n");
   printf("\t--durations    show sequence durations\n");
+  printf("\t--timestamps   show sequence timestamps\n");
   printf("\n");
   printf("\t-da            show archive details\n");
   printf("\n");
@@ -476,6 +494,8 @@ int main(int argc, char** argv) {
       cmd |= show_sequence_content;
     } else if (!strcmp(argv[nb_opts], "--durations")) {
       cmd |= show_sequence_durations;
+    } else if (!strcmp(argv[nb_opts], "--timestamps")) {
+      cmd |= show_sequence_timestamps;
     } else if (!strcmp(argv[nb_opts], "-da")) {
       cmd |= show_archive_details;
     } else if (!strcmp(argv[nb_opts], "--archive")) {
