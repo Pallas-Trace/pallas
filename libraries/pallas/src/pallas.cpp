@@ -431,17 +431,19 @@ std::string Thread::getEventString(Event* e) const {
   }
 }
 
-std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive) {
+std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<pallas_duration_t>();
     output.resize(nb_sequences);
     for (size_t i = 0; i < nb_sequences; i ++) {
         auto* s = sequences[i];
-        if (end_exclusive <= s->timestamps->front() || s->timestamps->back() < start_inclusive) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
             output[i] = 0;
             continue;
         }
-        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start_inclusive);
-        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end_exclusive);
+        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
+        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+        if ( i == 5 )
+            std::cout << i << " " <<  start_index << " " << end_index << " " << s->timestamps->size << std::endl;
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
@@ -452,15 +454,19 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_
         pallas_timestamp_t start_event_start = s->timestamps->at(start_index);
         pallas_duration_t start_event_duration = s->durations->at(start_index);
         pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
-        pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start_inclusive, start_event_start), std::min(start_event_end, end_exclusive));
-        output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        if ( start <= start_event_end ) {
+            pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
+            output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        }
         // Ending event
         if (end_index != start_index) {
             pallas_timestamp_t end_event_start = s->timestamps->at(end_index);
             pallas_duration_t end_event_duration = s->durations->at(end_index);
             pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
-            pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start_inclusive, end_event_start),std::min(end_event_end, end_exclusive));
-            output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+            if (end_event_start <= end) {
+                pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start, end_event_start),std::min(end_event_end, end));
+                output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+            }
         }
     }
     return output;
