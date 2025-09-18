@@ -37,6 +37,7 @@ static inline void print_sequence_info(Sequence* s, Thread* t) {
     t->printTokenVector(s->tokens);
     std::cout << "\tNumber of iterations: " << s->durations->size << "\n"
             << "\tDurations: " << s->durations->to_string() << "\n"
+            << "\tExclusive Durations:" << s->exclusive_durations->to_string() << "\n"
             << "\tTimestamps: " << s->timestamps->to_string() << std::endl;
 }
 
@@ -82,6 +83,7 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
         Sequence* s = thread_writer.thread->sequences[sequence_number];
         if (sequence_number > 0) {
             s->durations->final_update_mean();
+            s->exclusive_durations->final_update_mean();
             print_sequence_info(s, thread_writer.thread);
 
             pallas_assert_equals_always(s->tokens.size(), sequence_number + 1);
@@ -99,6 +101,8 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
         }
     }
     auto outer_sequence = thread_writer.thread->sequences[MAX_SUBSEQUENCE_NUMBER + 1];
+    outer_sequence->durations->final_update_mean();
+    outer_sequence->exclusive_durations->final_update_mean();
     print_sequence_info(outer_sequence, thread_writer.thread);
     pallas_assert_equals_always(outer_sequence->timestamps->size, OUTER_LOOP_SIZE);
     pallas_assert_equals_always(outer_sequence->tokens.size(), MAX_SUBSEQUENCE_NUMBER);
