@@ -442,8 +442,6 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
         }
         size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
         size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
-        if ( i == 5 )
-            std::cout << i << " " <<  start_index << " " << end_index << " " << s->timestamps->size << std::endl;
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
