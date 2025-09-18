@@ -191,7 +191,7 @@ class LinkedVector {
    public:
     /** Loads all the subvectors. */
     void load_all_data();
-    /** Returns the index of the first value <= ts. */
+    /** Returns the index of the first value <= ts. If all values > ts, returns 0. */
     size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
     /**
      * Creates a new LinkedVector.

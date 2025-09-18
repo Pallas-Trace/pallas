@@ -431,17 +431,25 @@ std::string Thread::getEventString(Event* e) const {
   }
 }
 
-std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive) {
-    auto output = std::vector<pallas_duration_t>();
-    output.resize(nb_sequences);
-    for (size_t i = 0; i < nb_sequences; i ++) {
+std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) {
+    auto output = std::vector<pallas_duration_t>(nb_sequences);
+    for (size_t i = 1; i < nb_sequences; i ++) {
         auto* s = sequences[i];
-        if (end_exclusive <= s->timestamps->front() || s->timestamps->back() < start_inclusive) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
             output[i] = 0;
             continue;
         }
-        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start_inclusive);
-        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end_exclusive);
+        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
+        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+#ifdef DEBUG
+        if ( s->timestamps->front() <= start ) {
+            pallas_assert_inferior_equal(s->timestamps->at(start_index), start);
+            if (start_index + 1 < s->timestamps->size) {
+                pallas_assert_inferior_equal(start, s->timestamps->at(start_index + 1));
+            }
+        }
+        pallas_assert_inferior_always(s->timestamps->at(end_index),end);
+#endif
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
@@ -452,15 +460,19 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start_
         pallas_timestamp_t start_event_start = s->timestamps->at(start_index);
         pallas_duration_t start_event_duration = s->durations->at(start_index);
         pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
-        pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start_inclusive, start_event_start), std::min(start_event_end, end_exclusive));
-        output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        if ( start <= start_event_end ) {
+            pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
+            output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        }
         // Ending event
         if (end_index != start_index) {
             pallas_timestamp_t end_event_start = s->timestamps->at(end_index);
             pallas_duration_t end_event_duration = s->durations->at(end_index);
             pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
-            pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start_inclusive, end_event_start),std::min(end_event_end, end_exclusive));
-            output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+            if (end_event_start <= end) {
+                pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start, end_event_start),std::min(end_event_end, end));
+                output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+            }
         }
     }
     return output;
@@ -541,15 +553,13 @@ std::string Sequence::guessName(const pallas::Thread* thread) {
 void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& readerTokenCountMap, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder);
 
 TokenCountMap tempSeen;
-void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCountMap& readerTokenCountMap, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
+void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
   size_t loop_nb_iterations = loop->nb_iterations;
   auto* loop_sequence = thread->getSequence(loop->repeated_token);
   // This creates bug idk why ?????
-  TokenCountMap& temp = loop_sequence->getTokenCountReading(thread, readerTokenCountMap, isReversedOrder);
+  TokenCountMap& temp = loop_sequence->getTokenCountReading(thread, isReversedOrder);
   temp *= loop_nb_iterations;
-  readerTokenCountMap += temp;
   sequenceTokenCountMap += temp;
-  readerTokenCountMap[loop->repeated_token] += loop_nb_iterations;
   sequenceTokenCountMap[loop->repeated_token] += loop_nb_iterations;
 }
 
@@ -557,26 +567,24 @@ std::string Loop::guessName(const Thread* t) {
   Sequence* s = t->getSequence(this->repeated_token);
   return s->guessName(t);
 }
-void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& readerTokenCountMap, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
+void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
   for (auto& token : seq->tokens) {
     if (token.type == TypeSequence) {
       auto* s = thread->getSequence(token);
-      _sequenceGetTokenCountReading(s, thread, readerTokenCountMap, sequenceTokenCountMap, isReversedOrder);
+      _sequenceGetTokenCountReading(s, thread, sequenceTokenCountMap, isReversedOrder);
     }
     if (token.type == TypeLoop) {
       auto* loop = thread->getLoop(token);
-      _loopGetTokenCountReading(loop, thread, readerTokenCountMap, sequenceTokenCountMap, isReversedOrder);
+      _loopGetTokenCountReading(loop, thread, sequenceTokenCountMap, isReversedOrder);
     }
-    readerTokenCountMap[token]++;
     sequenceTokenCountMap[token]++;
   }
 }
 
-TokenCountMap& Sequence::getTokenCountReading(const Thread* thread, const TokenCountMap& threadReaderTokenCountMap, bool isReversedOrder) {
+TokenCountMap& Sequence::getTokenCountReading(const Thread* thread, bool isReversedOrder) {
   if (tokenCount.empty()) {
-    auto tokenCountMapCopy = TokenCountMap(threadReaderTokenCountMap);
     auto tempTokenCount = TokenCountMap();
-    _sequenceGetTokenCountReading(this, thread, tokenCountMapCopy, tempTokenCount, isReversedOrder);
+    _sequenceGetTokenCountReading(this, thread, tempTokenCount, isReversedOrder);
     tokenCount = tempTokenCount;
   }
   return tokenCount;

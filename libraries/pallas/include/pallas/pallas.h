@@ -340,7 +340,6 @@ public:
      * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
     TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
-                                        const TokenCountMap& threadReaderTokenCountMap,
                                         bool isReversedOrder = false);
 
     /** Tries to guess the name of the sequence
@@ -584,7 +583,7 @@ typedef struct Thread {
   /**
    * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
    */
-  std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start_inclusive, pallas_timestamp_t end_exclusive);
+  std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end);
 
   /** Create a blank new Thread. This is used when reading the trace. */
   Thread();
