@@ -5,7 +5,6 @@ link_libraries(pallas)
 
 add_executable(pallas_print pallas_print.cpp)
 add_executable(pallas_info pallas_info.cpp)
-add_executable(pallas_test_durations pallas_test_durations.cpp)
 add_executable(pallas_editor pallas_editor.cpp)
 
 install(
