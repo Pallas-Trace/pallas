@@ -190,37 +190,47 @@ SAME_FOR_BOTH_VECTORS(
   })
 
 size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
+    if (ts <= front()) {
+        return 0;
+    }
+    if (back() < ts) {
+        return size - 1;
+    }
     auto current_subarray = first;
     // First, we find the correct subarray
     while (current_subarray->last_value < ts) {
         current_subarray = current_subarray->next;
-        if (current_subarray == nullptr)
-            return size - 1;
+        if (current_subarray == nullptr) {
+            pallas_warn("This shouldn't have happened\n");
+            return -1;
+        }
     }
     // We need first_value <= ts <= last_value
     if (ts < current_subarray->first_value) {
-        if (current_subarray->starting_index > 0)
-        return current_subarray->starting_index - 1;
+        if (current_subarray->starting_index > 0) {
+            return current_subarray->starting_index - 1;
+        }
         return 0;
     }
-    // Then we do a dichotomy on it.
-    size_t start = 0;
-    size_t end = current_subarray->size - 1;
     if (current_subarray->array == nullptr) {
         load_data(current_subarray);
     }
-    while (start + 1 < end) {
+    // Then we do a dichotomy.
+    size_t start = 0;
+    size_t end = current_subarray->size - 1;
+
+    while (start < end) {
         size_t middle = (start + end ) / 2;
-        if (current_subarray->array[middle] <= ts) {
+        if (current_subarray->array[middle] <= ts && current_subarray->array[middle + 1] > ts) {
+            return current_subarray->starting_index + middle;
+        }
+        if (current_subarray->array[middle] < ts) {
             start = middle;
         } else {
             end = middle;
         }
     }
-    if (ts == current_subarray->array[end]) {
-        return end + current_subarray->starting_index;
-    }
-    return start+ current_subarray->starting_index;
+    pallas_error("This shouldn't have happened: Out of the Loop\n");
 }
 
 pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {

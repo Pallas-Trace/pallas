@@ -432,9 +432,8 @@ std::string Thread::getEventString(Event* e) const {
 }
 
 std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) {
-    auto output = std::vector<pallas_duration_t>();
-    output.resize(nb_sequences);
-    for (size_t i = 0; i < nb_sequences; i ++) {
+    auto output = std::vector<pallas_duration_t>(nb_sequences);
+    for (size_t i = 1; i < nb_sequences; i ++) {
         auto* s = sequences[i];
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
             output[i] = 0;
@@ -442,6 +441,15 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
         }
         size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
         size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+#ifdef DEBUG
+        if ( s->timestamps->front() <= start ) {
+            pallas_assert_inferior_equal(s->timestamps->at(start_index), start);
+            if (start_index + 1 < s->timestamps->size) {
+                pallas_assert_inferior_equal(start, s->timestamps->at(start_index + 1));
+            }
+        }
+        pallas_assert_inferior_always(s->timestamps->at(end_index),end);
+#endif
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
