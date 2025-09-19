@@ -363,7 +363,7 @@ public:
 typedef struct Loop {
   Token repeated_token;               /**< Token of the Sequence being repeated. */
   Token self_id;                      /**< Token identifying that Loop. */
-  uint nb_iterations;                 /**< Number of iterations of that loop. */
+  unsigned int nb_iterations;         /**< Number of iterations of that loop. */
 #ifdef __cplusplus
   CXX(void addIteration();)           /**< Adds an iteration to the lastest occurence of that loop. */
 
