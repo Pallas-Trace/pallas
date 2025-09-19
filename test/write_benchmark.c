@@ -10,6 +10,7 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 #include "pallas/pallas_record.h"
+#include "pallas/pthread_barrier_wrapper.h"
 
 
 static struct GlobalArchive* trace = NULL;
