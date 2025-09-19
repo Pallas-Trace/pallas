@@ -13,90 +13,82 @@
 
 using namespace pallas;
 std::vector compressionValues = {
-  CompressionAlgorithm::None,
-  CompressionAlgorithm::ZSTD,
-  CompressionAlgorithm::Histogram,
+        CompressionAlgorithm::None,
+        CompressionAlgorithm::ZSTD,
+        CompressionAlgorithm::Histogram,
 #ifdef WITH_SZ
-  CompressionAlgorithm::SZ,
+        CompressionAlgorithm::SZ,
 #endif
 #ifdef WITH_ZFP
-  CompressionAlgorithm::ZFP,
+        CompressionAlgorithm::ZFP,
 #endif
-  CompressionAlgorithm::ZSTD_Histogram,
+        CompressionAlgorithm::ZSTD_Histogram,
 };
 
 void usage() {
-  std::cout << "Usage: pallas_editor [OPTION] trace_file" << std::endl;
-  std::cout << "\t-c, --compression: Changes the compression from the trace to the new one. Possible values:" << std::endl;
-  for (auto v : compressionValues) {
-    std::cout << "\t\t - " << toString(v) << std::endl;
-  }
+    std::cout << "Usage: pallas_editor [OPTION] trace_file" << std::endl;
+    std::cout << "\t-c, --compression: Changes the compression from the trace to the new one. Possible values:" << std::endl;
+    for (auto v : compressionValues) {
+        std::cout << "\t\t - " << toString(v) << std::endl;
+    }
 }
 
 int main(int argc, char** argv) {
-  int nb_opts = 0;
-  char* trace_name = nullptr;
-  auto compressionAlgorithm = CompressionAlgorithm::Invalid;
-  auto encodingAlgorithm = EncodingAlgorithm::Invalid;
+    int nb_opts = 0;
+    char* trace_name = nullptr;
+    auto compressionAlgorithm = CompressionAlgorithm::Invalid;
+    auto encodingAlgorithm = EncodingAlgorithm::Invalid;
 
-  for (int i = 1; i < argc; i++) {
-    if (!strcmp(argv[i], "-v")) {
-      pallas_debug_level_set(DebugLevel::Verbose);
-      nb_opts++;
-    } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-?")) {
-      usage();
-      return EXIT_SUCCESS;
-    } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compression")) {
-      nb_opts += 2;
-      compressionAlgorithm = compressionAlgorithmFromString(argv[++i]);
-      break;
-    } else {
-      /* Unknown parameter name. It's probably the program name. We can stop
-       * parsing the parameter list.
-       */
-      break;
+    for (int i = 1; i < argc; i++) {
+        if (!strcmp(argv[i], "-v")) {
+            pallas_debug_level_set(DebugLevel::Verbose);
+            nb_opts++;
+        } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "-?")) {
+            usage();
+            return EXIT_SUCCESS;
+        } else if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--compression")) {
+            nb_opts += 2;
+            compressionAlgorithm = compressionAlgorithmFromString(argv[++i]);
+            break;
+        } else {
+            /* Unknown parameter name. It's probably the program name. We can stop
+             * parsing the parameter list.
+             */
+            break;
+        }
     }
-  }
 
-  trace_name = argv[nb_opts + 1];
-  if (trace_name == nullptr) {
-    usage();
-    return EXIT_SUCCESS;
-  }
+    trace_name = argv[nb_opts + 1];
+    if (trace_name == nullptr) {
+        usage();
+        return EXIT_SUCCESS;
+    }
 
-  auto trace = *pallas_open_trace(trace_name);
+    auto trace = *pallas_open_trace(trace_name);
     auto& parameter_handler = *trace.parameter_handler;
-  if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler.getCompressionAlgorithm()) {
-    auto newDirName = strdup((std::string(trace.dir_name) + "_" + toString(compressionAlgorithm)).c_str());
-    auto originalDirName = trace.dir_name;
-    auto newFullpath = strdup((std::string(newDirName) + trace.trace_name).c_str());
-    auto originalCompressionAlgorithm = parameter_handler.compressionAlgorithm;
+    if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler.getCompressionAlgorithm()) {
+        auto newDirName = strdup((std::string(trace.dir_name) + "_" + toString(compressionAlgorithm)).c_str());
+        auto originalCompressionAlgorithm = parameter_handler.compressionAlgorithm;
 
-    for (auto& lg : trace.location_groups) {
-      trace.dir_name = originalDirName;
-      std::cout << "Reading archive " << lg.id << " @ " << trace.dir_name << std::endl;
-      auto* a = trace.getArchive(lg.id);
-      free(a->dir_name);
-      for (auto& loc : a->locations) {
-        a->dir_name = originalDirName;
-        std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
-        auto* t = a->getThread(loc.id);
-        parameter_handler.compressionAlgorithm = originalCompressionAlgorithm;
-        t->loadTimestamps();
-          t->resetVectorsOffsets();
-        a->dir_name = newDirName;
-        std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
-        parameter_handler.compressionAlgorithm = compressionAlgorithm;
-        t->finalizeThread();
-        a->freeThread(loc.id);
-      }
-      trace.dir_name = newDirName;
-      std::cout << "Writing archive " << lg.id << " @ " << trace.dir_name << std::endl;
-      a->close();
-      a->dir_name = nullptr;
-      trace.freeArchive(lg.id);
+        for (auto& lg : trace.location_groups) {
+            std::cout << "Reading archive " << lg.id << " @ " << trace.dir_name << std::endl;
+            auto* a = trace.getArchive(lg.id);
+            for (auto& loc : a->locations) {
+                std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
+                auto* t = a->getThread(loc.id);
+                parameter_handler.compressionAlgorithm = originalCompressionAlgorithm;
+                t->loadTimestamps();
+                std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
+                parameter_handler.compressionAlgorithm = compressionAlgorithm;
+                t->store(newDirName);
+                a->freeThread(loc.id);
+            }
+            std::cout << "Writing archive " << lg.id << " @ " << trace.dir_name << std::endl;
+            a->store(newDirName);
+            a->dir_name = nullptr;
+            trace.freeArchive(lg.id);
+        }
+        trace.store(newDirName);
     }
-    trace.close();
-  }
     return 0;
 }

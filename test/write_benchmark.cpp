@@ -249,8 +249,8 @@ int main(int argc, char** argv) {
   std::cout << "TOTAL: " << nb_events << " events in " << duration << " s -> " << events_per_second / 1e6 << " Me/s"
             << std::endl;
 
-  mainProcess.close();
-  globalArchive.close();
+  mainProcess.store();
+  globalArchive.store();
   return EXIT_SUCCESS;
 }
 

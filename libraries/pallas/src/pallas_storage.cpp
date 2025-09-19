@@ -110,13 +110,13 @@ class File {
   void open(const char* mode) {
     if (isOpen) {
       pallas_log(pallas::DebugLevel::Verbose, "Trying to open file that is already open: %s\n", path);
-      // close();
+      // store();
       return;
     }
     while (numberOpenFiles >= maxNumberFilesOpen) {
       auto* openedFilePath = getFirstOpenFile();
       if (!openedFilePath) {
-        pallas_warn("Could not find any more duration files to close: %lu files opened.\n", numberOpenFiles);
+        pallas_warn("Could not find any more duration files to store: %lu files opened.\n", numberOpenFiles);
         break;
       }
       openedFilePath->close();
@@ -130,7 +130,7 @@ class File {
   void close() {
     // TODO grab the lock
     if (!isOpen) {
-      pallas_log(pallas::DebugLevel::Debug, "Trying to close file that is already closed: %s\n", path);
+      pallas_log(pallas::DebugLevel::Debug, "Trying to store file that is already closed: %s\n", path);
     }
     isOpen = false;
     fclose(file);
@@ -1308,8 +1308,8 @@ static File pallasGetThreadFile(const char* dir_name, pallas::Thread* thread, co
   return File(filename, mode);
 }
 
-static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
-  File threadFile = pallasGetThreadFile(dir_name, th, "w");
+void pallasStoreThread(const char* path, pallas::Thread* th) {
+  File threadFile = pallasGetThreadFile(path, th, "w");
   if(!threadFile.is_open())
     return;
 
@@ -1325,7 +1325,7 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
 
   threadFile.write(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
-  const char* eventDurationFilename = pallasGetEventDurationFilename(dir_name, th);
+  const char* eventDurationFilename = pallasGetEventDurationFilename(path, th);
   File eventDurationFile = File(eventDurationFilename, "w");
   delete[] eventDurationFilename;
   for (int i = 0; i < th->nb_events; i++) {
@@ -1333,7 +1333,7 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
   }
   eventDurationFile.close();
 
-  const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(dir_name, th);
+  const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(path, th);
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
   for (int i = 0; i < th->nb_sequences; i++) {
@@ -1348,8 +1348,8 @@ static void pallasStoreThread(const char* dir_name, pallas::Thread* th) {
              (numberRawBytes + .0) / numberCompressedBytes);
 }
 
-void pallas::Thread::finalizeThread() {
-  pallasStoreThread(archive->dir_name, this);
+void pallas::Thread::store(const char *path) {
+  pallasStoreThread(path, this);
 }
 
 static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thread* th, pallas::ThreadId thread_id) {
@@ -1417,12 +1417,12 @@ void pallas_storage_finalize_thread(pallas::Thread* thread) {
   pallasStoreThread(thread->archive->dir_name, thread);
 }
 
-void pallasStoreGlobalArchive(pallas::GlobalArchive* archive) {
+void pallasStoreGlobalArchive(pallas::GlobalArchive* archive, const char* path) {
     pallas_log(pallas::DebugLevel::Debug, "Storing global archive\n");
   if (!archive)
     return;
 
-  std::filesystem::path fullpath(std::string(archive->dir_name) + "/" + std::string(archive->trace_name));
+  std::filesystem::path fullpath(std::string(path) + "/" + std::string(archive->trace_name));
     if (fullpath.extension() != ".pallas") {
         fullpath += ".pallas";
     }
@@ -1445,19 +1445,19 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive) {
 
 
 
-char* pallas_archive_fullpath(pallas::Archive* a) {
-  int len = strlen(a->dir_name) + 32;
+char* pallas_archive_fullpath(pallas::Archive* a, const char* path) {
+  int len = strlen(path) + 32;
   char* fullpath = new char[len];
-  snprintf(fullpath, len, "%s/archive_%u/archive.pallas", a->dir_name, a->id);
+  snprintf(fullpath, len, "%s/archive_%u/archive.pallas", path, a->id);
   return fullpath;
 }
 
-void pallasStoreArchive(pallas::Archive* archive) {
+void pallasStoreArchive(pallas::Archive* archive, const char* path) {
     pallas_log(pallas::DebugLevel::Debug, "Storing archive %d\n", archive->id);
   if (!archive)
     return;
 
-  char* fullpath = pallas_archive_fullpath(archive);
+  char* fullpath = pallas_archive_fullpath(archive, path);
   File file = File(fullpath, "w");
   if(!file.is_open())
     pallas_abort();
@@ -1531,7 +1531,7 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
 
   auto* archive = new Archive(*this, archive_id);
 
-  const char* fullpath = pallas_archive_fullpath(archive);
+  const char* fullpath = pallas_archive_fullpath(archive, archive->dir_name);
 
   pallas_log(pallas::DebugLevel::Debug, "Reading archive @ %s\n", fullpath );
 
