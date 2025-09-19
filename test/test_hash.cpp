@@ -4,7 +4,7 @@
  */
 
 #include <inttypes.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include "pallas/pallas_hash.h"
 #include "pallas/pallas_log.h"
 
