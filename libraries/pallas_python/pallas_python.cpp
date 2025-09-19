@@ -315,6 +315,65 @@ class DataHolder {
     }
 };
 
+struct PySequence {
+    pallas::Sequence* self;
+    pallas::Thread* thread;
+};
+struct PyLoop {
+    pallas::Loop* self;
+    pallas::Thread* thread;
+};
+struct PyEventSummary {
+    pallas::EventSummary* self;
+    pallas::Thread* thread;
+};
+
+std::vector<PySequence> threadGetSequences(pallas::Thread& self) {
+    auto output = std::vector<PySequence>(self.nb_sequences);
+    for (size_t i = 0; i < self.nb_sequences; i++) {
+        output[i].self = self.sequences[i];
+        output[i].thread = &self;
+    }
+    return output;
+}
+
+std::vector<PyLoop> threadGetLoops(pallas::Thread& self) {
+    auto output = std::vector<PyLoop>(self.nb_loops);
+    for (size_t i = 0; i < self.nb_loops; i++) {
+        output[i].self = &self.loops[i];
+        output[i].thread = &self;
+    }
+    return output;
+}
+std::vector<PyEventSummary> threadGetEventsSummary(pallas::Thread& self) {
+    auto output = std::vector<PyEventSummary>(self.nb_events);
+    for (size_t i = 0; i < self.nb_events; i++) {
+        output[i].self = &self.events[i];
+        output[i].thread = &self;
+    }
+    return output;
+}
+
+pybind11::list sequenceGetContent(const PySequence& self) {
+    auto output = pybind11::list();
+    // auto output = std::vector<PySomething>(self.self->tokens.size());
+    for (size_t i = 0; i < self.self->tokens.size(); i ++) {
+        auto t = self.self->tokens[i];
+        if (t.type == pallas::TypeEvent) {
+            PyEventSummary temp = {self.thread->getEventSummary(t), self.thread};
+            output.append(temp);
+        } if (t.type == pallas::TypeSequence) {
+            PySequence temp = {self.thread->getSequence(t), self.thread};
+            output.append(temp);
+        } if (t.type == pallas::TypeLoop) {
+            PyLoop temp = {self.thread->getLoop(t), self.thread};
+            output.append(temp);
+        }
+    }
+    return output;
+}
+
+
 PYBIND11_MODULE(pallas_trace, m) {
     m.doc() = "Python API for the Pallas library";
 
@@ -325,38 +384,39 @@ PYBIND11_MODULE(pallas_trace, m) {
       .def_property_readonly("type", [](pallas::Token t) { return t.type; })
       .def("__repr__", &Token_toString);
 
-    py::class_<pallas::Sequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
-      .def_readonly("id", &pallas::Sequence::id)
-      .def_readonly("tokens", &pallas::Sequence::tokens)
-      .def_property_readonly("timestamps", [](const pallas::Sequence& self) { return (new DataHolder(self.timestamps))->get_array(); })
-      .def_property_readonly("durations", [](const pallas::Sequence& self) { return (new DataHolder(self.durations))->get_array(); })
-      .def_property_readonly("exclusive_durations", [](const pallas::Sequence& self) { return (new DataHolder(self.exclusive_durations))->get_array(); })
-      .def_property_readonly("max_duration", [](const pallas::Sequence& self) { return self.durations->max; })
-      .def_property_readonly("min_duration", [](const pallas::Sequence& self) { return self.durations->min; })
-      .def_property_readonly("mean_duration", [](const pallas::Sequence& self) { return self.durations->mean; })
-      .def("guessName", [](pallas::Sequence& self, const pallas::Thread* thread) { return self.guessName(thread); })
-      .def("__repr__", [](const pallas::Sequence& self) { return "<pallas_python.Sequence " + std::to_string(self.id) + ">"; });
+    py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
+      .def_property_readonly("id", [](const PySequence& self) { return self.self->id;})
+      .def_property_readonly("tokens", [](const PySequence& self) {return self.self->tokens;})
+      .def_property_readonly("content", [](const PySequence& self) { return sequenceGetContent(self);})
+      .def_property_readonly("timestamps", [](const PySequence& self) { return (new DataHolder(self.self->timestamps))->get_array(); })
+      .def_property_readonly("durations", [](const PySequence& self) { return (new DataHolder(self.self->durations))->get_array(); })
+      .def_property_readonly("exclusive_durations", [](const PySequence& self) { return (new DataHolder(self.self->exclusive_durations))->get_array(); })
+      .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
+      .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
+      .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
+      .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
+      .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id) + ">"; });
 
-    py::class_<pallas::Loop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
-      .def_readonly("id", &pallas::Loop::self_id)
-      .def_readonly("repeated_token", &pallas::Loop::repeated_token)
-      .def_readonly("nb_iterations", &pallas::Loop::nb_iterations)
-      .def("__repr__", [](const pallas::Loop& self) { return "<pallas_python.Loop " + std::to_string(self.self_id.id) + ">"; });
+    py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
+      .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })
+      .def_property_readonly("repeated_token", [](const PyLoop& self) { return self.self->repeated_token; })
+      .def_property_readonly("nb_iterations", [](const PyLoop& self) { return self.self->nb_iterations; })
+      .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
 
-    py::class_<pallas::EventSummary>(m, "EventSummary", "A Pallas Event Summary, that stores info about an event.")
-      .def_readonly("id", &pallas::EventSummary::id)
-      .def_readonly("event", &pallas::EventSummary::event)
-      .def_readonly("nb_occurrences", &pallas::EventSummary::nb_occurences)
-      .def_property_readonly("timestamps", [](const pallas::EventSummary& self) { return (new DataHolder(self.timestamps))->get_array(); })
-      .def("__repr__", [](const pallas::EventSummary& self) { return "<pallas_python.EventSummary " + std::to_string(self.id) + ">"; });
+    py::class_<PyEventSummary>(m, "EventSummary", "A Pallas Event Summary, that stores info about an event.")
+      .def_property_readonly("id", [](const PyEventSummary& self) { return self.self->id; })
+      .def_property_readonly("event", [](const PyEventSummary& self) { return self.self->event; })
+      .def_property_readonly("nb_occurrences", [](const PyEventSummary& self) { return self.self->nb_occurences; })
+      .def_property_readonly("timestamps", [](const PyEventSummary& self) { return (new DataHolder(self.self->timestamps))->get_array(); })
+      .def("__repr__", [](const PyEventSummary& self) { return "<pallas_python.EventSummary " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Event>(m, "Event", "A Pallas Event.").def_readonly("record", &pallas::Event::record).def_property_readonly("data", &Event_get_data);
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
       .def_readonly("id", &pallas::Thread::id)
-      .def_property_readonly("events", [](pallas::Thread& self) { return std::vector(self.events, self.events + self.nb_events); })
-      .def_property_readonly("sequences", [](pallas::Thread& self) { return std::vector(self.sequences, self.sequences + self.nb_sequences); })
-      .def_property_readonly("loops", [](pallas::Thread& self) { return std::vector(self.loops, self.loops + self.nb_loops); })
+      .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEventsSummary(self); })
+      .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
+      .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
       .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
       .def("getSnapshotView", &pallas::Thread::getSnapshotView);
 
