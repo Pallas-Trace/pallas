@@ -373,6 +373,30 @@ pybind11::list sequenceGetContent(const PySequence& self) {
     return output;
 }
 
+bool doesSequenceContains(const PySequence& self, pallas::Token t ) {
+    for (auto token: self.self->tokens) {
+        if (t == token ) {
+            return true;
+        }
+    }
+    for (auto token: self.self->tokens) {
+        if (token.type == pallas::TypeSequence) {
+            PySequence temp = { self.thread->getSequence(token), self.thread };
+            if (doesSequenceContains(temp, t)) {
+                return true;
+            }
+        }
+        if (token.type == pallas::TypeLoop) {
+            auto* loop = self.thread->getLoop(token);
+            PySequence temp = { self.thread->getSequence(loop->repeated_token), self.thread };
+            if (doesSequenceContains(temp, t)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 
 
 
@@ -396,6 +420,10 @@ PYBIND11_MODULE(pallas_trace, m) {
       .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
       .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
       .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
+      .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, {pallas::TokenType::TypeSequence, other.self->id}); })
+      .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
+      .def("contains", [](const PySequence& self, const PyEventSummary& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
+      .def("contains", [](const PySequence& self, const pallas::Token& other) { return doesSequenceContains(self, other); })
       .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
       .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id) + ">"; });
 
