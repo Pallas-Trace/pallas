@@ -374,6 +374,8 @@ pybind11::list sequenceGetContent(const PySequence& self) {
 }
 
 
+
+
 PYBIND11_MODULE(pallas_trace, m) {
     m.doc() = "Python API for the Pallas library";
 
@@ -414,6 +416,7 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
       .def_readonly("id", &pallas::Thread::id)
+      .def_property_readonly("starting_timestamp", [](const pallas::Thread& self){ return self.sequences[0]->timestamps->front();})
       .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEventsSummary(self); })
       .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
       .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
