@@ -20,6 +20,7 @@ add_executable(write_benchmark write_benchmark.c)
 add_executable(write_benchmark_CPP write_benchmark.cpp)
 
 SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace/main.pallas)
+SET(TRACE_NO_COMP_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace_None/main.pallas)
 SET(CPP_TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_CPP_trace/main.pallas)
 
 SET(N_THREADS 4)
@@ -32,20 +33,33 @@ add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
 add_test(NAME print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
-
+add_test(NAME edit_benchmark COMMAND pallas_editor -c None ${TRACE_NAME})
 
 add_test (benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
 
-set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure PROPERTIES
+set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark PROPERTIES
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(benchmark_checks PROPERTIES
         REQUIRED "info_benchmark;print_benchmark;print_benchmark_structure")
 
+add_test(NAME info_edited_benchmark COMMAND pallas_info ${TRACE_NO_COMP_NAME})
+add_test(NAME print_edited_benchmark COMMAND pallas_print ${TRACE_NO_COMP_NAME})
+add_test(NAME print_edited_benchmark_structure COMMAND pallas_print -S ${TRACE_NO_COMP_NAME})
+add_test(NAME print_edited_benchmark_thread COMMAND pallas_print -T ${TRACE_NO_COMP_NAME})
+
+add_test (edited_benchmark_checks bash
+        "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
+        "${CMAKE_BINARY_DIR}" ${TRACE_NO_COMP_NAME} -n ${N_ITER} -t ${N_THREADS})
+
+set_tests_properties(info_edited_benchmark print_edited_benchmark_thread print_edited_benchmark print_edited_benchmark_structure PROPERTIES
+        REQUIRED_FILES ${TRACE_NO_COMP_NAME})
+set_tests_properties(edited_benchmark_checks PROPERTIES
+        REQUIRED "info_edited_benchmark;print_edited_benchmark;print_edited_benchmark_edited_structure")
+
 
 add_test(NAME write_benchmark_CPP COMMAND write_benchmark_CPP -n ${N_ITER} -t ${N_THREADS})
-
 add_test(NAME info_benchmark_CPP COMMAND pallas_info ${CPP_TRACE_NAME})
 add_test(NAME print_benchmark_CPP COMMAND pallas_print ${CPP_TRACE_NAME})
 add_test(NAME print_benchmark_structure_CPP COMMAND pallas_print -S ${CPP_TRACE_NAME})

@@ -115,7 +115,8 @@ int main(int argc, char** argv __attribute__((unused))) {
   pallas_assert_always(secondLoop.nb_iterations == NUM_LOOPS);
 
   thread_writer.threadClose();
-  trace.store();
+    archive.store(thread_writer.parameter_handler);
+  trace.store(thread_writer.parameter_handler);
   // TODO Find a way for the test to clean this trace
   //      Because somehow the following does not remove the folder
   //      Only is content
