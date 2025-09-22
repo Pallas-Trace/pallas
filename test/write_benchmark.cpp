@@ -191,6 +191,7 @@ int main(int argc, char** argv) {
     }
   }
 
+
   pthread_barrier_init(&bench_start, nullptr, nb_threads + 1);
   pthread_barrier_init(&bench_stop, nullptr, nb_threads + 1);
 
@@ -249,8 +250,8 @@ int main(int argc, char** argv) {
   std::cout << "TOTAL: " << nb_events << " events in " << duration << " s -> " << events_per_second / 1e6 << " Me/s"
             << std::endl;
 
-  mainProcess.store();
-  globalArchive.store();
+  mainProcess.store(globalArchive.parameter_handler);
+  globalArchive.store(globalArchive.parameter_handler);
   return EXIT_SUCCESS;
 }
 

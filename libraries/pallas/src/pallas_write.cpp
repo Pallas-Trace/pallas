@@ -345,8 +345,7 @@ void ThreadWriter::findSequence(size_t n) {
     auto& curTokenSeq = getCurrentTokenSequence();
     auto& curTokenIndex = index_stack[cur_depth];
     size_t currentIndex = curTokenSeq.size() - 1;
-    if (n >= currentIndex)
-        n = currentIndex;
+    n = std::min(currentIndex, n);
 
     unsigned found_sequence_id = 0;
     for (int array_len = 1; array_len <= n; array_len++) {
@@ -593,7 +592,7 @@ void ThreadWriter::threadClose() {
     mainSequence->exclusive_durations->add(duration);
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
     mainSequence->timestamps->add(thread->first_timestamp);
-    thread->store(thread->archive->dir_name);
+    thread->store(thread->archive->dir_name, parameter_handler);
 }
 ThreadWriter::~ThreadWriter() {
     delete[] sequence_stack;
@@ -659,14 +658,6 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     cur_depth = 0;
 
     pallas_recursion_shield--;
-}
-
-void Archive::store(const char *path) {
-    pallasStoreArchive(this, path);
-}
-
-void GlobalArchive::store(const char *path) {
-    pallasStoreGlobalArchive(this, path);
 }
 
 TokenId ThreadWriter::getEventId(Event* e) {
@@ -782,7 +773,7 @@ pallas::ThreadWriter* pallas_thread_writer_new(pallas::Archive* archive, pallas:
 }
 
 extern void pallas_global_archive_close(pallas::GlobalArchive* archive) {
-    archive->store(archive->dir_name);
+    archive->store(archive->dir_name, archive->parameter_handler);
 };
 
 extern void pallas_thread_writer_close(pallas::ThreadWriter* thread_writer) {
@@ -790,7 +781,7 @@ extern void pallas_thread_writer_close(pallas::ThreadWriter* thread_writer) {
 };
 
 extern void pallas_archive_close(PALLAS(Archive) * archive) {
-    archive->store(archive->dir_name);
+    archive->store(archive->dir_name, nullptr);
 };
 
 extern void pallas_store_event(PALLAS(ThreadWriter) * thread_writer,

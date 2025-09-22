@@ -64,31 +64,32 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    auto trace = *pallas_open_trace(trace_name);
-    auto& parameter_handler = *trace.parameter_handler;
-    if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler.getCompressionAlgorithm()) {
-        auto newDirName = strdup((std::string(trace.dir_name) + "_" + toString(compressionAlgorithm)).c_str());
-        auto originalCompressionAlgorithm = parameter_handler.compressionAlgorithm;
-
-        for (auto& lg : trace.location_groups) {
-            std::cout << "Reading archive " << lg.id << " @ " << trace.dir_name << std::endl;
-            auto* a = trace.getArchive(lg.id);
+    auto* trace = pallas_open_trace(trace_name);
+    if (trace == nullptr) {
+        return -1;
+    }
+    auto* parameter_handler = trace->parameter_handler;
+    if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler->getCompressionAlgorithm()) {
+        ParameterHandler new_parameter_handler = *parameter_handler;
+        new_parameter_handler.compressionAlgorithm = compressionAlgorithm;
+        auto newDirName = strdup((std::string(trace->dir_name) + "_" + toString(compressionAlgorithm)).c_str());
+        for (auto& lg : trace->location_groups) {
+            std::cout << "Reading archive " << lg.id << " @ " << trace->dir_name << std::endl;
+            auto* a = trace->getArchive(lg.id);
             for (auto& loc : a->locations) {
                 std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
                 auto* t = a->getThread(loc.id);
-                parameter_handler.compressionAlgorithm = originalCompressionAlgorithm;
-                t->loadTimestamps();
                 std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
-                parameter_handler.compressionAlgorithm = compressionAlgorithm;
-                t->store(newDirName);
+                t->store(newDirName, &new_parameter_handler, true);
                 a->freeThread(loc.id);
             }
-            std::cout << "Writing archive " << lg.id << " @ " << trace.dir_name << std::endl;
-            a->store(newDirName);
+            std::cout << "Writing archive " << lg.id << " @ " << trace->dir_name << std::endl;
+            a->store(newDirName, &new_parameter_handler);
             a->dir_name = nullptr;
-            trace.freeArchive(lg.id);
+            trace->freeArchive(lg.id);
         }
-        trace.store(newDirName);
+        trace->store(newDirName, &new_parameter_handler);
     }
+    delete trace;
     return 0;
 }

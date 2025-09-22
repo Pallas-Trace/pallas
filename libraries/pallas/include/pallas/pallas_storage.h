@@ -19,22 +19,26 @@ extern "C" {
 void pallas_storage_init(const char * dir_name);
 /**
  * Stores the thread to the given path.
- * @param path Path to the folder.
- * @param thread Thread to be written to folder.
+ * @param path Path to the root folder.
+ * @param thread Thread to be written.
+ * @param parameter_handler Handler for the storage parameters.
+ * @param load_thread Whether you should load the timestamps before writing.
  */
-void pallasStoreThread(const char* path, PALLAS(Thread) * thread);
+void pallasStoreThread(const char* path, PALLAS(Thread) * thread, const PALLAS(ParameterHandler)* parameter_handler, bool load_thread);
 /**
  * Store the archive.
  * @param archive Archive to be written to a folder.
  * @param path Path to the root folder.
+ * @param parameter_handler Handler for the storage parameters.
  */
-void pallasStoreArchive(PALLAS(Archive) * archive, const char* path);
+void pallasStoreArchive(PALLAS(Archive) * archive, const char* path, const PALLAS(ParameterHandler)* parameter_handler);
 /**
  * Store the global archive.
  * @param archive Archive to be written to a folder.
  * @param path Path to the root folder.
+ * @param parameter_handler Handler for the storage parameters.
  */
-void pallasStoreGlobalArchive(PALLAS(GlobalArchive) * archive, const char* path);
+void pallasStoreGlobalArchive(PALLAS(GlobalArchive) * archive, const char* path, const PALLAS(ParameterHandler)* parameter_handler);
 
    /**
    * Allocate and read an archive from a `main.pallas` file.

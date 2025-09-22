@@ -85,8 +85,9 @@ class LinkedVector {
      * Writes the vector to the given files.
      * @param infoFile File where information about the vector is stored.
      * @param dataFile  File where most of the data are stored.
+     * @param parameter_handler Handler for the storage parameters.
      */
-    void write_to_file(FILE* infoFile, FILE* dataFile);
+    void write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler);
 
     /**
      * Resets the offsets of all the subvectors.
@@ -159,8 +160,10 @@ class LinkedVector {
          * Writes the content of this array to the file at the current offset.
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
+         * @param file File where the data is stored.
+         * @param parameter_handler Handler for the storage parameters.
          */
-        void write_to_file(FILE* file, const ParameterHandler& parameter_handler);
+        void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
 
         ~SubArray();
 
@@ -265,14 +268,15 @@ class LinkedDurationVector {
     /**
      * Writes the vector to the given files.
      * If size >= 4, we do the following:
-     *    - To vectorFile, we write [size, min, max, mean, offset] in that order.\n
-     *    - To valueFile, we write the array.\n
+     *    - To vectorFile, we write [size, min, max, mean, offset] in that order.
+     *    - To valueFile, we write the array.
      * If size <= 3, we don't write anything to valueFile.
-     * Instead, we write [size] + array to vectorFile.\n
-     * @param vectorFile File where metadata is stored.
-     * @param valueFile  File where data is stored (most of the time).
+     * Instead, we write [size] + array to vectorFile.
+     * @param infoFile File where metadata is stored.
+     * @param dataFile File where data is stored (most of the time).
+     * @param parameter_handler Handler for the storage parameters.
      */
-    void write_to_file(FILE* vectorFile, FILE* valueFile);
+    void write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler);
 
     /**
      * Resets the offsets of all the subvectors.
@@ -362,8 +366,10 @@ class LinkedDurationVector {
          * Writes the content of this array to the file at the current offset.
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
+        *  @param file File where the data is stored.
+         * @param parameter_handler Handler for the storage parameters.
          */
-        void write_to_file(FILE* file, const ParameterHandler& parameter_handler);
+        void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
 
         ~SubArray();
 

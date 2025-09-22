@@ -581,8 +581,10 @@ typedef struct Thread {
   /**
    * Stores this thread.
    * @param path Path to the root folder of the trace.
+   * @param parameter_handler Handler for the storage parameters.
+   * @param load_thread Indicates if you should load the timestamps before writing.
    */
-  void store(const char* path);
+  void store(const char* path,  const ParameterHandler* parameter_handler, bool load_thread = false);
 
   /**
    * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
