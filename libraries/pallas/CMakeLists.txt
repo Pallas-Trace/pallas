@@ -84,7 +84,6 @@ target_link_libraries(pallas
         unordered_dense::unordered_dense
         PRIVATE
         ${CMAKE_DL_LIBS}
-        rt
         m
         ${ZSTD_LIBRARIES}
 )

@@ -578,7 +578,11 @@ typedef struct Thread {
   void printAttributeList(const struct AttributeList* attribute_list) const;            /**< Prints an AttributeList. */
   void printEventAttribute(const struct EventOccurence* es) const; /**< Prints an EventOccurence. */
   [[nodiscard]] const char* getName() const;                       /**< Returns the name of this thread. */
-  void finalizeThread();
+  /**
+   * Stores this thread.
+   * @param path Path to the root folder of the trace.
+   */
+  void store(const char* path);
 
   /**
    * Returns a snapshot of the thread's total time spent in each sequence during that time frame.

@@ -20,10 +20,12 @@ SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/mpi_benchmark_trace/main.pallas)
 add_test(NAME mpi_info_benchmark COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME mpi_print_benchmark COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME mpi_print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
+add_test(NAME mpi_print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
+
 add_test (mpi_benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/../write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS_TOTAL})
-set_tests_properties(mpi_info_benchmark mpi_print_benchmark mpi_print_benchmark_structure PROPERTIES
+set_tests_properties(mpi_info_benchmark mpi_print_benchmark_thread mpi_print_benchmark mpi_print_benchmark_structure PROPERTIES
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(mpi_benchmark_checks PROPERTIES
         REQUIRED "mpi_info_benchmark;mpi_print_benchmark;mpi_print_benchmark_structure")

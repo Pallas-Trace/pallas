@@ -18,20 +18,23 @@ extern "C" {
  */
 void pallas_storage_init(const char * dir_name);
 /**
- * Finalize the writing process by writing the thread.
+ * Stores the thread to the given path.
+ * @param path Path to the folder.
  * @param thread Thread to be written to folder.
  */
-void pallas_storage_finalize_thread(PALLAS(Thread) * thread);
+void pallasStoreThread(const char* path, PALLAS(Thread) * thread);
 /**
- * Finalize the writing process by writing the whole archive.
+ * Store the archive.
  * @param archive Archive to be written to a folder.
+ * @param path Path to the root folder.
  */
-void pallasStoreArchive(PALLAS(Archive) * archive);
+void pallasStoreArchive(PALLAS(Archive) * archive, const char* path);
 /**
- * Finalize the writing process by writing the global archive.
+ * Store the global archive.
  * @param archive Archive to be written to a folder.
+ * @param path Path to the root folder.
  */
-void pallasStoreGlobalArchive(PALLAS(GlobalArchive) * archive);
+void pallasStoreGlobalArchive(PALLAS(GlobalArchive) * archive, const char* path);
 
    /**
    * Allocate and read an archive from a `main.pallas` file.

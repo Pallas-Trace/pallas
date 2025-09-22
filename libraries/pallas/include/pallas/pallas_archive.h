@@ -235,8 +235,14 @@ typedef struct GlobalArchive {
   GLOBAL_ARCHIVE_DEPRECATED_LOCATION void defineLocation(ThreadId id, StringRef name, LocationGroupId parent);
   /**
    * Close and save that GlobalArchive.
+   * @param path Path to the root directory.
    */
-  void close();
+  void store(const char *path);
+
+  /**
+   * Store this GlobalArchive to dir_name.
+   */
+  void store () { store(dir_name); }
   /**
    * Getter for a LocationGroup from its id.
    * @returns First LocationGroup matching the given pallas::LocationGroupId in this GlobalArchive. Nullptr if none was found.
@@ -390,7 +396,16 @@ typedef struct Archive {
   const char* getName();
   void freeThread(ThreadId);
   void freeThreadAt(size_t);
-  void close();
+
+  /**
+   * Store this Archive.
+   * @param path Path to the root directory.
+   */
+  void store(const char *path);
+    /**
+   * Store this GlobalArchive to dir_name.
+   */
+    void store () { store(dir_name); }
   Archive(const char* dirname, LocationGroupId archive_id);
   Archive(GlobalArchive& global_archive, LocationGroupId archive_id);
   ~Archive();

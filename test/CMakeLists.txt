@@ -31,12 +31,14 @@ add_test(NAME write_benchmark COMMAND write_benchmark -n ${N_ITER} -t ${N_THREAD
 add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
+add_test(NAME print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
+
 
 add_test (benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
 
-set_tests_properties(info_benchmark print_benchmark print_benchmark_structure PROPERTIES
+set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure PROPERTIES
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(benchmark_checks PROPERTIES
         REQUIRED "info_benchmark;print_benchmark;print_benchmark_structure")
@@ -47,12 +49,13 @@ add_test(NAME write_benchmark_CPP COMMAND write_benchmark_CPP -n ${N_ITER} -t ${
 add_test(NAME info_benchmark_CPP COMMAND pallas_info ${CPP_TRACE_NAME})
 add_test(NAME print_benchmark_CPP COMMAND pallas_print ${CPP_TRACE_NAME})
 add_test(NAME print_benchmark_structure_CPP COMMAND pallas_print -S ${CPP_TRACE_NAME})
+add_test(NAME print_benchmark_thread_CPP COMMAND pallas_print -T ${CPP_TRACE_NAME})
 
 add_test (benchmark_checks_CPP bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${CPP_TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
 
-set_tests_properties(info_benchmark_CPP print_benchmark_CPP print_benchmark_structure_CPP PROPERTIES
+set_tests_properties(info_benchmark_CPP print_benchmark_thread_CPP print_benchmark_CPP print_benchmark_structure_CPP PROPERTIES
         REQUIRED_FILES ${CPP_TRACE_NAME})
 set_tests_properties(benchmark_checks_CPP PROPERTIES
         REQUIRED "info_benchmark_CPP;print_benchmark_CPP;print_benchmark_structure_CPP")
@@ -63,13 +66,15 @@ add_test(NAME write_benchmark_logical COMMAND write_benchmark -n ${N_ITER} -t ${
 add_test(NAME info_benchmark_logical COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME print_benchmark_logical COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME print_benchmark_structure_logical COMMAND pallas_print -S ${TRACE_NAME})
+add_test(NAME print_benchmark_thread_logical COMMAND pallas_print -T ${TRACE_NAME})
+
 
 add_test (benchmark_checks_logical bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS} -l)
 
 
-set_tests_properties(info_benchmark_logical print_benchmark_logical print_benchmark_structure_logical PROPERTIES
+set_tests_properties(info_benchmark_logical print_benchmark_thread_logical print_benchmark_logical print_benchmark_structure_logical PROPERTIES
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(benchmark_checks_logical PROPERTIES
         REQUIRED "info_benchmark_logical;print_benchmark_logical;print_benchmark_structure_logical")
