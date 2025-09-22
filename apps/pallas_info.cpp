@@ -185,25 +185,25 @@ void info_sequence(Thread* t, int index, bool details = false) {
 }
 
 void info_loop_header() {
-  std::cout << std::left << "#";
-  std::cout << std::setw(14) << std::left << "Loop_id";
-  std::cout << std::setw(35) << std::left << "Loop_name";
-  std::cout << std::setw(18) << std::right << "Nb_occurence";
-  std::cout << std::setw(18) << std::right << "Min_nb_iterations";
-  std::cout << std::setw(18) << std::right << "Max_nb_iterations";
-  std::cout << std::setw(18) << std::right << "Mean_nb_iterations";
-  std::cout << std::endl;
+    std::cout << std::left << "#";
+    std::cout << std::setw(14) << std::left << "Loop_id";
+    std::cout << std::setw(14) << std::left << "Sequence_id";
+    std::cout << std::setw(35) << std::left << "Loop_name";
+    std::cout << std::setw(18) << std::right << "Nb_occurence";
+    std::cout << std::setw(18) << std::right << "Min_nb_iterations";
+    std::cout << std::setw(18) << std::right << "Max_nb_iterations";
+    std::cout << std::setw(18) << std::right << "Mean_nb_iterations";
+    std::cout << std::endl;
 }
 
 void info_loop(Thread* t, int index) {
-  Loop* l = &t->loops[index];
-
-  std::string loop_name = l->guessName(t);
-
-  std::cout << std::left << "L" << std::setw(14) << std::left << index;
-  std::cout << std::setw(35) << std::left << loop_name;
-  std::cout << std::setw(18) << std::right << l->nb_iterations;
-  std::cout << std::endl;
+    Loop* l = &t->loops[index];
+    std::string loop_name = l->guessName(t);
+    std::cout << std::left << "L" << std::setw(14) << std::left << index;
+    std::cout << std::left << "S" << std::setw(14) << std::left << l->repeated_token.id;
+    std::cout << std::setw(35) << std::left << loop_name;
+    std::cout << std::setw(18) << std::right << l->nb_iterations;
+    std::cout << std::endl;
 }
 
 void info_thread(Thread* t) {
