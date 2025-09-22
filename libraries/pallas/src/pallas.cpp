@@ -552,40 +552,38 @@ std::string Sequence::guessName(const pallas::Thread* thread) {
 
 void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& readerTokenCountMap, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder);
 
-TokenCountMap tempSeen;
 void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
-  size_t loop_nb_iterations = loop->nb_iterations;
-  auto* loop_sequence = thread->getSequence(loop->repeated_token);
-  // This creates bug idk why ?????
-  TokenCountMap& temp = loop_sequence->getTokenCountReading(thread, isReversedOrder);
-  temp *= loop_nb_iterations;
-  sequenceTokenCountMap += temp;
-  sequenceTokenCountMap[loop->repeated_token] += loop_nb_iterations;
+    size_t loop_nb_iterations = loop->nb_iterations;
+    auto* loop_sequence = thread->getSequence(loop->repeated_token);
+    // This creates bug idk why ?????
+    TokenCountMap temp = loop_sequence->getTokenCountReading(thread, isReversedOrder);
+    temp *= loop_nb_iterations;
+    sequenceTokenCountMap += temp;
+    sequenceTokenCountMap[loop->repeated_token] += loop_nb_iterations;
 }
 
 std::string Loop::guessName(const Thread* t) {
-  Sequence* s = t->getSequence(this->repeated_token);
-  return s->guessName(t);
+    Sequence* s = t->getSequence(this->repeated_token);
+    return s->guessName(t);
 }
+
 void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
-  for (auto& token : seq->tokens) {
-    if (token.type == TypeSequence) {
-      auto* s = thread->getSequence(token);
-      _sequenceGetTokenCountReading(s, thread, sequenceTokenCountMap, isReversedOrder);
+    for (auto& token : seq->tokens) {
+        if (token.type == TypeSequence) {
+            auto* s = thread->getSequence(token);
+            _sequenceGetTokenCountReading(s, thread, sequenceTokenCountMap, isReversedOrder);
+        }
+        if (token.type == TypeLoop) {
+            auto* loop = thread->getLoop(token);
+            _loopGetTokenCountReading(loop, thread, sequenceTokenCountMap, isReversedOrder);
+        }
+        sequenceTokenCountMap[token]++;
     }
-    if (token.type == TypeLoop) {
-      auto* loop = thread->getLoop(token);
-      _loopGetTokenCountReading(loop, thread, sequenceTokenCountMap, isReversedOrder);
-    }
-    sequenceTokenCountMap[token]++;
-  }
 }
 
 TokenCountMap& Sequence::getTokenCountReading(const Thread* thread, bool isReversedOrder) {
   if (tokenCount.empty()) {
-    auto tempTokenCount = TokenCountMap();
-    _sequenceGetTokenCountReading(this, thread, tempTokenCount, isReversedOrder);
-    tokenCount = tempTokenCount;
+    _sequenceGetTokenCountReading(this, thread, tokenCount, isReversedOrder);
   }
   return tokenCount;
 }
