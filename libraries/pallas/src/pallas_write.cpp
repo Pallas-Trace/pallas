@@ -382,7 +382,21 @@ void ThreadWriter::findSequence(size_t n) {
             const auto [sequence_duration, exclusive_sequence_duration] = getLastSequenceDuration(sequence, 0);
             sequence->durations->add(sequence_duration);
             sequence->exclusive_durations->add(exclusive_sequence_duration);
-            sequence->timestamps->add(last_timestamp - sequence_duration);
+            auto first_token = sequence->tokens.front();
+            auto first_token_index = curTokenIndex.size() - array_len;
+            if (first_token.type == TypeEvent) {
+                auto first_event_summmary = thread->getEventSummary(first_token);
+                sequence->timestamps->add(first_event_summmary->timestamps->at(curTokenIndex[first_token_index]));
+            }
+            if (first_token.type == TypeSequence) {
+                auto first_sequence = thread->getSequence(first_token);
+                sequence->timestamps->add(first_sequence->timestamps->at(curTokenIndex[first_token_index]));
+            }
+            if (first_token.type == TypeLoop) {
+                auto first_loop = thread->getLoop(first_token);
+                auto first_sequence = thread->getSequence(first_loop->repeated_token);
+                sequence->timestamps->add(first_sequence->timestamps->at(curTokenIndex[first_token_index]));
+            }
 #ifdef DEBUG
             bool contains_sequence = false;
             for (const auto t: sequence->tokens ) {
