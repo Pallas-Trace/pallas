@@ -265,8 +265,8 @@ void printThread(pallas::Thread* thread) {
     while (current_token.isValid()) {
         if (current_token.type == pallas::TypeEvent) {
             auto event = reader.getEventOccurence(current_token, reader.currentState.currentFrame->tokenCount[current_token]);
-            pallas_assert_inferior_equal_always(last_timestamp, event.timestamp);
-            pallas_assert_equals_always(event.timestamp, reader.currentState.currentFrame->current_timestamp);
+            pallas_assert_inferior_equal(last_timestamp, event.timestamp);
+            pallas_assert_equals(event.timestamp, reader.currentState.currentFrame->current_timestamp);
             last_timestamp = event.timestamp;
             printEvent(reader.thread_trace, current_token, event);
         }
@@ -361,15 +361,22 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
 
 void printThreadStructure(pallas::ThreadReader& tr) {
     std::cout << "--- Thread " << tr.thread_trace->id << "(" << tr.thread_trace->getName() << ")" << " ---" << std::endl;
+    size_t last_timestamp = 0;
     auto current_token = tr.pollCurToken();
     while (true) {
-        std::cout << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
+        std::cout << std::left << std::setw(8) << tr.currentState.currentFrame->tokenCount[current_token] << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
                   << tr.thread_trace->getTokenString(current_token) << "";
         if (current_token.type == pallas::TypeEvent) {
             auto occ = tr.getEventOccurence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
+            pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
+            last_timestamp = occ.timestamp;
             printEvent(tr.thread_trace, current_token, occ);
         } else if (current_token.type == pallas::TypeSequence) {
             auto occ = tr.getSequenceOccurence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
+            pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
+            last_timestamp = occ.timestamp;
             _print_timestamp(occ.timestamp);
             if (show_durations) {
                 auto d = tr.thread_trace->getSequence(current_token)->durations->at(tr.currentState.currentFrame->tokenCount[current_token]);
