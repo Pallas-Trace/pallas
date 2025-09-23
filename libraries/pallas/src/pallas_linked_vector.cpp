@@ -2,8 +2,12 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-#include "pallas/pallas_linked_vector.h"
+
+#include <algorithm>
+#include <deque>
+#include <iostream>
 #include <sstream>
+#include "pallas/pallas_linked_vector.h"
 #include "pallas/pallas_log.h"
 
 #define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
@@ -152,42 +156,43 @@ SAME_FOR_BOTH_VECTORS(
       if (pos >= size) {
           pallas_error("Getting an element whose index (%lu) is bigger than LinkedVector size (%lu)\n", pos, size);
       }
-      SubArray* correct_sub = last;
-      while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
-      }
-      if (correct_sub->array == nullptr) {
-          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-            parameter_handler.subvector_queue.pop_front();
-            delete temp->array;
-            temp->array = nullptr;
-            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-        }
-          load_data(correct_sub);
-      }
-      return correct_sub->at(pos);
+      return operator[](pos);
   })
 
-SAME_FOR_BOTH_VECTORS(
-  uint64_t&,
-  operator[](size_t pos) {
+uint64_t& LinkedVector::operator[](size_t pos) {
       SubArray* correct_sub = last;
       while (pos < correct_sub->starting_index) {
           correct_sub = correct_sub->previous;
       }
       if (correct_sub->array == nullptr) {
           while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-            auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-            parameter_handler.subvector_queue.pop_front();
-            delete temp->array;
-            temp->array = nullptr;
-            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-        }
+              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+              parameter_handler.subvector_queue.pop_front();
+              delete temp->array;
+              temp->array = nullptr;
+              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+          }
           load_data(correct_sub);
       }
       return (*correct_sub)[pos];
-  })
+}
+uint64_t& LinkedDurationVector::operator[](size_t pos) {
+      SubArray* correct_sub = last;
+      while (pos < correct_sub->starting_index) {
+          correct_sub = correct_sub->previous;
+      }
+      if (correct_sub->array == nullptr) {
+          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+              parameter_handler.subvector_queue.pop_front();
+              delete temp->array;
+              temp->array = nullptr;
+              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+          }
+          load_data(correct_sub);
+      }
+      return (*correct_sub)[pos];
+}
 
 size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
     if (ts <= front()) {
@@ -290,21 +295,46 @@ uint64_t& LinkedDurationVector::back() {
     return at(size - 1);
 }
 
-SAME_FOR_BOTH_VECTORS(
-  void,
-  free_data() {
-      if (first == nullptr)
-          return;
-      pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
-      SubArray* sub = first;
-      while (sub) {
-          auto* temp = sub->next;
-          delete sub;
-          sub = temp;
-      }
-      first = nullptr;
-      last = nullptr;
-  })
+void LinkedVector::free_data() {
+    if (first == nullptr)
+        return;
+    pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
+    SubArray* sub = first;
+    auto& dq = parameter_handler.subvector_queue;
+    while (sub) {
+        auto* temp = sub->next;
+        // We need to remove the subvector from the global memory queue
+        auto it = std::find(dq.begin(), dq.end(), sub);
+        if (it != dq.end()) {
+            dq.erase(it);
+        }
+        parameter_handler.loaded_durations_size -= sub->size;
+        delete sub;
+        sub = temp;
+    }
+    first = nullptr;
+    last = nullptr;
+}
+void LinkedDurationVector::free_data() {
+    if (first == nullptr)
+        return;
+    pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
+    SubArray* sub = first;
+    auto& dq = parameter_handler.subvector_queue;
+    while (sub) {
+        auto* temp = sub->next;
+        // We need to remove the subvector from the global memory queue
+        auto it = std::find(dq.begin(), dq.end(), sub);
+        if (it != dq.end()) {
+            dq.erase(it);
+        }
+        parameter_handler.loaded_durations_size -= sub->size;
+        delete sub;
+        sub = temp;
+    }
+    first = nullptr;
+    last = nullptr;
+}
 
 LinkedVector::~LinkedVector() {
     free_data();
