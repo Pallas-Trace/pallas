@@ -6,6 +6,8 @@
 int main() {
     std::cout << "Pallas tracing library v" << PALLAS_VERSION_MAJOR << "." << PALLAS_VERSION_MINOR << "." << PALLAS_VERSION_PATCH << std::endl
             << "\tABI = " << PALLAS_ABI_VERSION << std::endl
+            << "\tGit Branch = " << PALLAS_BRANCH << std::endl
+            << "\tGit Hash = " << PALLAS_COMMIT_HASH << std::endl
             << "\tVECTOR_SIZE = " << VECTOR_SIZE << std::endl
             << "\tMAP_SIZE = " << MAP_SIZE << std::endl
             << "\tUNO_MAP_SIZE = " << UNO_MAP_SIZE << std::endl
