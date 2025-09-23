@@ -42,7 +42,7 @@ add_test (benchmark_checks bash
 set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark PROPERTIES
         REQUIRED_FILES ${TRACE_NAME})
 set_tests_properties(benchmark_checks PROPERTIES
-        REQUIRED "info_benchmark;print_benchmark;print_benchmark_structure")
+        REQUIRED "info_benchmark;print_benchmark;print_benchmark_structure;edit_benchmark")
 
 add_test(NAME info_edited_benchmark COMMAND pallas_info ${TRACE_NO_COMP_NAME})
 add_test(NAME print_edited_benchmark COMMAND pallas_print ${TRACE_NO_COMP_NAME})
