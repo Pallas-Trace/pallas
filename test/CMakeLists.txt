@@ -104,3 +104,19 @@ add_test(NAME test_vector COMMAND test_vector 100)
 
 add_executable(test_hash test_hash.cpp)
 #add_test(NAME test_hash COMMAND test_hash)
+
+# Instantaneous
+add_test(check_stark_bt.A.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.A.4")
+# Takes 4 / 8 / 8 s
+add_test(check_stark_bt.B.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.B.16")
+# Takes 8 / 11 / 11 s
+add_test(check_stark_amg.4.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.4.16")
+
+if (GIT_BRANCH STREQUAL "main")
+    # Takes 40 / 60 / 60 s
+    add_test(check_stark_amg.16.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.16.4")
+    # Takes 180 / 210 / 410 s
+    add_test(check_stark_amg.64.1 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.64.1")
+    # Takes 50 / 80 / 160 s
+    add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.C.64")
+endif()
