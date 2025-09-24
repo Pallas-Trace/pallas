@@ -98,7 +98,7 @@ add_test (benchmark_checks_logical bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS} -l)
 
-set_tests_properties(write_benchmark_logical PROPERTIES DEPENDS benchmarks_checks)
+set_tests_properties(write_benchmark_logical PROPERTIES DEPENDS benchmark_checks)
 
 set_tests_properties(info_benchmark_logical print_benchmark_thread_logical print_benchmark_logical print_benchmark_structure_logical PROPERTIES
         REQUIRED_FILES ${TRACE_NAME}
@@ -135,6 +135,14 @@ if (GIT_BRANCH STREQUAL "main")
     add_test(check_stark_amg.64.1 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.64.1")
     # Takes 50 / 80 / 160 s
     add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.C.64")
+    set_tests_properties(check_stark_amg.16.4 check_stark_amg.64.1 check_stark_bt.C.64 PROPERTIES
+            COST 50
+    )
 endif()
 
-set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES RUN_SERIAL TRUE)
+set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES
+        COST 100
+)
+set_tests_properties(check_stark_bt.B.16 check_stark_amg.4.16 PROPERTIES
+        COST 150
+)

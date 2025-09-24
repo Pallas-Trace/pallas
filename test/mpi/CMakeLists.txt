@@ -35,4 +35,6 @@ set_tests_properties(mpi_benchmark_checks PROPERTIES
         DEPENDS "mpi_info_benchmark;mpi_print_benchmark;mpi_print_benchmark_structure;mpi_print_benchmark_thread"
 )
 
-set_tests_properties(mpi_benchmark PROPERTIES RUN_SERIAL TRUE)
+set_tests_properties(mpi_benchmark PROPERTIES
+        COST 100
+)
