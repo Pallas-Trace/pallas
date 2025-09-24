@@ -364,7 +364,7 @@ void printThreadStructure(pallas::ThreadReader& tr) {
     size_t last_timestamp = 0;
     auto current_token = tr.pollCurToken();
     while (true) {
-        std::cout << std::left << std::setw(8) << tr.currentState.currentFrame->tokenCount[current_token] << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
+        std::cout << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
                   << tr.thread_trace->getTokenString(current_token) << "";
         if (current_token.type == pallas::TypeEvent) {
             auto occ = tr.getEventOccurence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
