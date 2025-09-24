@@ -25,8 +25,14 @@ add_test(NAME mpi_print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
 add_test (mpi_benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/../write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS_TOTAL})
-set_tests_properties(mpi_info_benchmark mpi_print_benchmark_thread mpi_print_benchmark mpi_print_benchmark_structure PROPERTIES
-        REQUIRED_FILES ${TRACE_NAME})
-set_tests_properties(mpi_benchmark_checks PROPERTIES
-        REQUIRED "mpi_info_benchmark;mpi_print_benchmark;mpi_print_benchmark_structure")
 
+set_tests_properties(mpi_info_benchmark mpi_print_benchmark_thread mpi_print_benchmark mpi_print_benchmark_structure PROPERTIES
+        REQUIRED_FILES ${TRACE_NAME}
+        DEPENDS mpi_benchmark
+)
+set_tests_properties(mpi_benchmark_checks PROPERTIES
+        REQUIRED_FILES ${TRACE_NAME}
+        DEPENDS "mpi_info_benchmark;mpi_print_benchmark;mpi_print_benchmark_structure;mpi_print_benchmark_thread"
+)
+
+set_tests_properties(mpi_benchmark PROPERTIES RUN_SERIAL TRUE)
