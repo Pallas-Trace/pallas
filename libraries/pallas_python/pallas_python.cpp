@@ -55,20 +55,23 @@ static py::dict& Event_get_data(pallas::Event* e) {
         break;
     }
     case pallas::PALLAS_EVENT_MPI_SEND:
-    case pallas::PALLAS_EVENT_MPI_RECV: {
+    case pallas::PALLAS_EVENT_MPI_ISEND: {
         READ(uint32_t, receiver);
         READ(uint32_t, communicator);
         READ(uint32_t, msgTag);
         READ(uint64_t, msgLength);
+        if ( e->record == pallas::PALLAS_EVENT_MPI_ISEND )
+            READ(uint64_t, requestID);
         break;
     }
-    case pallas::PALLAS_EVENT_MPI_ISEND:
+    case pallas::PALLAS_EVENT_MPI_RECV:
     case pallas::PALLAS_EVENT_MPI_IRECV: {
-        READ(uint32_t, receiver);
+        READ(uint32_t, sender);
         READ(uint32_t, communicator);
         READ(uint32_t, msgTag);
         READ(uint64_t, msgLength);
-        READ(uint64_t, requestID);
+        if ( e->record == pallas::PALLAS_EVENT_MPI_IRECV )
+            READ(uint64_t, requestID);
         break;
     }
     case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE:
