@@ -397,8 +397,29 @@ bool doesSequenceContains(const PySequence& self, pallas::Token t ) {
     return false;
 }
 
+std::vector<PyEventSummary> threadGetEventsMatching(pallas::Thread& t, pallas::Record record) {
+    auto output = std::vector<PyEventSummary>();
+    for (size_t i = 0; i < t.nb_events; i ++) {
+        if (t.events[i].event.record == record) {
+            output.push_back( {&t.events[i], &t} );
+        }
+    }
+    return output;
+}
 
 
+std::vector<PyEventSummary> threadGetEventsMatchingList(pallas::Thread& t, std::vector<pallas::Record> records) {
+    auto output = std::vector<PyEventSummary>();
+    for (size_t i = 0; i < t.nb_events; i ++) {
+        for (auto record: records) {
+            if (t.events[i].event.record == record) {
+                output.push_back( {&t.events[i], &t} );
+                continue;
+            }
+        }
+    }
+    return output;
+}
 
 PYBIND11_MODULE(pallas_trace, m) {
     m.doc() = "Python API for the Pallas library";
@@ -448,6 +469,8 @@ PYBIND11_MODULE(pallas_trace, m) {
       .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEventsSummary(self); })
       .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
       .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
+      .def("get_events_from_record", threadGetEventsMatching)
+      .def("get_events_from_record", threadGetEventsMatchingList)
       .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
       .def("getSnapshotView", &pallas::Thread::getSnapshotView);
 
