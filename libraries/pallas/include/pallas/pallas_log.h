@@ -5,7 +5,7 @@
 #pragma once
 #include <inttypes.h>
 #include <stddef.h>
-extern __thread size_t thread_rank;
+extern __thread uint64_t thread_rank;
 extern unsigned int pallas_mpi_rank;
 
 /** Stops the execution. */

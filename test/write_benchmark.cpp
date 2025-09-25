@@ -17,6 +17,7 @@
 #include "pallas/pallas_record.h"
 #include "pallas/pallas_write.h"
 #include "pallas/pallas_log.h"
+#include "pallas/pthread_barrier_wrapper.h"
 
 using namespace pallas;
 static LocationGroupId processID;
