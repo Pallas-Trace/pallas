@@ -2,7 +2,7 @@
 #define PTHREAD_BARRIER_WRAPPER_H
 
 // Wrapper of pthread barrier functionality for improved
-// portability on non-linux systems -- Aaron
+// portability on non-linux systems
 
 #include <pthread.h>
 
