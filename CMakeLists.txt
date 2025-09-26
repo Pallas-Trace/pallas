@@ -29,7 +29,7 @@ option(ENABLE_OTF2 "Enable OTF2 compatibility layer" ON)
 option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
-option(ENABLE_PYTHON "Enable the Python interface" ON)
+option(ENABLE_PYTHON "Enable the Python interface" OFF)
 option(ENABLE_MPI_TEST "MPI tests" ON)
 
 # Get the current working branch

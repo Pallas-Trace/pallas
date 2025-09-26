@@ -3,23 +3,20 @@
 ![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/dev/pipeline.svg)
 ![Maintained Badge](https://img.shields.io/badge/Maintained%3F-Yes-<colour>.svg)
 [![HAL Badge](https://img.shields.io/badge/HAL-04970114-white.svg)](https://inria.hal.science/hal-04970114/)
-
-Pallas provides an interface to write and read trace data.
-
+## Documentation
+A detailled documentation is available at https://pallas-trace.github.io/pallas/index.html
 ## Building
-You need to have ZSTD installed before you try to build this.
-To build and install, simply run:
+Building is done with CMake and any compiler (GCC, Clang, Intel OneAPI).
+ZSTD is required.
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=$INSTALLATION_DIR
-make && make install
+git clone https://gitlab.inria.fr/pallas/pallas.git
+mkdir -p pallas/build && cd pallas/build
+cmake ..
+cmake --install . --config Release
 ```
-
-This will build and install `pallas_info` and `pallas_print`,
-which are tools made to read Pallas traces, as well as the Pallas library, and a modified OTF2 library.
-
-If you want to enable SZ and ZFP, you should install them, and then add `-DSZ_ROOT_DIR=<your SZ installation>`
-and `-DZFP_ROOT_DIR=<your ZFP installation>` to the cmake command line. Documentation is built automatically if Doxygen is installed.
+### Optional libraries
+If you want to use SZ and ZFP, you should install them, 
+then feed their install directory to CMake, using `{SZ/ZFP}_ROOT_DIR`
 
 ## Python Library
 Pallas comes with a Python library to read your traces.
@@ -32,15 +29,11 @@ Its requirements are the following:
 
 You can then read it like this:
 ```
-$ export PYTHONPATH=PATH_TO_PALLAS/lib
 $ python
->>> import pallas
+>>> import pallas_trace as pallas
 >>> trace=pallas.open_trace("eztrace_log.pallas")
 ...
-
 ```
-
-Make sure these are installed (locally using a venv or globally) before building.
 ## Usage
 ### In your application
 To use Pallas to log your application, you need to understand the hierarchical structure:
@@ -107,13 +100,8 @@ Pallas implements a subset of the [OTF2](https://www.vi-hps.org/projects/score-p
 It also implements the [Murmur3 hashing function](https://github.com/PeterScott/murmur3).
 
 ## Configuration
-
-A config file can be given to Pallas with the PALLAS_CONFIG_PATH environment variable.
-If that variable is empty, Pallas will try to load a pallas.config in the current directory.
-If that file does not exist, a default config will be loaded.
-That file is a mirror image of the ParameterHandler class in `libraries/pallas/src/ParameterHandler.h`
-An example config file is given here as pallas.config, each line has one `key=value` pair.
-
+You can visualise your current (static) configuration with `pallas_config`.
+You can give your own dynamic configuration with the `PALLAS_CONFIG_PATH` environment variable.
 Here are the configuration options with specific values:
 
 - `compressionAlgorithm`: Specifies which compression algorithm is used for storing the timestamps. Its values are:
@@ -135,20 +123,8 @@ Here are the configuration options with specific values:
   - `Filter`
 
 Here are the configuration options with number values:
-
 - `zstdCompressionLevel`: Specifies the compression level used by ZSTD. Integer.
 - `maxLoopLength`: Specifies the maximum loop length, if using a truncated loop finding algorithm. Integer.
-
-You can also override each of these configuration manually with an environment variable.
-Here are the default values for each of them:
-
-| Config Key Name      | Env Variable Name   | Default Value  |
-|----------------------|---------------------|----------------|
-| compressionAlgorithm | PALLAS_COMPRESSION  | None           |
-| encodingAlgorithm    | PALLAS_ENCODING     | None           |
-| loopFindingAlgorithm | PALLAS_LOOP_FINDING | BasicTruncated |
-| zstdCompressionLevel | PALLAS_ZSTD_LVL     | 3              |
-| maxLoopLength        | PALLAS_LOOP_LENGTH  | 100            |
 
 ## Contributing
 
