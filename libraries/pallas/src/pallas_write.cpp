@@ -216,13 +216,23 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
 #endif
 
         // And add that timestamp to the vectors
-        auto& tokenCount = loop_sequence->getTokenCountWriting(thread);
-        auto first_event = getFirstEvent(loop_sequence->tokens.front(), thread);
-        auto first_token_summary = thread->events[first_event.id];
-        size_t nb_first_token = first_token_summary.timestamps->size;
-        loop_sequence->timestamps->add(first_token_summary.timestamps->at(nb_first_token- 2 * tokenCount[first_event]));
-        loop_sequence->timestamps->add(first_token_summary.timestamps->at(nb_first_token - tokenCount[first_event]));
-
+        auto first_token = loop_sequence->tokens.front();
+        if (first_token.type == TypeEvent) {
+            auto first_event_summmary = thread->getEventSummary(first_token);
+            loop_sequence->timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence->timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_second_iteration]));
+        }
+        if (first_token.type == TypeSequence) {
+            auto first_sequence = thread->getSequence(first_token);
+            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
+        }
+        if (first_token.type == TypeLoop) {
+            auto first_loop = thread->getLoop(first_token);
+            auto first_sequence = thread->getSequence(first_loop->repeated_token);
+            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
+        }
         // The current sequence last_timestamp does not need to be updated
     }
 
@@ -372,7 +382,21 @@ void ThreadWriter::findSequence(size_t n) {
             const auto [sequence_duration, exclusive_sequence_duration] = getLastSequenceDuration(sequence, 0);
             sequence->durations->add(sequence_duration);
             sequence->exclusive_durations->add(exclusive_sequence_duration);
-            sequence->timestamps->add(last_timestamp - sequence_duration);
+            auto first_token = sequence->tokens.front();
+            auto first_token_index = curTokenIndex.size() - array_len;
+            if (first_token.type == TypeEvent) {
+                auto first_event_summmary = thread->getEventSummary(first_token);
+                sequence->timestamps->add(first_event_summmary->timestamps->at(curTokenIndex[first_token_index]));
+            }
+            if (first_token.type == TypeSequence) {
+                auto first_sequence = thread->getSequence(first_token);
+                sequence->timestamps->add(first_sequence->timestamps->at(curTokenIndex[first_token_index]));
+            }
+            if (first_token.type == TypeLoop) {
+                auto first_loop = thread->getLoop(first_token);
+                auto first_sequence = thread->getSequence(first_loop->repeated_token);
+                sequence->timestamps->add(first_sequence->timestamps->at(curTokenIndex[first_token_index]));
+            }
 #ifdef DEBUG
             bool contains_sequence = false;
             for (const auto t: sequence->tokens ) {

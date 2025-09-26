@@ -1,7 +1,6 @@
 #!/bin/bash
 
 CUR_PATH=$(dirname  $(realpath $0))
-cd "$CUR_PATH"
 
 if [ $# -gt 0 ]; then
     BUILD_DIR=$1
@@ -9,6 +8,7 @@ fi
 
 [ -n "$PALLAS_PRINT_PATH" ]    || export PALLAS_PRINT_PATH=$BUILD_DIR/apps/pallas_print
 [ -n "$PALLAS_INFO_PATH" ]    || export PALLAS_INFO_PATH=$BUILD_DIR/apps/pallas_info
+[ -n "$PALLAS_CONFIG_PATH" ]    || export PALLAS_CONFIG_PATH=$BUILD_DIR/apps/pallas_config
 
 
 C_BLACK='\033[0;30m'

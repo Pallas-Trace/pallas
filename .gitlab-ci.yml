@@ -65,7 +65,8 @@ test:gcc:
     - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
-    - make
+    - make install
+    - cd test
     - ctest --output-on-failure
   artifacts:
     paths:
@@ -86,7 +87,8 @@ test:clang:
     - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
-    - make
+    - make install
+    - cd test
     - ctest --output-on-failure
   artifacts:
     paths:
@@ -107,7 +109,8 @@ test:intel-oneapi:
     - mkdir build
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
-    - make
+    - make install
+    - cd test
     - ctest --output-on-failure
   artifacts:
     paths:
