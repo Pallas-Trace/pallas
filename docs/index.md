@@ -1,41 +1,38 @@
 
 # Pallas Documentation 🚀
 
-Welcome to the documentation for **Pallas**, a trace format tailored for Exascale tracing.
+Welcome to the documentation for **Pallas**, a trace format tailored for HPC tracing.
 
 ---
 
 ## What is Pallas?
 
-Pallas is a state-of-the-art tracing format designed to help developers and researchers analyze the performance of parallel applications. Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms, Pallas is able to scalably trace and analyze your application's behavior.
-Pallas is a library offering a complete OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format. In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
+Pallas is a state-of-the-art tracing format designed to help developers 
+and researchers analyze the performance of parallel applications.
+Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms, 
+Pallas is able to trace and analyze your application's behavior, even at larger scales.
+Pallas is a library offering a OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format. 
+In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
+However, Pallas can be used without EZTrace, and we will not give a guide to EZTrace either.
 
 
 ---
 
-## 📚 Documentation Structure
-
-This documentation is organized into six main sections, presenting both how to install EZTrace, Pallas, OTF2 and how to trace in these formats and perform trace analysis.
+## 📚 Table of Contents
 
 ### 🏃‍♂️ [Quick Start](01-quick-start.md)
-Quickly get up and running with EZTrace+Pallas.
+Quickly get up and running with Pallas and EZTrace
 
-### 📊 [OTF2 Tracing with EZTrace](02-tracing-otf2/index.md)
-Learn how to generate traces in the standard **Open Trace Format 2 (OTF2)** using the EZTrace tracing tool. This section covers:
-- 🔧 [Installing OTF2](02-tracing-otf2/01-installing-otf2/index.md)
-- ⚙️ [Installing EZTrace](02-tracing-otf2/02-installing-eztrace/index.md)
-- 🌐 [Tracing MPI Applications](02-tracing-otf2/03-tracing-mpi/index.md)
-- ⚡ [Tracing Other Parallel Applications](02-tracing-otf2/04-tracing-other-parallel/index.md)
-- 🔌 [Create Your Own EZTrace Plugin](02-tracing-otf2/05-create-plugin/index.md)
 
-### 📈 [Pallas Tracing with EZTrace](03-tracing-pallas/index.md)
-Discover how to trance in the  **Pallas trace format** for low-overhead and compact traces:
-- 🎭 [Pallas Format Overview](03-tracing-pallas/01-presentation/index.md)
-- 🔧 [Installing Pallas](03-tracing-pallas/02-installing-pallas/index.md)
-- ⚙️ [Installing EZTrace + Pallas](03-tracing-pallas/03-installing-eztrace-pallas/index.md)
-- 🌐 [MPI Application Tracing](03-tracing-pallas/04-tracing-mpi/index.md)
-- ⚡ [Other Parallel Apps](03-tracing-pallas/05-tracing-other-parallel/index.md)
-- 📚 [Custom Library Tracing](03-tracing-pallas/06-trace-own-library/index.md)
+### 📈 [Pallas Tracing with EZTrace](02-pallas/index.md)
+Learn how to use the **Pallas trace format** to speed up you analyses:
+- 🎭 [Pallas Format Overview](02-pallas/01-presentation/index.md): All you need to understand Pallas
+- 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
+- ⚙️ [Installing EZTrace + Pallas](02-pallas/03-installing-eztrace-pallas/index.md)
+- Tracing your applications by yourself:
+  - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/04-tracing-examples/01-multithread/index.md)
+  - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/04-tracing-examples/02-multiprocess/index.md)
+  - 📚 [Custom Library Tracing](02-pallas/04-tracing-examples/03-custom-library/index.md)
 
 ### 🔍 [Scalable Trace Analysis with Pallas Traces](04-analyzing-pallas/index.md)
 Perform scalable trace analysis using the **Pallas trace format** :
@@ -59,7 +56,7 @@ Complete technical reference for developers and advanced users.
 New to Pallas? Start here:
 
 1. **🏃‍♂️ **Quick Start Guide**: - [Get running in 5 minutes](01-quick-start.md)
-2. **🔧 Choose your format and trace with EZTrace**: [OTF2](02-tracing-otf2/index.md) or [Pallas](03-tracing-pallas/index.md)
+2. **🔧 Choose your format and trace with EZTrace**: [OTF2](02-tracing-otf2/index.md) or [Pallas](02-pallas/index.md)
 3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
 4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
 
