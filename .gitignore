@@ -1,3 +1,4 @@
 /static/
 /extern/
 /vendor/
+composer.lock
