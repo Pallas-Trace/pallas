@@ -7,6 +7,7 @@ usage()
 {
 cat << EOF
 Usage: $0 [OPTION]... COMMAND
+This is the Pallas version of OTF2-config.
 
 Commands:
   --cflags     prints additional compiler flags. They already contain
