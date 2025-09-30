@@ -16,7 +16,7 @@ else
 fi
 
 echo "🧹 Cleaning old documentation"
-rm -rf "$TMP_DIR"/*
+rm -rf "${TMP_DIR:?}"/*
 
 echo "📁 Copying documentation files"
 cp -r "$CI_PROJECT_DIR/static/"* "$TMP_DIR"
