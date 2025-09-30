@@ -28,7 +28,7 @@ Quickly get up and running with Pallas and EZTrace
 Learn how to use the **Pallas trace format** to speed up you analyses:
 - 🎭 [Pallas Format Overview](02-pallas/01-presentation/index.md): All you need to understand Pallas
 - 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
-- ⚙️ [Installing EZTrace + Pallas](02-pallas/03-installing-eztrace-pallas/index.md)
+- ⚙️ [Installing EZTrace + Pallas]() (TODO)
 - Tracing your applications by yourself:
   - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
   - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/03-tracing-examples/02-multiprocess/index.md)
@@ -55,8 +55,8 @@ Complete technical reference for developers and advanced users.
 
 New to Pallas? Start here:
 
-1. **🏃‍♂️ **Quick Start Guide**: - [Get running in 5 minutes](01-quick-start.md)
-2. **🔧 Choose your format and trace with EZTrace**: [OTF2](02-tracing-otf2/index.md) or [Pallas](02-pallas/index.md)
+1. **🏃‍♂️ Quick Start Guide**: - [Get running in 5 minutes](01-quick-start.md)
+2. **🔧 Choose your format and trace with EZTrace**: [Using EZTrace/Pallas](02-pallas/index.md)
 3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
 4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
 
