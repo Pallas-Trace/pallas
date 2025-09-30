@@ -30,9 +30,9 @@ Learn how to use the **Pallas trace format** to speed up you analyses:
 - 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
 - ⚙️ [Installing EZTrace + Pallas](02-pallas/03-installing-eztrace-pallas/index.md)
 - Tracing your applications by yourself:
-  - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/04-tracing-examples/01-multithread/index.md)
-  - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/04-tracing-examples/02-multiprocess/index.md)
-  - 📚 [Custom Library Tracing](02-pallas/04-tracing-examples/03-custom-library/index.md)
+  - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
+  - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/03-tracing-examples/02-multiprocess/index.md)
+  - 📚 [Custom Library Tracing](02-pallas/03-tracing-examples/03-custom-library/index.md)
 
 ### 🔍 [Scalable Trace Analysis with Pallas Traces](04-analyzing-pallas/index.md)
 Perform scalable trace analysis using the **Pallas trace format** :
