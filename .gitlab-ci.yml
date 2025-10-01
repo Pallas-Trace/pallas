@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - deploy
 
 build:gcc:
   stage: build
@@ -115,3 +116,16 @@ test:intel-oneapi:
   artifacts:
     paths:
       - $CI_PROJECT_DIR/build
+
+deploy:pages:
+  stage: deploy
+  image: debian:12
+  tags:
+    - noname
+  script:
+    - cp -r docs/. public
+  only:
+    - main
+  artifacts:
+    paths:
+      - public

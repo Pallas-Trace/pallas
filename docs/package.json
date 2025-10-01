@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "docsify-cli": "^4.4.4",
+    "docsify-mermaid": "^2.0.1"
+  }
+}

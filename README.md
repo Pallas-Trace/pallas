@@ -1,10 +1,11 @@
 # Pallas
 [![BSD-3 License](https://img.shields.io/badge/License-BSD3-yellow.svg)](https://opensource.org/license/bsd-3-clause)
 ![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/dev/pipeline.svg)
-![HAL Badge](https://img.shields.io/badge/Maintained%3F-Yes-<colour>.svg)
+![Maintained Badge](https://img.shields.io/badge/Maintained%3F-Yes-<colour>.svg)
 [![HAL Badge](https://img.shields.io/badge/HAL-04970114-white.svg)](https://inria.hal.science/hal-04970114/)
 ## Documentation
-A detailled documentation is available at https://pallas-trace.github.io/pallas/index.html
+A detailed documentation is available [here](https://pallas.gitlabpages.inria.fr/pallas/#/).
+
 ## Building
 Building is done with CMake and any compiler (GCC, Clang, Intel OneAPI).
 ZSTD is required.
