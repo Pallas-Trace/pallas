@@ -1,12 +1,12 @@
 ### pipeline ###
 install:
-	composer install
+	npm install
 
 generate:
-	./vendor/bin/daux generate
+	./node_modules/docsify-cli/bin/docsify generate
 
 serve:
-	./vendor/bin/daux serve
+	./node_modules/docsify-cli/bin/docsify serve
 
 clean:
 	rm -rf static vendor composer.lock

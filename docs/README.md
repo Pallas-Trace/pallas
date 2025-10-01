@@ -7,11 +7,11 @@ Welcome to the documentation for **Pallas**, a trace format tailored for HPC tra
 
 ## What is Pallas?
 
-Pallas is a state-of-the-art tracing format designed to help developers 
+Pallas is a state-of-the-art tracing format designed to help developers
 and researchers analyze the performance of parallel applications.
-Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms, 
+Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms,
 Pallas is able to trace and analyze your application's behavior, even at larger scales.
-Pallas is a library offering a OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format. 
+Pallas is a library offering a OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format.
 In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
 However, Pallas can be used without EZTrace, and we will not give a guide to EZTrace either.
 
@@ -30,9 +30,9 @@ Learn how to use the **Pallas trace format** to speed up you analyses:
 - 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
 - ⚙️ [Installing EZTrace + Pallas]() (TODO)
 - Tracing your applications by yourself:
-  - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
-  - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/03-tracing-examples/02-multiprocess/index.md)
-  - 📚 [Custom Library Tracing](02-pallas/03-tracing-examples/03-custom-library/index.md)
+    - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
+    - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/03-tracing-examples/02-multiprocess/index.md)
+    - 📚 [Custom Library Tracing](02-pallas/03-tracing-examples/03-custom-library/index.md)
 
 ### 🔍 [Scalable Trace Analysis with Pallas Traces](04-analyzing-pallas/index.md)
 Perform scalable trace analysis using the **Pallas trace format** :

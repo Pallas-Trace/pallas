@@ -1,7 +1,4 @@
----
-title: Quick Start
----
-# Installing Pallas
+# Quick Start
 ## Building Pallas
 You need to have ZSTD installed before you try to build this.
 To build and install, simply run:
