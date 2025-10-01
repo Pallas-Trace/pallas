@@ -1,5 +1,6 @@
 pages:
   stage: deploy
+  image: debian:12
   tags:
     - noname
   script:
@@ -7,3 +8,4 @@ pages:
   artifacts:
     paths:
       - public
+  pages: true
