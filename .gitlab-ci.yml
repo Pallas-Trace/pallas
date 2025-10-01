@@ -4,7 +4,7 @@ pages:
   tags:
     - noname
   script:
-    - cp -r docs/. .public
+    - cp -r docs/. public
   artifacts:
     paths:
       - public
