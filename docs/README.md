@@ -24,9 +24,9 @@ However, Pallas can be used without EZTrace, and we will not give a guide to EZT
 Quickly get up and running with Pallas and EZTrace
 
 
-### 📈 [Pallas Tracing with EZTrace](02-pallas/index.md)
+### 📈 [Pallas Tracing with EZTrace](02-pallas/)
 Learn how to use the **Pallas trace format** to speed up you analyses:
-- 🎭 [Pallas Format Overview](02-pallas/01-presentation/index.md): All you need to understand Pallas
+- 🎭 [Pallas Format Overview](02-pallas/01-presentation.md): All you need to understand Pallas
 - 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
 - ⚙️ [Installing EZTrace + Pallas]() (TODO)
 - Tracing your applications by yourself:
