@@ -3,10 +3,7 @@ pages:
   tags:
     - noname
   script:
-    - mkdir .public
-    - cp -r * .public
-    - mv .public public
-  pages: true
+    - cp -r docs/. .public
   artifacts:
     paths:
       - public
