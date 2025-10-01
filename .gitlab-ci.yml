@@ -7,3 +7,5 @@ pages:
   artifacts:
     paths:
       - public
+  only:
+    - documentation
