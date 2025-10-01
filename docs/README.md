@@ -1,11 +1,4 @@
-
-# Pallas Documentation 🚀
-
-Welcome to the documentation for **Pallas**, a trace format tailored for HPC tracing.
-
----
-
-## What is Pallas?
+## 🐱 What is Pallas?
 
 Pallas is a state-of-the-art tracing format designed to help developers
 and researchers analyze the performance of parallel applications.
@@ -74,7 +67,7 @@ Complete technical reference for developers and advanced users.
 
 This documentation is part of the Pallas project. We welcome contributions!
 
-- 📝 Found a bug?Want to improve docs? Submit a pull request!
+- 📝 Found a bug? Want to improve docs? Submit a pull request!
 - 💡 Need assistance to trace your own code? Let us know!
 
 ---
@@ -85,7 +78,7 @@ Need help? Here are your options:
 
 - 📚 **Documentation**: You're reading it!
 - 🏠 **Project Home**: Visit our main repositories for Pallas ([GitLab](http://gitlab.inria.fr/pallas/pallas) or [GitHub](https://github.com/Pallas-Trace)) and [EZTrace](https://gitlab.com/eztrace/eztrace)
-- 📞 **Contact us**: [Main developer](mailto://catherine.guelque+pallas_support@telecom-sudparis.eu) 
+- 📞 **Contact us**: [Main developer](mailto:catherine.guelque+pallas_support@telecom-sudparis.eu) 
 
 ---
 

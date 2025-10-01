@@ -1,4 +1,3 @@
-# Quick Start
 ## Building Pallas
 You need to have ZSTD installed before you try to build this.
 To build and install, simply run:
@@ -58,3 +57,5 @@ Once again, you should get a full grasp of Pallas by reading the [full documenta
 
 [Blup](https://gitlab.inria.fr/blup/blup) is a web-based trace visualizer able to display Pallas traces. 
 It uses the Pallas Python API.
+
+![](https://gitlab.inria.fr/blup/blup/-/raw/main/doc/screenshot.png)
