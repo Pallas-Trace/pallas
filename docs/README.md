@@ -5,8 +5,13 @@ and researchers analyze the performance of parallel applications.
 Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms,
 Pallas is able to trace and analyze your application's behavior, even at larger scales.
 Pallas is a library offering a OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format.
-In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
+In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate Pallas traces.
 However, Pallas can be used without EZTrace, and we will not give a guide to EZTrace either.
+
+
+![logo](https://external-content.duckduckgo.com/iu/?u=http%3A%2F%2Fimages5.fanpop.com%2Fimage%2Fphotos%2F27700000%2FPallas-Cat-pallas-cats-27745375-1600-1067.jpg&f=1&nofb=1&ipt=a060f207d882952b617bcdcbc59d287fc008cc4139d9a9e19f02f3797ab03db6 ':size=400')
+
+_The Pallas cat is just like our trace format: it looks big, but it's actually just very fluffy !_
 
 ---
 
