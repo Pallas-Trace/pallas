@@ -15,6 +15,16 @@ Pallas is a library offering a OTF2 interface, so that it can be used with any t
 In this guide, we rely on [EZTrace](https://gitlab.com/eztrace/eztrace) to generate either OTF2 or Pallas traces.
 However, Pallas can be used without EZTrace, and we will not give a guide to EZTrace either.
 
+---
+
+## 🚀 Getting Started
+
+New to Pallas? Start here:
+
+1. **🏃‍♂️ Quick Start Guide**: - [Get running in 5 minutes](01-quick-start.md)
+2. **🔧 Choose your format and trace with EZTrace**: [Using EZTrace/Pallas](02-pallas/index.md)
+3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
+4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
 
 ---
 
@@ -51,17 +61,6 @@ Complete technical reference for developers and advanced users.
 
 ---
 
-## 🚀 Getting Started
-
-New to Pallas? Start here:
-
-1. **🏃‍♂️ Quick Start Guide**: - [Get running in 5 minutes](01-quick-start.md)
-2. **🔧 Choose your format and trace with EZTrace**: [Using EZTrace/Pallas](02-pallas/index.md)
-3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
-4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
-
----
-
 ## 🎯 Popular Use Cases
 
 - **🌐 MPI Applications**: Trace communication patterns and identify bottlenecks
@@ -85,7 +84,8 @@ This documentation is part of the Pallas project. We welcome contributions!
 Need help? Here are your options:
 
 - 📚 **Documentation**: You're reading it!
-- 🏠 **Project Home**: Visit our main repositories for [Pallas](https://github.com/Pallas-Trace) and [EZTrace](https://gitlab.com/eztrace/eztrace)
+- 🏠 **Project Home**: Visit our main repositories for Pallas ([GitLab](http://gitlab.inria.fr/pallas/pallas) or [GitHub](https://github.com/Pallas-Trace)) and [EZTrace](https://gitlab.com/eztrace/eztrace)
+- 📞 **Contact us**: [Main developer](mailto://catherine.guelque+pallas_support@telecom-sudparis.eu) 
 
 ---
 
