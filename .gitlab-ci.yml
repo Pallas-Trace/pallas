@@ -107,7 +107,7 @@ test:intel-oneapi:
   dependencies:
     - build:intel-oneapi
   script:
-    - mkdir build
+    - mkdir buildw
     - cd build/
     - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
     - make install
@@ -123,7 +123,7 @@ deploy:pages:
   tags:
     - noname
   script:
-    - cp -r docs/ public/
+    - cp -r docs/. public/
   only:
     - main
   pages: true
