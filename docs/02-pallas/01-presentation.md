@@ -148,14 +148,15 @@ The area coloured in <span style="color:orange">orange</span> represents the _ex
 These sequences are part of a loop, and are thus contained inside a _Loop_ sequence.
 The area coloured in <span style="color:red">red</span> represents its _blocks duration_.
 
+
+![](blocks_explained.svg)
+
+
 The blocks duration is a metric that is especially useful when you want to measure the impact of a library in a specific
 loop: you just have to sum the blocks durations of the Loop Sequence.
 If you want a more global metric ( across the whole trace for example ), then you can compute the sum of the exclusive blocks durations
-of Block sequences from a specific library: this prevents your data from being skewed 
+of Block sequences from a specific library: this prevents your data from being skewed
 (by counting certain functions, such as `foo` in this case, multiple times).
-
-
-![](blocks_explained.svg)
 
 ### Custom Vectors
 Both timestamps and durations have a common point: they are always appended at the end of their containers,

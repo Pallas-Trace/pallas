@@ -26,16 +26,16 @@ New to Pallas? Start here:
 
 ---
 
-## 📚 Table of Contents
+## 📚 Table of Contents  
 
 ### 🏃‍♂️ [Quick Start](01-quick-start.md)
 Quickly get up and running with Pallas and EZTrace
 
 
-### 📈 [Pallas Tracing with EZTrace](02-pallas/)
+### 📈 [Pallas Documentation](02-pallas/)
 Learn how to use the **Pallas trace format** to speed up you analyses:
 - 🎭 [Pallas Format Overview](02-pallas/01-presentation.md): All you need to understand Pallas
-- 🔧 [Installing Pallas](02-pallas/02-installing-pallas/index.md)
+- 🔧 [Installing Pallas](02-pallas/02-installing-pallas.md): A detailed guide on all the options for Pallas
 - ⚙️ [Installing EZTrace + Pallas]() (TODO)
 - Tracing your applications by yourself:
     - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
