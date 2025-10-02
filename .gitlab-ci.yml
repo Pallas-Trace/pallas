@@ -123,27 +123,9 @@ deploy:pages:
   tags:
     - noname
   script:
-    - mkdir -p public/main
-    - cp -r docs/index.html public/
-    - cp -r docs/*.md public/main/
-    - cp -r docs/*/ public/main/
+    - cp -r docs/ public/
   only:
     - main
-  artifacts:
-    paths:
-      - public
-
-deploy:pages-dev:
-  stage: deploy
-  image: debian:12
-  tags:
-    - noname
-  script:
-    - mkdir -p public/dev
-    - cp -r docs/*.md public/dev/
-    - cp -r docs/*/ public/dev/
-  only:
-    - dev
   artifacts:
     paths:
       - public
