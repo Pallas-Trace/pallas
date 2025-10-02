@@ -211,15 +211,18 @@ enum Record {
   PALLAS_EVENT_MAX_ID /**< Max Event Record ID */
 };
 
+#define PALLAS_EVENT_DATA_MAX_SIZE 256 - sizeof(uint8_t) - sizeof(enum PALLAS(Record))
 /**
  * Structure to store an event in PALLAS.
  */
 typedef struct Event {
-  enum Record record;      /**< ID of the event recorded in the above enumeration of events. */
-  uint8_t event_size;      /**< Size of the event. */
-  uint8_t event_data[256]; /**< data related to the events. (parameters of functions etc)*/
-                           // todo: align on 256
-} __attribute__((packed)) Event;
+    /** Record, i.e. signature / type of the event */
+  enum Record record;
+    /** Size of this event, including record and event_size. */
+  uint8_t event_size;
+    /** Data related to this event ( parameter of functions, etc. ). Ends at this + this.event_size. */
+  uint8_t event_data[PALLAS_EVENT_DATA_MAX_SIZE];
+} __attribute__((packed, aligned(256))) Event;
 
 #ifdef __cplusplus
 
