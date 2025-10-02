@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.9)
 
-find_package(MPI REQUIRED)
+find_package(MPI)
+
+if ( NOT MPI_FOUND )
+    message("Could not find MPI, skipping MPI tests")
+    return()
+endif ()
 
 SET(N_MPI 2)
 SET(N_THREADS 3)
