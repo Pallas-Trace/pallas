@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
         return -1;
     }
     auto* parameter_handler = trace->parameter_handler;
-    if (compressionAlgorithm != CompressionAlgorithm::Invalid && compressionAlgorithm != parameter_handler->getCompressionAlgorithm()) {
+    if (compressionAlgorithm != CompressionAlgorithm::Invalid) {
         ParameterHandler new_parameter_handler = *parameter_handler;
         new_parameter_handler.compressionAlgorithm = compressionAlgorithm;
         auto newDirName = strdup((std::string(trace->dir_name) + "_" + toString(compressionAlgorithm)).c_str());
