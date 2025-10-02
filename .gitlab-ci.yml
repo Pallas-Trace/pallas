@@ -126,6 +126,7 @@ deploy:pages:
     - cp -r docs/ public/
   only:
     - main
+  pages: true
   artifacts:
     paths:
       - public
