@@ -28,7 +28,8 @@ Pallas harbours a **hierarchical** trace structure, based on the hierarchy of a 
    - The [data](#performance-data) of a thread is made of performance metrics linked to the grammar.
 
 They are then stored in the following pattern:
-```text
+```terminal
+>|tree root_trace_folder
 root_folder/
 ├── main.pallas                         # GlobalArchive file
 ├── archive_0/
@@ -163,7 +164,8 @@ Both timestamps and durations have a common point: they are always appended at t
 and, when writing the trace, we never need to fetch the ones we appended a long time ago.
 This drove us to design a custom container to hold our data: **Linked Vectors**.
 They are doubled-linked array list, and their base skeleton is very basic:
-```c++
+
+```cpp
 class LinkedVector {
     size_t size;               // Number of elements in the vector
     class SubArray {
