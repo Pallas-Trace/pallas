@@ -119,10 +119,16 @@ test:intel-oneapi:
 
 deploy:pages:
   stage: deploy
-  image: debian:12
+  image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags:
     - noname
   script:
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make pallas_doc
+    - cd ..
+    - cp -r build/libraries/pallas/doc/html docs/06-api-reference/01-c-cxx
     - cp -r docs/. public/
   only:
     - main

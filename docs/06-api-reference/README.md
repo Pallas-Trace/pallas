@@ -1,8 +1,3 @@
----
-title: API Reference Guide
----
-# API Reference Guide
+[C/C++ API documentation](06-api-reference/01-c-cxx/index.html ":ignore")
 
-Complete API reference documentation for EZtrace, Pallas, and related tools.
-
-TODO
+Python API documentation

@@ -2,6 +2,19 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
+/** \mainpage Pallas C/C++ Documentation
+ * This is the documentation page for the Pallas C/C++ API.
+ * If you are looking for a global explanation of the Pallas ecosystem,
+ * you can go look at <a href="https://pallas.gitlabpages.inria.fr/pallas/#/">the documentation</a>.
+ *
+ * \section difference_c_cxx Differences between C and C++
+ * Due to the experimental nature of Pallas, we had to rewrite the API quite often during its development.
+ * To cut our development time, we made an extensive use of macros to "hide" the C++ code from the C compiler.
+ * We recommend manipulating Pallas classes only as pointers in C.
+ * However, should that not be possible, all Pallas classes can be used in C as well ( they should take the same amount of memory ).
+ * We also strive to make most C++ public methods available in C, by using the following convention:
+ * `Pallas::Class::MethodName(args) => pallas_class_method_name(struct class* this, args)`
+ */
 /** @file
  * The main file of Pallas. Here are defined the most basic elements of the trace
  * (Tokens, Events, Sequences and Loops), as well as Threads, representing an execution stream.
