@@ -1,4 +1,4 @@
-FROM intel/oneapi
+FROM debian:12
 
 # Install build tools
 RUN apt update \

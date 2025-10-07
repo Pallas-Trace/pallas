@@ -36,9 +36,11 @@ build:clang:
     - make
 
 build:intel-oneapi:
-  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: build
+  only:
+    - main
   variables:
     CC: "icx"
     CXX: "icpx"
@@ -96,9 +98,11 @@ test:clang:
       - $CI_PROJECT_DIR/build
 
 test:intel-oneapi:
-  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: test
+  only:
+    - main
   variables:
     CC: "icx"
     CXX: "icpx"
@@ -106,6 +110,7 @@ test:intel-oneapi:
     OMPI_CXX: "icpx"
   dependencies:
     - build:intel-oneapi
+
   script:
     - mkdir build
     - cd build/
