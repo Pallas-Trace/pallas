@@ -1,12 +1,4 @@
 FROM intel/oneapi
 
 # Install build tools
-RUN apt update \
-  && apt install -y build-essential cmake wget git gawk libzstd-dev pkg-config clang python3-venv doxygen rustup
-RUN rustup default stable
-
-RUN python3 -m venv /opt/venv
-ENV VIRTUAL_ENV="/opt/venv"
-ENV PATH="/opt/venv/bin:$PATH"
-
-RUN pip install python-dev-tools pybind11
+RUN apt update && apt install -y libzstd-dev
