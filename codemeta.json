@@ -1,0 +1,80 @@
+{
+    "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+    "@type": "SoftwareSourceCode",
+    "license": "https://spdx.org/licenses/BSD-3-Clause",
+    "codeRepository": "https://gitlab.inria.fr/pallas/pallas.git",
+    "contIntegration": "https://gitlab.inria.fr/pallas/pallas/-/pipelines",
+    "dateCreated": "2023-02-02",
+    "datePublished": "2023-02-02",
+    "version": "0.3.1",
+    "dateModified": "2025-09-23",
+    "downloadUrl": "https://gitlab.inria.fr/pallas/pallas/-/archive/0.3.1/pallas-0.3.1.tar.gz",
+    "issueTracker": "https://github.com/Pallas-Trace/pallas/issues",
+    "name": "Pallas",
+    "description": "Pallas is a state-of-the-art tracing format designed to help developers and researchers analyze the performance of parallel applications. Whether you're working with MPI, OpenMP, CUDA, or other parallel paradigms, Pallas is able to trace and analyze your application's behavior, even at larger scales. Pallas is a library offering a OTF2 interface, so that it can be used with any tracing tool relying on the OTF2 format.",
+    "codemeta:isSourceCodeOf": {
+	"id": "https://gitlab.inria.fr/pallas/pallas"
+    },
+    "applicationCategory": "HPC",
+    "developmentStatus": "active",
+    "referencePublication": [
+	"https://doi.org/10.1109/IPDPS64566.2025.00032"
+    ],
+    "releaseNotes": "https://gitlab.inria.fr/pallas/pallas/-/releases/0.3.1",
+    "keywords": [
+        "HPC High-Performance Computing",
+        "Performance analysis"
+    ],
+    "programmingLanguage": [
+        "C",
+        "C++",
+        "Python"
+    ],
+    "operatingSystem": [
+        "Linux",
+        "Mac OS"
+    ],
+    "author": [
+	{
+            "@type": "Person",
+            "@id": "https://orcid.org/0009-0002-0123-6958",
+            "givenName": "Catherine",
+            "familyName": "Guelque",
+            "email": "catherine.guelque@ip-paris.eu",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "Télécom SudParis"
+            }
+        },
+        {
+            "@type": "Person",
+            "@id": "https://orcid.org/0000-0001-7329-1812",
+            "givenName": "François",
+            "familyName": "Trahay",
+            "email": "francois.trahay@telecom-sudparis.eu",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "Télécom SudParis"
+            }
+        },
+	{
+            "@type": "Person",
+            "@id": "https://orcid.org/0000-0003-1028-5719",
+            "givenName": "Valentin",
+            "familyName": "Honoré",
+            "email": "valentin.honore@ensiie.fr",
+            "affiliation": {
+                "@type": "Organization",
+                "name": "ENSIIE"
+            }
+        },
+    ],
+    "softwareHelp": "https://pallas.gitlabpages.inria.fr/pallas/",
+    "installURL" : [
+	{
+	    "name" : "guix",
+	    "url" : "https://gitlab.inria.fr/guix-hpc/guix-hpc/-/blob/master/inria/eztrace.scm"
+	},
+    ],
+    "softwareSuggestions" : "https://discord.gg/eKvVcRkMsH"
+}
