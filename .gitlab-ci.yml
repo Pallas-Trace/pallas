@@ -16,7 +16,7 @@ build:gcc:
     # Build Pallas
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - cmake .. -DENABLE_OTF2=ON -DENABLE_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
     - make
 
 build:clang:
@@ -32,7 +32,7 @@ build:clang:
     # Build Pallas
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
+    - cmake .. -DENABLE_OTF2=ON -DENABLE_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
     - make
 
 build:intel-oneapi:
@@ -67,7 +67,7 @@ test:gcc:
   script:
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - cmake .. -DENABLE_OTF2=ON -DENABLE_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
     - make install
     - cd test
     - ctest --output-on-failure
@@ -89,7 +89,7 @@ test:clang:
   script:
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
+    - cmake .. -DENABLE_OTF2=ON -DENABLE_PYTHON=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
     - make install
     - cd test
     - ctest --output-on-failure
@@ -141,3 +141,16 @@ deploy:pages:
   artifacts:
     paths:
       - public
+
+deploy:docker:
+  stage: deploy
+  image: docker
+  tags:
+    - docker
+  before_script:
+    - docker info
+  script:
+    - cd docker
+    - docker login -u pallas -p ${DOCKER_TOKEN}
+    - docker build -t registry.gitlab.inria.fr/pallas/pallas/eztrace_example -f Dockerfile_eztrace_pallas .
+    - docker push registry.gitlab.inria.fr/pallas/pallas/eztrace_example
