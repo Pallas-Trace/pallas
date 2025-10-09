@@ -3,6 +3,9 @@ stages:
   - test
   - deploy
 
+variables:
+  DOCKER_TOKEN_OVERRIDE: $DOCKER_TOKEN
+
 build:gcc:
   stage: build
   image: registry.gitlab.inria.fr/pallas/pallas:latest
@@ -149,6 +152,6 @@ deploy:docker:
     - noname
   script:
     - cd docker
-    - docker login -u pallas -p $DOCKER_TOKEN
+    - docker login -u pallas -p $DOCKER_TOKEN_OVERRIDE
     - docker build -t registry.gitlab.inria.fr/pallas/pallas/eztrace_example -f Dockerfile_eztrace_pallas .
     - docker push registry.gitlab.inria.fr/pallas/pallas/eztrace_example
