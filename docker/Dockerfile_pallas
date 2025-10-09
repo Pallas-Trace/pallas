@@ -1,8 +1,9 @@
 FROM debian:12
 
 # Install build tools
-RUN apt update \
-  && apt install -y build-essential cmake wget git gawk libzstd-dev pkg-config clang python3-venv doxygen
+RUN apt update
+RUN apt install -y build-essential cmake wget git gawk libzstd-dev pkg-config clang doxygen
+RUN apt install -y python3-venv python3-dev
 
 RUN python3 -m venv /opt/venv
 ENV VIRTUAL_ENV="/opt/venv"

@@ -2,4 +2,4 @@ FROM intel/oneapi:2023.1.0-devel-ubuntu20.04
 # This is the IntelOneAPI Compiler version on Jean-Zay
 
 # Install build tools
-RUN apt update && apt install -y libzstd-dev
+RUN apt update && apt install -y libzstd-dev gdb
