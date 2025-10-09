@@ -146,9 +146,7 @@ deploy:docker:
   stage: deploy
   image: docker
   tags:
-    - docker
-  before_script:
-    - docker info
+    - noname
   script:
     - cd docker
     - docker login -u pallas -p ${DOCKER_TOKEN}
