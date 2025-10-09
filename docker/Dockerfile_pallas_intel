@@ -1,0 +1,4 @@
+FROM intel/oneapi
+
+# Install build tools
+RUN apt update && apt install -y libzstd-dev

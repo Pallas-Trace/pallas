@@ -54,7 +54,7 @@ Scalable trace visualization relying on the **Pallas API** using the **Blup** to
 - 📂 [Opening Traces](05-visualizing-blup/02-open-trace/index.md)
 - ✨ [Advanced Features](05-visualizing-blup/03-other-functionalities/index.md)
 
-### 📖 [API Reference](06-api-reference/index.md)
+### 📖 [API Reference](06-api-reference/README.md)
 Complete technical reference for developers and advanced users.
 
 ---

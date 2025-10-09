@@ -1,6 +1,6 @@
 # Pallas
 [![BSD-3 License](https://img.shields.io/badge/License-BSD3-yellow.svg)](https://opensource.org/license/bsd-3-clause)
-![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/dev/pipeline.svg)
+![Main Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/main/pipeline.svg)
 ![Maintained Badge](https://img.shields.io/badge/Maintained%3F-Yes-<colour>.svg)
 [![HAL Badge](https://img.shields.io/badge/HAL-04970114-white.svg)](https://inria.hal.science/hal-04970114/)
 ## Documentation
@@ -29,12 +29,12 @@ Its requirements are the following:
 - pybind11
 
 You can then read it like this:
+```python
+import pallas_trace as pallas
+trace = pallas.open_trace("<my_trace_file>.pallas")
+help( trace ) # Get some help reading you trace :)
 ```
-$ python
->>> import pallas_trace as pallas
->>> trace=pallas.open_trace("eztrace_log.pallas")
-...
-```
+A full documentation of the Pallas Python API is available [here](https://pallas.gitlabpages.inria.fr/pallas/#/06-api-reference/02-python).
 ## Usage
 ### In your application
 To use Pallas to log your application, you need to understand the hierarchical structure:
@@ -45,8 +45,9 @@ They're identified by LocationGroup
 They're identified by Location
 
 There is a bit more nuance, but it's what you need for now.
-The following code should give you an idea of what to do to start logging your app in C++.
-There's also a C API that functions pretty much the same way, as you'd expect it to.
+The following code should give you an idea of what to do to start logging  your app in C++.
+There is also a C API that functions the same way.
+Their documentation is available [here](https://pallas.gitlabpages.inria.fr/pallas/#/06-api-reference/01-cxx).
 ```CPP
 #include <pallas/pallas.h>
 #include <pallas/pallas_write.h>

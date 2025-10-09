@@ -36,9 +36,11 @@ build:clang:
     - make
 
 build:intel-oneapi:
-  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: build
+  only:
+    - main
   variables:
     CC: "icx"
     CXX: "icpx"
@@ -87,7 +89,7 @@ test:clang:
   script:
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=clang
     - make install
     - cd test
     - ctest --output-on-failure
@@ -96,9 +98,11 @@ test:clang:
       - $CI_PROJECT_DIR/build
 
 test:intel-oneapi:
-  image: registry.gitlab.inria.fr/pallas/pallas:latest
+  image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
   tags: ['ci.inria.fr', 'linux', 'small']
   stage: test
+  only:
+    - main
   variables:
     CC: "icx"
     CXX: "icpx"
@@ -106,10 +110,11 @@ test:intel-oneapi:
     OMPI_CXX: "icpx"
   dependencies:
     - build:intel-oneapi
+
   script:
     - mkdir build
     - cd build/
-    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=gcc
+    - cmake .. -DENABLE_OTF2=ON -DCMAKE_INSTALL_PREFIX=$CI_PROJECT_DIR/pallas -DCMAKE_C_COMPILER=icx
     - make install
     - cd test
     - ctest --output-on-failure
@@ -119,11 +124,17 @@ test:intel-oneapi:
 
 deploy:pages:
   stage: deploy
-  image: debian:12
+  image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags:
     - noname
   script:
-    - cp -r docs/ public/
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make pallas_doc
+    - cd ..
+    - cp -r build/libraries/pallas/doc/html docs/06-api-reference/01-c-cxx
+    - cp -r docs/. public/
   only:
     - main
   pages: true
