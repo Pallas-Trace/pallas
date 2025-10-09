@@ -1,0 +1,44 @@
+FROM debian:bookworm
+
+# Install dependencies
+RUN apt update
+# Dev libraries
+RUN apt install -y build-essential cmake wget git gawk mpich  clang libomp-dev pkg-config indent libzstd-dev
+# Vite requirements
+# RUN apt install -y qtbase5-dev qt5-qmake qttools5-dev libqt5charts5-dev libqt5svg5-dev libglm-dev libglew-dev
+# Editors
+RUN apt install -y emacs-nox vim
+# Python
+RUN apt install -y python3 python3-pip python3.11-venv python3-jinja2 python3-six firefox-esr  \
+    python3-tk python3-pybind11 python-is-python3
+
+RUN git clone -b main https://gitlab.inria.fr/pallas/pallas.git \
+    && ( mkdir -p pallas/build && cd pallas/build && \
+    cmake .. \
+    -DENABLE_PYTHON=ON \
+    -DENABLE_OTF2=ON \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    && make -j 4 \
+    && make install )
+
+# Install EZTrace
+RUN git clone -b dev https://gitlab.com/eztrace/eztrace.git \
+ && ( mkdir eztrace/build && cd eztrace/build &&  \
+  cmake .. \
+  -DENABLE_BIN_INSTRUMENTATION=OFF\
+  -DEZTRACE_ENABLE_COMPILER_INSTRU=ON \
+  -DEZTRACE_ENABLE_MEMORY=OFF \
+  -DEZTRACE_ENABLE_MPI=ON \
+  -DEZTRACE_ENABLE_OMPT=ON \
+  -DEZTRACE_ENABLE_POSIXIO=ON \
+  -DEZTRACE_ENABLE_PTHREAD=ON \
+  -DEZTRACE_ENABLE_STARPU=OFF \
+  -DMPI_LINK_FLAGS="-fopenmp" \
+  -DCMAKE_C_COMPILER=clang \
+  && make -j 4 \
+  && make install)
+
+# Install Blup
+RUN git clone https://gitlab.inria.fr/blup/blup.git /usr/local/blup
+RUN ln -s /usr/local/blup/blup /usr/local/bin/blup
