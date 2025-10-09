@@ -145,6 +145,9 @@ deploy:pages:
 deploy:docker:
   stage: deploy
   image: docker
+  services:
+    - name: docker:dind
+      alias: docker
   tags:
     - noname
   script:
