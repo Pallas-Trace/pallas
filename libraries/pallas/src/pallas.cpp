@@ -435,7 +435,7 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
                 pallas_assert_inferior_equal(start, s->timestamps->at(start_index + 1));
             }
         }
-        pallas_assert_inferior_always(s->timestamps->at(end_index),end);
+        pallas_assert_inferior_equal(s->timestamps->at(end_index),end);
 #endif
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
