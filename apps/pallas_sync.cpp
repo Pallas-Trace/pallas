@@ -3,6 +3,7 @@
 //
 
 #include <unistd.h>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include "pallas/pallas.h"
@@ -15,6 +16,44 @@
 // #include "pallas/pallas_write.h"
 
 #define DEBUG_LEVEL 2
+
+bool event_cmp(pallas::Event *e_1, pallas::Event *e_2) {
+
+  if (e_1->record != e_2->record) {
+    return false;
+  }
+
+  if (memcmp(e_1->event_data, 
+             e_2->event_data, 
+             e_1->event_size) != 0) {
+    return false;
+  }
+
+  return true;
+}
+
+void event_insert(pallas::EventSummary *es, 
+                  pallas::Thread *t, uint32_t id) {
+  
+  size_t allocated_events = t->nb_allocated_events;
+  if (id > allocated_events) {
+    doubleMemorySpaceConstructor(t->events, t->nb_allocated_events);
+    t->nb_events++;
+  }
+
+  t->events[id] = *es;
+  t->events[id].id = id;
+}
+
+void event_insert_invalid(pallas::Thread *t, uint32_t id) {
+
+  pallas::EventSummary inv_event = t->events[id];
+  inv_event.event = pallas::Event {
+    pallas::PALLAS_EVENT_MAX_ID,
+    0,
+    NULL
+  };
+}
 
 int main(int argc, char** argv) {
 
@@ -188,7 +227,7 @@ int main(int argc, char** argv) {
       std::cout << " = '" << string.str << "'" << std::endl;
     }
   }
-  
+
   if (DEBUG_LEVEL > 1) {
     std::cout << "-----------------------------------" << std::endl;
     std::cout << "Synced string ref lookup " << std::endl;
