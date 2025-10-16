@@ -245,10 +245,10 @@ int main(int argc, char** argv) {
 
   auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
   int nb_event_per_iter = 2 * nb_functions;
-  int nb_events = nb_iter * nb_event_per_iter * nb_threads;
-  auto events_per_second = nb_events / duration;
+  double nb_events = nb_iter * nb_event_per_iter * nb_threads;
+  auto events_per_nanosecond = nb_events / duration;
 
-  std::cout << "TOTAL: " << nb_events << " events in " << duration << " s -> " << events_per_second / 1e6 << " Me/s"
+  std::cout << "TOTAL: " << nb_events << " events in " << duration / 1e9 << " s -> " << events_per_nanosecond * 1e9 / 1e6 << " Me/s"
             << std::endl;
 
   mainProcess.store(globalArchive.parameter_handler);
