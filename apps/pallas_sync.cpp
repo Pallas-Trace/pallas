@@ -15,7 +15,8 @@
 #include "pallas/pallas_storage.h"
 // #include "pallas/pallas_write.h"
 
-#define DEBUG_LEVEL 2
+#define DEBUG_LEVEL 0
+#define ENABLE_WRITE
 
 bool event_cmp(pallas::Event *e_1, pallas::Event *e_2) {
 
@@ -176,33 +177,36 @@ int main(int argc, char** argv) {
   ).c_str());
 
   for (auto& lg : trace->location_groups) {
-    if (DEBUG_LEVEL > 0) {
-      std::cout << "Reading archive " << lg.id << " @ " << trace->dir_name << std::endl;
-    }
-    lg.name = string_ref_lookup[lg.name];
     auto* a = trace->getArchive(lg.id);
     for (auto& loc : a->locations) {
-      if (DEBUG_LEVEL > 0) {
-        std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
-      }
-      loc.name = string_ref_lookup[loc.name];
       auto* t = a->getThread(loc.id);
-      if (DEBUG_LEVEL > 0) {
-        std::cout << "\tWriting thread " << t->id << " @ " << a->dir_name << std::endl;
-      }
+      // doubleMemorySpaceConstructor
+
+      #ifdef ENABLE_WRITE
       t->store(newDirName, trace->parameter_handler, true);
+      #endif
+
       a->freeThread(loc.id);
     }
-    if (DEBUG_LEVEL > 0) {
-      std::cout << "Writing archive " << lg.id << " @ " << trace->dir_name << std::endl;
-    }
+    #ifdef ENABLE_WRITE
     a->store(newDirName, trace->parameter_handler);
+    #endif
+
     a->dir_name = nullptr;
     trace->freeArchive(lg.id);
   }
 
   // write updated GlobalArchive
+  #ifdef ENABLE_WRITE
   trace->store(newDirName, trace->parameter_handler);
+  #endif
+
+
+  // ~~~~~~~~~~~
+  //
+  // DEBUG Block
+  //
+  // ~~~~~~~~~~~
 
   if (DEBUG_LEVEL > 1) {
     std::cout << "-----------------------------------" << std::endl;
