@@ -519,41 +519,58 @@ typedef struct Comm {
  * It can be a regular thread (eg. a pthread), or a GPU stream.
  */
 typedef struct Thread {
-  struct Archive* archive; /**< pallas::Archive containing this Thread. */
-  ThreadId id;             /**< Id of this Thread. */
+    /** pallas::Archive containing this Thread. */
+    struct Archive* archive;
+    /** Id of this Thread. */
+    ThreadId id;
+    /** Array of events recorded in this Thread. */
+    EventSummary* events;
+    /** Number of blocks of size pallas:EventSummary allocated in #events. */
+    size_t nb_allocated_events;
+    /** Number of pallas::EventSummary in #events. */
+    size_t nb_events;
 
-  EventSummary* events;         /**< Array of events recorded in this Thread. */
-  size_t nb_allocated_events; /**< Number of blocks of size pallas:EventSummary allocated in #events. */
-  size_t nb_events;           /**< Number of pallas::EventSummary in #events. */
+    /** Array of pallas::Sequence recorded in this Thread. */
+    Sequence** sequences;
+    /** Number of blocks of size pallas:Sequence allocated in #sequences. */
+    size_t nb_allocated_sequences;
+    /** Number of pallas::Sequence in #sequences. */
+    size_t nb_sequences;
 
-  Sequence** sequences;            /**< Array of pallas::Sequence recorded in this Thread. */
-  size_t nb_allocated_sequences; /**< Number of blocks of size pallas:Sequence allocated in #sequences. */
-  size_t nb_sequences;           /**< Number of pallas::Sequence in #sequences. */
-
-  pallas_timestamp_t first_timestamp;
-  /** Map to associate the hash of the pallas::Sequence to their id.*/
+    pallas_timestamp_t first_timestamp;
+    /** Map to associate the hash of the pallas::Sequence to their id.*/
 #ifdef __cplusplus
-  std::unordered_map<uint32_t, std::vector<TokenId>> hashToSequence;
-  std::unordered_map<uint32_t, std::vector<TokenId>> hashToEvent;
+    std::unordered_map<uint32_t, std::vector<TokenId> > hashToSequence;
 #else
-  byte hashToSequence[UNO_MAP_SIZE];
+    byte hashToSequence[UNO_MAP_SIZE];
+#endif
+    /** Map to associate the hash of the pallas::EventSummaries to their id.*/
+#ifdef __cplusplus
+    std::unordered_map<uint32_t, std::vector<TokenId> > hashToEvent;
+#else
   byte hashToEvent[UNO_MAP_SIZE];
 #endif
-  Loop* loops;                 /**< Array of pallas::Loop recorded in this Thread. */
-  size_t nb_allocated_loops; /**< Number of blocks of size pallas:Loop allocated in #loops. */
-  size_t nb_loops;           /**< Number of pallas::Loop in #loops. */
+    /** Array of pallas::Loop recorded in this Thread. */
+    Loop* loops;
+    /** Number of blocks of size pallas:Loop allocated in #loops. */
+    size_t nb_allocated_loops;
+    /** Number of pallas::Loop in #loops. */
+    size_t nb_loops;
 #ifdef __cplusplus
-  void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
-  /**
-       * Resets the offsets of all the timestamp / duration vectors.
-       */
-  void resetVectorsOffsets();
-  /** Returns the Event corresponding to the given Token. */
-  Event* getEvent(Token) const;
-  /** Returns the EventSummary corresponding to the given Token. */
-  EventSummary* getEventSummary(Token) const;
+    /** Loads all the timestamps for all the Events and Sequences. */
+    void loadTimestamps();
+    /** Resets the offsets of all the timestamp / duration vectors.*/
+    void resetVectorsOffsets();
+
+    /** Returns the Event corresponding to the given Token. */
+    Event* getEvent(Token) const;
+
+    /** Returns the EventSummary corresponding to the given Token. */
+    EventSummary* getEventSummary(Token) const;
+
     /** Returns the Sequence corresponding to the given Token.*/
-  Sequence* getSequence(Token) const;
+    Sequence* getSequence(Token) const;
+
     /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
      * @param array Array of tokens.
      * @param array_size Number of tokens in array.
@@ -561,70 +578,78 @@ typedef struct Thread {
      */
     Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0);
 
-  Loop* getLoop(Token) const;
-  /** Returns the n-th token in the given Sequence/Loop. */
-  Token& getToken(Token, int) const;
+    Loop* getLoop(Token) const;
 
-  /**
-   * Return the duration of the thread
-   */
-  pallas_duration_t getDuration() const;
-  /**
-   * Return the first timestamp of the thread
-   */
-  pallas_timestamp_t getFirstTimestamp() const;
-  /**
-   * Return the last timestamp of the thread
-   */
-  pallas_timestamp_t getLastTimestamp() const;
-  /**
-   * Return the number of events of the thread
-   */
-  size_t getEventCount() const;
+    /** Returns the n-th token in the given Sequence/Loop. */
+    Token& getToken(Token, int) const;
 
-  /**
-   * Get the given Token, along with its id.
-   * E_E, E_L, E_S indicates an Enter, Leave or Singleton Event.
-   * S and L indicates a Sequence or a Loop.
-   */
-  std::string getTokenString(Token) const;
-  std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const; /**< Returns a string for that array of Tokens */
-  std::string getEventString(Event* e) const; /**< Returns a string describing that Event. */
-  void printTokenVector(const std::vector<Token>&) const;                         /**< Prints a vector of Token. */
-  void printSequence(Token) const; /**< Prints the Sequence corresponding to the given Token. */
-  void printAttribute(AttributeRef) const;    /**< Prints an Attribute. */
-  void printString(StringRef) const;          /**< Prints a String (checks for validity first). */
-  void printAttributeRef(AttributeRef) const; /**< Prints an AttributeRef (checks for validity first). */
-  void printCommRef(CommRef) const; /**< Prints an CommRef (checks for validity first). */
-  void printGroupRef(GroupRef) const; /**< Prints an GroupRef (checks for validity first). */
-  void printLocation(Ref) const;              /**< Prints a Ref for a Location (checks for validity first). */
-  void printRegion(RegionRef) const;          /**< Prints an RegionRef (checks for validity first). */
-  const char* getRegionStringFromEvent(pallas::Event* e) const;
-  void printAttributeValue(const struct AttributeData* attr, pallas_type_t type) const; /**< Prints an AttributeValue.*/
-  void printAttribute(const struct AttributeData* attr) const;                          /**< Prints an AttributeData. */
-  void printAttributeList(const struct AttributeList* attribute_list) const;            /**< Prints an AttributeList. */
-  void printEventAttribute(const struct EventOccurence* es) const; /**< Prints an EventOccurence. */
-  [[nodiscard]] const char* getName() const;                       /**< Returns the name of this thread. */
-  /**
-   * Stores this thread.
-   * @param path Path to the root folder of the trace.
-   * @param parameter_handler Handler for the storage parameters.
-   * @param load_thread Indicates if you should load the timestamps before writing.
-   */
-  void store(const char* path,  const ParameterHandler* parameter_handler, bool load_thread = false);
+    /**
+     * Return the duration of the thread
+     */
+    pallas_duration_t getDuration() const;
 
-  /**
-   * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
-   */
-  std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end);
+    /**
+     * Return the first timestamp of the thread
+     */
+    pallas_timestamp_t getFirstTimestamp() const;
 
-  /** Create a blank new Thread. This is used when reading the trace. */
-  Thread();
+    /**
+     * Return the last timestamp of the thread
+     */
+    pallas_timestamp_t getLastTimestamp() const;
 
-  // Make sure this object is never copied
-  Thread(const Thread&) = delete;
-  void operator=(const Thread&) = delete;
-  ~Thread();
+    /**
+     * Return the number of events of the thread
+     */
+    size_t getEventCount() const;
+
+    /**
+     * Get the given Token, along with its id.
+     * E_E, E_L, E_S indicates an Enter, Leave or Singleton Event.
+     * S and L indicates a Sequence or a Loop.
+     */
+    std::string getTokenString(Token) const;
+
+    std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const; /**< Returns a string for that array of Tokens */
+    std::string getEventString(Event* e) const; /**< Returns a string describing that Event. */
+    void printTokenVector(const std::vector<Token>&) const; /**< Prints a vector of Token. */
+    void printSequence(Token) const; /**< Prints the Sequence corresponding to the given Token. */
+    void printAttribute(AttributeRef) const; /**< Prints an Attribute. */
+    void printString(StringRef) const; /**< Prints a String (checks for validity first). */
+    void printAttributeRef(AttributeRef) const; /**< Prints an AttributeRef (checks for validity first). */
+    void printCommRef(CommRef) const; /**< Prints an CommRef (checks for validity first). */
+    void printGroupRef(GroupRef) const; /**< Prints an GroupRef (checks for validity first). */
+    void printLocation(Ref) const; /**< Prints a Ref for a Location (checks for validity first). */
+    void printRegion(RegionRef) const; /**< Prints an RegionRef (checks for validity first). */
+    const char* getRegionStringFromEvent(pallas::Event* e) const;
+
+    void printAttributeValue(const struct AttributeData* attr, pallas_type_t type) const; /**< Prints an AttributeValue.*/
+    void printAttribute(const struct AttributeData* attr) const; /**< Prints an AttributeData. */
+    void printAttributeList(const struct AttributeList* attribute_list) const; /**< Prints an AttributeList. */
+    void printEventAttribute(const struct EventOccurence* es) const; /**< Prints an EventOccurence. */
+    [[nodiscard]] const char* getName() const; /**< Returns the name of this thread. */
+    /**
+     * Stores this thread.
+     * @param path Path to the root folder of the trace.
+     * @param parameter_handler Handler for the storage parameters.
+     * @param load_thread Indicates if you should load the timestamps before writing.
+     */
+    void store(const char* path, const ParameterHandler* parameter_handler, bool load_thread = false);
+
+    /**
+     * Returns a snapshot of the thread's total time spent in each sequence during that time frame.
+     */
+    std::vector<pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end);
+
+    /** Create a blank new Thread. This is used when reading the trace. */
+    Thread();
+
+    // Make sure this object is never copied
+    Thread(const Thread&) = delete;
+
+    void operator=(const Thread&) = delete;
+
+    ~Thread();
 #endif
 } Thread;
 
