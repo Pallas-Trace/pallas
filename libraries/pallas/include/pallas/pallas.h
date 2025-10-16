@@ -549,13 +549,21 @@ typedef struct Thread {
        */
   void resetVectorsOffsets();
   /** Returns the Event corresponding to the given Token. */
-  [[nodiscard]] Event* getEvent(Token) const;
+  Event* getEvent(Token) const;
   /** Returns the EventSummary corresponding to the given Token. */
-  [[nodiscard]] EventSummary* getEventSummary(Token) const;
-  [[nodiscard]] Sequence* getSequence(Token) const;
-  [[nodiscard]] Loop* getLoop(Token) const;
+  EventSummary* getEventSummary(Token) const;
+    /** Returns the Sequence corresponding to the given Token.*/
+  Sequence* getSequence(Token) const;
+    /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
+     * @param array Array of tokens.
+     * @param array_size Number of tokens in array.
+     * @param hash Hash32 of the array. Optional.
+     */
+    Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0);
+
+  Loop* getLoop(Token) const;
   /** Returns the n-th token in the given Sequence/Loop. */
-  [[nodiscard]] Token& getToken(Token, int) const;
+  Token& getToken(Token, int) const;
 
   /**
    * Return the duration of the thread

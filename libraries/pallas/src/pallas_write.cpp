@@ -58,20 +58,14 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     if (array_len == 1 && token_array->type == TypeSequence) {
         return *thread->sequences[token_array->id];
     }
-    uint32_t hash = hash32((uint8_t*)(token_array), array_len * sizeof(pallas::Token), SEED);
-    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_len, hash);
-    auto& sequencesWithSameHash = thread->hashToSequence[hash];
-    if (!sequencesWithSameHash.empty()) {
-        if (sequencesWithSameHash.size() > 1) {
-            pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
-        }
-        for (const auto sid : sequencesWithSameHash) {
-            if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid]->tokens.data(), thread->sequences[sid]->size())) {
-                pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \t found with id=%u\n", sid);
-                return *thread->sequences[sid];
-            }
-        }
+    // First match it in the thread
+    uint32_t hash = hash32_Token(token_array, array_len, SEED);
+    auto matched_id = thread->matchSequenceIdFromArray(token_array, array_len, hash);
+    if (matched_id.isValid()) {
+        return *thread->getSequence(matched_id);
     }
+
+    // Then if it doesn't exist, create it
 
     if (thread->nb_sequences >= thread->nb_allocated_sequences) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
@@ -91,6 +85,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
     memcpy(s->tokens.data(), token_array, sizeof(Token) * array_len);
+    auto& sequencesWithSameHash = thread->hashToSequence[hash];
     s->hash = hash;
     s->id = sid;
     sequencesWithSameHash.push_back(index);

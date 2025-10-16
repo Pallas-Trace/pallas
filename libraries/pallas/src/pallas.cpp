@@ -8,6 +8,8 @@
 #include <sstream>
 
 #include "pallas/pallas.h"
+
+#include <pallas/pallas_hash.h>
 #include <pallas/pallas_record.h>
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_log.h"
@@ -74,6 +76,36 @@ Sequence* Thread::getSequence(Token token) const {
   }
   pallas_assert(token.id < this->nb_sequences);
   return this->sequences[token.id];
+}
+
+/**
+ * Compares two arrays of tokens array1 and array2
+ */
+static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* array2, size_t size2) {
+    if (size1 != size2)
+        return false;
+    return memcmp(array1, array2, sizeof(Token) * size1) == 0;
+}
+
+
+Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash) {
+    if (hash == 0)
+        hash = hash32_Token(array, array_size, SEED);
+
+    pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_size, hash);
+    auto& sequencesWithSameHash = hashToSequence[hash];
+    if (!sequencesWithSameHash.empty()) {
+        if (sequencesWithSameHash.size() > 1) {
+            pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
+        }
+        for (const auto sid : sequencesWithSameHash) {
+            if (_pallas_arrays_equal(array, array_size, sequences[sid]->tokens.data(), sequences[sid]->size())) {
+                pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: \t found with id=%u\n", sid);
+                return PALLAS_SEQUENCE_ID(sid);
+            }
+        }
+    }
+    return {};
 }
 
 Loop* Thread::getLoop(Token token) const {
