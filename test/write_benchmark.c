@@ -98,8 +98,6 @@ void* worker(void* arg __attribute__((unused))) {
        */
       for (int j = 0; j < nb_functions; j++) {
         pallas_record_enter(thread_writer, NULL, get_timestamp(), regions[j]);
-      }
-      for (int j = nb_functions - 1; j >= 0; j--) {
         pallas_record_leave(thread_writer, NULL, get_timestamp(), regions[j]);
       }
       break;
@@ -112,7 +110,7 @@ void* worker(void* arg __attribute__((unused))) {
   pthread_barrier_wait(&bench_stop);
 
   double duration = TIME_DIFF(t1, t2);
-  int nb_event_per_iter = 2 * nb_functions;
+  int nb_event_per_iter = (1+pattern) * nb_functions;
   int nb_events = nb_iter * nb_event_per_iter;
   double duration_per_event = duration / nb_events;
 
@@ -221,7 +219,7 @@ int main(int argc, char** argv) {
     pthread_join(tid[i], NULL);
 
   double duration = TIME_DIFF(t1, t2);
-  int nb_event_per_iter = 2 * nb_functions;
+  int nb_event_per_iter = (1+pattern) * nb_functions;
   int nb_events = nb_iter * nb_event_per_iter * nb_threads;
   double events_per_second = nb_events / duration;
 

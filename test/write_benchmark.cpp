@@ -116,8 +116,6 @@ void* worker(void* arg) {
        */
       for (int j = 0; j < nb_functions; j++) {
         pallas_record_enter(&threadWriter, nullptr, get_timestamp(), regions[j]);
-      }
-      for (int j = nb_functions - 1; j >= 0; j--) {
         pallas_record_leave(&threadWriter, nullptr, get_timestamp(), regions[j]);
       }
       break;
@@ -131,9 +129,9 @@ void* worker(void* arg) {
   pthread_barrier_wait(&bench_stop);
 
   auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-  int nb_event_per_iter = 2 * nb_functions;
+  int nb_event_per_iter = (1+pattern) * nb_functions;
   int nb_events = nb_iter * nb_event_per_iter;
-  auto duration_per_event = duration / nb_events;
+  double duration_per_event = duration / nb_events;
 
     pthread_mutex_lock(&archive.lock);
  std::cout << "T#" << threadID << ": "<< nb_events << " events in " << duration/1e9<< "s -> "<< duration_per_event << " ns per event" << std::endl;
@@ -244,7 +242,7 @@ int main(int argc, char** argv) {
     pthread_join(threadID[i], nullptr);
 
   auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-  int nb_event_per_iter = 2 * nb_functions;
+  int nb_event_per_iter = (1 + pattern ) * nb_functions;
   double nb_events = nb_iter * nb_event_per_iter * nb_threads;
   auto events_per_nanosecond = nb_events / duration;
 
