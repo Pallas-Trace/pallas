@@ -55,12 +55,12 @@ void info_archive(Archive* archive);
 void info_thread_header();
 void info_thread_summary(Thread* thread);
 
-void print_sequence(const Sequence* s, const Thread* t) {
+void print_sequence(const Sequence& s, const Thread* t) {
   std::cout << "{";
-  for (unsigned i = 0; i < s->size(); i++) {
-    const Token token = s->tokens[i];
+  for (unsigned i = 0; i < s.size(); i++) {
+    const Token token = s.tokens[i];
     std::cout << t->getTokenString(token);
-    if (i < s->size() - 1)
+    if (i < s.size() - 1)
       printf(", ");
   }
   std::cout << "}" << std::endl;
@@ -123,8 +123,8 @@ void info_sequence_header() {
   std::cout << std::endl;
 }
 
-float contention_score(Thread* t, Sequence* s) {
-  pallas_duration_t delta_duration = s->durations->size * (s->durations->mean - s->durations->min);
+float contention_score(Thread* t, Sequence& s) {
+  pallas_duration_t delta_duration = s.durations->size * (s.durations->mean - s.durations->min);
   pallas_duration_t thread_duration = t->getDuration();
   if (delta_duration > thread_duration)
     return -1;
@@ -132,54 +132,54 @@ float contention_score(Thread* t, Sequence* s) {
 }
 
 void info_sequence(Thread* t, int index, bool details = false) {
-  Sequence* s = t->sequences[index];
+  Sequence& s = t->sequences[index];
 
   if (details) {
     info_sequence_header();
   }
 
-  std::string sequence_name = s->guessName(t);
+  std::string sequence_name = s.guessName(t);
 
   std::cout << std::left << "S" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << sequence_name;
-  std::cout << std::setw(18) << std::right << s->durations->size;
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->min == UINT64_MAX ? 0 : s->durations->min);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->max == UINT64_MAX ? 0 : s->durations->max);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX ? 0 : s->durations->mean);
-  std::cout << std::setw(18) << std::right << ns2s(s->durations->mean == UINT64_MAX ? 0 : s->durations->mean * s->durations->size);
-  std::cout << std::setw(18) << std::right << s->size();
+  std::cout << std::setw(18) << std::right << s.durations->size;
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->min == UINT64_MAX ? 0 : s.durations->min);
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->max == UINT64_MAX ? 0 : s.durations->max);
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean);
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean * s.durations->size);
+  std::cout << std::setw(18) << std::right << s.size();
 
   std::cout << std::setw(18) << std::right << contention_score(t, s);
-  // std::cout << std::setw(18) << std::right << s->getEventCount(t);
+  // std::cout << std::setw(18) << std::right << s.getEventCount(t);
   std::cout << std::endl;
 
   if (details) {
     if (cmd & show_sequence_content) {
-      std::cout << std::endl << "------------------- Sequence" << s->id.id << " contains:" << std::endl;
-      for (auto token : s->tokens) {
+      std::cout << std::endl << "------------------- Sequence" << s.id.id << " contains:" << std::endl;
+      for (auto token : s.tokens) {
         std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
         // TODO show exclusive durations
-      std::cout << "------------------- End of sequence" << s->id.id << std::endl;
+      std::cout << "------------------- End of sequence" << s.id.id << std::endl;
       std::cout << std::endl;
     }
 
     if (cmd & show_sequence_durations) {
-      std::cout << std::endl << "------------------- Sequence" << s->id.id << " duration:" << std::endl;
-      for (int i = 0; i < s->durations->size; i++) {
-        uint64_t duration = s->durations->at(i);
+      std::cout << std::endl << "------------------- Sequence" << s.id.id << " duration:" << std::endl;
+      for (int i = 0; i < s.durations->size; i++) {
+        uint64_t duration = s.durations->at(i);
         std::cout << "\t" << duration << std::endl;
       }
-      std::cout << std::endl << "------------------- End of sequence" << s->id.id << " durations." << std::endl;
+      std::cout << std::endl << "------------------- End of sequence" << s.id.id << " durations." << std::endl;
     }
 
     if (cmd & show_sequence_timestamps) {
-      std::cout << std::endl << "------------------- Sequence" << s->id.id << " timestamps:" << std::endl;
-      for (int i = 0; i < s->timestamps->size; i++) {
-        uint64_t timestamp = s->timestamps->at(i);
+      std::cout << std::endl << "------------------- Sequence" << s.id.id << " timestamps:" << std::endl;
+      for (int i = 0; i < s.timestamps->size; i++) {
+        uint64_t timestamp = s.timestamps->at(i);
         std::cout << "\t" << timestamp << std::endl;
       }
-      std::cout << std::endl << "------------------- End of sequence" << s->id.id << " timestamps." << std::endl;
+      std::cout << std::endl << "------------------- End of sequence" << s.id.id << " timestamps." << std::endl;
     }
 }
 }

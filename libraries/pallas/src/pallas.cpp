@@ -22,10 +22,10 @@ void Thread::loadTimestamps() {
         events[i].timestamps->load_all_data();
     }
     DOFOR(i, nb_sequences) {
-        auto* s = sequences[i];
-        s->durations->load_all_data();
-        s->exclusive_durations->load_all_data();
-        s->timestamps->load_all_data();
+        auto& s = sequences[i];
+        s.durations->load_all_data();
+        s.exclusive_durations->load_all_data();
+        s.timestamps->load_all_data();
     }
 }
 
@@ -34,10 +34,10 @@ void Thread::resetVectorsOffsets() {
         events[i].timestamps->reset_offsets();
     }
     DOFOR(i, nb_sequences) {
-        auto* s = sequences[i];
-        s->durations->reset_offsets();
-        s->exclusive_durations->reset_offsets();
-        s->timestamps->reset_offsets();
+        auto& s = sequences[i];
+        s.durations->reset_offsets();
+        s.exclusive_durations->reset_offsets();
+        s.timestamps->reset_offsets();
     }
 }
 
@@ -75,7 +75,7 @@ Sequence* Thread::getSequence(Token token) const {
     pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
   }
   pallas_assert(token.id < this->nb_sequences);
-  return this->sequences[token.id];
+  return &sequences[token.id];
 }
 
 /**
@@ -99,7 +99,7 @@ Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t
             pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
         }
         for (const auto sid : sequencesWithSameHash) {
-            if (_pallas_arrays_equal(array, array_size, sequences[sid]->tokens.data(), sequences[sid]->size())) {
+            if (_pallas_arrays_equal(array, array_size, sequences[sid].tokens.data(), sequences[sid].size())) {
                 pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: \t found with id=%u\n", sid);
                 return PALLAS_SEQUENCE_ID(sid);
             }
@@ -164,7 +164,7 @@ std::string Thread::getTokenString(Token token) const {
 }
 
 pallas_duration_t Thread::getDuration() const {
-  return sequences[0]->durations->at(0);
+  return sequences[0].durations->at(0);
 }
 pallas_duration_t get_duration(PALLAS(Thread) * t) {
   return t->getDuration();
@@ -453,44 +453,44 @@ std::string Thread::getEventString(Event* e) const {
 std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<pallas_duration_t>(nb_sequences);
     for (size_t i = 1; i < nb_sequences; i ++) {
-        auto* s = sequences[i];
-        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
+        auto& s = sequences[i];
+        if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
             output[i] = 0;
             continue;
         }
-        size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
-        size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+        size_t start_index = s.timestamps->getFirstOccurrenceBefore(start);
+        size_t end_index = s.timestamps->getFirstOccurrenceBefore(end);
 #ifdef DEBUG
-        if ( s->timestamps->front() <= start ) {
-            pallas_assert_inferior_equal(s->timestamps->at(start_index), start);
-            if (start_index + 1 < s->timestamps->size) {
-                pallas_assert_inferior_equal(start, s->timestamps->at(start_index + 1));
+        if ( s.timestamps->front() <= start ) {
+            pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
+            if (start_index + 1 < s.timestamps->size) {
+                pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
             }
         }
-        pallas_assert_inferior_equal(s->timestamps->at(end_index),end);
+        pallas_assert_inferior_equal(s.timestamps->at(end_index),end);
 #endif
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
-            output[i] = s->exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+            output[i] = s.exclusive_durations->computeDurationBetween(start_index + 1, end_index);
         }
         // Then we need to compute the pro-ratio of the starting and the end events
         // Starting event:
-        pallas_timestamp_t start_event_start = s->timestamps->at(start_index);
-        pallas_duration_t start_event_duration = s->durations->at(start_index);
+        pallas_timestamp_t start_event_start = s.timestamps->at(start_index);
+        pallas_duration_t start_event_duration = s.durations->at(start_index);
         pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
         if ( start <= start_event_end ) {
             pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
-            output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+            output[i] += s.exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
         }
         // Ending event
         if (end_index != start_index) {
-            pallas_timestamp_t end_event_start = s->timestamps->at(end_index);
-            pallas_duration_t end_event_duration = s->durations->at(end_index);
+            pallas_timestamp_t end_event_start = s.timestamps->at(end_index);
+            pallas_duration_t end_event_duration = s.durations->at(end_index);
             pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
             if (end_event_start <= end) {
                 pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start, end_event_start),std::min(end_event_end, end));
-                output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+                output[i] += s.exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
             }
         }
     }
@@ -522,9 +522,6 @@ Thread::~Thread() {
     events[i].cleanEventSummary();
   }
   delete[] events;
-  for (size_t i = 0; i < nb_allocated_sequences; i++) {
-    delete sequences[i];
-  }
   delete[] sequences;
   delete[] loops;
 }

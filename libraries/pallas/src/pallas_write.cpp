@@ -56,7 +56,7 @@ static Token getLastEvent(Token t, const Thread* thread) {
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
-        return *thread->sequences[token_array->id];
+        return thread->sequences[token_array->id];
     }
     // First match it in the thread
     uint32_t hash = hash32_Token(token_array, array_len, SEED);
@@ -71,10 +71,9 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
-            thread->sequences[i] = new Sequence;
-            thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
+            thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
         }
     }
 
@@ -353,7 +352,7 @@ void ThreadWriter::findSequence(size_t n) {
             auto& sequencesWithSameHash = thread->hashToSequence[hash];
             if (!sequencesWithSameHash.empty()) {
                 for (const auto sid : sequencesWithSameHash) {
-                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid]->tokens.data(), thread->sequences[sid]->size())) {
+                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid].tokens.data(), thread->sequences[sid].size())) {
                         found_sequence_id = sid;
                         break;
                     }
@@ -595,13 +594,13 @@ void ThreadWriter::threadClose() {
     }
     // Then we need to store the main sequence
     auto& mainSequence = thread->sequences[0];
-    mainSequence->tokens = sequence_stack[0];
-    pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence->tokens.back().type, mainSequence->tokens.back().id);
+    mainSequence.tokens = sequence_stack[0];
+    pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
-    mainSequence->durations->add(duration);
-    mainSequence->exclusive_durations->add(duration);
+    mainSequence.durations->add(duration);
+    mainSequence.exclusive_durations->add(duration);
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
-    mainSequence->timestamps->add(thread->first_timestamp);
+    mainSequence.timestamps->add(thread->first_timestamp);
     thread->store(thread->archive->dir_name, parameter_handler);
 }
 ThreadWriter::~ThreadWriter() {
@@ -636,13 +635,12 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->nb_events = 0;
 
     thread->nb_allocated_sequences = NB_SEQUENCE_DEFAULT;
-    thread->sequences = new Sequence*[thread->nb_allocated_sequences]();
+    thread->sequences = new Sequence[thread->nb_allocated_sequences]();
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
-        thread->sequences[i] = new Sequence();
-        thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
+        thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -659,7 +657,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     // We need to initialize the main Sequence (Sequence 0)
     auto& mainSequence = thread->sequences[0];
-    mainSequence->id = PALLAS_SEQUENCE_ID(0);
+    mainSequence.id = PALLAS_SEQUENCE_ID(0);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;

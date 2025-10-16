@@ -1383,7 +1383,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
   for (int i = 0; i < th->nb_sequences; i++) {
-    pallasStoreSequence(*th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
+    pallasStoreSequence(th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
   }
   sequenceDurationFile.close();
 
@@ -1423,10 +1423,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
 
   threadFile.read(&th->nb_sequences, sizeof(th->nb_sequences), 1);
   th->nb_allocated_sequences = th->nb_sequences;
-  th->sequences = new pallas::Sequence*[th->nb_allocated_sequences];
-  for (int i = 0; i < th->nb_sequences; i++) {
-    th->sequences[i] = new pallas::Sequence;
-  }
+  th->sequences = new pallas::Sequence[th->nb_allocated_sequences];
 
   threadFile.read(&th->nb_loops, sizeof(th->nb_loops), 1);
   th->nb_allocated_loops = th->nb_loops;
@@ -1450,8 +1447,8 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
     fileMap[sequenceDurationFilename] = new File(sequenceDurationFilename);;
   }
   for (int i = 0; i < th->nb_sequences; i++) {
-    th->sequences[i]->id = PALLAS_SEQUENCE_ID(i);
-    pallasReadSequence(*th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
+    th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
+    pallasReadSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);

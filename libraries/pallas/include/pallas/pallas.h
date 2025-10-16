@@ -25,6 +25,7 @@
 #include "pallas_config.h"
 #include "pallas_dbg.h"
 #include "pallas_linked_vector.h"
+#include "pallas_log.h"
 #include "pallas_timestamp.h"
 
 #ifdef __cplusplus
@@ -325,14 +326,14 @@ typedef struct Sequence {
     /** ID of that sequence. */
     Token id CXX({Token()});
     /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas/01-presentation?id=grammar). */
-    enum SequenceType type;
+    enum SequenceType type CXX({SEQUENCE_BLOCK});
     /** Vector of the durations of each sequence. */
-    LinkedDurationVector* durations;
+    LinkedDurationVector* durations CXX({nullptr});
     /** Vector of the exclusive durations of each sequence.
      * Equals duration - sum(duration) of the contained sequences.*/
-    LinkedDurationVector* exclusive_durations;
+    LinkedDurationVector* exclusive_durations CXX({nullptr});
     /** Vector of the timestamps of each sequence. */
-    LinkedVector* timestamps;
+    LinkedVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});
     /** Vector of Token to store the sequence of tokens */
@@ -371,6 +372,28 @@ public:
         delete exclusive_durations;
         delete timestamps;
     };
+    Sequence& operator=(Sequence&& other) {
+        if (this == &other)
+            return *this;
+        durations = other.durations;
+        exclusive_durations = other.exclusive_durations;
+        timestamps = other.timestamps;
+        id = other.id;
+        type = other.type;
+        hash = other.hash;
+        tokens = std::move(other.tokens);
+        tokenCount = std::move(other.tokenCount);
+        other.durations = nullptr;
+        other.exclusive_durations = nullptr;
+        other.timestamps = nullptr;
+        return *this;
+    };
+    Sequence(ParameterHandler& parameter_handler) {
+        durations = new LinkedDurationVector(parameter_handler);
+        exclusive_durations = new LinkedDurationVector(parameter_handler);
+        timestamps = new LinkedVector(parameter_handler);
+    }
+    explicit Sequence() {};
 #endif
 } Sequence;
 
@@ -531,7 +554,7 @@ typedef struct Thread {
     size_t nb_events;
 
     /** Array of pallas::Sequence recorded in this Thread. */
-    Sequence** sequences;
+    Sequence* sequences;
     /** Number of blocks of size pallas:Sequence allocated in #sequences. */
     size_t nb_allocated_sequences;
     /** Number of pallas::Sequence in #sequences. */
@@ -752,20 +775,21 @@ extern "C" {
 /**
  * Doubles the memory allocated for the given buffer and calls the constructor for the given objects.
  */
-template <typename T> void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
-  T* newArray = new T[counter * 2];
-  // Copy without destructing
-  std::memcpy(newArray, originalArray, counter * sizeof(T));
+template <typename T>
+void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
+    T* newArray = new T[counter * 2];
+    // Copy without destructing
+    std::memcpy(newArray, originalArray, counter * sizeof(T));
+    std::memset(originalArray, 0, counter * sizeof(T));
+    // Create the new objects by calling there constructors
+    for (size_t i = counter; i < counter * 2; ++i) {
+        new(&newArray[i]) T();
+    }
 
-  // Create the new objects by calling there constructors
-  for (size_t i = counter; i < counter * 2; ++i) {
-    new (&newArray[i]) T();
-  }
-
-  // Delete then replace the original array
-  delete[]originalArray;
-  originalArray = newArray;
-  counter *= 2;
+    // Delete then replace the original array
+    delete[]originalArray;
+    originalArray = newArray;
+    counter *= 2;
 }
 #endif
 

@@ -241,10 +241,10 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occure
 
 void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const {
     // Let's call the main sequence "main"
-    names[thread_trace->sequences[0]] = "main";
+    names[&thread_trace->sequences[0]] = "main";
 
     for (int i = 1; i < thread_trace->nb_sequences; i++) {
-        pallas::Sequence* s = thread_trace->sequences[i];
+        pallas::Sequence* s = &thread_trace->sequences[i];
 
         if (names.count(s) == 0) {
             // The sequence is not named yet
@@ -285,7 +285,7 @@ void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>&
             if (!name_found) {
                 // probably a complex/long sequence. Just name it randomly
                 char buff[128];
-                snprintf(buff, sizeof(buff), "Sequence_%d", s->id);
+                snprintf(buff, sizeof(buff), "Sequence_%d", s->id.id);
                 names[s] = std::string(buff);
             }
         }
@@ -481,7 +481,6 @@ bool ThreadReader::moveToPrevToken(int flags) {
     }
 
     /* Get the previous token in the current sequence. */
-    auto current_token = pollCurToken();
     auto previous_token = pollPrevToken(PALLAS_READ_FLAG_NO_UNROLL);
 
     auto& currentTokenCount = currentState.currentFrame->tokenCount;
