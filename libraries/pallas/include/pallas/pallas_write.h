@@ -39,7 +39,7 @@ typedef struct ThreadWriter {
 
    private:
     /** Returns the inclusive and exclusive duration for the offset-th last given Sequence.*/
-    std::array<pallas_duration_t, 2> getLastSequenceDuration(Sequence* sequence, size_t offset = 0) const;
+    std::array<pallas_duration_t, 2> getLastSequenceDuration(Sequence& sequence, size_t offset = 0) const;
     /** Finds a Loop in the current Sequence using a basic quadratic algorithm.
      *
      * For each correct possible loop length, this algorithm tries two things:
@@ -62,7 +62,7 @@ typedef struct ThreadWriter {
      * Does not change the current array of tokens.
      * @sequence_id ID of the sequence being repeated.
      * */
-    Loop* createLoop(Token sequence_id);
+    Loop& createLoop(Token sequence_id);
     /** Create a Loop and change the current array of token to reflect that.
      *
      * For example, replaces `[E1, E2, E3, E4, E1, E2, E3, E4]` with `[L1]`,
@@ -89,7 +89,7 @@ typedef struct ThreadWriter {
     /** Search for a sequence_id that matches the given array as a Sequence.
      * If none of the registered sequence match, register a new Sequence.
      */
-    Token getSequenceIdFromArray(Token* token_array, size_t array_len);
+    Sequence &getOrCreateSequenceFromArray(Token *token_array, size_t array_len);
     /** Returns the current timestamp. */
     pallas_timestamp_t getTimestamp();
     /** Returns t if it's valid, of the current timestamp. */
