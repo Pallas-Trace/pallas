@@ -171,7 +171,93 @@ int main(int argc, char** argv) {
     comm.name = string_ref_lookup[comm.name];
   }
 
-  // update location_groups and location StringRefs and write new data
+  // update StringRefs in location_groups, locations and events
+  for (auto& lg : trace->location_groups) {
+    lg.name = string_ref_lookup[lg.name];
+
+    auto* a = trace->getArchive(lg.id);
+    for (auto& loc : a->locations) {
+      loc.name = string_ref_lookup[loc.name];
+
+      auto* t = a->getThread(loc.id);
+
+      size_t num_of_events = t->nb_events;
+      for (size_t i = 0; i < num_of_events; i++) {
+        pallas::EventSummary summary = t->events[i];
+        pallas::Event event = summary.event;
+        pallas::Record record = event.record;
+        if (record == pallas::PALLAS_EVENT_ENTER || record == pallas::PALLAS_EVENT_LEAVE) {
+
+          pallas::RegionRef ref;
+          memcpy(&ref, event.event_data, sizeof(pallas::RegionRef));
+          pallas::RegionRef new_ref = region_ref_lookup[ref];
+          memcpy(t->events[i].event.event_data, &new_ref, sizeof(pallas::RegionRef));
+        }
+      }
+      a->freeThread(loc.id);
+    }
+    trace->freeArchive(lg.id);
+  }
+
+  std::vector<std::map<uint32_t, uint32_t>> thread_token_lookup;
+
+  for (auto& lg : trace->location_groups) {
+
+    auto* a = trace->getArchive(lg.id);
+
+    uint32_t n_events_verified = 0;
+
+    for (auto& loc : a->locations) {
+      auto* t = a->getThread(loc.id);
+      uint32_t max_events_t = t->nb_events;
+
+      if (max_events_t > n_events_verified) {
+        for (uint32_t event_idx = n_events_verified; event_idx < max_events_t; event_idx++) {
+          pallas::EventSummary src_event = t->events[event_idx];
+
+          for (auto& loc2 : a->locations) {
+            if (loc2.id != loc.id) {
+              auto* t2 = a->getThread(loc2.id);
+              bool found_match = false;
+              pallas::EventSummary candidate_event = t2->events[event_idx];
+              if (event_cmp(&src_event.event,
+                            &candidate_event.event)) {
+                continue;
+              } else {
+
+                uint32_t max_events_t2 = t2->nb_events;
+                for (uint32_t event2_idx = event_idx; event2_idx < max_events_t2; event2_idx++) {
+                  candidate_event = t2->events[event2_idx];
+                  if (event_cmp(&src_event.event,
+                                &candidate_event.event)) {
+                    pallas::EventSummary swapped_event = t2->events[event_idx];
+                    event_insert(&candidate_event, t2, event_idx);
+                    event_insert(&swapped_event, t2, event2_idx);
+                    found_match = true;
+                    break;
+                  }
+                }
+
+                pallas::EventSummary swapped_event = t2->events[event_idx];
+                event_insert_invalid(t2, event_idx);
+                event_insert(&swapped_event, t2, t2->nb_events);
+              }
+              a->freeThread(loc.id);
+
+            }
+          }
+        }
+      }
+
+      n_events_verified = max_events_t;
+
+      a->freeThread(loc.id);
+    }
+    trace->freeArchive(lg.id);
+  }
+
+
+  // write updated trace
   auto newDirName = strdup((
       std::string(trace->dir_name) + "_synchronized"
   ).c_str());
