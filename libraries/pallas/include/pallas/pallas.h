@@ -325,7 +325,7 @@ typedef struct Sequence {
     /** ID of that sequence. */
     Token id CXX({Token()});
     /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas/01-presentation?id=grammar). */
-    SequenceType type;
+    enum SequenceType type;
     /** Vector of the durations of each sequence. */
     LinkedDurationVector* durations;
     /** Vector of the exclusive durations of each sequence.

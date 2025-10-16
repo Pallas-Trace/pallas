@@ -32,7 +32,7 @@ static inline void check_event_allocation(Thread* thread_trace, unsigned id) {
 }
 
 static inline void print_sequence_info(Sequence* s, Thread* t) {
-    std::cout << "Information on sequence " << s->id << ":\n"
+    std::cout << "Information on sequence " << s->id.id << ":\n"
             << "\tNumber of tokens: " << s->tokens.size() << ": ";
     t->printTokenVector(s->tokens);
     std::cout << "\tNumber of iterations: " << s->durations->size << "\n"

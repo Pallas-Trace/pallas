@@ -56,7 +56,7 @@ static Token getLastEvent(Token t, const Thread* thread) {
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
-        return *thread->sequences[*token_array];
+        return *thread->sequences[token_array->id];
     }
     uint32_t hash = hash32((uint8_t*)(token_array), array_len * sizeof(pallas::Token), SEED);
     pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_len, hash);
