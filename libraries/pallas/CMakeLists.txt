@@ -76,7 +76,12 @@ target_compile_options(pallas
         PRIVATE
         -Wall -Wextra ${WARNINGS}
 )
-message("Warning list: ${WARNINGS}")
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(pallas PRIVATE -Wno-nontrivial-memcall)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(pallas PRIVATE -Wno-class-memaccess)
+endif()
+    message("Warning list: ${WARNINGS}")
 
 target_link_libraries(pallas
         PUBLIC
