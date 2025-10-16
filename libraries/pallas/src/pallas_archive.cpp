@@ -36,7 +36,7 @@ void Definition::addString(StringRef string_ref, const char* string) {
   auto& s = strings[string_ref];
   s.string_ref = string_ref;
   s.length = strlen(string) + 1;
-  s.str = (char*) calloc(sizeof(char), s.length);
+  s.str = (char*) calloc(s.length, sizeof(char));
   strncpy(s.str, string, s.length);
 
   pallas_log(DebugLevel::Verbose, "Register string #%zu{.ref=%d, .length=%d, .str='%s'}\n", strings.size() - 1, s.string_ref, s.length, s.str);
