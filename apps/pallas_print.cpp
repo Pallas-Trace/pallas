@@ -345,7 +345,7 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
       current_indent += structure_indent[i];
     }
     if (t.type != pallas::TypeEvent) {
-      if (t.type == pallas::TypeSequence && tr.thread_trace->getSequence(t)->isFunctionSequence(tr.thread_trace)) {
+      if (t.type == pallas::TypeSequence && tr.thread_trace->getSequence(t)->type == pallas::SEQUENCE_BLOCK) {
         current_indent += "┬"; //"─";
       } else {
         current_indent += "┬";

@@ -313,12 +313,19 @@ struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_u
 /** Defines a C++ vector. In C, defines a char[] of size sizeof(std::vector). */
 #define DEFINE_Vector(type, name) C_CXX(byte, std::vector<type>) name C_CXX([VECTOR_SIZE], { std::vector<type>() })
 
+
+enum SequenceType {
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
+};
 /**
  * Structure to store a sequence in PALLAS format.
  */
 typedef struct Sequence {
     /** ID of that sequence. */
-    TokenId id CXX({PALLAS_TOKEN_ID_INVALID});
+    Token id CXX({Token()});
+    /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas/01-presentation?id=grammar). */
+    SequenceType type;
     /** Vector of the durations of each sequence. */
     LinkedDurationVector* durations;
     /** Vector of the exclusive durations of each sequence.
@@ -340,16 +347,12 @@ public:
     /** Getter for the size of that Sequence.
      * @returns Number of tokens in that Sequence. */
     [[nodiscard]] size_t size() const { return tokens.size(); }
-    /** Indicates whether this Sequence comes from a function
-     * (ie begins with Enter and ends with End) or a detected sequence.
-     */
-    bool isFunctionSequence(const struct Thread* thread) const;
 
     /** Getter for #tokenCount during the writting process.
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountWriting(const Thread* thread);
+    TokenCountMap& getTokenCountWriting(const struct Thread* thread);
 
     /** Getter for #tokenCount during the reading process.
      * If need be, counts the number of Token in that Sequence to initialize it.

@@ -442,12 +442,12 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
-            .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, {pallas::TokenType::TypeSequence, other.self->id}); })
+            .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
             .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
             .def("contains", [](const PySequence& self, const PyEventSummary& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
             .def("contains", [](const PySequence& self, const pallas::Token& other) { return doesSequenceContains(self, other); })
             .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
-            .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id) + ">"; });
+            .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id.id) + ">"; });
 
     py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
             .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })

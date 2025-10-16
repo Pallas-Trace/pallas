@@ -501,15 +501,6 @@ const char* Thread::getName() const {
   return archive->getString(archive->getLocation(id)->name)->str;
 }
 
-bool Sequence::isFunctionSequence(const struct Thread* thread) const {
-  if (tokens.front().type == TypeEvent && tokens.back().type == TypeEvent) {
-    auto frontToken = thread->getEvent(tokens.front());
-    auto backToken = thread->getEvent(tokens.back());
-    return frontToken->record == PALLAS_EVENT_ENTER && backToken->record == PALLAS_EVENT_LEAVE;
-  }
-  return false;
-};
-
  Group::~Group() {
   delete[] this->members;
 }
@@ -532,7 +523,7 @@ std::string Sequence::guessName(const pallas::Thread* thread) {
   }
 
   char buff[128];
-  snprintf(buff, sizeof(buff), "Sequence_%d", this->id);
+  snprintf(buff, sizeof(buff), "Sequence_%d", this->id.id);
 
   return buff;
 }

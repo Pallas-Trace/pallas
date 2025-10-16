@@ -1031,13 +1031,14 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
                                 bool load_thread
         ) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
-               sequence.id, sequence.size(), sequence.durations->size);
+               sequence.id.id, sequence.size(), sequence.durations->size);
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         //    th->printSequence(sequence);
         std::cout << "Durations: " << sequence.durations->to_string() << "\n"
                 << "Exclusive Durations:" << sequence.exclusive_durations->to_string() << "\n"
                 << "Timestamps: " << sequence.timestamps->to_string() << std::endl;
     }
+    sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
     size_t size = sequence.size();
     sequenceFile.write(&size, sizeof(size), 1);
     sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
@@ -1069,6 +1070,7 @@ static void pallasReadSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
                                pallas::ParameterHandler& parameter_handler) {
+    sequenceFile.read(&sequence.type, sizeof(sequence.type), 1);
     size_t size;
     sequenceFile.read(&size, sizeof(size), 1);
     sequence.tokens.resize(size);
@@ -1078,7 +1080,7 @@ static void pallasReadSequence(pallas::Sequence& sequence,
         sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
         sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler);
     }
-    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
+    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(),
                sequence.durations->size);
 }
 
@@ -1448,7 +1450,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
     fileMap[sequenceDurationFilename] = new File(sequenceDurationFilename);;
   }
   for (int i = 0; i < th->nb_sequences; i++) {
-    th->sequences[i]->id = i;
+    th->sequences[i]->id = PALLAS_SEQUENCE_ID(i);
     pallasReadSequence(*th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
   }
 

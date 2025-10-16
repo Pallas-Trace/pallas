@@ -89,7 +89,7 @@ Token ThreadWriter::getSequenceIdFromArray(pallas::Token* token_array, size_t ar
     s->tokens.resize(array_len);
     memcpy(s->tokens.data(), token_array, sizeof(Token) * array_len);
     s->hash = hash;
-    s->id = sid.id;
+    s->id = sid;
     sequencesWithSameHash.push_back(index);
     return sid;
 }
@@ -673,7 +673,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     // We need to initialize the main Sequence (Sequence 0)
     auto& mainSequence = thread->sequences[0];
-    mainSequence->id = 0;
+    mainSequence->id = PALLAS_SEQUENCE_ID(0);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;

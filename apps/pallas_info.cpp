@@ -155,31 +155,31 @@ void info_sequence(Thread* t, int index, bool details = false) {
 
   if (details) {
     if (cmd & show_sequence_content) {
-      std::cout << std::endl << "------------------- Sequence" << s->id << " contains:" << std::endl;
+      std::cout << std::endl << "------------------- Sequence" << s->id.id << " contains:" << std::endl;
       for (auto token : s->tokens) {
         std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
         // TODO show exclusive durations
-      std::cout << "------------------- End of sequence" << s->id << std::endl;
+      std::cout << "------------------- End of sequence" << s->id.id << std::endl;
       std::cout << std::endl;
     }
 
     if (cmd & show_sequence_durations) {
-      std::cout << std::endl << "------------------- Sequence" << s->id << " duration:" << std::endl;
+      std::cout << std::endl << "------------------- Sequence" << s->id.id << " duration:" << std::endl;
       for (int i = 0; i < s->durations->size; i++) {
         uint64_t duration = s->durations->at(i);
         std::cout << "\t" << duration << std::endl;
       }
-      std::cout << std::endl << "------------------- End of sequence" << s->id << " durations." << std::endl;
+      std::cout << std::endl << "------------------- End of sequence" << s->id.id << " durations." << std::endl;
     }
 
     if (cmd & show_sequence_timestamps) {
-      std::cout << std::endl << "------------------- Sequence" << s->id << " timestamps:" << std::endl;
+      std::cout << std::endl << "------------------- Sequence" << s->id.id << " timestamps:" << std::endl;
       for (int i = 0; i < s->timestamps->size; i++) {
         uint64_t timestamp = s->timestamps->at(i);
         std::cout << "\t" << timestamp << std::endl;
       }
-      std::cout << std::endl << "------------------- End of sequence" << s->id << " timestamps." << std::endl;
+      std::cout << std::endl << "------------------- End of sequence" << s->id.id << " timestamps." << std::endl;
     }
 }
 }
