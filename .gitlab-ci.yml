@@ -125,8 +125,7 @@ test:intel-oneapi:
 deploy:pages:
   stage: deploy
   image: registry.gitlab.inria.fr/pallas/pallas:latest
-  tags:
-    - noname
+  tags: ['linux', 'small']
   script:
     - mkdir build
     - cd build
@@ -156,8 +155,7 @@ deploy:docker:
     # Use the overlays driver for improved performance:
     DOCKER_DRIVER: overlay2
     DOCKER_TLS_CERTDIR: ""
-  tags:
-    - noname
+  tags: ['linux', 'small']
   only:
     - main
   script:
