@@ -491,6 +491,7 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<pallas::Archive>(m, "Archive", "A Pallas archive. If it exists, it's already been loaded.")
             .def_readonly("dir_name", &pallas::Archive::dir_name)
+            .def_readonly("id", &pallas::Archive::id)
             .def_property_readonly("locations", &Archive_get_locations)
             .def_property_readonly("strings", &Archive_get_strings)
             .def_property_readonly("regions", &Archive_get_regions)

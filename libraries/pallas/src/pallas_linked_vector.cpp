@@ -201,6 +201,7 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
     if (back() < ts) {
         return size - 1;
     }
+    // TODO Infinite loop on ft.C.64 with 30 slices
     auto current_subarray = first;
     // First, we find the correct subarray
     while (current_subarray->last_value < ts) {
@@ -230,6 +231,9 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
             return current_subarray->starting_index + middle;
         }
         if (current_subarray->array[middle] < ts) {
+            if (start == middle) {
+                return end;
+            }
             start = middle;
         } else {
             end = middle;

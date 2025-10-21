@@ -6,7 +6,7 @@ stages:
 build:gcc:
   stage: build
   image: registry.gitlab.inria.fr/pallas/pallas:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'small']
   variables:
     CC: "gcc"
     CXX: "g++"
@@ -21,7 +21,7 @@ build:gcc:
 
 build:clang:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'small']
   stage: build
   variables:
      CC: "clang"
@@ -37,7 +37,7 @@ build:clang:
 
 build:intel-oneapi:
   image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'large_more_disk']
   stage: build
   only:
     - main
@@ -55,7 +55,7 @@ build:intel-oneapi:
 
 test:gcc:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'small']
   stage: test
   variables:
     CC: "gcc"
@@ -77,7 +77,7 @@ test:gcc:
 
 test:clang:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'small']
   stage: test
   variables:
     CC: "clang"
@@ -99,7 +99,7 @@ test:clang:
 
 test:intel-oneapi:
   image: registry.gitlab.inria.fr/pallas/pallas/intel:latest
-  tags: ['ci.inria.fr', 'linux', 'small']
+  tags: ['linux', 'large_more_disk']
   stage: test
   only:
     - main
