@@ -107,6 +107,7 @@ class File {
   char* path = nullptr;
   bool isOpen = false;
   bool is_open() const { return isOpen; }
+    // TODO Add the file mode to the File class
   void open(const char* mode) {
     if (isOpen) {
       pallas_log(pallas::DebugLevel::Verbose, "Trying to open file that is already open: %s\n", path);
