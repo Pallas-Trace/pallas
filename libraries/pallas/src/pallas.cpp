@@ -433,7 +433,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_
             continue;
         output[t] = 0;
         // s.durations.min here because we don't want to load anything.
-        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min() < start) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min  < start) {
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
