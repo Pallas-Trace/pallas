@@ -460,7 +460,9 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def("get_events_from_record", threadGetEventsMatching)
             .def("get_events_from_record", threadGetEventsMatchingList)
             .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
-            .def("getSnapshotView", &pallas::Thread::getSnapshotView);
+            .def("getSnapshotView", &pallas::Thread::getSnapshotView)
+            .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast);
+
 
     py::class_<PyLocationGroup>(m, "LocationGroup", "A group of Pallas locations. Usually means a process.")
             .def_readonly("id", &PyLocationGroup::id)
