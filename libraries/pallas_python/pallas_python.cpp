@@ -212,6 +212,11 @@ struct PyRegion {
     const std::string name;
 };
 
+struct PyLinkedVector {
+    pallas::LinkedVector* linked_vector;
+    pallas::LinkedDurationVector * linked_duration_vector;
+};
+
 std::map<pallas::StringRef, std::string>& Archive_get_strings(pallas::Archive& archive) {
     auto& map = *new std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : archive.definitions.strings) {
@@ -284,32 +289,6 @@ pallas::GlobalArchive* open_trace(const std::string& path) {
     return pallas_open_trace(path.c_str());
 }
 
-template <class VectorType>
-class DataHolder {
-private:
-    VectorType* data;
-
-public:
-    explicit DataHolder(VectorType* data_) { data = data_; };
-
-    py::array_t<uint64_t> get_array() {
-        /* Since we're currently still using np.array, and not out-of-cores custom ones, we need to actually
-         * get all the values as a single flat array. This single flat array is owned by the Numpy Array.
-         * This whole DataHolder class is a relic from when we didn't have LinkedArray like that when reading.
-         */
-        // data->ref++;
-        return py::array_t({data->size}, {sizeof(uint64_t)}, data->as_flat_array() //
-                           // py::capsule(this, [](void* p) {
-                           //     auto* holder = reinterpret_cast<DataHolder*>(p);
-                           //     if (--holder->data->ref == 0) {
-                           //         //holder->data->free_data();
-                           //     }
-                           //     // delete holder;
-                           //     // TODO Python is shit so I had to remove these lines to make sure I don't have issues with Pallas.
-                           // })
-                );
-    }
-};
 
 struct PySequence {
     pallas::Sequence* self;
@@ -430,15 +409,23 @@ PYBIND11_MODULE(pallas_trace, m) {
     py::class_<pallas::Token>(m, "Token", "A Pallas token")
             .def_property_readonly("id", [](pallas::Token t) { return t.id; })
             .def_property_readonly("type", [](pallas::Token t) { return t.type; })
-            .def("__repr__", &Token_toString);
+            .def("__repr__", &Token_toString)
+            .def("__hash__", [](pallas::Token& self) { return *reinterpret_cast<uint32_t*>(&self);})
+            .def("__eq__", [](pallas::Token& self, pallas::Token& other) {return self.type == other.type && self.id == other.id;})
+    ;
+
+    py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
+            .def_property_readonly("size", [](PyLinkedVector self) {return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size;})
+            .def("__getitem__", [](PyLinkedVector self, int i) {return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i);})
+    ;
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
-            .def_property_readonly("id", [](const PySequence& self) { return self.self->id; })
+            .def_property_readonly("id", [](const PySequence& self) { return pallas::Token(pallas::TypeSequence,self.self->id); })
             .def_property_readonly("tokens", [](const PySequence& self) { return self.self->tokens; })
             .def_property_readonly("content", [](const PySequence& self) { return sequenceGetContent(self); })
-            .def_property_readonly("timestamps", [](const PySequence& self) { return (new DataHolder(self.self->timestamps))->get_array(); })
-            .def_property_readonly("durations", [](const PySequence& self) { return (new DataHolder(self.self->durations))->get_array(); })
-            .def_property_readonly("exclusive_durations", [](const PySequence& self) { return (new DataHolder(self.self->exclusive_durations))->get_array(); })
+            .def_property_readonly("timestamps", [](const PySequence& self) { return PyLinkedVector {self.self->timestamps, nullptr }; } )
+            .def_property_readonly("durations", [](const PySequence& self) { return PyLinkedVector {nullptr, self.self->durations }; })
+            .def_property_readonly("exclusive_durations", [](const PySequence& self) { return PyLinkedVector {nullptr, self.self->exclusive_durations }; })
             .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
@@ -456,10 +443,10 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
 
     py::class_<PyEventSummary>(m, "EventSummary", "A Pallas Event Summary, that stores info about an event.")
-            .def_property_readonly("id", [](const PyEventSummary& self) { return self.self->id; })
+            .def_property_readonly("id", [](const PyEventSummary& self) { return pallas::Token(pallas::TypeEvent,self.self->id); })
             .def_property_readonly("event", [](const PyEventSummary& self) { return self.self->event; })
             .def_property_readonly("nb_occurrences", [](const PyEventSummary& self) { return self.self->nb_occurences; })
-            .def_property_readonly("timestamps", [](const PyEventSummary& self) { return (new DataHolder(self.self->timestamps))->get_array(); })
+            .def_property_readonly("timestamps", [](const PyEventSummary& self) { return PyLinkedVector {self.self->timestamps, nullptr }; })
             .def("__repr__", [](const PyEventSummary& self) { return "<pallas_python.EventSummary " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Event>(m, "Event", "A Pallas Event.").def_readonly("record", &pallas::Event::record).def_property_readonly("data", &Event_get_data);
