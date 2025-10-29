@@ -436,7 +436,7 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
             .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })
-            .def_property_readonly("sequence", [](const PyLoop& self) { return PySequence(self.thread->getSequence(self.self->repeated_token), self.thread); })
+            .def_property_readonly("sequence", [](const PyLoop& self) { return PySequence {self.thread->getSequence(self.self->repeated_token), self.thread}; })
             .def_property_readonly("nb_iterations", [](const PyLoop& self) { return self.self->nb_iterations; })
             .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
 

@@ -47,6 +47,11 @@ import pallas_trace as pallas
 trace = pallas.open_trace("<trace_name>.pallas")
 ```
 
+You can run your own instance of a Jupyter-Notebook with Pallas already installed 
+and some examples provided my doing the following steps (require Docker):
+```bash
+
+```
 An example Jupyter Notebook is available at /* TODO */
 
 ## Using C/C++
