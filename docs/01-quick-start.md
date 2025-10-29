@@ -50,9 +50,8 @@ trace = pallas.open_trace("<trace_name>.pallas")
 You can run your own instance of a Jupyter-Notebook with Pallas already installed 
 and some examples provided my doing the following steps (require Docker):
 ```bash
-docker run -p 8888:8888 -it registry.gitlab.inria.fr/pallas/pallas/eztrace_example:latest  "cd jupyter-notebook && jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser"
+docker run -p 8888:8888 -w /jupyter-notebook -it registry.gitlab.inria.fr/pallas/pallas/eztrace_example:latest  jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser
 ```
-An example Jupyter Notebook is available at /* TODO */
 
 ## Using C/C++
 You can also use the Pallas library to read your traces. 
