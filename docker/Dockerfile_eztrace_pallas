@@ -42,3 +42,6 @@ RUN git clone -b dev https://gitlab.com/eztrace/eztrace.git \
 # Install Blup
 RUN git clone https://gitlab.inria.fr/blup/blup.git /usr/local/blup
 RUN ln -s /usr/local/blup/blup /usr/local/bin/blup
+
+# Make the Jupyter Notebook directory
+RUN mkdir jupyter-notebook && cp pallas/docs/pallas_python_example.ipynb jupyter-notebook
