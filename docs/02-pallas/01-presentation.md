@@ -1,4 +1,3 @@
-# Presentation of Pallas Trace Format
 Pallas is a new trace format whose goal is to speed up post-morterm analysis.
 It provides a clean C/C++ writing API, as well as API for reading traces in both C, C++ and Python.
 
