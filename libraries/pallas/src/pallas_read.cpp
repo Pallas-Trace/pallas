@@ -622,6 +622,7 @@ void ThreadReader::loadCheckpoint(Cursor* checkpoint) {
 }
 
 ThreadReader::~ThreadReader() {
+    pallas_log(DebugLevel::Debug, "Deleting ThreadReader %d\n", this->thread_trace->id);
     if (archive)
         archive->freeThread(thread_trace->id);
 }

@@ -244,7 +244,7 @@ typedef struct GlobalArchive {
    * Store this GlobalArchive to dir_name.
    * @param parameter_handler Handler for the storage options.
    */
-  void store (const ParameterHandler* parameter_handler) { store(dir_name, parameter_handler); }
+  void store (const ParameterHandler* parameter_handler = parameter_handler) { store(dir_name, parameter_handler); }
   /**
    * Getter for a LocationGroup from its id.
    * @returns First LocationGroup matching the given pallas::LocationGroupId in this GlobalArchive. Nullptr if none was found.
@@ -409,7 +409,7 @@ typedef struct Archive {
    * Store this GlobalArchive to dir_name.
    * @param parameter_handler Handler for the storage options.
    */
-    void store (const ParameterHandler* parameter_handler) { store(dir_name, parameter_handler); }
+    void store (const ParameterHandler* parameter_handler = nullptr) { store(dir_name, parameter_handler); }
   Archive(const char* dirname, LocationGroupId archive_id);
   Archive(GlobalArchive& global_archive, LocationGroupId archive_id);
   ~Archive();

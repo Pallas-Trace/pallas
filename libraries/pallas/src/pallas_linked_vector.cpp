@@ -369,6 +369,49 @@ SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
     return output;
 })
 
+
+std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
+    auto output = std::vector<double>();
+    auto* current = first;
+    double sum = 0;
+    while (current != nullptr) {
+        if (current->last_value < start || end < current->first_value) {
+            // Completely outside the bounds
+            output.push_back(0.);
+        } else if (start < current->first_value && current->last_value < end) {
+            // Completely inside the bounds
+            output.push_back(1.0);
+        } else if (current->first_value < start && start < current->last_value) {
+            // Starting bounds
+            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value) );
+        } else if (current->first_value < end && end < current->last_value) {
+            // Ending bounds
+            output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
+        } else {
+            pallas_error("This is not supposed to happen !\n");
+            pallas_error("start=%lu, end=%lu\n", start, end);
+        }
+        sum += output.back();
+        current = current->next;
+    }
+    for (auto& i : output) {
+        i /= sum;
+    }
+    return output;
+}
+
+pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weights) {
+    double sum = 0;
+    size_t index = 0;
+    auto* current = first;
+    while (current != nullptr) {
+        sum += weights[index++] * current->mean;
+        current = current->next;
+    }
+    return sum;
+}
+
+
 // Sub-LinkedVector methods
 
 }  // namespace pallas

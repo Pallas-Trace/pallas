@@ -1638,6 +1638,7 @@ pallas::Thread* pallas::Archive::getThreadAt(size_t index) {
 }
 
 void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
+    pallas_log(DebugLevel::Debug, "{%p}.freeThread(%d)\n",this, thread_id);
   for (int i = 0; i < nb_threads; i++) {
     if (threads[i] && threads[i]->id == thread_id) {
       delete threads[i];
@@ -1647,6 +1648,7 @@ void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
 };
 
 void pallas::Archive::freeThreadAt(size_t i) {
+    pallas_log(DebugLevel::Debug, "{%p}.freeThreadAt(%d)\n",this, i);
   if (i < nb_threads) {
     delete threads[i];
     threads[i] = nullptr;

@@ -94,7 +94,12 @@ class LinkedVector {
      */
     void reset_offsets();
 
-   private:
+    /*** Given a starting and an ending timestamp, returns an array containing the weights for the proportional time spent in each sub-vector.
+     * TODO This description is terrible.
+     */
+    std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
+
+private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
 
@@ -277,6 +282,11 @@ class LinkedDurationVector {
      * @param parameter_handler Handler for the storage parameters.
      */
     void write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler);
+
+    /**
+     * Returns the weighted mean over the subvectors.
+     */
+    pallas_duration_t weightedMean(std::vector<double>& weights);
 
     /**
      * Resets the offsets of all the subvectors.
