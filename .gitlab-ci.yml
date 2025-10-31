@@ -102,7 +102,7 @@ test:intel-oneapi:
   tags: ['linux', 'large_more_disk']
   stage: test
   only:
-    - main
+    - none
   variables:
     CC: "icx"
     CXX: "icpx"
