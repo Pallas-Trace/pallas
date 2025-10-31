@@ -25,7 +25,7 @@ eztrace -t "<your modules>" ./my-app
 
 ## In your application
 You can also skip EZTrace and trace your application yourself. 
-For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/index.md).
+For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/).
 
 # Reading your trace
 ## Using Pallas
