@@ -415,12 +415,32 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
             .def_property_readonly("size", [](PyLinkedVector self) { return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size; })
-            .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); });
+            .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
+            .def("as_numpy_array", [](PyLinkedVector& self) {
+                py::capsule free_when_done(&self,  [](void *f) {
+                });
+
+                if (self.linked_vector)
+                return py::array_t<uint64_t>(
+                    {self.linked_vector->size},
+                    {sizeof(uint64_t)},
+                    &self.linked_vector->at(0),
+                    free_when_done
+                    );
+                else return py::array_t<uint64_t>(
+                    {self.linked_duration_vector->size},
+                    {sizeof(uint64_t)},
+                    &self.linked_duration_vector->at(0),
+                    free_when_done
+                    );
+            })
+    ;
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
             .def_property_readonly("id", [](const PySequence& self) { return pallas::Token(pallas::TypeSequence, self.self->id); })
             .def_property_readonly("tokens", [](const PySequence& self) { return self.self->tokens; })
             .def_property_readonly("content", [](const PySequence& self) { return sequenceGetContent(self); })
+            .def_property_readonly("n_iterations", [](const PySequence& self) { return self.self->durations->size; })
             .def_property_readonly("timestamps", [](const PySequence& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
             .def_property_readonly("durations", [](const PySequence& self) { return PyLinkedVector{nullptr, self.self->durations}; })
             .def_property_readonly("exclusive_durations", [](const PySequence& self) { return PyLinkedVector{nullptr, self.self->exclusive_durations}; })
