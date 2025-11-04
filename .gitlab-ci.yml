@@ -132,7 +132,8 @@ deploy:pages:
     - cmake ..
     - make pallas_doc
     - cd ..
-    - cp -r build_doc/libraries/pallas/doc/html docs/06-api-reference/01-c-cxx
+    - mkdir -p docs/06-api-reference/01-c-cxx/
+    - cp -rv build_doc/libraries/pallas/doc/html/* docs/06-api-reference/01-c-cxx/
     - cp -r docs/. public/
   only:
     - main
