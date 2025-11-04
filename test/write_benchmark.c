@@ -230,6 +230,8 @@ int main(int argc, char** argv) {
 
   pallas_archive_close(archive);
   pallas_global_archive_close(trace);
+    pallas_archive_delete(archive);
+    pallas_global_archive_delete(trace);
   return EXIT_SUCCESS;
 }
 

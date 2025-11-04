@@ -9,10 +9,10 @@ RUN apt install -y build-essential cmake wget git gawk mpich  clang libomp-dev p
 # Editors
 RUN apt install -y emacs-nox vim
 # Python
-RUN apt install -y python3 python3-pip python3.11-venv python3-jinja2 python3-six firefox-esr  \
-    python3-tk python3-pybind11 python-is-python3
+RUN apt install -y python3 python3-pip python3.11-venv python3-jinja2 python3-six  \
+    python3-tk python3-pybind11 python-is-python3 jupyter-notebook
 
-RUN git clone -b main https://gitlab.inria.fr/pallas/pallas.git \
+RUN git clone -b dev https://gitlab.inria.fr/pallas/pallas.git \
     && ( mkdir -p pallas/build && cd pallas/build && \
     cmake .. \
     -DENABLE_PYTHON=ON \
@@ -42,3 +42,6 @@ RUN git clone -b dev https://gitlab.com/eztrace/eztrace.git \
 # Install Blup
 RUN git clone https://gitlab.inria.fr/blup/blup.git /usr/local/blup
 RUN ln -s /usr/local/blup/blup /usr/local/bin/blup
+
+# Make the Jupyter Notebook directory
+RUN mkdir jupyter-notebook && cp pallas/docs/pallas_python_example.ipynb jupyter-notebook

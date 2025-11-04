@@ -418,12 +418,40 @@ std::string Thread::getEventString(Event* e) const {
   }
 }
 
-std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) {
-    auto output = std::vector<pallas_duration_t>(nb_sequences);
+std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    auto filter = std::vector<Token>();
+    for (size_t i = 0; i < nb_sequences; i ++) {
+        auto* s = sequences[i];
+        if (s->isFunctionSequence(this)) {
+            filter.emplace_back(PALLAS_SEQUENCE_ID(s->id));
+        }
+    }
+    auto output = std::map<Token, pallas_duration_t>();
+    for (Token& t: filter) {
+        auto* s = getSequence(t);
+        if (!s->isFunctionSequence(this))
+            continue;
+        output[t] = 0;
+        // s.durations.min here because we don't want to load anything.
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min  < start) {
+            continue;
+        }
+        std::vector weights = s->timestamps->getWeights(start, end);
+        pallas_duration_t mean = s->durations->weightedMean(weights);
+        output[t] = mean;
+    }
+    return output;
+}
+
+std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    auto output = std::map<Token, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i ++) {
         auto* s = sequences[i];
+        Token id = PALLAS_SEQUENCE_ID(s->id);
+        if (s->isFunctionSequence(this))
+            continue;
+        output[id] = 0;
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
-            output[i] = 0;
             continue;
         }
         size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
@@ -435,12 +463,12 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
                 pallas_assert_inferior_equal(start, s->timestamps->at(start_index + 1));
             }
         }
-        pallas_assert_inferior_always(s->timestamps->at(end_index),end);
+        pallas_assert_inferior_equal(s->timestamps->at(end_index),end);
 #endif
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if ( start_index + 1 < end_index ) {
-            output[i] = s->exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+            output[id] = s->exclusive_durations->computeDurationBetween(start_index + 1, end_index);
         }
         // Then we need to compute the pro-ratio of the starting and the end events
         // Starting event:
@@ -449,7 +477,7 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
         pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
         if ( start <= start_event_end ) {
             pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
-            output[i] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+            output[id] += s->exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
         }
         // Ending event
         if (end_index != start_index) {
@@ -458,7 +486,7 @@ std::vector<pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start,
             pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
             if (end_event_start <= end) {
                 pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start, end_event_start),std::min(end_event_end, end));
-                output[i] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+                output[id] += s->exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
             }
         }
     }

@@ -25,7 +25,7 @@ eztrace -t "<your modules>" ./my-app
 
 ## In your application
 You can also skip EZTrace and trace your application yourself. 
-For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/index.md).
+For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/).
 
 # Reading your trace
 ## Using Pallas
@@ -47,7 +47,11 @@ import pallas_trace as pallas
 trace = pallas.open_trace("<trace_name>.pallas")
 ```
 
-An example Jupyter Notebook is available at /* TODO */
+You can run your own instance of a Jupyter-Notebook with Pallas already installed 
+and some examples provided my doing the following steps (require Docker):
+```bash
+docker run -p 8888:8888 -w /jupyter-notebook -it registry.gitlab.inria.fr/pallas/pallas/eztrace_example:latest  jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser
+```
 
 ## Using C/C++
 You can also use the Pallas library to read your traces. 
