@@ -127,12 +127,12 @@ deploy:pages:
   image: registry.gitlab.inria.fr/pallas/pallas:latest
   tags: ['linux', 'small']
   script:
-    - mkdir build
-    - cd build
+    - mkdir build_doc
+    - cd build_doc
     - cmake ..
     - make pallas_doc
     - cd ..
-    - cp -r build/libraries/pallas/doc/html docs/06-api-reference/01-c-cxx
+    - cp -r build_doc/libraries/pallas/doc/html docs/06-api-reference/01-c-cxx
     - cp -r docs/. public/
   only:
     - main
@@ -141,25 +141,25 @@ deploy:pages:
     paths:
       - public
 
-deploy:docker:
-  stage: deploy
-  image: docker
-  services:
-    - name: docker:dind
-      alias: thedockerhost
-
-  variables:
-    # Tell docker CLI how to talk to Docker daemon; see
-    # https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-in-docker-executor
-    DOCKER_HOST: tcp://thedockerhost:2375/
-    # Use the overlays driver for improved performance:
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: ""
-  tags: ['linux', 'small']
-  only:
-    - main
-  script:
-    - cd docker
-    - docker login registry.gitlab.inria.fr -u pallas -p $DOCKER_TOKEN
-    - docker build -t registry.gitlab.inria.fr/pallas/pallas/eztrace_example -f Dockerfile_eztrace_pallas .
-    - docker push registry.gitlab.inria.fr/pallas/pallas/eztrace_example
+#deploy:docker:
+#  stage: deploy
+#  image: docker
+#  services:
+#    - name: docker:dind
+#      alias: thedockerhost
+#
+#  variables:
+#    # Tell docker CLI how to talk to Docker daemon; see
+#    # https://docs.gitlab.com/ee/ci/docker/using_docker_build.html#use-docker-in-docker-executor
+#    DOCKER_HOST: tcp://thedockerhost:2375/
+#    # Use the overlays driver for improved performance:
+#    DOCKER_DRIVER: overlay2
+#    DOCKER_TLS_CERTDIR: ""
+#  tags: ['noname']
+#  only:
+#    - main
+#  script:
+#    - cd docker
+#    - docker login registry.gitlab.inria.fr -u pallas -p $DOCKER_TOKEN
+#    - docker build -t registry.gitlab.inria.fr/pallas/pallas/eztrace_example -f Dockerfile_eztrace_pallas .
+#    - docker push registry.gitlab.inria.fr/pallas/pallas/eztrace_example
