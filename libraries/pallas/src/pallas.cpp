@@ -448,7 +448,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
     for (size_t i = 1; i < nb_sequences; i ++) {
         auto* s = sequences[i];
         Token id = PALLAS_SEQUENCE_ID(s->id);
-        if (s->isFunctionSequence(this))
+        if (! s->isFunctionSequence(this))
             continue;
         output[id] = 0;
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->back() < start) {
