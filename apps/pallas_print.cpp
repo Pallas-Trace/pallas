@@ -20,6 +20,7 @@ int thread_to_print = -1;
 bool flamegraph = false;
 bool csv = false;
 bool csv_bulk = false;
+int nb_intervals = 0;
 
 static void _print_timestamp(pallas_timestamp_t ts) {
   if (show_timestamps) {
@@ -274,6 +275,33 @@ void printThread(pallas::Thread* thread) {
     }
 }
 
+void printIntervals(pallas::GlobalArchive& trace) {
+  printf("PrintInterval(nb_intervals=%d)\n", nb_intervals);
+  for (auto* thread : trace.getThreadList()) {
+
+    pallas_timestamp_t start = thread->getFirstTimestamp();
+    pallas_timestamp_t end = thread->getLastTimestamp();
+    std::map<pallas::Token, pallas_duration_t> m = thread->getSnapshotViewFast(start, end);
+
+    pallas_duration_t interval_duration = end-start;
+    pallas_duration_t sum_duration = 0;
+    for (auto it = m.begin(); it != m.end(); it++) {
+      pallas::Token t = it->first;
+      pallas::Sequence *seq = thread->getSequence(t);
+      pallas_duration_t d = it->second;
+      sum_duration += d;      
+      std::cout << thread->getTokenString(t) << ": "<<d<<"\t"<< seq->guessName(thread)<<"\n";
+    }
+
+    std::cout<<"total duration:    " <<sum_duration<<"\n";
+    std::cout<<"Interval duration: " <<interval_duration<<"\n";
+    std::cout<<"Start timestamp:   " <<start<<"\n";
+    std::cout<<"End timestamp:     " <<end<<"\n";
+    return;
+  }
+  return;
+}
+
 void printTrace(pallas::GlobalArchive& trace) {
     if (per_thread) {
         for (auto* thread : trace.getThreadList()) {
@@ -424,6 +452,7 @@ void usage(const char* prog_name) {
   std::cout << "\t" << "-s" << "\t" << "Do not unroll sequences (structure mode only)" << std::endl;
   std::cout << "\t" << "-l" << "\t" << "Do not unroll loops (structure mode only)" << std::endl;
   std::cout << "\t" << "--thread thread_id" << "\t" << "Only print thread <thread_id>" << std::endl;
+  std::cout << "\t" << "-i <n>" << "\t" << "Split the trace in n intervals and prints profiles for each interval" << std::endl;
   std::cout << "\t" << "-f" << "\t" << "Generate a flamegraph file" << std::endl;
   std::cout << "\t" << "-c" << "\t" << "Generate a csv file" << std::endl;
   std::cout << "\t" << "-cb"<< "\t" << "Generate a csv file (bulk mode)" << std::endl;
@@ -454,6 +483,9 @@ int main(const int argc, char* argv[]) {
       flags &= ~PALLAS_READ_FLAG_UNROLL_SEQUENCE;
     } else if (!strcmp(argv[nb_opts], "-l")) {
       flags &= ~PALLAS_READ_FLAG_UNROLL_LOOP;
+    } else if (!strcmp(argv[nb_opts], "-i")) {
+      nb_opts++;
+      nb_intervals = atoi(argv[nb_opts]);
     } else if (!strcmp(argv[nb_opts], "-f")) {
       flamegraph = true;
     } else if (!strcmp(argv[nb_opts], "-c")) {
@@ -482,7 +514,9 @@ int main(const int argc, char* argv[]) {
   if(trace == nullptr)
     return EXIT_FAILURE;
 
-  if (show_structure)
+  if(nb_intervals>0) {
+    printIntervals(*trace);
+  } else if (show_structure)
     printStructure(flags, *trace);
   else
     printTrace(*trace);
