@@ -437,7 +437,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
-        pallas_duration_t mean = s->durations->weightedMean(weights);
+        pallas_duration_t mean = s->exclusive_durations->weightedMean(weights);
         output[t] = mean;
     }
     return output;
@@ -533,7 +533,8 @@ bool Sequence::isFunctionSequence(const struct Thread* thread) const {
   if (tokens.front().type == TypeEvent && tokens.back().type == TypeEvent) {
     auto frontToken = thread->getEvent(tokens.front());
     auto backToken = thread->getEvent(tokens.back());
-    return frontToken->record == PALLAS_EVENT_ENTER && backToken->record == PALLAS_EVENT_LEAVE;
+    return (frontToken->record == PALLAS_EVENT_ENTER && backToken->record == PALLAS_EVENT_LEAVE) ||
+      (frontToken->record == PALLAS_EVENT_THREAD_BEGIN && backToken->record == PALLAS_EVENT_THREAD_END);
   }
   return false;
 };
