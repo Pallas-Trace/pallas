@@ -1,5 +1,13 @@
 {
-    "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+    "@context": [
+        "https://doi.org/10.5063/schema/codemeta-2.0",
+        {
+            "numpex-catalog": "https://numpex.github.io/sw-catalog/terms-1.0/index.jsonld#",
+            "Role": "https://schema.org/Role",
+            "roleName": "https://schema.org/roleName",
+            "url": "https://schema.org/url"
+        }
+    ],
     "@type": "SoftwareSourceCode",
     "license": "https://spdx.org/licenses/BSD-3-Clause",
     "codeRepository": "https://gitlab.inria.fr/pallas/pallas.git",
@@ -69,12 +77,21 @@
             }
         },
     ],
-    "softwareHelp": "https://pallas.gitlabpages.inria.fr/pallas/",
-    "installURL" : [
-	{
-	    "name" : "guix",
-	    "url" : "https://gitlab.inria.fr/guix-hpc/guix-hpc/-/blob/master/inria/eztrace.scm"
-	},
-    ],
-    "softwareSuggestions" : "https://discord.gg/eKvVcRkMsH"
+    "numpex-catalog:annotatedLink": [
+        { 
+            "@type": "Role",
+            "roleName": "numpex-catalog:documentation",
+            "url": "https://pallas.gitlabpages.inria.fr/pallas/"
+        },
+        { 
+            "@type": "Role",
+            "roleName": "numpex-catalog:discussion",
+            "url": "https://discord.gg/eKvVcRkMsH" 
+        },
+        { 
+            "@type": "Role",
+            "roleName": "numpex-catalog:guix_package",
+            "url": "https://gitlab.inria.fr/guix-hpc/guix-hpc/-/blob/master/inria/eztrace.scm" 
+        }
+    ]    
 }
