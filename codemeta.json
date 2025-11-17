@@ -43,7 +43,7 @@
         "Mac OS"
     ],
     "author": [
-	{
+	    {
             "@type": "Person",
             "@id": "https://orcid.org/0009-0002-0123-6958",
             "givenName": "Catherine",
@@ -65,7 +65,7 @@
                 "name": "Télécom SudParis"
             }
         },
-	{
+	    {
             "@type": "Person",
             "@id": "https://orcid.org/0000-0003-1028-5719",
             "givenName": "Valentin",
@@ -75,7 +75,7 @@
                 "@type": "Organization",
                 "name": "ENSIIE"
             }
-        },
+        }
     ],
     "numpex-catalog:annotatedLink": [
         { 
