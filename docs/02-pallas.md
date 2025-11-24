@@ -143,9 +143,17 @@ For sequences, we also compute another metric:
 In the following example, we have drawn a typical hierarchy of sequences you might encounter in Pallas.
 For the sake of clarity, events are not represented.
 The durations of each sequence is represented by the length of their rectangle (think of it as some sort of Gantt diagram).
-The `foo`, the `bar`, and the `baz` sequences represent functions, and are thus _Block_ sequences.
+The `foo`, the `bar`, the `baz`, and the `thread` sequences represent functions, and are thus _Block_ sequences.
+The latter represents the whole thread execution.
 The area coloured in <span style="color:orange">orange</span> represents the _exclusive blocks duration_.
-These sequences are part of a loop, and are thus contained inside a _Loop_ sequence.
+In this execution, there is a loop, made from the following tokens:
+- At least one Event ( bear in mind that they are not represented, but since the sequence starts before the beginning of `bar`, it means there are some Events )
+- A call to `bar`
+- Possibly some Events
+- A call to `baz`
+- At least one Event
+
+This forms the `loop_sequence_1` _Loop_ sequence.
 The area coloured in <span style="color:red">red</span> represents its _blocks duration_.
 
 
