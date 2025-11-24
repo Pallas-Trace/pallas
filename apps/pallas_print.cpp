@@ -230,7 +230,7 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
 
     // iterate over the sequences (ignoring sequence 0), and dump their timestamps
     for(int i=1; i<reader.thread_trace->nb_sequences; i++) {
-      auto s = reader.thread_trace->sequences[i];
+      auto* s = &reader.thread_trace->sequences[i];
       const auto &seq_name = sequence_names[s];
 
       pallas_duration_t duration = s->durations->at(0);
@@ -345,7 +345,7 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
       current_indent += structure_indent[i];
     }
     if (t.type != pallas::TypeEvent) {
-      if (t.type == pallas::TypeSequence && tr.thread_trace->getSequence(t)->isFunctionSequence(tr.thread_trace)) {
+      if (t.type == pallas::TypeSequence && tr.thread_trace->getSequence(t)->type == pallas::SEQUENCE_BLOCK) {
         current_indent += "┬"; //"─";
       } else {
         current_indent += "┬";

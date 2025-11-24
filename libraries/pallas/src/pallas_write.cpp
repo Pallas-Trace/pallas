@@ -54,47 +54,44 @@ static Token getLastEvent(Token t, const Thread* thread) {
     return t;
 }
 
-Token ThreadWriter::getSequenceIdFromArray(pallas::Token* token_array, size_t array_len) {
-    uint32_t hash = hash32((uint8_t*)(token_array), array_len * sizeof(pallas::Token), SEED);
-    pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_len, hash);
-    auto& sequencesWithSameHash = thread->hashToSequence[hash];
-    if (!sequencesWithSameHash.empty()) {
-        if (sequencesWithSameHash.size() > 1) {
-            pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
-        }
-        for (const auto sid : sequencesWithSameHash) {
-            if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid]->tokens.data(), thread->sequences[sid]->size())) {
-                pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: \t found with id=%u\n", sid);
-                return PALLAS_SEQUENCE_ID(sid);
-            }
-        }
+Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
+    if (array_len == 1 && token_array->type == TypeSequence) {
+        return thread->sequences[token_array->id];
     }
+    // First match it in the thread
+    uint32_t hash = hash32_Token(token_array, array_len, SEED);
+    auto matched_id = thread->matchSequenceIdFromArray(token_array, array_len, hash);
+    if (matched_id.isValid()) {
+        return *thread->getSequence(matched_id);
+    }
+
+    // Then if it doesn't exist, create it
 
     if (thread->nb_sequences >= thread->nb_allocated_sequences) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
-            thread->sequences[i] = new Sequence;
-            thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
+            thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
+            thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
         }
     }
 
     const auto index = thread->nb_sequences++;
     const auto sid = PALLAS_SEQUENCE_ID(index);
-    pallas_log(DebugLevel::Debug, "getSequenceIdFromArray: \tSequence not found. Adding it with id=S%lu\n", index);
+    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%lu\n", index);
 
     Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
     memcpy(s->tokens.data(), token_array, sizeof(Token) * array_len);
+    auto& sequencesWithSameHash = thread->hashToSequence[hash];
     s->hash = hash;
-    s->id = sid.id;
+    s->id = sid;
     sequencesWithSameHash.push_back(index);
-    return sid;
+    return *s;
 }
 
-Loop* ThreadWriter::createLoop(Token sequence_id) {
+Loop& ThreadWriter::createLoop(Token sequence_id) {
     // for (int i = 0; i < thread_trace->nb_loops; i++) {
     //   if (thread_trace->loops[i].repeated_token.id == sid.id) {
     //     index = i;
@@ -109,10 +106,10 @@ Loop* ThreadWriter::createLoop(Token sequence_id) {
     size_t index = thread->nb_loops++;
     pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%lu containing S%d\n", index, sequence_id.id);
 
-    Loop* l = &thread->loops[index];
-    l->nb_iterations = 1;
-    l->repeated_token = sequence_id;
-    l->self_id = PALLAS_LOOP_ID(index);
+    Loop& l = thread->loops[index];
+    l.nb_iterations = 1;
+    l.repeated_token = sequence_id;
+    l.self_id = PALLAS_LOOP_ID(index);
     return l;
 }
 
@@ -168,25 +165,15 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
 
     auto& curTokenSeq = getCurrentTokenSequence();
     auto& curIndexSeq = getCurrentIndexSequence();
-    bool sequence_existed = false;
-    Token loop_sequence_id;
-    // If the configuration is just "S3 S3"
-    // Then we don't need to create S4 = S3, we can just repeat S3
-    if (loop_len == 1 && curTokenSeq[index_first_iteration].type == TypeSequence) {
-        sequence_existed = true;
-        loop_sequence_id = curTokenSeq[index_first_iteration];
-
-    } else {
-        loop_sequence_id = getSequenceIdFromArray(&curTokenSeq[index_first_iteration], loop_len);
-    }
-    Loop* loop = createLoop(loop_sequence_id);
-    Sequence* loop_sequence = thread->getSequence(loop_sequence_id);
-    pallas_assert(loop->repeated_token.isValid());
-    pallas_assert(loop->self_id.isValid());
-    pallas_assert_equals(loop_sequence_id.id, loop->repeated_token.id);
+    auto& loop_sequence = getOrCreateSequenceFromArray(&curTokenSeq[index_first_iteration], loop_len);
+    Loop& loop = createLoop(loop_sequence.id);
+    pallas_assert(loop.repeated_token.isValid());
+    pallas_assert(loop.self_id.isValid());
+    pallas_assert_equals(loop_sequence.id.id, loop.repeated_token.id);
+    bool sequence_existed = loop_len == 1 && curTokenSeq[index_first_iteration].type == TypeSequence;
     if (sequence_existed) {
-        pallas_assert(loop_sequence->durations->size >= 2);
-        pallas_assert(loop_sequence->timestamps->size >= 2);
+        pallas_assert(loop_sequence.durations->size >= 2);
+        pallas_assert(loop_sequence.timestamps->size >= 2);
     }
 
 
@@ -197,13 +184,13 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         const auto [duration_first_iteration, exclusive_duration_first_iteration] = getLastSequenceDuration(loop_sequence, 1);
         const auto [duration_second_iteration, exclusive_duration_second_iteration] = getLastSequenceDuration(loop_sequence, 0);
 
-        loop_sequence->durations->add(duration_first_iteration);
-        loop_sequence->exclusive_durations->add(exclusive_duration_first_iteration);
-        loop_sequence->durations->add(duration_second_iteration);
-        loop_sequence->exclusive_durations->add(exclusive_duration_second_iteration);
+        loop_sequence.durations->add(duration_first_iteration);
+        loop_sequence.exclusive_durations->add(exclusive_duration_first_iteration);
+        loop_sequence.durations->add(duration_second_iteration);
+        loop_sequence.exclusive_durations->add(exclusive_duration_second_iteration);
 #ifdef DEBUG
         bool contains_sequence = false;
-        for (const auto t: loop_sequence->tokens ) {
+        for (const auto t: loop_sequence.tokens ) {
             if (t.type != TypeEvent) {
                 contains_sequence = true;
                 break;
@@ -216,22 +203,22 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
 #endif
 
         // And add that timestamp to the vectors
-        auto first_token = loop_sequence->tokens.front();
+        auto first_token = loop_sequence.tokens.front();
         if (first_token.type == TypeEvent) {
             auto first_event_summmary = thread->getEventSummary(first_token);
-            loop_sequence->timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_first_iteration]));
-            loop_sequence->timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_second_iteration]));
+            loop_sequence.timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence.timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_second_iteration]));
         }
         if (first_token.type == TypeSequence) {
             auto first_sequence = thread->getSequence(first_token);
-            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
-            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
+            loop_sequence.timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence.timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
         }
         if (first_token.type == TypeLoop) {
-            auto first_loop = thread->getLoop(first_token);
-            auto first_sequence = thread->getSequence(first_loop->repeated_token);
-            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
-            loop_sequence->timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
+            auto& first_loop = *thread->getLoop(first_token);
+            auto first_sequence = thread->getSequence(first_loop.repeated_token);
+            loop_sequence.timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence.timestamps->add(first_sequence->timestamps->at(curIndexSeq[index_second_iteration]));
         }
         // The current sequence last_timestamp does not need to be updated
     }
@@ -239,18 +226,18 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     // Resize the Token array and the index array
     curTokenSeq.resize(index_first_iteration);
     curIndexSeq.resize(index_first_iteration);
-    curTokenSeq.push_back(loop->self_id);
+    curTokenSeq.push_back(loop.self_id);
 
     // Index of a loop is the occurrence of the first sequence of the loop
     if (sequence_existed) {
         // Then we know we just saw twice the same sequence, hence - 2
-        auto* sequence = thread->getSequence(loop_sequence_id);
+        auto* sequence = thread->getSequence(loop_sequence.id);
         curIndexSeq.push_back( sequence->durations->size - 2 );
     } else {
         curIndexSeq.push_back( 0 );
     }
 
-    loop->addIteration();
+    loop.addIteration();
 }
 
 void ThreadWriter::checkLoopBefore() {
@@ -365,7 +352,7 @@ void ThreadWriter::findSequence(size_t n) {
             auto& sequencesWithSameHash = thread->hashToSequence[hash];
             if (!sequencesWithSameHash.empty()) {
                 for (const auto sid : sequencesWithSameHash) {
-                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid]->tokens.data(), thread->sequences[sid]->size())) {
+                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid].tokens.data(), thread->sequences[sid].size())) {
                         found_sequence_id = sid;
                         break;
                     }
@@ -379,7 +366,7 @@ void ThreadWriter::findSequence(size_t n) {
             auto sequence_token = Token(TypeSequence, found_sequence_id);
             auto sequence = thread->getSequence(sequence_token);
 
-            const auto [sequence_duration, exclusive_sequence_duration] = getLastSequenceDuration(sequence, 0);
+            const auto [sequence_duration, exclusive_sequence_duration] = getLastSequenceDuration(*sequence, 0);
             sequence->durations->add(sequence_duration);
             sequence->exclusive_durations->add(exclusive_sequence_duration);
             auto first_token = sequence->tokens.front();
@@ -536,26 +523,24 @@ void ThreadWriter::recordExitFunction() {
     }
 #endif
 
-    const Token seq_id = getSequenceIdFromArray(curTokenSeq.data(), curTokenSeq.size());
-    auto* seq = thread->sequences[seq_id.id];
+    auto& sequence = getOrCreateSequenceFromArray(curTokenSeq.data(), curTokenSeq.size());
 
 
-    const auto  [computed_duration, computed_exclusive_duration] =
-        getLastSequenceDuration(seq, 0);
+    const auto  [computed_duration, computed_exclusive_duration] = getLastSequenceDuration(sequence, 0);
 #ifdef DEBUG
     const pallas_duration_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
     pallas_log(DebugLevel::Debug, "Computed duration = %lu\nSequence duration = %lu\n", computed_duration, sequence_duration);
     pallas_assert(computed_duration == sequence_duration);
 #endif
 
-    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%lu\n", thread->getTokenString(seq_id).c_str(), sequence_start_timestamp[cur_depth]);
-    seq->timestamps->add(sequence_start_timestamp[cur_depth]);
-    seq->exclusive_durations->add(computed_exclusive_duration);
-    seq->durations->add(computed_duration);
+    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%lu\n", thread->getTokenString(sequence.id).c_str(), sequence_start_timestamp[cur_depth]);
+    sequence.timestamps->add(sequence_start_timestamp[cur_depth]);
+    sequence.exclusive_durations->add(computed_exclusive_duration);
+    sequence.durations->add(computed_duration);
 
 #ifdef DEBUG
     bool contains_sequence = false;
-    for (const auto t: seq->tokens ) {
+    for (const auto t: sequence.tokens ) {
         if (t.type != TypeEvent) {
             contains_sequence = true;
             break;
@@ -569,7 +554,7 @@ void ThreadWriter::recordExitFunction() {
 
 
     cur_depth--;
-    storeToken(seq_id, seq->timestamps->size - 1);
+    storeToken(sequence.id, sequence.timestamps->size - 1);
     curTokenSeq.clear();
     index_stack[cur_depth+1].clear();
 
@@ -609,13 +594,13 @@ void ThreadWriter::threadClose() {
     }
     // Then we need to store the main sequence
     auto& mainSequence = thread->sequences[0];
-    mainSequence->tokens = sequence_stack[0];
-    pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence->tokens.back().type, mainSequence->tokens.back().id);
+    mainSequence.tokens = sequence_stack[0];
+    pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
-    mainSequence->durations->add(duration);
-    mainSequence->exclusive_durations->add(duration);
+    mainSequence.durations->add(duration);
+    mainSequence.exclusive_durations->add(duration);
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
-    mainSequence->timestamps->add(thread->first_timestamp);
+    mainSequence.timestamps->add(thread->first_timestamp);
     thread->store(thread->archive->dir_name, parameter_handler);
 }
 ThreadWriter::~ThreadWriter() {
@@ -650,13 +635,12 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->nb_events = 0;
 
     thread->nb_allocated_sequences = NB_SEQUENCE_DEFAULT;
-    thread->sequences = new Sequence*[thread->nb_allocated_sequences]();
+    thread->sequences = new Sequence[thread->nb_allocated_sequences]();
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
-        thread->sequences[i] = new Sequence();
-        thread->sequences[i]->durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i]->exclusive_durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i]->timestamps = new LinkedVector(*parameter_handler);
+        thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
+        thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -673,7 +657,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     // We need to initialize the main Sequence (Sequence 0)
     auto& mainSequence = thread->sequences[0];
-    mainSequence->id = 0;
+    mainSequence.id = PALLAS_SEQUENCE_ID(0);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;
@@ -718,12 +702,12 @@ TokenId ThreadWriter::getEventId(Event* e) {
     return index;
 }
 
-std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence* sequence, size_t offset) const {
+std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence& sequence, size_t offset) const {
     pallas_timestamp_t start_ts;
     pallas_timestamp_t end_ts;
     auto& curIndexSeq = getCurrentIndexSequence();
-    Token start_token = sequence->tokens.front();
-    size_t start_index = curIndexSeq[curIndexSeq.size() - sequence->tokens.size() * ( 1 + offset ) ];
+    Token start_token = sequence.tokens.front();
+    size_t start_index = curIndexSeq[curIndexSeq.size() - sequence.tokens.size() * ( 1 + offset ) ];
 
     switch (start_token.type) {
     case TypeEvent:
@@ -741,8 +725,8 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence*
         pallas_error("Incorrect Token\n");
     }
 
-    Token end_token = sequence->tokens.back();
-    size_t end_index = curIndexSeq[curIndexSeq.size() - 1 - sequence->tokens.size() * offset];
+    Token end_token = sequence.tokens.back();
+    size_t end_index = curIndexSeq[curIndexSeq.size() - 1 - sequence.tokens.size() * offset];
     switch (end_token.type) {
     case TypeEvent:
         end_ts = thread->getEventSummary(end_token)->timestamps->at(end_index);
@@ -765,9 +749,9 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence*
     auto inclusive_duration = end_ts - start_ts;
     auto exclusive_duration = inclusive_duration;
     // Then we need to compute the exclusive duration
-    for (size_t i = 0; i< sequence->tokens.size(); i ++) {
-        auto token = sequence->tokens[i];
-        auto index = curIndexSeq[curIndexSeq.size() - sequence->tokens.size() * ( 1 + offset ) + i];
+    for (size_t i = 0; i< sequence.tokens.size(); i ++) {
+        auto token = sequence.tokens[i];
+        auto index = curIndexSeq[curIndexSeq.size() - sequence.tokens.size() * ( 1 + offset ) + i];
         if (token.type == TypeEvent) {
             continue;
         }

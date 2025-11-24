@@ -107,6 +107,7 @@ class File {
   char* path = nullptr;
   bool isOpen = false;
   bool is_open() const { return isOpen; }
+    // TODO Add the file mode to the File class
   void open(const char* mode) {
     if (isOpen) {
       pallas_log(pallas::DebugLevel::Verbose, "Trying to open file that is already open: %s\n", path);
@@ -171,7 +172,11 @@ File* getFirstOpenFile() {
   return nullptr;
 }
 
-static void pallasStoreEvent(pallas::EventSummary& event,
+
+static void pallasStoreEvent(pallas::Event& event,
+    const File& eventFile,
+    const pallas::ParameterHandler& parameter_handler);
+static void pallasStoreEventSummary(pallas::EventSummary& event,
                              const File& eventFile,
                              const File& durationFile,
                              const pallas::ParameterHandler* parameter_handler,
@@ -194,7 +199,10 @@ static void pallasStoreAdditionalContent(pallas::AdditionalContent<void> *additi
 static void pallasStoreLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
 static void pallasStoreLocations(std::vector<pallas::Location>& locations, File& file);
 
-static void pallasReadEvent(pallas::EventSummary& event,
+static void pallasReadEvent(pallas::Event& event,
+    const File& eventFile,
+    const pallas::ParameterHandler& parameter_handler);
+static void pallasReadEventSummary(pallas::EventSummary& event,
                             const File& eventFile,
                             const File& durationFile,
                             const char* durationFileName,
@@ -955,55 +963,66 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const File& f
     }
   }
 }
-
-static void pallasStoreEvent(pallas::EventSummary& event,
+static void pallasStoreEvent(pallas::Event& event,
                              const File& eventFile,
-                             const File& durationFile,
-                             const pallas::ParameterHandler* parameter_handler,
-                             bool load_thread) {
-  pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
-  if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
-      std::cout << event.timestamps->to_string() << std::endl;
-  }
-  eventFile.write(&event.event, sizeof(pallas::Event), 1);
-  eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
-  if (event.attribute_pos > 0) {
-    pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", event.attribute_pos);
-    eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
-  }
-  if (STORE_TIMESTAMPS) {
-      if (load_thread) {
-           event.timestamps->load_all_data();
-           event.timestamps->reset_offsets();
-      }
-    event.timestamps->write_to_file(eventFile.file, durationFile.file, parameter_handler);
-  }
+                             const pallas::ParameterHandler& parameter_handler) {
+    eventFile.write(&event, event.event_size, 1);
 }
 
-static void pallasReadEvent(pallas::EventSummary& event,
+static void pallasReadEvent(pallas::Event& event,
                             const File& eventFile,
-                            const File& durationFile,
-                            const char* durationFileName,
-                            pallas::ParameterHandler& parameter_handler) {
-  eventFile.read(&event.event, sizeof(pallas::Event), 1);
-  eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
-  event.attribute_pos = 0;
-  event.attribute_buffer = nullptr;
-  if (event.attribute_buffer_size > 0) {
-    event.attribute_buffer = new byte[event.attribute_buffer_size];
-    eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
-  }
-  event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler);
-  event.nb_occurences = event.timestamps->size;
+                            const pallas::ParameterHandler& parameter_handler) {
+    eventFile.read(&event.record, sizeof(event.record), 1);
+    eventFile.read(&event.event_size, sizeof(event.event_size), 1);
+    eventFile.read(event.event_data, event.event_size - offsetof(pallas::Event, event_data), 1);
+};
+
+static void pallasStoreEventSummary(pallas::EventSummary& event,
+                                    const File& eventFile,
+                                    const File& durationFile,
+                                    const pallas::ParameterHandler* parameter_handler,
+                                    bool load_thread) {
+    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+    pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
+    pallasStoreEvent(event.event, eventFile, *parameter_handler);
+    eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
+    if (event.attribute_pos > 0) {
+        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", event.attribute_pos);
+        eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
+    }
+    if (STORE_TIMESTAMPS) {
+        if (load_thread) {
+            event.timestamps->load_all_data();
+            event.timestamps->reset_offsets();
+        }
+        event.timestamps->write_to_file(eventFile.file, durationFile.file, parameter_handler);
+    }
+}
+
+static void pallasReadEventSummary(pallas::EventSummary& event,
+                                   const File& eventFile,
+                                   const File& durationFile,
+                                   const char* durationFileName,
+                                   pallas::ParameterHandler& parameter_handler) {
+    pallasReadEvent(event.event, eventFile, parameter_handler);
+    eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
+    event.attribute_pos = 0;
+    event.attribute_buffer = nullptr;
+    if (event.attribute_buffer_size > 0) {
+        event.attribute_buffer = new byte[event.attribute_buffer_size];
+        eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
+    }
+    event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler);
+    event.nb_occurences = event.timestamps->size;
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
 }
 
 static const char* pallasGetSequenceDurationFilename(const char* base_dirname, pallas::Thread* th) {
-  char* filename = new char[1024];
-  const char* threadPath = getThreadPath(th);
-  snprintf(filename, 1024, "%s/%s/sequence_durations.dat", base_dirname, threadPath);
-  delete[] threadPath;
-  return filename;
+    char* filename = new char[1024];
+    const char* threadPath = getThreadPath(th);
+    snprintf(filename, 1024, "%s/%s/sequence_durations.dat", base_dirname, threadPath);
+    delete[] threadPath;
+    return filename;
 }
 
 static void pallasStoreSequence(pallas::Sequence& sequence,
@@ -1011,15 +1030,16 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
                                 const File& durationFile,
                                 const pallas::ParameterHandler* parameter_handler,
                                 bool load_thread
-                                ) {
+        ) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
-               sequence.id, sequence.size(), sequence.durations->size);
+               sequence.id.id, sequence.size(), sequence.durations->size);
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         //    th->printSequence(sequence);
         std::cout << "Durations: " << sequence.durations->to_string() << "\n"
                 << "Exclusive Durations:" << sequence.exclusive_durations->to_string() << "\n"
                 << "Timestamps: " << sequence.timestamps->to_string() << std::endl;
     }
+    sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
     size_t size = sequence.size();
     sequenceFile.write(&size, sizeof(size), 1);
     sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
@@ -1051,6 +1071,7 @@ static void pallasReadSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
                                pallas::ParameterHandler& parameter_handler) {
+    sequenceFile.read(&sequence.type, sizeof(sequence.type), 1);
     size_t size;
     sequenceFile.read(&size, sizeof(size), 1);
     sequence.tokens.resize(size);
@@ -1060,7 +1081,7 @@ static void pallasReadSequence(pallas::Sequence& sequence,
         sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
         sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler);
     }
-    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id, sequence.size(),
+    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(),
                sequence.durations->size);
 }
 
@@ -1355,7 +1376,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   File eventDurationFile = File(eventDurationFilename, "w");
   delete[] eventDurationFilename;
   for (int i = 0; i < th->nb_events; i++) {
-    pallasStoreEvent(th->events[i], threadFile, eventDurationFile, parameter_handler, load_thread);
+    pallasStoreEventSummary(th->events[i], threadFile, eventDurationFile, parameter_handler, load_thread);
   }
   eventDurationFile.close();
 
@@ -1363,7 +1384,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
   for (int i = 0; i < th->nb_sequences; i++) {
-    pallasStoreSequence(*th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
+    pallasStoreSequence(th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
   }
   sequenceDurationFile.close();
 
@@ -1403,10 +1424,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
 
   threadFile.read(&th->nb_sequences, sizeof(th->nb_sequences), 1);
   th->nb_allocated_sequences = th->nb_sequences;
-  th->sequences = new pallas::Sequence*[th->nb_allocated_sequences];
-  for (int i = 0; i < th->nb_sequences; i++) {
-    th->sequences[i] = new pallas::Sequence;
-  }
+  th->sequences = new pallas::Sequence[th->nb_allocated_sequences];
 
   threadFile.read(&th->nb_loops, sizeof(th->nb_loops), 1);
   th->nb_allocated_loops = th->nb_loops;
@@ -1421,7 +1439,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
   }
   for (int i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
-    pallasReadEvent(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler);
+    pallasReadEventSummary(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler);
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu sequences\n", th->nb_sequences);
@@ -1430,8 +1448,8 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
     fileMap[sequenceDurationFilename] = new File(sequenceDurationFilename);;
   }
   for (int i = 0; i < th->nb_sequences; i++) {
-    th->sequences[i]->id = i;
-    pallasReadSequence(*th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
+    th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
+    pallasReadSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);

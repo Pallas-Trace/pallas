@@ -16,8 +16,8 @@ namespace pallas {
 
   static inline void push_data(Event* e, void* data, size_t data_size) {
     size_t o = e->event_size - offsetof(Event, event_data);
-    pallas_assert(o < 256);
-    pallas_assert(o + data_size < 256);
+    pallas_assert(o < PALLAS_EVENT_DATA_MAX_SIZE);
+    pallas_assert(o + data_size < PALLAS_EVENT_DATA_MAX_SIZE);
     memcpy(&e->event_data[o], data, data_size);
     e->event_size += data_size;
   }

@@ -116,7 +116,8 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             -Wno-unused-function
             -Wno-unused-parameter
             -Wno-unused-variable
-            -Wno-deprecated-declarations)
+            -Wno-deprecated-declarations
+            -Wno-pedantic)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     set(WARNINGS
             -Rno-debug-disables-optimization

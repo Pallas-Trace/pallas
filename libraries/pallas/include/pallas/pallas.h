@@ -25,6 +25,7 @@
 #include "pallas_config.h"
 #include "pallas_dbg.h"
 #include "pallas_linked_vector.h"
+#include "pallas_log.h"
 #include "pallas_timestamp.h"
 
 #ifdef __cplusplus
@@ -211,15 +212,18 @@ enum Record {
   PALLAS_EVENT_MAX_ID /**< Max Event Record ID */
 };
 
+#define PALLAS_EVENT_DATA_MAX_SIZE 256 - sizeof(uint8_t) - sizeof(enum PALLAS(Record))
 /**
  * Structure to store an event in PALLAS.
  */
 typedef struct Event {
-  enum Record record;      /**< ID of the event recorded in the above enumeration of events. */
-  uint8_t event_size;      /**< Size of the event. */
-  uint8_t event_data[256]; /**< data related to the events. (parameters of functions etc)*/
-                           // todo: align on 256
-} __attribute__((packed)) Event;
+    /** Record, i.e. signature / type of the event */
+    enum Record record;
+    /** Size of this event, including record and event_size. */
+    uint8_t event_size;
+    /** Data related to this event ( parameter of functions, etc. ). Ends at this + this.event_size. */
+    uint8_t event_data[PALLAS_EVENT_DATA_MAX_SIZE];
+} __attribute__((packed, aligned(256))) Event;
 
 #ifdef __cplusplus
 
@@ -310,19 +314,26 @@ struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_u
 /** Defines a C++ vector. In C, defines a char[] of size sizeof(std::vector). */
 #define DEFINE_Vector(type, name) C_CXX(byte, std::vector<type>) name C_CXX([VECTOR_SIZE], { std::vector<type>() })
 
+
+enum SequenceType {
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
+};
 /**
  * Structure to store a sequence in PALLAS format.
  */
 typedef struct Sequence {
     /** ID of that sequence. */
-    TokenId id CXX({PALLAS_TOKEN_ID_INVALID});
+    Token id CXX({Token()});
+    /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas/01-presentation?id=grammar). */
+    enum SequenceType type CXX({SEQUENCE_BLOCK});
     /** Vector of the durations of each sequence. */
-    LinkedDurationVector* durations;
+    LinkedDurationVector* durations CXX({nullptr});
     /** Vector of the exclusive durations of each sequence.
      * Equals duration - sum(duration) of the contained sequences.*/
-    LinkedDurationVector* exclusive_durations;
+    LinkedDurationVector* exclusive_durations CXX({nullptr});
     /** Vector of the timestamps of each sequence. */
-    LinkedVector* timestamps;
+    LinkedVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});
     /** Vector of Token to store the sequence of tokens */
@@ -337,16 +348,12 @@ public:
     /** Getter for the size of that Sequence.
      * @returns Number of tokens in that Sequence. */
     [[nodiscard]] size_t size() const { return tokens.size(); }
-    /** Indicates whether this Sequence comes from a function
-     * (ie begins with Enter and ends with End) or a detected sequence.
-     */
-    bool isFunctionSequence(const struct Thread* thread) const;
 
     /** Getter for #tokenCount during the writting process.
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountWriting(const Thread* thread);
+    TokenCountMap& getTokenCountWriting(const struct Thread* thread);
 
     /** Getter for #tokenCount during the reading process.
      * If need be, counts the number of Token in that Sequence to initialize it.
@@ -365,6 +372,28 @@ public:
         delete exclusive_durations;
         delete timestamps;
     };
+    Sequence& operator=(Sequence&& other) {
+        if (this == &other)
+            return *this;
+        durations = other.durations;
+        exclusive_durations = other.exclusive_durations;
+        timestamps = other.timestamps;
+        id = other.id;
+        type = other.type;
+        hash = other.hash;
+        tokens = std::move(other.tokens);
+        tokenCount = std::move(other.tokenCount);
+        other.durations = nullptr;
+        other.exclusive_durations = nullptr;
+        other.timestamps = nullptr;
+        return *this;
+    };
+    Sequence(ParameterHandler& parameter_handler) {
+        durations = new LinkedDurationVector(parameter_handler);
+        exclusive_durations = new LinkedDurationVector(parameter_handler);
+        timestamps = new LinkedVector(parameter_handler);
+    }
+    explicit Sequence() {};
 #endif
 } Sequence;
 
@@ -513,67 +542,70 @@ typedef struct Comm {
  * It can be a regular thread (eg. a pthread), or a GPU stream.
  */
 typedef struct Thread {
-    struct Archive *archive; /**< pallas::Archive containing this Thread. */
-    ThreadId id; /**< Id of this Thread. */
+     /** pallas::Archive containing this Thread. */
+    struct Archive* archive;
+    /** Id ofthis Thread. */
+    ThreadId id; /** Array of events recorded in this Thread. */
+    EventSummary* events;
+    /** Number of blocks of size pallas:EventSummary allocated in #events. */
+    size_t nb_allocated_events;
+    /** Number of pallas::EventSummary in #events. */
+    size_t nb_events;
 
-    EventSummary *events; /**< Array of events recorded in this Thread. */
-    size_t nb_allocated_events; /**< Number of blocks of size pallas:EventSummary allocated in #events. */
-    size_t nb_events; /**< Number of pallas::EventSummary in #events. */
-
-    Sequence **sequences; /**< Array of pallas::Sequence recorded in this Thread. */
-    size_t nb_allocated_sequences; /**< Number of blocks of size pallas:Sequence allocated in #sequences. */
-    size_t nb_sequences; /**< Number of pallas::Sequence in #sequences. */
+     /** Array of pallas::Sequence recorded in this Thread. */
+    Sequence* sequences;
+    /** Number of blocks of size pallas:Sequence allocated in #sequences. */
+    size_t nb_allocated_sequences;
+    /** Number of pallas::Sequence  in #sequences. */
+    size_t nb_sequences;
 
     pallas_timestamp_t first_timestamp;
     /** Map to associate the hash of the pallas::Sequence to their id.*/
 #ifdef __cplusplus
     std::unordered_map<uint32_t, std::vector<TokenId> > hashToSequence;
-    std::unordered_map<uint32_t, std::vector<TokenId> > hashToEvent;
-#else
-  byte hashToSequence[UNO_MAP_SIZE];
-  byte hashToEvent[UNO_MAP_SIZE];
+  #else
+    byte hashToSequence[UNO_MAP_SIZE];
 #endif
-    Loop *loops; /**< Array of pallas::Loop recorded in this Thread. */
-    size_t nb_allocated_loops; /**< Number of blocks of size pallas:Loop allocated in #loops. */
-    size_t nb_loops; /**< Number of pallas::Loop in #loops. */
+    /** Map to associate the hash of the pallas::EventSummaries to their id.*/
+#ifdef __cplusplus  std::unordered_map<uint32_t, std::vector<TokenId> > hashToEvent;
+#else
+    byte hashToEvent[UNO_MAP_SIZE];
+#endif
+     /** Array of pallas::Loop recorded in this Thread. */
+    Loop* loops;
+    /** Number of blocks of size pallas:Loop allocated in #loops. */
+    size_t nb_allocated_loops; /** Number of pallas::Loop in #loops. */
+    size_t nb_loops;
 #ifdef __cplusplus
-    void loadTimestamps(); /**< Loads all the timestamps for all the Events and Sequences. */
-    /**
-         * Resets the offsets of all the timestamp / duration vectors.
-         */
+     /** Loads all the timestamps for all the Events and Sequences. */
+    void loadTimestamps();
+    /** Resets the offsets of all the timestamp / duration vectors.*/
     void resetVectorsOffsets();
-
     /** Returns the Event corresponding to the given Token. */
-    [[nodiscard]] Event *getEvent(Token) const;
-
+    Event *getEvent(Token) const;
     /** Returns the EventSummary corresponding to the given Token. */
-    [[nodiscard]] EventSummary *getEventSummary(Token) const;
+    EventSummary *getEventSummary(Token) const;
 
-    [[nodiscard]] Sequence *getSequence(Token) const;
-
-    [[nodiscard]] Loop *getLoop(Token) const;
+    /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
+     * @param array Array of tokens.
+     * @param array_size Number of tokens in array.
+     * @param hash Hash32 of the array. Optional.
+     */
+    Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0); Loop *getLoop(Token) const;
 
     /** Returns the n-th token in the given Sequence/Loop. */
-    [[nodiscard]] Token &getToken(Token, int) const;
+    Token &getToken(Token, int) const;
 
-    /**
-     * Return the duration of the thread
-     */
+    /** Return the duration of the thread. */
     pallas_duration_t getDuration() const;
 
-    /**
-     * Return the first timestamp of the thread
-     */
+    /** Return the first timestamp of the thread. */
     pallas_timestamp_t getFirstTimestamp() const;
 
-    /**
-     * Return the last timestamp of the thread
-     */
+    /** Return the last timestamp of the thread. */
     pallas_timestamp_t getLastTimestamp() const;
 
-    /**
-     * Return the number of events of the thread
-     */
+    /** Return the number of events of the thread. */
     size_t getEventCount() const;
 
     /**
@@ -670,8 +702,7 @@ typedef struct Thread {
 #endif
 } Thread;
 
-CXX(
-    };) /* namespace pallas */
+CXX(};) /* namespace pallas */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -769,20 +800,21 @@ extern "C" {
 /**
  * Doubles the memory allocated for the given buffer and calls the constructor for the given objects.
  */
-template <typename T> void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
-  T* newArray = new T[counter * 2];
-  // Copy without destructing
-  std::memcpy(newArray, originalArray, counter * sizeof(T));
+template <typename T>
+void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
+    T* newArray = new T[counter * 2];
+    // Copy without destructing
+    std::memcpy(newArray, originalArray, counter * sizeof(T));
+    std::memset(originalArray, 0, counter * sizeof(T));
+    // Create the new objects by calling there constructors
+    for (size_t i = counter; i < counter * 2; ++i) {
+        new(&newArray[i]) T();
+    }
 
-  // Create the new objects by calling there constructors
-  for (size_t i = counter; i < counter * 2; ++i) {
-    new (&newArray[i]) T();
-  }
-
-  // Delete then replace the original array
-  delete[]originalArray;
-  originalArray = newArray;
-  counter *= 2;
+    // Delete then replace the original array
+    delete[]originalArray;
+    originalArray = newArray;
+    counter *= 2;
 }
 #endif
 

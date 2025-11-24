@@ -308,7 +308,7 @@ struct PyEventSummary {
 std::vector<PySequence> threadGetSequences(pallas::Thread& self) {
     auto output = std::vector<PySequence>(self.nb_sequences);
     for (size_t i = 0; i < self.nb_sequences; i++) {
-        output[i].self = self.sequences[i];
+        output[i].self = &self.sequences[i];
         output[i].thread = &self;
     }
     return output;
@@ -447,12 +447,12 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
-            .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, {pallas::TokenType::TypeSequence, other.self->id}); })
+            .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
             .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
             .def("contains", [](const PySequence& self, const PyEventSummary& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
             .def("contains", [](const PySequence& self, const pallas::Token& other) { return doesSequenceContains(self, other); })
             .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
-            .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id) + ">"; });
+            .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id.id) + ">"; });
 
     py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
             .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })
@@ -471,7 +471,7 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
             .def_readonly("id", &pallas::Thread::id)
-            .def_property_readonly("starting_timestamp", [](const pallas::Thread& self) { return self.sequences[0]->timestamps->front(); })
+            .def_property_readonly("starting_timestamp", [](const pallas::Thread& self) { return self.first_timestamp; })
             .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEventsSummary(self); })
             .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
             .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
