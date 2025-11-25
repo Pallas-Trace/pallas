@@ -104,7 +104,7 @@ typedef uint8_t OTF2_IoParadigmRef;
 /** @brief Type used to indicate a reference to a @eref{String} definition */
 typedef PALLAS(StringRef) OTF2_StringRef;
 /** @brief The invalid value for a reference to a @eref{String} definition */
-#define OTF2_UNDEFINED_STRING ((OTF2_StringRef)PALLAS_STRINGREF_INVALID)
+#define OTF2_UNDEFINED_STRING ((OTF2_StringRef)PALLAS_STRING_REF_INVALID)
 
 /** @brief Type used to indicate a reference to a @eref{Attribute} definition */
 typedef uint32_t OTF2_AttributeRef;
@@ -129,7 +129,7 @@ typedef uint64_t OTF2_LocationRef;
 /** @brief Type used to indicate a reference to a @eref{Region} definition */
 typedef PALLAS(RegionRef) OTF2_RegionRef;
 /** @brief The invalid value for a reference to a @eref{Region} definition */
-#define OTF2_UNDEFINED_REGION ((OTF2_RegionRef)PALLAS_REGIONREF_INVALID)
+#define OTF2_UNDEFINED_REGION ((OTF2_RegionRef)PALLAS_REGION_REF_INVALID)
 
 /** @brief Type used to indicate a reference to a @eref{Callsite} definition */
 typedef uint32_t OTF2_CallsiteRef;
