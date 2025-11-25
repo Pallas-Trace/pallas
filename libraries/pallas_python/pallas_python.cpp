@@ -417,27 +417,27 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_property_readonly("size", [](PyLinkedVector self) { return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size; })
             .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
             .def("as_numpy_array", [](PyLinkedVector& self) {
-                py::capsule free_when_done(&self,  [](void *f) {
+                py::capsule free_when_done(&self, [](void* f) {
                 });
 
                 if (self.linked_vector)
-                return py::array_t<uint64_t>(
-                    {self.linked_vector->size},
-                    {sizeof(uint64_t)},
-                    &self.linked_vector->at(0),
-                    free_when_done
-                    );
-                else return py::array_t<uint64_t>(
-                    {self.linked_duration_vector->size},
-                    {sizeof(uint64_t)},
-                    &self.linked_duration_vector->at(0),
-                    free_when_done
-                    );
-            })
-    ;
+                    return py::array_t<uint64_t>(
+                            {self.linked_vector->size},
+                            {sizeof(uint64_t)},
+                            &self.linked_vector->at(0),
+                            free_when_done
+                            );
+                else
+                    return py::array_t<uint64_t>(
+                            {self.linked_duration_vector->size},
+                            {sizeof(uint64_t)},
+                            &self.linked_duration_vector->at(0),
+                            free_when_done
+                            );
+            });
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
-            .def_property_readonly("id", [](const PySequence& self) { return pallas::Token(pallas::TypeSequence, self.self->id); })
+            .def_property_readonly("id", [](const PySequence& self) { return self.self->id; })
             .def_property_readonly("tokens", [](const PySequence& self) { return self.self->tokens; })
             .def_property_readonly("content", [](const PySequence& self) { return sequenceGetContent(self); })
             .def_property_readonly("n_iterations", [](const PySequence& self) { return self.self->durations->size; })
@@ -456,7 +456,7 @@ PYBIND11_MODULE(pallas_trace, m) {
 
     py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
             .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })
-            .def_property_readonly("sequence", [](const PyLoop& self) { return PySequence {self.thread->getSequence(self.self->repeated_token), self.thread}; })
+            .def_property_readonly("sequence", [](const PyLoop& self) { return PySequence{self.thread->getSequence(self.self->repeated_token), self.thread}; })
             .def_property_readonly("nb_iterations", [](const PyLoop& self) { return self.self->nb_iterations; })
             .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
 
@@ -510,9 +510,13 @@ PYBIND11_MODULE(pallas_trace, m) {
                                 self.currentState.currentFrame->tokenCount[t]
                                 );
                     }
+                    case pallas::TypeInvalid: {
+                        throw py::stop_iteration();
                     }
-                } else
-                    throw py::stop_iteration();
+                    }
+                }
+                // Control flow: else
+                throw py::stop_iteration();
             });
 
     py::class_<PyLocationGroup>(m, "LocationGroup", "A group of Pallas locations. Usually means a process.")

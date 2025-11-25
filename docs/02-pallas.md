@@ -157,7 +157,7 @@ This forms the `loop_sequence_1` _Loop_ sequence.
 The area coloured in <span style="color:red">red</span> represents its _blocks duration_.
 
 
-![](blocks_explained.svg)
+![](blocks_explained.png)
 
 
 The blocks duration is a metric that is especially useful when you want to measure the impact of a library in a specific

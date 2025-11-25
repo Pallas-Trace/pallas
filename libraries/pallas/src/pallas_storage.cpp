@@ -1666,7 +1666,7 @@ void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
 };
 
 void pallas::Archive::freeThreadAt(size_t i) {
-    pallas_log(DebugLevel::Debug, "{%p}.freeThreadAt(%d)\n",this, i);
+    pallas_log(DebugLevel::Debug, "{%p}.freeThreadAt(%lu)\n",this, i);
   if (i < nb_threads) {
     delete threads[i];
     threads[i] = nullptr;

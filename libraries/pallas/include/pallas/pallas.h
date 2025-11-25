@@ -6,14 +6,6 @@
  * This is the documentation page for the Pallas C/C++ API.
  * If you are looking for a global explanation of the Pallas ecosystem,
  * you can go look at <a href="https://pallas.gitlabpages.inria.fr/pallas/#/">the documentation</a>.
- *
- * \section difference_c_cxx Differences between C and C++
- * Due to the experimental nature of Pallas, we had to rewrite the API quite often during its development.
- * To cut our development time, we made an extensive use of macros to "hide" the C++ code from the C compiler.
- * We recommend manipulating Pallas classes only as pointers in C.
- * However, should that not be possible, all Pallas classes can be used in C as well ( they should take the same amount of memory ).
- * We also strive to make most C++ public methods available in C, by using the following convention:
- * `Pallas::Class::MethodName(args) => pallas_class_method_name(struct class* this, args)`
  */
 /** @file
  * The main file of Pallas. Here are defined the most basic elements of the trace
@@ -330,9 +322,13 @@ typedef struct Sequence {
     /** Vector of the durations of each sequence. */
     LinkedDurationVector* durations CXX({nullptr});
     /** Vector of the exclusive durations of each sequence.
-     * Equals duration - sum(duration) of the contained sequences.*/
+     * - If this is a Block Sequence, it's duration - sum(Block Sequence Duration) - sum(Loop Sequence Exclusive Duration)
+     * - If this is a Loop Sequence, it's sum(Block Sequence Duration) + sum (Loop Sequence Exclusive Durations)
+     *
+     * You can learn more in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas?id=performance-data
+     */
     LinkedDurationVector* exclusive_durations CXX({nullptr});
-    /** Vector of the timestamps of each sequence. */
+    /*** Vector of the timestamps of each sequence. */
     LinkedVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});
@@ -567,7 +563,8 @@ typedef struct Thread {
     byte hashToSequence[UNO_MAP_SIZE];
 #endif
     /** Map to associate the hash of the pallas::EventSummaries to their id.*/
-#ifdef __cplusplus  std::unordered_map<uint32_t, std::vector<TokenId> > hashToEvent;
+#ifdef __cplusplus
+    std::unordered_map<uint32_t, std::vector<TokenId> > hashToEvent;
 #else
     byte hashToEvent[UNO_MAP_SIZE];
 #endif
@@ -583,6 +580,7 @@ typedef struct Thread {
     void resetVectorsOffsets();
     /** Returns the Event corresponding to the given Token. */
     Event *getEvent(Token) const;
+
     /** Returns the EventSummary corresponding to the given Token. */
     EventSummary *getEventSummary(Token) const;
 
@@ -595,6 +593,9 @@ typedef struct Thread {
 
     /** Returns the n-th token in the given Sequence/Loop. */
     Token &getToken(Token, int) const;
+
+    /** Returns the corresponding Sequence. Cannot return an invalid Sequence. */
+    Sequence* getSequence(Token) const;
 
     /** Return the duration of the thread. */
     pallas_duration_t getDuration() const;

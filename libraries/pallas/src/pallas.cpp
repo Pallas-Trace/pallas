@@ -70,11 +70,11 @@ EventSummary* Thread::getEventSummary(Token token) const {
 }
 
 Sequence* Thread::getSequence(Token token) const {
-  if (token.type != TokenType::TypeSequence) {
-    pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
-  }
-  pallas_assert(token.id < this->nb_sequences);
-  return &sequences[token.id];
+    if (token.type != TypeSequence) {
+        pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
+    }
+    pallas_assert(token.id < this->nb_sequences);
+    return &sequences[token.id];
 }
 
 /**
@@ -121,9 +121,6 @@ Loop* Thread::getLoop(Token token) const {
 Token& Thread::getToken(Token sequenceToken, int index) const {
   if (sequenceToken.type == TypeSequence) {
     auto* sequence = getSequence(sequenceToken);
-    if (!sequence) {
-      pallas_error("Invalid sequence ID: %d\n", sequenceToken.id);
-    }
     if (index >= sequence->size()) {
       pallas_error("Invalid index (%d) in sequence %d\n", index, sequenceToken.id);
     }
@@ -453,22 +450,22 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_
     auto filter = std::vector<Token>();
     for (size_t i = 0; i < nb_sequences; i ++) {
         auto& s = sequences[i];
-        if (s.isFunctionSequence(this)) {
-            filter.emplace_back(PALLAS_SEQUENCE_ID(s.id));
+        if ( s.type == SEQUENCE_BLOCK ) {
+            filter.emplace_back(s.id);
         }
     }
     auto output = std::map<Token, pallas_duration_t>();
     for (Token& t: filter) {
         auto* s = getSequence(t);
-        if (!s.isFunctionSequence(this))
+        if ( s->type != SEQUENCE_BLOCK )
             continue;
         output[t] = 0;
         // s.durations.min here because we don't want to load anything.
-        if (end < s.timestamps->front() || s.timestamps->back() + s.durations->min  < start) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min  < start) {
             continue;
         }
-        std::vector weights = s.timestamps->getWeights(start, end);
-        pallas_duration_t mean = s.durations->weightedMean(weights);
+        std::vector weights = s->timestamps->getWeights(start, end);
+        pallas_duration_t mean = s->durations->weightedMean(weights);
         output[t] = mean;
     }
     return output;
@@ -478,8 +475,8 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
     auto output = std::map<Token, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i ++) {
         auto& s = sequences[i];
-        Token id = PALLAS_SEQUENCE_ID(s->id);
-        if (! s.isFunctionSequence(this))
+        Token id = s.id;
+        if ( s.type != SEQUENCE_BLOCK )
             continue;
         output[id] = 0;
         if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
