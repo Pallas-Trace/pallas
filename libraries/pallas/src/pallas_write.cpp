@@ -181,13 +181,13 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         // We need to go back in the current sequence in order to correctly calculate our durations
         // But only if those are new sequences
         // Compute the durations
-        const auto [duration_first_iteration, exclusive_duration_first_iteration] = getLastSequenceDuration(loop_sequence, 1);
-        const auto [duration_second_iteration, exclusive_duration_second_iteration] = getLastSequenceDuration(loop_sequence, 0);
+        const auto [dur_frst_it, excl_dur_frst_it] = getLastSequenceDuration(loop_sequence, 1);
+        const auto [dur_scnd_it, excl_dur_scnd_it] = getLastSequenceDuration(loop_sequence, 0);
 
-        loop_sequence.durations->add(duration_first_iteration);
-        loop_sequence.exclusive_durations->add(exclusive_duration_first_iteration);
-        loop_sequence.durations->add(duration_second_iteration);
-        loop_sequence.exclusive_durations->add(exclusive_duration_second_iteration);
+        loop_sequence.durations->add(dur_frst_it);
+        loop_sequence.exclusive_durations->add(excl_dur_frst_it);
+        loop_sequence.durations->add(dur_scnd_it);
+        loop_sequence.exclusive_durations->add(excl_dur_scnd_it);
 #ifdef DEBUG
         bool contains_sequence = false;
         for (const auto t: loop_sequence.tokens ) {
@@ -197,8 +197,8 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
             }
         }
         if (contains_sequence) {
-            pallas_assert_inferior(exclusive_duration_first_iteration, duration_first_iteration);
-            pallas_assert_inferior(exclusive_duration_second_iteration, duration_second_iteration);
+            pallas_assert_inferior(excl_dur_frst_it, dur_frst_it);
+            pallas_assert_inferior(excl_dur_scnd_it, dur_scnd_it);
         }
 #endif
 
@@ -702,13 +702,14 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     return index;
 }
 
-std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence& sequence, size_t offset) const {
+std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(const Sequence& sequence, size_t offset) const {
     pallas_timestamp_t start_ts;
     pallas_timestamp_t end_ts;
     auto& curIndexSeq = getCurrentIndexSequence();
+    // First we need to compute the inclusive duration. That's end_ts - start_ts
+    // Computing start_ts
     Token start_token = sequence.tokens.front();
     size_t start_index = curIndexSeq[curIndexSeq.size() - sequence.tokens.size() * ( 1 + offset ) ];
-
     switch (start_token.type) {
     case TypeEvent:
         start_ts = thread->getEvent(start_token)->timestamps->at(start_index);
@@ -725,6 +726,7 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence&
         pallas_error("Incorrect Token\n");
     }
 
+    // Computing end_ts
     Token end_token = sequence.tokens.back();
     size_t end_index = curIndexSeq[curIndexSeq.size() - 1 - sequence.tokens.size() * offset];
     switch (end_token.type) {
@@ -747,8 +749,9 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence&
         pallas_error("Incorrect Token\n");
     }
     auto inclusive_duration = end_ts - start_ts;
-    auto exclusive_duration = inclusive_duration;
-    // Then we need to compute the exclusive duration
+
+    // Then compute the exclusive duration or the block duration, depending on the sequence's type
+    auto block_duration = 0;
     for (size_t i = 0; i< sequence.tokens.size(); i ++) {
         auto token = sequence.tokens[i];
         auto index = curIndexSeq[curIndexSeq.size() - sequence.tokens.size() * ( 1 + offset ) + i];
@@ -757,21 +760,21 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence&
         }
         if (token.type == TypeSequence) {
             auto* s = thread->getSequence(token);
-            exclusive_duration -= s->durations->at(index);
+            block_duration += (s->type == SEQUENCE_BLOCK)?s->durations->at(index):s->exclusive_durations->at(index);
             continue;
         }
         if (token.type == TypeLoop) {
             auto* l = thread->getLoop(token);
             auto* s = thread->getSequence(l->repeated_token);
             for (size_t j = 0; j < l->nb_iterations; j ++) {
-                exclusive_duration -= s->durations->at(index + j);
+                block_duration += (s->type == SEQUENCE_BLOCK)?s->durations->at(index+j):s->exclusive_durations->at(index+j);
             }
             continue;
         }
     }
-    pallas_assert_inferior_equal(exclusive_duration,  inclusive_duration);
+    pallas_assert_inferior_equal(block_duration,  inclusive_duration);
 
-    return {inclusive_duration, exclusive_duration};
+    return {inclusive_duration, (sequence.type == SEQUENCE_BLOCK)? (inclusive_duration - block_duration) : block_duration};
 }
 }  // namespace pallas
 

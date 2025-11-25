@@ -311,14 +311,14 @@ typedef struct Sequence {
     enum SequenceType type CXX({SEQUENCE_BLOCK});
     /** Vector of the durations of each sequence. */
     LinkedDurationVector* durations CXX({nullptr});
-    /** Vector of the exclusive durations of each sequence.
+    /** Vector of the exclusive durations or block durations of each sequence.
      * - If this is a Block Sequence, it's duration - sum(Block Sequence Duration) - sum(Loop Sequence Exclusive Duration)
      * - If this is a Loop Sequence, it's sum(Block Sequence Duration) + sum (Loop Sequence Exclusive Durations)
      *
      * You can learn more in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas?id=performance-data
      */
     LinkedDurationVector* exclusive_durations CXX({nullptr});
-    /*** Vector of the timestamps of each sequence. */
+    /** Vector of the timestamps of each sequence. */
     LinkedVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});

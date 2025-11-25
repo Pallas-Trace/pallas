@@ -38,8 +38,11 @@ typedef struct ThreadWriter {
 #ifdef __cplusplus
 
    private:
-    /** Returns the inclusive and exclusive duration for the offset-th last given Sequence.*/
-    std::array<pallas_duration_t, 2> getLastSequenceDuration(Sequence& sequence, size_t offset = 0) const;
+    /**
+     * Returns the inclusive and exclusive block duration / block duration for the offset-th last given Sequence.
+     * The Sequence's token need to be in curIndexSeq for this to work out.
+     */
+    std::array<pallas_duration_t, 2> getLastSequenceDuration(const Sequence& sequence, size_t offset = 0) const;
     /** Finds a Loop in the current Sequence using a basic quadratic algorithm.
      *
      * For each correct possible loop length, this algorithm tries two things:
