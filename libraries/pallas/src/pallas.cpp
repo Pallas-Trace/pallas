@@ -465,7 +465,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
-        pallas_duration_t mean = s->durations->weightedMean(weights);
+        pallas_duration_t mean = s->exclusive_durations->weightedMean(weights);
         output[t] = mean;
     }
     return output;

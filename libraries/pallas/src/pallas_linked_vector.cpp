@@ -378,13 +378,13 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
         if (current->last_value < start || end < current->first_value) {
             // Completely outside the bounds
             output.push_back(0.);
-        } else if (start < current->first_value && current->last_value < end) {
+        } else if (start <= current->first_value && current->last_value <= end) {
             // Completely inside the bounds
             output.push_back(1.0);
-        } else if (current->first_value < start && start < current->last_value) {
+        } else if (current->first_value < start && start <= current->last_value) {
             // Starting bounds
             output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value) );
-        } else if (current->first_value < end && end < current->last_value) {
+        } else if (current->first_value <= end && end < current->last_value) {
             // Ending bounds
             output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
         } else {
@@ -405,6 +405,8 @@ pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weight
     size_t index = 0;
     auto* current = first;
     while (current != nullptr) {
+      std::cout << "  taking "<<weights[index] << "of chunk "<<index<< "\n";
+
         sum += weights[index++] * current->mean;
         current = current->next;
     }
