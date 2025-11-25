@@ -30,7 +30,7 @@ namespace pallas {
 
 /** Represents one occurence of an Event. */
 typedef struct EventOccurence {
-  struct Event* event;          /**< Pointer to the Event.*/
+  struct EventData* event;          /**< Pointer to the Event.*/
   pallas_timestamp_t timestamp; /**< Timestamp for that occurence.*/
   AttributeList* attributes;    /**< Attributes for that occurence.*/
 } EventOccurence;
@@ -153,8 +153,8 @@ typedef struct ThreadReader {
   void printCurSequence() const;
   /** Prints the whole current callstack. */
   void printCallstack() const;
-  /** Returns the EventSummary of the given Event. */
-  [[nodiscard]] EventSummary* getEventSummary(Token event) const;
+  /** Returns the Event of the given Event. */
+  [[nodiscard]] Event* getEvent(Token event) const;
   /** Returns the timestamp of the given event occurring at the given index. */
   [[nodiscard]] pallas_timestamp_t getEventTimestamp(Token event, int occurence_id) const;
   /** Returns whether the given sequence still has more Tokens after the given current_index. */
@@ -249,8 +249,8 @@ Token pallasGetCurIterable(ThreadReader *thread_reader);
 void pallasPrintCurSequence(ThreadReader *thread_reader);
 /** Prints the whole current callstack. */
 void pallasPrintCallstack(ThreadReader *thread_reader);
-/** Returns the EventSummary of the given Event. */
-EventSummary* pallasGetEventSummary(ThreadReader *thread_reader, Token event);
+/** Returns the Event from the given token. */
+Event* pallasGetEvent(ThreadReader *thread_reader, Token event);
 /** Returns the timestamp of the given event occurring at the given index. */
 pallas_timestamp_t pallasGetEventTimestamp(ThreadReader *thread_reader, Token event, int occurence_id);
 /** Returns whether the given sequence still has more Tokens after the given current_index. */

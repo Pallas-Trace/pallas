@@ -173,55 +173,55 @@ File* getFirstOpenFile() {
 }
 
 
-static void pallasStoreEvent(pallas::Event& event,
+static void storeEventData(pallas::EventData& event,
     const File& eventFile,
     const pallas::ParameterHandler& parameter_handler);
-static void pallasStoreEventSummary(pallas::EventSummary& event,
+static void storeEvent(pallas::Event& event,
                              const File& eventFile,
                              const File& durationFile,
                              const pallas::ParameterHandler* parameter_handler,
                              bool load_thread);
-static void pallasStoreSequence(pallas::Sequence& sequence,
+static void storeSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile,
                                 const pallas::ParameterHandler* parameter_handler,
                                 bool load_thread);
 
-static void pallasStoreLoop(pallas::Loop& loop, const File& loopFile);
+static void storeLoop(pallas::Loop& loop, const File& loopFile);
 
-static void pallasStoreString(pallas::Definition& definitions, File& file);
-static void pallasStoreRegions(pallas::Definition& definitions, File& file);
-static void pallasStoreAttributes(pallas::Definition& definitions, File& file);
-static void pallasStoreGroups(pallas::Definition& definitions, File& file);
-static void pallasStoreComms(pallas::Definition& definitions, File& file);
-static void pallasStoreAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file);
+static void storeString(pallas::Definition& definitions, File& file);
+static void storeRegions(pallas::Definition& definitions, File& file);
+static void storeAttributes(pallas::Definition& definitions, File& file);
+static void storeGroups(pallas::Definition& definitions, File& file);
+static void storeComms(pallas::Definition& definitions, File& file);
+static void storeAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file);
 
-static void pallasStoreLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
-static void pallasStoreLocations(std::vector<pallas::Location>& locations, File& file);
+static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
+static void storeLocations(std::vector<pallas::Location>& locations, File& file);
 
-static void pallasReadEvent(pallas::Event& event,
+static void readEventData(pallas::EventData& event,
     const File& eventFile,
     const pallas::ParameterHandler& parameter_handler);
-static void pallasReadEventSummary(pallas::EventSummary& event,
+static void readEvent(pallas::Event& event,
                             const File& eventFile,
                             const File& durationFile,
                             const char* durationFileName,
                             pallas::ParameterHandler& parameter_handler);
 
-static void pallasReadLoop(pallas::Loop& loop, const File& loopFile);
-static void pallasReadSequence(pallas::Sequence& sequence,
+static void readLoop(pallas::Loop& loop, const File& loopFile);
+static void readSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
                                pallas::ParameterHandler& parameter_handler);
 
-static void pallasReadString(pallas::Definition& definitions, File& file);
-static void pallasReadRegions(pallas::Definition& definitions, File& file);
-static void pallasReadAttributes(pallas::Definition& definitions, File& file);
-static void pallasReadGroups(pallas::Definition& definitions, File& file);
-static void pallasReadComms(pallas::Definition& definitions, File& file);
-static void pallasReadLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
-static void pallasReadLocations(std::vector<pallas::Location>& locations, File& file);
-static void pallasReadAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file);
+static void readString(pallas::Definition& definitions, File& file);
+static void readRegions(pallas::Definition& definitions, File& file);
+static void readAttributes(pallas::Definition& definitions, File& file);
+static void readGroups(pallas::Definition& definitions, File& file);
+static void readComms(pallas::Definition& definitions, File& file);
+static void readLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
+static void readLocations(std::vector<pallas::Location>& locations, File& file);
+static void readAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file);
 void pallasLoadThread(pallas::Archive* globalArchive, pallas::ThreadId thread_id);
 
 static pallas::Archive* pallasGetArchive(pallas::GlobalArchive* global_archive,
@@ -922,7 +922,7 @@ static const char* pallasGetEventDurationFilename(const char* base_dirname, pall
   return filename;
 }
 
-static void _pallas_store_attribute_values(pallas::EventSummary* e, const File& file, const pallas::ParameterHandler& parameter_handler) {
+static void _pallas_store_attribute_values(pallas::Event* e, const File& file, const pallas::ParameterHandler& parameter_handler) {
   file.write(&e->attribute_pos, sizeof(e->attribute_pos), 1);
   if (e->attribute_pos > 0) {
     pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", e->attribute_pos);
@@ -939,7 +939,7 @@ static void _pallas_store_attribute_values(pallas::EventSummary* e, const File& 
   }
 }
 
-static void _pallas_read_attribute_values(pallas::EventSummary* e, const File& file, const pallas::ParameterHandler& parameter_handler) {
+static void _pallas_read_attribute_values(pallas::Event* e, const File& file, const pallas::ParameterHandler& parameter_handler) {
   file.read(&e->attribute_pos, sizeof(e->attribute_pos), 1);
   e->attribute_buffer_size = e->attribute_pos;
   e->attribute_pos = 0;
@@ -963,28 +963,28 @@ static void _pallas_read_attribute_values(pallas::EventSummary* e, const File& f
     }
   }
 }
-static void pallasStoreEvent(pallas::Event& event,
+static void storeEventData(pallas::EventData& event,
                              const File& eventFile,
                              const pallas::ParameterHandler& parameter_handler) {
     eventFile.write(&event, event.event_size, 1);
 }
 
-static void pallasReadEvent(pallas::Event& event,
+static void readEventData(pallas::EventData& event,
                             const File& eventFile,
                             const pallas::ParameterHandler& parameter_handler) {
     eventFile.read(&event.record, sizeof(event.record), 1);
     eventFile.read(&event.event_size, sizeof(event.event_size), 1);
-    eventFile.read(event.event_data, event.event_size - offsetof(pallas::Event, event_data), 1);
+    eventFile.read(event.event_data, event.event_size - offsetof(pallas::EventData, event_data), 1);
 };
 
-static void pallasStoreEventSummary(pallas::EventSummary& event,
+static void storeEvent(pallas::Event& event,
                                     const File& eventFile,
                                     const File& durationFile,
                                     const pallas::ParameterHandler* parameter_handler,
                                     bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
-    pallasStoreEvent(event.event, eventFile, *parameter_handler);
+    storeEventData(event.data, eventFile, *parameter_handler);
     eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
     if (event.attribute_pos > 0) {
         pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", event.attribute_pos);
@@ -999,12 +999,12 @@ static void pallasStoreEventSummary(pallas::EventSummary& event,
     }
 }
 
-static void pallasReadEventSummary(pallas::EventSummary& event,
+static void readEvent(pallas::Event& event,
                                    const File& eventFile,
                                    const File& durationFile,
                                    const char* durationFileName,
                                    pallas::ParameterHandler& parameter_handler) {
-    pallasReadEvent(event.event, eventFile, parameter_handler);
+    readEventData(event.data, eventFile, parameter_handler);
     eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
     event.attribute_pos = 0;
     event.attribute_buffer = nullptr;
@@ -1013,7 +1013,7 @@ static void pallasReadEventSummary(pallas::EventSummary& event,
         eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
     }
     event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler);
-    event.nb_occurences = event.timestamps->size;
+    event.nb_occurrences = event.timestamps->size;
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
 }
 
@@ -1025,7 +1025,7 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
     return filename;
 }
 
-static void pallasStoreSequence(pallas::Sequence& sequence,
+static void storeSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile,
                                 const pallas::ParameterHandler* parameter_handler,
@@ -1067,7 +1067,7 @@ static void pallasStoreSequence(pallas::Sequence& sequence,
     }
 }
 
-static void pallasReadSequence(pallas::Sequence& sequence,
+static void readSequence(pallas::Sequence& sequence,
                                const File& sequenceFile,
                                const char* durationFileName,
                                pallas::ParameterHandler& parameter_handler) {
@@ -1085,7 +1085,7 @@ static void pallasReadSequence(pallas::Sequence& sequence,
                sequence.durations->size);
 }
 
-static void pallasStoreLoop(pallas::Loop& loop, const File& loopFile) {
+static void storeLoop(pallas::Loop& loop, const File& loopFile) {
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore loop %d {.repeated_token=%d.%d, .nb_iterations: %u\n",
                loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id, loop.nb_iterations);
@@ -1095,7 +1095,7 @@ static void pallasStoreLoop(pallas::Loop& loop, const File& loopFile) {
   loopFile.write(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
 }
 
-static void pallasReadLoop(pallas::Loop& loop, const File& loopFile) {
+static void readLoop(pallas::Loop& loop, const File& loopFile) {
   loopFile.read(&loop.repeated_token, sizeof(loop.repeated_token), 1);
   loopFile.read(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
   if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
@@ -1104,7 +1104,7 @@ static void pallasReadLoop(pallas::Loop& loop, const File& loopFile) {
   }
 }
 
-static void pallasStoreString(pallas::Definition& definitions, File& file) {
+static void storeString(pallas::Definition& definitions, File& file) {
   size_t size = definitions.strings.size();
   file.write(&size, sizeof(size), 1);
   for (auto& it : definitions.strings) {
@@ -1118,7 +1118,7 @@ static void pallasStoreString(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasReadString(pallas::Definition& definitions, File& file) {
+static void readString(pallas::Definition& definitions, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   for (size_t i = 0; i < size; i++) {
@@ -1135,7 +1135,7 @@ static void pallasReadString(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasStoreRegions(pallas::Definition& definitions, File& file) {
+static void storeRegions(pallas::Definition& definitions, File& file) {
   size_t size = definitions.regions.size();
   file.write(&size, sizeof(size), 1);
   if (definitions.regions.empty())
@@ -1147,7 +1147,7 @@ static void pallasStoreRegions(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasReadRegions(pallas::Definition& definitions, File& file) {
+static void readRegions(pallas::Definition& definitions, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   pallas::Region tempRegion;
@@ -1159,7 +1159,7 @@ static void pallasReadRegions(pallas::Definition& definitions, File& file) {
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu regions\n", definitions.regions.size());
 }
 
-static void pallasStoreAttributes(pallas::Definition& definitions, File& file) {
+static void storeAttributes(pallas::Definition& definitions, File& file) {
   size_t size = definitions.attributes.size();
   file.write(&size, sizeof(size), 1);
   pallas_log(pallas::DebugLevel::Debug, "\tStore %zu Attributes\n", definitions.attributes.size());
@@ -1174,7 +1174,7 @@ static void pallasStoreAttributes(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasReadAttributes(pallas::Definition& definitions, File& file) {
+static void readAttributes(pallas::Definition& definitions, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   pallas::Attribute tempAttribute;
@@ -1186,7 +1186,7 @@ static void pallasReadAttributes(pallas::Definition& definitions, File& file) {
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu attributes\n", definitions.attributes.size());
 }
 
-static void pallasStoreGroups(pallas::Definition& definitions, File& file) {
+static void storeGroups(pallas::Definition& definitions, File& file) {
   size_t size = definitions.groups.size();
   file.write(&size, sizeof(size), 1);
   for (auto& [ref, g] : definitions.groups) {
@@ -1200,7 +1200,7 @@ static void pallasStoreGroups(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasReadGroups(pallas::Definition& definitions, File& file) {
+static void readGroups(pallas::Definition& definitions, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   for (size_t i = 0; i < size; i++) {
@@ -1218,7 +1218,7 @@ static void pallasReadGroups(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasStoreComms(pallas::Definition& definitions, File& file) {
+static void storeComms(pallas::Definition& definitions, File& file) {
   size_t size = definitions.comms.size();
   file.write(&size, sizeof(size), 1);
   if (definitions.comms.empty())
@@ -1230,7 +1230,7 @@ static void pallasStoreComms(pallas::Definition& definitions, File& file) {
   }
 }
 
-static void pallasReadComms(pallas::Definition& definitions, File& file) {
+static void readComms(pallas::Definition& definitions, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   pallas::Comm tempComm;
@@ -1242,30 +1242,30 @@ static void pallasReadComms(pallas::Definition& definitions, File& file) {
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu comms\n", definitions.comms.size());
 }
 
-static void pallasStoreDefinitions(pallas::Definition& def, File& file) {
-  pallasStoreString(def, file);
-  pallasStoreRegions(def, file);
-  pallasStoreAttributes(def, file);
-  pallasStoreGroups(def, file);
-  pallasStoreComms(def, file);
+static void storeDefinitions(pallas::Definition& def, File& file) {
+  storeString(def, file);
+  storeRegions(def, file);
+  storeAttributes(def, file);
+  storeGroups(def, file);
+  storeComms(def, file);
 }
 
-static void pallasReadDefinitions(pallas::Definition& def, File& file) {
-  pallasReadString(def, file);
-  pallasReadRegions(def, file);
-  pallasReadAttributes(def, file);
-  pallasReadGroups(def, file);
-  pallasReadComms(def, file);
+static void readDefinitions(pallas::Definition& def, File& file) {
+  readString(def, file);
+  readRegions(def, file);
+  readAttributes(def, file);
+  readGroups(def, file);
+  readComms(def, file);
 }
 
-static void pallasStoreLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file) {
+static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore %zu location groups\n", location_groups.size());
   size_t size = location_groups.size();
   file.write(&size, sizeof(size), 1);
   file.write(location_groups.data(), sizeof(pallas::LocationGroup), location_groups.size());
 }
 
-static void pallasReadLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file) {
+static void readLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   location_groups.resize(size);
@@ -1277,7 +1277,7 @@ static void pallasReadLocationGroups(std::vector<pallas::LocationGroup>& locatio
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu location_groups\n", location_groups.size());
 }
 
-static void pallasStoreLocations(std::vector<pallas::Location> &locations, File& file) {
+static void storeLocations(std::vector<pallas::Location> &locations, File& file) {
   pallas_log(pallas::DebugLevel::Debug, "\tStore %zu locations\n", locations.size());
   for (auto& l : locations) {
     pallas_assert(l.id != PALLAS_THREAD_ID_INVALID);
@@ -1287,7 +1287,7 @@ static void pallasStoreLocations(std::vector<pallas::Location> &locations, File&
   file.write(locations.data(), sizeof(pallas::Location), locations.size());
 }
 
-static void pallasReadLocations(std::vector<pallas::Location>& locations, File& file) {
+static void readLocations(std::vector<pallas::Location>& locations, File& file) {
   size_t size;
   file.read(&size, sizeof(size), 1);
   locations.resize(size);
@@ -1298,7 +1298,7 @@ static void pallasReadLocations(std::vector<pallas::Location>& locations, File& 
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %lu locations\n", locations.size());
 }
 
-static void pallasStoreAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file) {
+static void storeAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file) {
     pallas_log(pallas::DebugLevel::Debug, "\tStoring additional content.\n");
     // We have to start by leaving enough space to later write the number of content and bytes we wrote
     size_t original_position = ftell(file.file);
@@ -1324,7 +1324,7 @@ static void pallasStoreAdditionalContent(pallas::AdditionalContent<void> *additi
     pallas_log(pallas::DebugLevel::Debug, "\tStored %lu additional contents for %lu bytes + %lu for padding\n", count, sum, 2* sizeof(size_t));
 }
 
-static void pallasReadAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file) {
+static void readAdditionalContent(pallas::AdditionalContent<void> *additional_content, File& file) {
     pallas_log(pallas::DebugLevel::Verbose, "\tReading additional content\n");
     size_t original_position = ftell(file.file);
     size_t theo_sum;
@@ -1376,7 +1376,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   File eventDurationFile = File(eventDurationFilename, "w");
   delete[] eventDurationFilename;
   for (int i = 0; i < th->nb_events; i++) {
-    pallasStoreEventSummary(th->events[i], threadFile, eventDurationFile, parameter_handler, load_thread);
+    storeEvent(th->events[i], threadFile, eventDurationFile, parameter_handler, load_thread);
   }
   eventDurationFile.close();
 
@@ -1384,12 +1384,12 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
   for (int i = 0; i < th->nb_sequences; i++) {
-    pallasStoreSequence(th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
+    storeSequence(th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
   }
   sequenceDurationFile.close();
 
   for (int i = 0; i < th->nb_loops; i++)
-    pallasStoreLoop(th->loops[i], threadFile);
+    storeLoop(th->loops[i], threadFile);
   threadFile.close();
   pallas_log(pallas::DebugLevel::Debug, "Average compression ratio: %.2f\n",
              (numberRawBytes + .0) / numberCompressedBytes);
@@ -1407,7 +1407,7 @@ void pallas::GlobalArchive::store(const char *path, const ParameterHandler* para
     pallasStoreGlobalArchive(this, path, parameter_handler);
 }
 
-static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thread* th, pallas::ThreadId thread_id) {
+static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th, pallas::ThreadId thread_id) {
   th->id = thread_id;
   File threadFile = pallasGetThreadFile(global_archive->dir_name, th, "r");
   if (! threadFile.is_open()) {
@@ -1420,7 +1420,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
 
   threadFile.read(&th->nb_events, sizeof(th->nb_events), 1);
   th->nb_allocated_events = th->nb_events;
-  th->events = new pallas::EventSummary[th->nb_allocated_events];
+  th->events = new pallas::Event[th->nb_allocated_events];
 
   threadFile.read(&th->nb_sequences, sizeof(th->nb_sequences), 1);
   th->nb_allocated_sequences = th->nb_sequences;
@@ -1439,7 +1439,7 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
   }
   for (int i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
-    pallasReadEventSummary(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler);
+    readEvent(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler);
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu sequences\n", th->nb_sequences);
@@ -1449,13 +1449,13 @@ static void pallasReadThread(pallas::GlobalArchive* global_archive, pallas::Thre
   }
   for (int i = 0; i < th->nb_sequences; i++) {
     th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
-    pallasReadSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
+    readSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler);
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);
   for (int i = 0; i < th->nb_loops; i++) {
     th->loops[i].self_id = PALLAS_LOOP_ID(i);
-    pallasReadLoop(th->loops[i], threadFile);
+    readLoop(th->loops[i], threadFile);
   }
   threadFile.close();
 
@@ -1481,10 +1481,10 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive, const char* path, 
     file.write(&version, sizeof(version), 1);
     parameter_handler->writeToFile(file.file);
 
-    pallasStoreDefinitions(archive->definitions, file);
-    pallasStoreLocationGroups(archive->location_groups, file);
-    pallasStoreLocations(archive->locations, file);
-    pallasStoreAdditionalContent(archive->additional_content, file);
+    storeDefinitions(archive->definitions, file);
+    storeLocationGroups(archive->location_groups, file);
+    storeLocations(archive->locations, file);
+    storeAdditionalContent(archive->additional_content, file);
 
     file.close();
 }
@@ -1515,10 +1515,10 @@ void pallasStoreArchive(pallas::Archive* archive, const char* path, const pallas
 #endif
     pallas_log(pallas::DebugLevel::Verbose, "Archive %d has %lu threads\n", archive->id, archive->nb_threads);
     file.write(&archive->nb_threads, sizeof(int), 1);
-    pallasStoreDefinitions(archive->definitions, file);
-    pallasStoreLocationGroups(archive->location_groups, file);
-    pallasStoreLocations(archive->locations, file);
-    pallasStoreAdditionalContent(archive->additional_content, file);
+    storeDefinitions(archive->definitions, file);
+    storeLocationGroups(archive->location_groups, file);
+    storeLocations(archive->locations, file);
+    storeAdditionalContent(archive->additional_content, file);
     file.close();
 }
 
@@ -1592,10 +1592,10 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
   delete[] archive->threads;
   archive->threads = new pallas::Thread*[archive->nb_threads]();
   archive->nb_allocated_threads = archive->nb_threads;
-  pallasReadDefinitions(archive->definitions, file);
-  pallasReadLocationGroups(archive->location_groups, file);
-  pallasReadLocations(archive->locations, file);
-  pallasReadAdditionalContent(archive->additional_content, file);
+  readDefinitions(archive->definitions, file);
+  readLocationGroups(archive->location_groups, file);
+  readLocations(archive->locations, file);
+  readAdditionalContent(archive->additional_content, file);
   file.close();
 
   int index = 0;
@@ -1639,7 +1639,7 @@ pallas::Thread* pallas::Archive::getThread(ThreadId thread_id) {
   auto parent = global_archive->getLocationGroup(location->parent);
   if (id == parent->id) {
     thread->archive = this;
-    pallasReadThread(global_archive, thread, location->id);
+    readThread(global_archive, thread, location->id);
     auto index = thread_id - locations[0].id;
     threads[index] = thread;
     return thread;
@@ -1691,10 +1691,10 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     trace->parameter_handler = new pallas::ParameterHandler(file.file);
     pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name, trace->trace_name);
 
-    pallasReadDefinitions(trace->definitions, file);
-    pallasReadLocationGroups(trace->location_groups, file);
-    pallasReadLocations(trace->locations, file);
-    pallasReadAdditionalContent(trace->additional_content, file);
+    readDefinitions(trace->definitions, file);
+    readLocationGroups(trace->location_groups, file);
+    readLocations(trace->locations, file);
+    readAdditionalContent(trace->additional_content, file);
     trace->nb_archives = trace->location_groups.size();
     trace->nb_allocated_archives = trace->location_groups.size();
     if (trace->location_groups.size()) {

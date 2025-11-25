@@ -24,78 +24,78 @@ std::string Token_toString(pallas::Token t) {
     return out;
 }
 
-#define READ(e, cursor, type, name)                             \
-    {                                                           \
-        type name;                                              \
-        pallas_event_pop_data(e, &name, sizeof(type), &cursor); \
-        dict[#name] = name;                                     \
+#define READ(data, cursor, type, name)                              \
+    {                                                               \
+        type name;                                                  \
+        pallas_event_pop_data(data, &name, sizeof(type), &cursor);  \
+        dict[#name] = name;                                         \
     }
 
-static py::dict& Event_get_data(pallas::Event* e) {
+static py::dict& EventData_get_data(pallas::EventData* data) {
     auto& dict = *new py::dict();
     byte* cursor = nullptr;
 
-    switch (e->record) {
+    switch (data->record) {
     case pallas::PALLAS_EVENT_ENTER:
     case pallas::PALLAS_EVENT_LEAVE: {
-        READ(e, cursor, pallas::RegionRef, region_ref);
+        READ(data, cursor, pallas::RegionRef, region_ref);
         break;
     }
     case pallas::PALLAS_EVENT_THREAD_FORK:
     case pallas::PALLAS_EVENT_OMP_FORK: {
-        READ(e, cursor, uint32_t, numberOfRequestedThreads);
+        READ(data, cursor, uint32_t, numberOfRequestedThreads);
         break;
     }
     case pallas::PALLAS_EVENT_MPI_SEND:
     case pallas::PALLAS_EVENT_MPI_ISEND: {
-        READ(e, cursor, uint32_t, receiver);
-        READ(e, cursor, uint32_t, communicator);
-        READ(e, cursor, uint32_t, msgTag);
-        READ(e, cursor, uint64_t, msgLength);
-        if (e->record == pallas::PALLAS_EVENT_MPI_ISEND)
-            READ(e, cursor, uint64_t, requestID);
+        READ(data, cursor, uint32_t, receiver);
+        READ(data, cursor, uint32_t, communicator);
+        READ(data, cursor, uint32_t, msgTag);
+        READ(data, cursor, uint64_t, msgLength);
+        if (data->record == pallas::PALLAS_EVENT_MPI_ISEND)
+            READ(data, cursor, uint64_t, requestID);
         break;
     }
     case pallas::PALLAS_EVENT_MPI_RECV:
     case pallas::PALLAS_EVENT_MPI_IRECV: {
-        READ(e, cursor, uint32_t, sender);
-        READ(e, cursor, uint32_t, communicator);
-        READ(e, cursor, uint32_t, msgTag);
-        READ(e, cursor, uint64_t, msgLength);
-        if (e->record == pallas::PALLAS_EVENT_MPI_IRECV)
-            READ(e, cursor, uint64_t, requestID);
+        READ(data, cursor, uint32_t, sender);
+        READ(data, cursor, uint32_t, communicator);
+        READ(data, cursor, uint32_t, msgTag);
+        READ(data, cursor, uint64_t, msgLength);
+        if (data->record == pallas::PALLAS_EVENT_MPI_IRECV)
+            READ(data, cursor, uint64_t, requestID);
         break;
     }
     case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE:
     case pallas::PALLAS_EVENT_MPI_IRECV_REQUEST: {
-        READ(e, cursor, uint64_t, requestID);
+        READ(data, cursor, uint64_t, requestID);
         break;
     }
     case pallas::PALLAS_EVENT_THREAD_ACQUIRE_LOCK:
     case pallas::PALLAS_EVENT_THREAD_RELEASE_LOCK:
     case pallas::PALLAS_EVENT_OMP_ACQUIRE_LOCK:
     case pallas::PALLAS_EVENT_OMP_RELEASE_LOCK: {
-        READ(e, cursor, uint32_t, lockID);
-        READ(e, cursor, uint32_t, acquisitionOrder);
+        READ(data, cursor, uint32_t, lockID);
+        READ(data, cursor, uint32_t, acquisitionOrder);
         break;
     }
     case pallas::PALLAS_EVENT_MPI_COLLECTIVE_END: {
-        READ(e, cursor, uint32_t, collectiveOp);
-        READ(e, cursor, uint32_t, communicator);
-        READ(e, cursor, uint32_t, root);
-        READ(e, cursor, uint64_t, sizeSent);
-        READ(e, cursor, uint64_t, sizeReceived);
+        READ(data, cursor, uint32_t, collectiveOp);
+        READ(data, cursor, uint32_t, communicator);
+        READ(data, cursor, uint32_t, root);
+        READ(data, cursor, uint64_t, sizeSent);
+        READ(data, cursor, uint64_t, sizeReceived);
         break;
     }
     case pallas::PALLAS_EVENT_OMP_TASK_CREATE:
     case pallas::PALLAS_EVENT_OMP_TASK_SWITCH:
     case pallas::PALLAS_EVENT_OMP_TASK_COMPLETE: {
-        READ(e, cursor, uint64_t, taskID);
+        READ(data, cursor, uint64_t, taskID);
         break;
     }
     case pallas::PALLAS_EVENT_GENERIC: {
         pallas::StringRef event_name;
-        pallas_event_pop_data(e, &event_name, sizeof(event_name), &cursor);
+        pallas_event_pop_data(data, &event_name, sizeof(event_name), &cursor);
         dict["event_name"] = event_name;
         break;
     }
@@ -300,8 +300,8 @@ struct PyLoop {
     pallas::Thread* thread;
 };
 
-struct PyEventSummary {
-    pallas::EventSummary* self;
+struct PyEvent {
+    pallas::Event* self;
     pallas::Thread* thread;
 };
 
@@ -323,8 +323,8 @@ std::vector<PyLoop> threadGetLoops(pallas::Thread& self) {
     return output;
 }
 
-std::vector<PyEventSummary> threadGetEventsSummary(pallas::Thread& self) {
-    auto output = std::vector<PyEventSummary>(self.nb_events);
+std::vector<PyEvent> threadGetEvents(pallas::Thread& self) {
+    auto output = std::vector<PyEvent>(self.nb_events);
     for (size_t i = 0; i < self.nb_events; i++) {
         output[i].self = &self.events[i];
         output[i].thread = &self;
@@ -338,7 +338,7 @@ pybind11::list sequenceGetContent(const PySequence& self) {
     for (size_t i = 0; i < self.self->tokens.size(); i++) {
         auto t = self.self->tokens[i];
         if (t.type == pallas::TypeEvent) {
-            PyEventSummary temp = {self.thread->getEventSummary(t), self.thread};
+            PyEvent temp = {self.thread->getEvent(t), self.thread};
             output.append(temp);
         }
         if (t.type == pallas::TypeSequence) {
@@ -377,10 +377,10 @@ bool doesSequenceContains(const PySequence& self, pallas::Token t) {
     return false;
 }
 
-std::vector<PyEventSummary> threadGetEventsMatching(pallas::Thread& t, pallas::Record record) {
-    auto output = std::vector<PyEventSummary>();
+std::vector<PyEvent> threadGetEventsMatching(pallas::Thread& t, pallas::Record record) {
+    auto output = std::vector<PyEvent>();
     for (size_t i = 0; i < t.nb_events; i++) {
-        if (t.events[i].event.record == record) {
+        if (t.events[i].data.record == record) {
             output.push_back({&t.events[i], &t});
         }
     }
@@ -388,11 +388,11 @@ std::vector<PyEventSummary> threadGetEventsMatching(pallas::Thread& t, pallas::R
 }
 
 
-std::vector<PyEventSummary> threadGetEventsMatchingList(pallas::Thread& t, std::vector<pallas::Record> records) {
-    auto output = std::vector<PyEventSummary>();
+std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<pallas::Record> records) {
+    auto output = std::vector<PyEvent>();
     for (size_t i = 0; i < t.nb_events; i++) {
         for (auto record : records) {
-            if (t.events[i].event.record == record) {
+            if (t.events[i].data.record == record) {
                 output.push_back({&t.events[i], &t});
                 continue;
             }
@@ -449,7 +449,7 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
             .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
             .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
-            .def("contains", [](const PySequence& self, const PyEventSummary& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
+            .def("contains", [](const PySequence& self, const PyEvent& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
             .def("contains", [](const PySequence& self, const pallas::Token& other) { return doesSequenceContains(self, other); })
             .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
             .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id.id) + ">"; });
@@ -460,19 +460,18 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_property_readonly("nb_iterations", [](const PyLoop& self) { return self.self->nb_iterations; })
             .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
 
-    py::class_<PyEventSummary>(m, "EventSummary", "A Pallas Event Summary, that stores info about an event.")
-            .def_property_readonly("id", [](const PyEventSummary& self) { return pallas::Token(pallas::TypeEvent, self.self->id); })
-            .def_property_readonly("event", [](const PyEventSummary& self) { return self.self->event; })
-            .def_property_readonly("nb_occurrences", [](const PyEventSummary& self) { return self.self->nb_occurences; })
-            .def_property_readonly("timestamps", [](const PyEventSummary& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
-            .def("__repr__", [](const PyEventSummary& self) { return "<pallas_python.EventSummary " + std::to_string(self.self->id) + ">"; });
-
-    py::class_<pallas::Event>(m, "Event", "A Pallas Event.").def_readonly("record", &pallas::Event::record).def_property_readonly("data", &Event_get_data);
+    py::class_<PyEvent>(m, "Event", "A Pallas Event.")
+            .def_property_readonly("id", [](const PyEvent& self) { return pallas::Token(pallas::TypeEvent, self.self->id); })
+            .def_property_readonly("record", [](const PyEvent& self) { return self.self->data.record; })
+            .def_property_readonly("data", [](const PyEvent& self) { return EventData_get_data(&self.self->data); })
+            .def_property_readonly("nb_occurrences", [](const PyEvent& self) { return self.self->nb_occurrences; })
+            .def_property_readonly("timestamps", [](const PyEvent& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
+            .def("__repr__", [](const PyEvent& self) { return "<pallas_python.Event " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
             .def_readonly("id", &pallas::Thread::id)
             .def_property_readonly("starting_timestamp", [](const pallas::Thread& self) { return self.first_timestamp; })
-            .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEventsSummary(self); })
+            .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEvents(self); })
             .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
             .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
             .def("get_events_from_record", threadGetEventsMatching)
@@ -491,21 +490,21 @@ PYBIND11_MODULE(pallas_trace, m) {
                     switch (t.type) {
                     case pallas::TypeEvent: {
                         return py::make_tuple(
-                                std::variant<PyEventSummary, PySequence, PyLoop>(
-                                        PyEventSummary{self.thread_trace->getEventSummary(t), self.thread_trace}),
+                                std::variant<PyEvent, PySequence, PyLoop>(
+                                        PyEvent{self.thread_trace->getEvent(t), self.thread_trace}),
                                 self.currentState.currentFrame->tokenCount[t]
                                 );
                     }
                     case pallas::TypeSequence: {
                         return py::make_tuple(
-                                std::variant<PyEventSummary, PySequence, PyLoop>(
+                                std::variant<PyEvent, PySequence, PyLoop>(
                                         PySequence{self.thread_trace->getSequence(t), self.thread_trace}),
                                 self.currentState.currentFrame->tokenCount[t]
                                 );
                     }
                     case pallas::TypeLoop: {
                         return py::make_tuple(
-                                std::variant<PyEventSummary, PySequence, PyLoop>(
+                                std::variant<PyEvent, PySequence, PyLoop>(
                                         PyLoop{self.thread_trace->getLoop(t), self.thread_trace}),
                                 self.currentState.currentFrame->tokenCount[t]
                                 );

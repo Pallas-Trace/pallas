@@ -18,7 +18,7 @@
 namespace pallas {
   extern "C" {
 #endif
-      extern void pallas_event_pop_data(PALLAS(Event)* e, void* data, size_t data_size, byte** cursor);
+      extern void pallas_event_pop_data(PALLAS(EventData)* e, void* data, size_t data_size, byte** cursor);
     extern void pallas_record_enter(ThreadWriter* thread_writer,
 				    AttributeList* attributeList,
 				    pallas_timestamp_t time,

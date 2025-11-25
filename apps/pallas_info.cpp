@@ -70,7 +70,7 @@ std::string getTokenString(Thread* thread, Token t) {
   switch (t.type) {
   case TypeEvent: {
     Event* e = thread->getEvent(t);
-    return thread->getEventString(e);
+    return thread->getEventString(&e->data);
     break;
   }
   case TypeSequence: {
@@ -100,10 +100,10 @@ void info_event_header() {
 }
 
 void info_event(Thread* t, int index) {
-  EventSummary* e = &t->events[index];
+  Event* e = &t->events[index];
 
   std::cout << std::left << "E" << std::setw(14) << std::left << index;
-  std::cout << std::setw(35) << std::left << t->getEventString(&e->event);
+  std::cout << std::setw(35) << std::left << t->getEventString(&e->data);
   std::cout << std::setw(20) << std::right << e->timestamps->size;
   std::cout << std::endl;
 }

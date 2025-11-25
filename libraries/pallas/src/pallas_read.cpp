@@ -113,7 +113,7 @@ void ThreadReader::printCallstack() const {
         std::cout << "\t-> " << thread_trace->getTokenString(current_token) << std::endl;
     }
 }
-EventSummary* ThreadReader::getEventSummary(Token event) const {
+Event* ThreadReader::getEvent(Token event) const {
     pallas_assert(event.type == TypeEvent);
     if (event.id < thread_trace->nb_events) {
         return &thread_trace->events[event.id];
@@ -122,8 +122,8 @@ EventSummary* ThreadReader::getEventSummary(Token event) const {
 }
 pallas_timestamp_t ThreadReader::getEventTimestamp(Token event, int occurence_id) const {
     pallas_assert(event.type == TypeEvent);
-    auto summary = getEventSummary(event);
-    if (0 <= occurence_id && occurence_id < summary->nb_occurences) {
+    auto summary = getEvent(event);
+    if (0 <= occurence_id && occurence_id < summary->nb_occurrences) {
         return summary->timestamps->at(occurence_id);
     }
     pallas_error("Given occurence_id (%d) was invalid for event %d\n", occurence_id, event.id);
@@ -188,8 +188,8 @@ pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
 
 EventOccurence ThreadReader::getEventOccurence(Token event_id, size_t occurence_id) const {
     auto eventOccurence = EventOccurence();
-    auto* es = getEventSummary(event_id);
-    eventOccurence.event = thread_trace->getEvent(event_id);
+    auto* es = getEvent(event_id);
+    eventOccurence.event = &thread_trace->getEvent(event_id)->data;
 
     eventOccurence.timestamp = es->timestamps->at(occurence_id);
     eventOccurence.attributes = getEventAttributeList(event_id, occurence_id);
@@ -218,7 +218,7 @@ LoopOccurence ThreadReader::getLoopOccurence(Token loop_id, size_t occurence_id)
 }
 
 AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurence_id) const {
-    auto* summary = getEventSummary(event_id);
+    auto* summary = getEvent(event_id);
     if (summary->attribute_buffer == nullptr)
         return nullptr;
 
@@ -254,14 +254,14 @@ void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>&
                 // for small (enter/leave function) sequence, use the name of the function
                 pallas::Token t_start = s->tokens[0];
                 if (t_start.type == pallas::TypeEvent) {
-                    pallas::Event* event = thread_trace->getEvent(t_start);
-                    if (event->record == pallas::PALLAS_EVENT_ENTER) {
-                        const char* event_name = thread_trace->getRegionStringFromEvent(event);
+                    EventData* data = &thread_trace->getEvent(t_start)->data;
+                    if (data->record == pallas::PALLAS_EVENT_ENTER) {
+                        const char* event_name = thread_trace->getRegionStringFromEvent(data);
                         // TODO if that's an MPI call (eg MPI_Send, MPI_Allreduce, ...)
                         //      we may want to get the function parameters (eg. dest, tag, ...)
                         names[s] = std::string(event_name);
                         name_found = true;
-                    } else if (event->record == pallas::PALLAS_EVENT_THREAD_BEGIN) {
+                    } else if (data->record == pallas::PALLAS_EVENT_THREAD_BEGIN) {
                         names[s] = "main";
                         name_found = true;
                     }
@@ -429,7 +429,7 @@ bool ThreadReader::moveToNextToken(int flags) {
     pallas_timestamp_t& new_timestamp = currentState.currentFrame->current_timestamp;
     switch (current_token.type) {
     case TypeEvent:
-        new_timestamp = getEventSummary(current_token)->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
+        new_timestamp = getEvent(current_token)->timestamps->at(currentState.currentFrame->tokenCount[current_token]);
         break;
     case TypeLoop: {
         auto loop = thread_trace->getLoop(current_token);
@@ -676,8 +676,8 @@ void pallasPrintCurSequence(ThreadReader* thread_reader) {
 void pallasPrintCallstack(ThreadReader* thread_reader) {
     thread_reader->printCallstack();
 }
-EventSummary* pallasGetEventSummary(ThreadReader* thread_reader, Token event) {
-    return thread_reader->getEventSummary(event);
+Event* pallasGetEvent(ThreadReader* thread_reader, Token event) {
+    return thread_reader->getEvent(event);
 }
 pallas_timestamp_t pallasGetEventTimestamp(ThreadReader* thread_reader, Token event, int occurence_id) {
     return thread_reader->getEventTimestamp(event, occurence_id);

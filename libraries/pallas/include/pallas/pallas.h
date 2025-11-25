@@ -206,19 +206,6 @@ enum Record {
     PALLAS_EVENT_MAX_ID /**< Max Event Record ID */
 };
 
-#define PALLAS_EVENT_DATA_MAX_SIZE 256 - sizeof(uint8_t) - sizeof(enum PALLAS(Record))
-/**
- * Structure to store an event in PALLAS.
- */
-typedef struct Event {
-    /** Record, i.e. signature / type of the event */
-    enum Record record;
-    /** Size of this event, including record and event_size. */
-    uint8_t event_size;
-    /** Data related to this event ( parameter of functions, etc. ). Ends at this + this.event_size. */
-    uint8_t event_data[PALLAS_EVENT_DATA_MAX_SIZE];
-} __attribute__((packed, aligned(256))) Event;
-
 #ifdef __cplusplus
 
 struct custom_hash_unique_object_representation {
@@ -415,28 +402,46 @@ typedef struct Loop {
 #endif
 } Loop;
 
-/**
- * Summary for an pallas::Event.
- *
- * Contains the durations for each occurence of that event
- * as well as the number of occurences for that event,
- * and its attributes.
- */
-typedef struct EventSummary {
-    TokenId id; /**< ID of the Event */
-    Event event; /**< The Event being summarized.*/
-    LinkedVector* timestamps; /**< Timestamps for each occurrence of that Event.*/
-    size_t nb_occurences; /**< Number of times that Event has happened. */
 
-    byte* attribute_buffer; /**< Storage for Attribute.*/
-    size_t attribute_buffer_size; /**< Size of #attribute_buffer.*/
-    size_t attribute_pos; /**< Position of #attribute_buffer.*/
+#define PALLAS_EVENT_DATA_MAX_SIZE 256 - sizeof(uint8_t) - sizeof(enum PALLAS(Record))
+/**
+ * Storage of raw event data in Pallas.
+ */
+typedef struct EventData {
+    /** Record, i.e. signature / type of the event */
+    enum Record record;
+    /** Size of this event, including record and event_size. */
+    uint8_t event_size;
+    /** Data related to this event ( parameter of functions, etc. ). Ends at this + this.event_size. */
+    uint8_t event_data[PALLAS_EVENT_DATA_MAX_SIZE];
+} __attribute__((packed, aligned(256))) EventData;
+
+/**
+ * Structure to store an Event.
+ * Contains the timestamps of each occurrence of that particular event, as well as its attributes.
+ */
+typedef struct Event {
+    /** ID of the Event */
+    TokenId id;
+    /** The Event being summarized.*/
+    EventData data;
+    /** Timestamps for each occurrence of that Event.*/
+    LinkedVector* timestamps;
+    /** Number of times that Event has happened. */
+    size_t nb_occurrences;
+    /** Storage for Attribute.*/
+    byte* attribute_buffer;
+    /** Size of #attribute_buffer.*/
+    size_t attribute_buffer_size;
+    /** Position of #attribute_buffer.*/
+    size_t attribute_pos;
 #ifdef __cplusplus
-  EventSummary(TokenId, const Event&);
-  EventSummary() = default;
+  Event(TokenId, const EventData&);
+  Event() = default;
   void cleanEventSummary();
 #endif
-} EventSummary;
+} Event;
+
 
 /** Reference for a Thread. */
 typedef uint32_t ThreadId;
@@ -577,10 +582,10 @@ typedef struct Thread {
     /** Id of this Thread. */
     ThreadId id;
     /** Array of events recorded in this Thread. */
-    EventSummary* events;
-    /** Number of blocks of size pallas:EventSummary allocated in #events. */
+    Event* events;
+    /** Number of blocks of size pallas:Event allocated in #events. */
     size_t nb_allocated_events;
-    /** Number of pallas::EventSummary in #events. */
+    /** Number of pallas::Event in #events. */
     size_t nb_events;
 
     /** Array of pallas::Sequence recorded in this Thread. */
@@ -615,11 +620,9 @@ typedef struct Thread {
     void loadTimestamps();
     /** Resets the offsets of all the timestamp / duration vectors.*/
     void resetVectorsOffsets();
+
     /** Returns the Event corresponding to the given Token. */
     Event *getEvent(Token) const;
-
-    /** Returns the EventSummary corresponding to the given Token. */
-    EventSummary *getEventSummary(Token) const;
 
     /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
      * @param array Array of tokens.
@@ -656,7 +659,7 @@ typedef struct Thread {
     std::string getTokenArrayString(const Token *array, size_t start_index, size_t len) const;
 
     /** Returns a string describing that Event. */
-    std::string getEventString(Event *e) const;
+    std::string getEventString(EventData *e) const;
 
     /** Prints a vector of Token. */
 
@@ -695,7 +698,7 @@ typedef struct Thread {
     void printRegion(RegionRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
-    const char *getRegionStringFromEvent(pallas::Event *e) const;
+    const char *getRegionStringFromEvent(pallas::EventData *e) const;
 
     /** Prints the value of the attribute.*/
     void printAttributeValue(const struct AttributeData *attr, pallas_type_t type) const;

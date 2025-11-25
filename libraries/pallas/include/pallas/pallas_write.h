@@ -76,10 +76,10 @@ typedef struct ThreadWriter {
     [[nodiscard]] std::vector<Token>& getCurrentTokenSequence() const { return sequence_stack[cur_depth]; };
     /** Returns a reference to the indexes of the current sequence of Tokens being written. */
     [[nodiscard]] std::vector<size_t>& getCurrentIndexSequence() const { return index_stack[cur_depth]; };
-    /** Stores the timestamp in the given EventSummary. */
-    void storeTimestamp(EventSummary* es, pallas_timestamp_t ts);
-    /** Stores the attribute list in the given EventSummary. */
-    void storeAttributeList(EventSummary* es, AttributeList* attribute_list, size_t occurence_index);
+    /** Stores the timestamp in the given Event. */
+    void storeTimestamp(Event* es, pallas_timestamp_t ts);
+    /** Stores the attribute list in the given Event. */
+    void storeAttributeList(Event* es, AttributeList* attribute_list, size_t occurence_index);
     /** Stores the tokens in that Sequence's array of Tokens, then tries to find a Loop.*/
     void storeToken(Token t, size_t i);
     /** Move up the callstack and create a new Sequence. */
@@ -102,10 +102,10 @@ typedef struct ThreadWriter {
     // void addDurationToComplete(pallas_duration_t* duration);
 
    public:
-    /** Returns the ID corresponding to the given Event.
-     * If there isn't already one, creates a corresponding EventSummary.
+    /** Returns the ID corresponding to the given EventData.
+     * If there isn't already one, creates a corresponding Event.
      */
-    TokenId getEventId(Event* e);
+    TokenId getEventId(EventData* e);
     ThreadWriter(Archive& archive, ThreadId thread_id);
     void threadClose();
     /** Creates the new Event and stores it. Returns the occurence index of that new Event. */

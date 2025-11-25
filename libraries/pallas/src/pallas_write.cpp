@@ -113,15 +113,15 @@ Loop& ThreadWriter::createLoop(Token sequence_id) {
     return l;
 }
 
-void ThreadWriter::storeTimestamp(EventSummary* es, pallas_timestamp_t ts) {
+void ThreadWriter::storeTimestamp(Event* es, pallas_timestamp_t ts) {
     es->timestamps->add(ts);
-    if (thread->first_timestamp == PALLAS_TIMESTAMP_INVALID)
+    if (thread->first_timestamp == PALLAS_TIMESTAMP_INVALID) {
         thread->first_timestamp = ts;
-
+    }
     last_timestamp = ts;
 }
 
-void ThreadWriter::storeAttributeList(pallas::EventSummary* es, struct pallas::AttributeList* attribute_list, const size_t occurence_index) {
+void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::AttributeList* attribute_list, const size_t occurence_index) {
     attribute_list->index = occurence_index;
     if (es->attribute_pos + attribute_list->struct_size >= es->attribute_buffer_size) {
         if (es->attribute_buffer_size == 0) {
@@ -205,9 +205,9 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         // And add that timestamp to the vectors
         auto first_token = loop_sequence.tokens.front();
         if (first_token.type == TypeEvent) {
-            auto first_event_summmary = thread->getEventSummary(first_token);
-            loop_sequence.timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_first_iteration]));
-            loop_sequence.timestamps->add(first_event_summmary->timestamps->at(curIndexSeq[index_second_iteration]));
+            auto first_event = thread->getEvent(first_token);
+            loop_sequence.timestamps->add(first_event->timestamps->at(curIndexSeq[index_first_iteration]));
+            loop_sequence.timestamps->add(first_event->timestamps->at(curIndexSeq[index_second_iteration]));
         }
         if (first_token.type == TypeSequence) {
             auto first_sequence = thread->getSequence(first_token);
@@ -372,8 +372,8 @@ void ThreadWriter::findSequence(size_t n) {
             auto first_token = sequence->tokens.front();
             auto first_token_index = curTokenIndex.size() - array_len;
             if (first_token.type == TypeEvent) {
-                auto first_event_summmary = thread->getEventSummary(first_token);
-                sequence->timestamps->add(first_event_summmary->timestamps->at(curTokenIndex[first_token_index]));
+                auto first_event = thread->getEvent(first_token);
+                sequence->timestamps->add(first_event->timestamps->at(curTokenIndex[first_token_index]));
             }
             if (first_token.type == TypeSequence) {
                 auto first_sequence = thread->getSequence(first_token);
@@ -481,8 +481,8 @@ void ThreadWriter::recordExitFunction() {
     Token last_token = curTokenSeq.back();
 
     if (first_token.type == TypeEvent) {
-        Event* first_event = thread->getEvent(first_token);
-        Event* last_event = thread->getEvent(last_token);
+        EventData* first_event = &thread->getEvent(first_token)->data;
+        EventData* last_event = &thread->getEvent(last_token)->data;
 
         enum Record expected_record = getMatchingRecord(first_event->record);
         if (expected_record == PALLAS_EVENT_MAX_ID) {
@@ -500,10 +500,10 @@ void ThreadWriter::recordExitFunction() {
                     pallas_warn("Unexpected last_event record:\n\t%s\n", thread->getEventString(last_event).c_str());
                     pallas_abort();
                 }
-                pallas_warn("Currently recorded last event is wrong by one layer, adding the correct Leave Event.\n");
+                pallas_warn("Currently recorded last event is wrong by one layer, adding the correct Leave EventData.\n");
                 curTokenSeq.resize(curTokenSeq.size() - 1);
-                Event e;
-                e.event_size = offsetof(Event, event_data);
+                EventData e;
+                e.event_size = offsetof(EventData, event_data);
                 e.record = expected_record;
                 memcpy(e.event_data, first_event->event_data, first_event->event_size);
                 e.event_size = first_event->event_size;
@@ -572,8 +572,8 @@ size_t ThreadWriter::storeEvent(enum EventType event_type, TokenId event_id, pal
 
     Token token = Token(TypeEvent, event_id);
 
-    EventSummary* es = &thread->events[event_id];
-    size_t occurrence_index = es->nb_occurences++;
+    Event* es = &thread->events[event_id];
+    size_t occurrence_index = es->nb_occurrences++;
     pallas_log(DebugLevel::Debug, "storeEvent: %s @ %lu\n", thread->getTokenString(token).c_str(), ts);
     storeTimestamp(es, ts);
     storeToken(token, occurrence_index);
@@ -631,7 +631,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->id = thread_id;
 
     thread->nb_allocated_events = NB_EVENT_DEFAULT;
-    thread->events = new EventSummary[thread->nb_allocated_events]();
+    thread->events = new Event[thread->nb_allocated_events]();
     thread->nb_events = 0;
 
     thread->nb_allocated_sequences = NB_SEQUENCE_DEFAULT;
@@ -668,17 +668,17 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     pallas_recursion_shield--;
 }
 
-TokenId ThreadWriter::getEventId(Event* e) {
+TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: Searching for event {.event_type=%d}\n", e->record);
 
-    uint32_t hash = hash32(reinterpret_cast<uint8_t*>(e), sizeof(Event), SEED);
+    uint32_t hash = hash32(reinterpret_cast<uint8_t*>(e), sizeof(EventData), SEED);
     auto& eventWithSameHash = thread->hashToEvent[hash];
     if (!eventWithSameHash.empty()) {
         if (eventWithSameHash.size() > 1) {
             pallas_log(DebugLevel::Debug, "Found more than one event with the same hash: %lu\n", eventWithSameHash.size());
         }
         for (const auto eid : eventWithSameHash) {
-            if (memcmp(e, &thread->events[eid].event, e->event_size) == 0) {
+            if (memcmp(e, &thread->events[eid].data, e->event_size) == 0) {
                 pallas_log(DebugLevel::Debug, "getEventId: \t found with id=%u\n", eid);
                 return eid;
             }
@@ -693,7 +693,7 @@ TokenId ThreadWriter::getEventId(Event* e) {
     TokenId index = thread->nb_events++;
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
 
-    auto* new_event = new (&thread->events[index]) EventSummary(index, *e);
+    auto* new_event = new (&thread->events[index]) Event(index, *e);
     new_event->timestamps = new LinkedVector(*parameter_handler);
 
     // In-place initialisation
@@ -711,7 +711,7 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence&
 
     switch (start_token.type) {
     case TypeEvent:
-        start_ts = thread->getEventSummary(start_token)->timestamps->at(start_index);
+        start_ts = thread->getEvent(start_token)->timestamps->at(start_index);
         break;
     case TypeSequence:
         start_ts = thread->getSequence(start_token)->timestamps->at(start_index);
@@ -729,7 +729,7 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(Sequence&
     size_t end_index = curIndexSeq[curIndexSeq.size() - 1 - sequence.tokens.size() * offset];
     switch (end_token.type) {
     case TypeEvent:
-        end_ts = thread->getEventSummary(end_token)->timestamps->at(end_index);
+        end_ts = thread->getEvent(end_token)->timestamps->at(end_index);
         break;
     case TypeSequence: {
         auto* s = thread->getSequence(end_token);
