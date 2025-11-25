@@ -87,7 +87,7 @@ static FILE* pallasFileOpen(const char* filename, const char* mode) {
   do {                                                     \
     size_t ret = fread(ptr, size, nmemb, stream);          \
     if (ret != (nmemb))                                    \
-      pallas_error("fread failed: %s\n", strerror(errno)); \
+      pallas_error("fread failed: %d %s\n", errno, strerror(errno)); \
   } while (0)
 
 #define _pallas_fwrite(ptr, size, nmemb, stream)   \
@@ -100,82 +100,98 @@ static FILE* pallasFileOpen(const char* filename, const char* mode) {
 size_t numberOpenFiles = 0;
 size_t maxNumberFilesOpen = 32;
 class File;
+
 File* getFirstOpenFile();
+
 class File {
- public:
-  FILE* file = nullptr;
-  char* path = nullptr;
-  bool isOpen = false;
-  bool is_open() const { return isOpen; }
-    // TODO Add the file mode to the File class
-  void open(const char* mode) {
-    if (isOpen) {
-      pallas_log(pallas::DebugLevel::Verbose, "Trying to open file that is already open: %s\n", path);
-      // store();
-      return;
-    }
-    while (numberOpenFiles >= maxNumberFilesOpen) {
-      auto* openedFilePath = getFirstOpenFile();
-      if (!openedFilePath) {
-        pallas_warn("Could not find any more duration files to store: %lu files opened.\n", numberOpenFiles);
-        break;
-      }
-      openedFilePath->close();
-    }
-    file = pallasFileOpen(path, mode);
-    if (file) {
-      numberOpenFiles++;
-      isOpen = true;
-    }
-  };
-  void close() {
-    // TODO grab the lock
-    if (!isOpen) {
-      pallas_log(pallas::DebugLevel::Debug, "Trying to store file that is already closed: %s\n", path);
-    }
-    isOpen = false;
-    fclose(file);
-    if (numberOpenFiles)
-      numberOpenFiles--;
-  };
-  void read(void* ptr, size_t size, size_t n) const { _pallas_fread(ptr, size, n, file); }
-  void write(void* ptr, size_t size, size_t n) const { _pallas_fwrite(ptr, size, n, file); }
-  explicit File(const char* path, const char* mode = nullptr) {
-    this->path = strdup(path);
-    if (mode) {
-      open(mode);
-    }
-  }
-  ~File() {
-    if (isOpen) {
-      close();
-    }
-    // delete file;
-    free(path);
-  }
-};
-class FileMap: public std::map<const char*, File*> {
 public:
-  ~FileMap() {
-    for (auto& it: *this) {
-      delete it.second;
+    FILE* file = nullptr;
+    char* path = nullptr;
+    bool isOpen = false;
+    bool is_open() const { return isOpen; }
+    // TODO Add the file mode to the File class
+    void open(const char* mode) {
+        if (isOpen) {
+            pallas_log(pallas::DebugLevel::Verbose, "Trying to open file that is already open: %s\n", path);
+            // store();
+            return;
+        }
+        while (numberOpenFiles >= maxNumberFilesOpen) {
+            auto* openedFilePath = getFirstOpenFile();
+            if (!openedFilePath) {
+                pallas_warn("Could not find any more duration files to store: %lu files opened.\n", numberOpenFiles);
+                break;
+            }
+            openedFilePath->close();
+        }
+        file = pallasFileOpen(path, mode);
+        if (file) {
+            numberOpenFiles++;
+            isOpen = true;
+        }
+    };
+
+    void close() {
+        // TODO grab the lock
+        if (!isOpen) {
+            pallas_log(pallas::DebugLevel::Debug, "Trying to store file that is already closed: %s\n", path);
+        }
+        isOpen = false;
+        fclose(file);
+        if (numberOpenFiles)
+            numberOpenFiles--;
+    };
+
+    void read(void* ptr, size_t size, size_t n) const {
+        if (size > 0)
+            _pallas_fread(ptr, size, n, file);
     }
-  }
+
+    void write(void* ptr, size_t size, size_t n) const {
+        if (size > 0)
+            _pallas_fwrite(ptr, size, n, file);
+    }
+
+    explicit File(const char* path, const char* mode = nullptr) {
+        this->path = strdup(path);
+        if (mode) {
+            open(mode);
+        }
+    }
+
+    ~File() {
+        if (isOpen) {
+            close();
+        }
+        // delete file;
+        free(path);
+    }
 };
-FileMap fileMap;
-File* getFirstOpenFile() {
-  for (auto& a : fileMap) {
-    if (a.second->isOpen) {
-      return a.second;
+
+class FileMap : public std::map<const char*, File*> {
+public:
+    ~FileMap() {
+        for (auto& it : *this) {
+            delete it.second;
+        }
     }
-  }
-  return nullptr;
+};
+
+FileMap fileMap;
+
+File* getFirstOpenFile() {
+    for (auto& a : fileMap) {
+        if (a.second->isOpen) {
+            return a.second;
+        }
+    }
+    return nullptr;
 }
 
 
 static void storeEventData(pallas::EventData& event,
-    const File& eventFile,
-    const pallas::ParameterHandler& parameter_handler);
+                           const File& eventFile,
+                           const pallas::ParameterHandler& parameter_handler);
 static void storeEvent(pallas::Event& event,
                              const File& eventFile,
                              const File& durationFile,
@@ -974,7 +990,8 @@ static void readEventData(pallas::EventData& event,
                             const pallas::ParameterHandler& parameter_handler) {
     eventFile.read(&event.record, sizeof(event.record), 1);
     eventFile.read(&event.event_size, sizeof(event.event_size), 1);
-    eventFile.read(event.event_data, event.event_size - offsetof(pallas::EventData, event_data), 1);
+    auto size = event.event_size - offsetof(pallas::EventData, event_data);
+    eventFile.read(event.event_data, size, 1);
 };
 
 static void storeEvent(pallas::Event& event,
