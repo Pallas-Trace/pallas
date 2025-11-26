@@ -187,8 +187,12 @@ void GlobalArchive::defineLocationGroup(LocationGroupId lg_id, StringRef name, L
 }
 
 void GlobalArchive::defineLocation(ThreadId l_id, StringRef name, LocationGroupId parent) {
-  pallas_warn("Defining Location %d (%s) in GlobalArchive: You should record in it %d's Archive.\n", l_id, getString(name)->str, parent);
-  pthread_mutex_lock(&lock);
+    static bool has_warned_before = false;
+    if (! has_warned_before) {
+        pallas_warn("Defining Location %d (%s) in GlobalArchive: You should record in it %d's Archive. This warning will only show once.\n", l_id, getString(name)->str, parent);
+        has_warned_before = true;
+    }
+    pthread_mutex_lock(&lock);
   Location l = {.id = l_id, .name = name, .parent = parent};
   pallas_assert(l.id != PALLAS_THREAD_ID_INVALID);
   locations.push_back(l);
