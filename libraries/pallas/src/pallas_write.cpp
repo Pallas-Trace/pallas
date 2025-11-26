@@ -598,7 +598,7 @@ void ThreadWriter::threadClose() {
     pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
     mainSequence.durations->add(duration);
-    mainSequence.exclusive_durations->add(duration);
+    mainSequence.exclusive_durations->add(0);
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
     mainSequence.timestamps->add(thread->first_timestamp);
     thread->store(thread->archive->dir_name, parameter_handler);
