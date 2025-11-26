@@ -748,10 +748,10 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(const Seq
     default:
         pallas_error("Incorrect Token\n");
     }
-    auto inclusive_duration = end_ts - start_ts;
+    pallas_duration_t inclusive_duration = end_ts - start_ts;
 
     // Then compute the exclusive duration or the block duration, depending on the sequence's type
-    auto block_duration = 0;
+    pallas_duration_t block_duration = 0;
     for (size_t i = 0; i< sequence.tokens.size(); i ++) {
         auto token = sequence.tokens[i];
         auto index = curIndexSeq[curIndexSeq.size() - sequence.tokens.size() * ( 1 + offset ) + i];
