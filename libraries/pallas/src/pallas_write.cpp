@@ -474,54 +474,38 @@ static Record getMatchingRecord(Record r) {
 void ThreadWriter::recordExitFunction() {
     auto& curTokenSeq = getCurrentTokenSequence();
 
-#ifdef DEBUG
-    // check that the sequence is not weird
+    // We'll check if the LEAVE Event matches the ENTER
+    // This is especially useful to debug stuff in EZTrace
+    // If the LEAVE doesn't match the first Event, we'll just ignore it and treat it as a normal event.
 
     Token first_token = curTokenSeq.front();
     Token last_token = curTokenSeq.back();
+    EventData* last_event = &thread->getEvent(last_token)->data;
 
-    if (first_token.type == TypeEvent) {
-        EventData* first_event = &thread->getEvent(first_token)->data;
-        EventData* last_event = &thread->getEvent(last_token)->data;
-
-        enum Record expected_record = getMatchingRecord(first_event->record);
-        if (expected_record == PALLAS_EVENT_MAX_ID) {
-            pallas_warn("Unexpected start_event record: %s\n", thread->getEventString(first_event).c_str());
-            pallas_abort();
-        }
-
-        if (last_event->record != expected_record) {
-            pallas_warn("Unexpected store event:\n\tStart_sequence event: \t%s as E%d\n\tEnd_sequence event: \t%s as E%d\n", thread->getEventString(first_event).c_str(),
-                        first_token.id, thread->getEventString(last_event).c_str(), last_token.id);
-            if (cur_depth > 1) {
-                auto& underSequence = sequence_stack[cur_depth - 1];
-                enum Record expected_start_record = getMatchingRecord(last_event->record);
-                if (expected_start_record == PALLAS_EVENT_MAX_ID) {
-                    pallas_warn("Unexpected last_event record:\n\t%s\n", thread->getEventString(last_event).c_str());
-                    pallas_abort();
-                }
-                pallas_warn("Currently recorded last event is wrong by one layer, adding the correct Leave EventData.\n");
-                curTokenSeq.resize(curTokenSeq.size() - 1);
-                EventData e;
-                e.event_size = offsetof(EventData, event_data);
-                e.record = expected_record;
-                memcpy(e.event_data, first_event->event_data, first_event->event_size);
-                e.event_size = first_event->event_size;
-                TokenId e_id = getEventId(&e);
-                pallas_warn("\tInserting %s as E%d at end of curSequence\n", thread->getEventString(&e).c_str(), e_id);
-                storeEvent(PALLAS_BLOCK_END, e_id, getTimestamp(), nullptr);
-                pallas_warn("\tInserting %s as E%d at end of layer under curSequence\n", thread->getEventString(last_event).c_str(), last_token.id);
-                underSequence.push_back(last_token);
-                recordExitFunction();
-                return;
-            }
-        }
+    if (first_token.type != TypeEvent) {
+        pallas_warn("Unexpected Leave event in sequence starting with non-Event: %s/%s\n",
+            thread->getTokenString(first_token).c_str(),
+            thread->getEventString(last_event).c_str());
+        return;
     }
 
-    if (curTokenSeq != sequence_stack[cur_depth]) {
-        pallas_error("cur_seq=%p, but og_seq[%d] = %p\n", &curTokenSeq, cur_depth, &sequence_stack[cur_depth]);
+    EventData* first_event = &thread->getEvent(first_token)->data;
+
+    enum Record expected_record = getMatchingRecord(first_event->record);
+    if (expected_record == PALLAS_EVENT_MAX_ID) {
+        pallas_warn("Unexpected Leave event in sequence starting with non-Enter event: %s/%s\n",
+            thread->getEventString(first_event).c_str(),
+            thread->getEventString(last_event).c_str()
+            );
+        return;
     }
-#endif
+
+    if (last_event->record != expected_record) {
+        pallas_warn("Unexpected Leave event in sequence starting with non-matching Enter event:%s/%s\n",
+        thread->getEventString(first_event).c_str(),
+        thread->getEventString(last_event).c_str());
+        return;
+    }
 
     auto& sequence = getOrCreateSequenceFromArray(curTokenSeq.data(), curTokenSeq.size());
 
