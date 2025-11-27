@@ -11,8 +11,13 @@ if (Python3_FOUND)
     endif()
 endif()
 
-option(Python3_INSTALL_LOCALLY "Install the Pallas Python library in the user local directory instead of system-wide" ON)
-
+option(Python3_INSTALL_LOCALLY "Install the Pallas Python library in the user local directory instead of system-wide")
+IF (NOT DEFINED ENV{VIRTUAL_ENV})
+    set(Python3_INSTALL_LOCALLY ON)
+ELSE ()
+    message( "VENV detected, installing Pallas in VENV site-libs" )
+    set(Python3_INSTALL_LOCALLY OFF)
+ENDIF()
 execute_process(COMMAND pybind11-config --cmakedir OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
 find_package(pybind11 CONFIG REQUIRED)
 
