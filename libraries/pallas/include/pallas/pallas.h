@@ -389,16 +389,17 @@ public:
  * Structure to store a Loop in PALLAS format.
  */
 typedef struct Loop {
-    Token repeated_token; /**< Token of the Sequence being repeated. */
-    Token self_id; /**< Token identifying that Loop. */
-    unsigned int nb_iterations; /**< Number of iterations of that loop. */
+    /** Token of the Sequence being repeated. */
+    Token repeated_token;
+    /** Token identifying that Loop. */
+    Token self_id;
+    /** Number of iterations of that loop. */
+    unsigned int nb_iterations;
+    /** Number of occurrences of that loop. */
+    uint64_t nb_occurrences;
 #ifdef __cplusplus
-  CXX(void addIteration();)           /**< Adds an iteration to the lastest occurence of that loop. */
-
-  /** Tries to guess the name of the loop
-   * @returns A string that describes the loop.
-   */
-  std::string guessName(const pallas::Thread* thread);
+    /** Tries to guess the name of the loop. */
+    std::string guessName(const pallas::Thread* thread);
 #endif
 } Loop;
 

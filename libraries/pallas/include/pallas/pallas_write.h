@@ -65,7 +65,15 @@ typedef struct ThreadWriter {
      * Does not change the current array of tokens.
      * @sequence_id ID of the sequence being repeated.
      * */
-    Loop& createLoop(Token sequence_id);
+    Loop* createLoop(Token sequence_id);
+    /** Increments the counter of loop by 1. */
+    void incrementLoop(Loop *loop);
+    /** Duplicates the given loop. The new loop has nb_occurrences set to 1, the old loop has it decreased by 1. */
+    Loop* unsquashLoop(Loop* loop);
+    /** Checks all the over loops to see if one is strictly similar.
+     * If so, removes this loop, increment the other's nb_occurrences by 1, and returns it.
+     */
+    Loop* squashLoop(Loop* loop);
     /** Create a Loop and change the current array of token to reflect that.
      *
      * For example, replaces `[E1, E2, E3, E4, E1, E2, E3, E4]` with `[L1]`,

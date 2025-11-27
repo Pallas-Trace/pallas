@@ -528,7 +528,10 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_readonly("name", &PyLocation::name)
             .def_readonly("parent", &PyLocation::parent)
             .def("__repr__", [](const PyLocation& self) { return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>"; });
-    py::class_<PyRegion>(m, "Region", "A Pallas region.").def_readonly("id", &PyRegion::id).def_readonly("name", &PyRegion::name).def("__repr__", [](const PyRegion& self) {
+    py::class_<PyRegion>(m, "Region", "A Pallas region.")
+    .def_readonly("id", &PyRegion::id)
+    .def_readonly("name", &PyRegion::name)
+    .def("__repr__", [](const PyRegion& self) {
         return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
     });
 

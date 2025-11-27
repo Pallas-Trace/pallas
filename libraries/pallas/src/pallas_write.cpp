@@ -91,7 +91,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     return *s;
 }
 
-Loop& ThreadWriter::createLoop(Token sequence_id) {
+Loop* ThreadWriter::createLoop(Token sequence_id) {
     // for (int i = 0; i < thread_trace->nb_loops; i++) {
     //   if (thread_trace->loops[i].repeated_token.id == sid.id) {
     //     index = i;
@@ -108,9 +108,10 @@ Loop& ThreadWriter::createLoop(Token sequence_id) {
 
     Loop& l = thread->loops[index];
     l.nb_iterations = 1;
+    l.nb_occurrences = 1;
     l.repeated_token = sequence_id;
     l.self_id = PALLAS_LOOP_ID(index);
-    return l;
+    return &l;
 }
 
 void ThreadWriter::storeTimestamp(Event* es, pallas_timestamp_t ts) {
@@ -151,10 +152,41 @@ void ThreadWriter::storeToken(Token t, size_t i) {
     findLoop();
 }
 
-void Loop::addIteration() {
-    pallas_log(DebugLevel::Debug, "addIteration: + 1 to L%d (to %u)\n", self_id.id, nb_iterations + 1);
-    nb_iterations++;
+void ThreadWriter::incrementLoop(Loop* loop) {
+    pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
+    loop->nb_iterations++;
 }
+
+Loop* ThreadWriter::unsquashLoop(Loop* loop) {
+    pallas_assert(loop->nb_occurrences > 1);
+    Loop* newLoop = createLoop(loop->repeated_token);
+    loop->nb_occurrences --;
+    newLoop->nb_iterations = loop->nb_iterations;
+    return newLoop;
+}
+
+Loop* ThreadWriter::squashLoop(Loop* loop) {
+    for (size_t i = 0; i < loop->self_id.id; i++) {
+        auto& otherLoop = thread->loops[i];
+        if (otherLoop.repeated_token == loop->repeated_token && otherLoop.nb_iterations == loop->nb_iterations) {
+            otherLoop.nb_occurrences ++;
+            // Reinitialize the old loop
+            if (loop->self_id.id == thread->nb_loops - 1) {
+                thread->nb_loops--;
+            } else {
+                pallas_warn("Could not delete L%d after squashing\n", loop->self_id.id);
+            }
+            loop->repeated_token = Token();
+            loop->self_id = Token();
+            loop->nb_iterations = 0;
+            loop->nb_occurrences = 0;
+            return &otherLoop;
+        }
+    }
+    return loop;
+}
+
+
 
 void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteration, size_t index_second_iteration) {
     if (index_first_iteration > index_second_iteration) {
@@ -166,10 +198,10 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     auto& curTokenSeq = getCurrentTokenSequence();
     auto& curIndexSeq = getCurrentIndexSequence();
     auto& loop_sequence = getOrCreateSequenceFromArray(&curTokenSeq[index_first_iteration], loop_len);
-    Loop& loop = createLoop(loop_sequence.id);
-    pallas_assert(loop.repeated_token.isValid());
-    pallas_assert(loop.self_id.isValid());
-    pallas_assert_equals(loop_sequence.id.id, loop.repeated_token.id);
+    Loop* loop = createLoop(loop_sequence.id);
+    pallas_assert(loop->repeated_token.isValid());
+    pallas_assert(loop->self_id.isValid());
+    pallas_assert_equals(loop_sequence.id.id, loop->repeated_token.id);
     bool sequence_existed = loop_len == 1 && curTokenSeq[index_first_iteration].type == TypeSequence;
     if (sequence_existed) {
         pallas_assert(loop_sequence.durations->size >= 2);
@@ -226,7 +258,7 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     // Resize the Token array and the index array
     curTokenSeq.resize(index_first_iteration);
     curIndexSeq.resize(index_first_iteration);
-    curTokenSeq.push_back(loop.self_id);
+    curTokenSeq.push_back(loop->self_id);
 
     // Index of a loop is the occurrence of the first sequence of the loop
     if (sequence_existed) {
@@ -236,8 +268,15 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     } else {
         curIndexSeq.push_back( 0 );
     }
+    // Then we increment the loop. We also use this opportunity to check for duplicates
 
-    loop.addIteration();
+    if (loop->nb_occurrences > 1) {
+        loop = unsquashLoop(loop);
+        curTokenSeq.back() = loop->self_id;
+    }
+    incrementLoop(loop);
+    loop = squashLoop(loop);
+    curTokenSeq.back() = loop->self_id;
 }
 
 void ThreadWriter::checkLoopBefore() {
@@ -250,65 +289,21 @@ void ThreadWriter::checkLoopBefore() {
     // E1 E2 E3 E1 E2 E3 -> L1 = 2 * S1
     // L1 E1 E2 E3 -> L1 S1
     // L1 S1 -> L1 = 3 * S1
-    auto l = thread->getLoop(curTokenSeq[cur_index - 1]);
-    if (l->repeated_token == curTokenSeq[cur_index]) {
-        pallas_log(DebugLevel::Debug, "findLoopBasic: Last token was the sequence from L%d: S%d\n", l->self_id.id, l->repeated_token.id);
-        l->addIteration();
+    auto* loop = thread->getLoop(curTokenSeq[cur_index - 1]);
+    if (loop->repeated_token == curTokenSeq[cur_index]) {
+        pallas_log(DebugLevel::Debug, "checkLoopBefore: Last token was the sequence from L%d: S%d\n",
+            loop->self_id.id, loop->repeated_token.id);
+        if (loop->nb_occurrences > 1) {
+            loop = unsquashLoop(loop);
+            curTokenSeq[cur_index - 1] = loop->self_id;
+        }
+        incrementLoop(loop);
+        loop = squashLoop(loop);
+        curTokenSeq[cur_index - 1] = loop->self_id;
         curTokenSeq.resize(cur_index);
         curIndexSeq.resize(cur_index);
-        pallas_log(DebugLevel::Debug, "findLoopBasic: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
-        return;
+        pallas_log(DebugLevel::Debug, "checkLoopBefore: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
     }
-    // We are checking to see if the loop at cur_index-1 could be extended
-    // For that, we check if the current token could be the start of a new loop
-    Token first_loop_token = getFirstEvent(l->repeated_token, thread);
-    Token first_cur_token = getFirstEvent(curTokenSeq[cur_index], thread);
-    if (first_cur_token == first_loop_token)
-        return;
-    // That means we're sure we're not in another iteration of our loop
-    // Now we'll check all the other loops to see if there's one that's the exact same as this one
-    bool found_loop = false;
-    TokenId identical_other_loop = 0;
-    for (TokenId lid = 0; lid < l->self_id.id && lid < thread->nb_loops; lid++) {
-        if (thread->loops[lid].repeated_token == l->repeated_token && thread->loops[lid].nb_iterations == l->nb_iterations) {
-            found_loop = true;
-            identical_other_loop = lid;
-            break;
-        }
-    }
-    if (!found_loop)
-        return;
-    // We just found a loop that's the same as this one !
-    // And it's not going to be edited
-    // So we can replace it
-    curTokenSeq[cur_index - 1] = thread->loops[identical_other_loop].self_id;
-    pallas_log(DebugLevel::Debug, "findLoopBasic: replaced a Loop by its earlier occurrence: L%d -> L%d\n", l->self_id.id, identical_other_loop);
-    pallas_log(DebugLevel::Debug, "findLoopBasic: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
-    if (l->self_id.id == thread->nb_loops - 1) {
-        // If this was the last loop added ( which it will often be ), then remove it
-        pallas_log(DebugLevel::Debug, "findLoopBasic: Remove last loop L%d ( S%d )\n", l->self_id.id, l->repeated_token.id);
-        thread->nb_loops--;
-    } else {
-        pallas_log(DebugLevel::Error, "findLoopBasic: Couldn't remove duplicated loop L%d ( S%d ). It will stay in the grammar.\n", l->self_id.id, l->repeated_token.id);
-    }
-    // Cleaning it at least.
-    l->nb_iterations = 0;
-    l->repeated_token = {TypeInvalid, PALLAS_TOKEN_ID_INVALID};
-    l->self_id = {TypeInvalid, PALLAS_TOKEN_ID_INVALID};
-    // And now, we have to check that by changing this loop, we didn't just create a repeating pattern
-    // For example, if we had " E1 L1 E1 L2 E2"
-    // Which was changed to   " E1 L1 E1 L1 E2"
-    // Then we'd want to detect that repetition for sure !
-
-    // So first things first: we need to remove that last event
-    Token last_token = curTokenSeq.back();
-    size_t last_token_index = curIndexSeq.back();
-    curTokenSeq.pop_back();
-    curIndexSeq.pop_back();
-
-    findLoop();
-
-    storeToken(last_token, last_token_index);
 }
 
 void ThreadWriter::findLoopBasic(size_t maxLoopLength) {
