@@ -110,6 +110,7 @@ flowchart TD
     Loop --> TypeSequence
     Sequence --> Token
 ```
+Sequences have a special property: $S_A \in S_B \implies A < B$, except for Sequence 0.
 
 ### Definitions
 Events defined in Pallas may refer to custom _**Definition**_.

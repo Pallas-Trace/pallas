@@ -19,6 +19,8 @@
 <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
 <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docsify-terminal-block@1.0.3"></script>
+<script src="//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script src="//cdn.jsdelivr.net/npm/docsify-latex@0"></script>
 
 <script>
 	mermaid.initialize({
@@ -34,6 +36,10 @@
 	window.$docsify["name"] = "Pallas"
     window.$docsify["repo"] = "https://gitlab.inria.fr/pallas/pallas"
 	window.$docsify["subMaxLevel"] = 2
+    window.$docsify["latex"] = {
+	    inlineMath   : [['$', '$'], ['\\(', '\\)']], // default
+	    displayMath  : [['$$', '$$']],               // default
+    }
 </script>
 </body>
 </html>
