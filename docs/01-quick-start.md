@@ -23,6 +23,14 @@ You can then trace your application as per the EZTrace documentation says.
 eztrace -t "<your modules>" ./my-app
 ```
 
+## Instrumenting
+If you want to have a full trace of your application, you can use EZTrace's `compiler_instrumentation` module.
+First, you've got to compile your application with `CFLAGS="-finstrument-functions" LDFLAGS="-rdynamic"`.
+Then, simply use 
+```bash 
+eztrace -t compiler_instrumentation <my_app>
+```
+
 ## In your application
 You can also skip EZTrace and trace your application yourself. 
 For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/).
