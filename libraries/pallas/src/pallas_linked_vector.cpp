@@ -394,8 +394,11 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
         sum += output.back();
         current = current->next;
     }
-    for (auto& i : output) {
-        i /= sum;
+    // Don't normalise if it's too small
+    if (sum > 1.0) {
+        for (auto& i : output) {
+            i /= sum;
+        }
     }
     return output;
 }
