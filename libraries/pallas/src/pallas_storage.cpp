@@ -317,7 +317,7 @@ inline static size_t _pallas_zfp_compress(uint64_t* src, size_t n, void* dest, s
  * Returns the amounts of data written.
  * @param n Number of items that should be decompressed.
  * @param compressedArray The compressed array.
- * @param destSize Size of the compressed array.
+ * @param compressedSize Size of the compressed array.
  * @returns Uncompressed array of size uint64 * n.
  */
 inline static uint64_t* _pallas_zfp_decompress(size_t n, void* compressedArray, size_t compressedSize) {
