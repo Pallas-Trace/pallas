@@ -78,13 +78,13 @@ flowchart TD
     Repetition of a pattern
     `"])
 
-    EventSummary["`**EventSummary**
+    Event["`**Event**
     *event*: Event
     *timestamps*
     *attributes*
     `"]
 
-    Event["`**Event**
+    EventData["`**Event Data**
     *record*: EventRecord
     *event_data*: Additional data, depending on the record`"]
 
@@ -103,10 +103,10 @@ flowchart TD
     Token --> TypeEvent
     Token --> TypeSequence
     Token --> TypeLoop
-    TypeEvent --> EventSummary
+    TypeEvent --> Event
     TypeSequence --> Sequence
     TypeLoop --> Loop
-    EventSummary --> Event
+    Event --> EventData
     Loop --> TypeSequence
     Sequence --> Token
 ```

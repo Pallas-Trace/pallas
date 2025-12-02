@@ -439,7 +439,7 @@ typedef struct Event {
 #ifdef __cplusplus
   Event(TokenId, const EventData&);
   Event() = default;
-  void cleanEventSummary();
+  void cleanEvent();
 #endif
 } Event;
 
