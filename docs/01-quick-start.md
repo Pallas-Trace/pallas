@@ -61,6 +61,8 @@ and some examples provided my doing the following steps (require Docker):
 docker run -p 8888:8888 -w /jupyter-notebook -it eztrace/pallas:latest  jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser
 ```
 
+Learn how to use the Python API in the [Python section of the documentation}(03-build-analysis/README.md)
+
 ## Using C/C++
 You can also use the Pallas library to read your traces. 
 Once again, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/index.md).
