@@ -20,7 +20,8 @@ typedef struct ThreadWriter {
     Thread* thread CXX({nullptr});
     /** Stack of all the *incomplete* sequences the writer is currently in. */
     C_CXX(void, std::vector<Token>) * sequence_stack;
-    /** Stack of all for the sequences in sequence_stack indicating the index of each token, except for Loops. Instead, they store the index of the first sequence. */
+    /** Stack with the same size as sequence_stack. Stores the index of each token, ie "This is the nth time we've seen this token".
+     * For Loops, we store the index of the first sequence instead. */
     C_CXX(void, std::vector<size_t>) * index_stack;
     /** Current depth in the callstack. */
     int cur_depth;
@@ -91,7 +92,7 @@ typedef struct ThreadWriter {
     void storeTimestamp(Event* es, pallas_timestamp_t ts);
     /** Stores the attribute list in the given Event. */
     void storeAttributeList(Event* es, AttributeList* attribute_list, size_t occurence_index);
-    /** Stores the tokens in that Sequence's array of Tokens, then tries to find a Loop.*/
+    /** Stores t in the current sequence's stack, and i in the current sequence's index stack, then tries to find a Loop.*/
     void storeToken(Token t, size_t i);
     /** Move up the callstack and create a new Sequence. */
     void recordEnterFunction();
