@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-add_compile_options(-Wall -Wextra -Wpedantic ${WARNINGS})
+add_compile_options(-Wall -Wextra -Wpedantic -g -O0 ${WARNINGS})
 link_libraries(pallas)
 
 add_executable(pallas_print pallas_print.cpp)
