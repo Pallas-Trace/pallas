@@ -196,181 +196,165 @@ int main(int argc, char** argv) {
           memcpy(t->events[i].event.event_data, &new_ref, sizeof(pallas::RegionRef));
         }
       }
-      a->freeThread(loc.id);
     }
-    trace->freeArchive(lg.id);
   }
 
-  std::vector<std::map<uint32_t, uint32_t>> thread_token_lookup;
-
-  for (auto& lg : trace->location_groups) {
-
-    auto* a = trace->getArchive(lg.id);
-
-    uint32_t n_events_verified = 0;
-
-    for (auto& loc : a->locations) {
-      auto* t = a->getThread(loc.id);
-      uint32_t max_events_t = t->nb_events;
-
-      if (max_events_t > n_events_verified) {
-        for (uint32_t event_idx = n_events_verified; event_idx < max_events_t; event_idx++) {
-          pallas::EventSummary src_event = t->events[event_idx];
-
-          for (auto& loc2 : a->locations) {
-            if (loc2.id != loc.id) {
-              auto* t2 = a->getThread(loc2.id);
-              bool found_match = false;
-              pallas::EventSummary candidate_event = t2->events[event_idx];
-              if (event_cmp(&src_event.event,
-                            &candidate_event.event)) {
-                continue;
-              } else {
-
-                uint32_t max_events_t2 = t2->nb_events;
-                for (uint32_t event2_idx = event_idx; event2_idx < max_events_t2; event2_idx++) {
-                  candidate_event = t2->events[event2_idx];
-                  if (event_cmp(&src_event.event,
-                                &candidate_event.event)) {
-                    pallas::EventSummary swapped_event = t2->events[event_idx];
-                    event_insert(&candidate_event, t2, event_idx);
-                    event_insert(&swapped_event, t2, event2_idx);
-                    found_match = true;
-                    break;
-                  }
-                }
-
-                pallas::EventSummary swapped_event = t2->events[event_idx];
-                event_insert_invalid(t2, event_idx);
-                event_insert(&swapped_event, t2, t2->nb_events);
-              }
-              a->freeThread(loc.id);
-
-            }
-          }
-        }
-      }
-
-      n_events_verified = max_events_t;
-
-      a->freeThread(loc.id);
-    }
-    trace->freeArchive(lg.id);
-  }
-
-
-  // write updated trace
-  auto newDirName = strdup((
-      std::string(trace->dir_name) + "_synchronized"
-  ).c_str());
-
-  for (auto& lg : trace->location_groups) {
-    auto* a = trace->getArchive(lg.id);
-    for (auto& loc : a->locations) {
-      auto* t = a->getThread(loc.id);
-      // doubleMemorySpaceConstructor
-
-      #ifdef ENABLE_WRITE
-      t->store(newDirName, trace->parameter_handler, true);
-      #endif
-
-      a->freeThread(loc.id);
-    }
-    #ifdef ENABLE_WRITE
-    a->store(newDirName, trace->parameter_handler);
-    #endif
-
-    a->dir_name = nullptr;
-    trace->freeArchive(lg.id);
-  }
-
-  // write updated GlobalArchive
-  #ifdef ENABLE_WRITE
-  trace->store(newDirName, trace->parameter_handler);
+  #if 0
+  save_thread_copy(trace, archives, threads,
+    strdup((
+      std::string(base_dir_name) + "_dev1"
+  ).c_str()));
   #endif
 
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // |         Synchronize Events           |
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  // ~~~~~~~~~~~
-  //
-  // DEBUG Block
-  //
-  // ~~~~~~~~~~~
+  thread_token_map thread_event_lookup;
 
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Synced string list" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
+  uint32_t n_events_verified = 0;
 
-    for (auto const& [string_ref, string] 
-      : synced_strings) {
-      std::cout << "Pallas: string #" << string.string_ref;
-      std::cout << " = '" << string.str << "'" << std::endl;
+  for (auto* t : threads) {
+    uint32_t thread_n_events = t->nb_events;
+
+    if (thread_n_events <= n_events_verified) {
+      continue;
     }
+
+    // thread has events that need to be synchronized
+    for (uint32_t event_id = n_events_verified; event_id < thread_n_events; event_id++) {
+      assert(t->events[event_id].event.record != pallas::PALLAS_EVENT_MAX_ID);
+      thread_event_lookup[t->id][event_id] = event_id;
+    }
+
+    sync_events(threads, t, n_events_verified, thread_n_events, thread_event_lookup);
+
+    // track updated event index
+    n_events_verified = thread_n_events;
   }
 
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Definition string list" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
+  #if 0
+  save_thread_copy(trace, archives, threads,
+    strdup((
+      std::string(base_dir_name) + "_dev2"
+  ).c_str()));
+  #endif
 
-    for (auto const& [string_ref, string] 
-      : trace->definitions.strings) {
-      std::cout << "Pallas: string #" << string.string_ref;
-      std::cout << " = '" << string.str << "'" << std::endl;
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // |   Synchronize Sequences and Loops    |
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  thread_token_map thread_seq_lookup;
+  thread_token_map thread_loop_lookup;
+
+  bool update_events = true;
+  bool update_seqs = false;
+  bool update_loops = false;
+
+  int nb_cycles = 0;
+
+  while (true) {
+
+    std::cout << ">>Starting update loop #" << nb_cycles << std::endl;
+
+    int number_of_swaps = 0;
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // |       Update Loop Definitions        |
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    update_loop_tokens(threads,
+                       thread_event_lookup, update_events,
+                       thread_seq_lookup, update_seqs,
+                       thread_loop_lookup, update_loops);
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // |      Synchronize Updated Loops       |
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    uint32_t n_loops_verified = 0;
+
+    for (auto* t : threads) {
+      uint32_t thread_n_loops = t->nb_loops;
+
+      if (thread_n_loops <= n_loops_verified) {
+        continue;
+      }
+
+      for (uint32_t loop_id = n_loops_verified; loop_id < thread_n_loops; loop_id++) {
+        // TODO: check necessity of this condition
+        if (t->loops[loop_id].repeated_token.type == pallas::TypeInvalid) {
+          continue;
+        }
+        thread_loop_lookup[t->id][loop_id] = loop_id;
+      }
+
+      number_of_swaps += sync_loops(threads, t, n_loops_verified, thread_n_loops, thread_loop_lookup);
+
+      n_loops_verified = thread_n_loops;
     }
+
+    update_loops = true;
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // |     Update Sequence Definitions      |
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    update_sequence_tokens(threads,
+                           thread_event_lookup, update_events,
+                           thread_seq_lookup, update_seqs,
+                           thread_loop_lookup, update_loops);
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // |    Synchronize Updated Sequences     |
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    uint32_t n_seqs_verified = 0;
+
+    for (auto* t : threads) {
+      uint32_t thread_n_seqs = t->nb_sequences;
+
+      if (thread_n_seqs <= n_seqs_verified) {
+        continue;
+      }
+
+      for (uint32_t seq_id = n_seqs_verified; seq_id < thread_n_seqs; seq_id++) {
+        // TODO: check necessity of this condition
+        if (t->sequences[seq_id]->id == PALLAS_TOKEN_ID_INVALID) {
+          continue;
+        }
+        thread_seq_lookup[t->id][seq_id] = seq_id;
+      }
+
+      number_of_swaps += sync_sequences(threads, t, n_seqs_verified, thread_n_seqs, thread_seq_lookup);
+
+      n_seqs_verified = thread_n_seqs;
+    }
+
+    update_seqs = true;
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // |     Verify Further Updates Needed    |
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    std::cout << "Number of sequence swaps performed = " << number_of_swaps << std::endl;
+
+    if (number_of_swaps == 0) {
+      break;
+    }
+
+    nb_cycles++;
   }
 
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Synced string ref lookup " << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
-
-    for (auto const& [old_ref, new_ref] 
-      : string_ref_lookup) {
-      std::cout << "Mapped ref #" << old_ref << " -> ";
-      std::cout << new_ref << std::endl;
-    }
+  for (auto* thread : threads) {
+    thread->sequence_root = thread_seq_lookup[thread->id][0];
   }
 
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Synced region list " << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
+  auto save_name = strdup((
+    std::string(base_dir_name) + "_fin"
+  ).c_str());
 
-    for (auto const& [region_ref, region]
-      : synced_regions) {
-      std::cout << "Pallas: region #" << region_ref;
-      std::cout << " = (" << region.string_ref << ")'";
-      std::cout << synced_strings[region.string_ref].str;
-      std::cout << "'" << std::endl;
-    }
-  }
-
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Definition region list " << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
-
-    for (auto const& [region_ref, region]
-      : trace->definitions.regions) {
-      std::cout << "Pallas: region #" << region_ref;
-      std::cout << " = (" << region.string_ref << ")'";
-      std::cout << trace->definitions.strings[region.string_ref].str;
-      std::cout << "'" << std::endl;
-    }
-  }
-
-  if (DEBUG_LEVEL > 1) {
-    std::cout << "-----------------------------------" << std::endl;
-    std::cout << "Synced region ref lookup " << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
-
-    for (auto const& [old_ref, new_ref] 
-      : region_ref_lookup) {
-      std::cout << "Mapped ref #" << old_ref << " -> ";
-      std::cout << new_ref << std::endl;
-    }
-  }
+  save_thread_copy(trace, archives, threads, save_name);
 
   return EXIT_SUCCESS;
 }
