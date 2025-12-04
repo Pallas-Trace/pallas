@@ -1465,6 +1465,8 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   threadFile.write(&th->nb_sequences, sizeof(th->nb_sequences), 1);
   threadFile.write(&th->nb_loops, sizeof(th->nb_loops), 1);
 
+  threadFile.write(&th->sequence_root, sizeof(th->sequence_root), 1);
+
   threadFile.write(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
   const char* eventDurationFilename = pallasGetEventDurationFilename(path, th);
@@ -1524,6 +1526,8 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   threadFile.read(&th->nb_loops, sizeof(th->nb_loops), 1);
   th->nb_allocated_loops = th->nb_loops;
   th->loops = new pallas::Loop[th->nb_allocated_loops];
+
+  threadFile.read(&th->sequence_root, sizeof(th->sequence_root), 1);
 
   threadFile.read(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
