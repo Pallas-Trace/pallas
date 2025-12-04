@@ -843,6 +843,7 @@ Thread::Thread() {
     sequences = nullptr;
     nb_allocated_sequences = 0;
     nb_sequences = 0;
+    sequence_root = 0;
 
     loops = nullptr;
     nb_allocated_loops = 0;
