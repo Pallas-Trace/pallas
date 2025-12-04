@@ -256,7 +256,7 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
         // Load the sub_array
         size_t i = start_index;
         sum += at( i++ );
-        for (; i < start_subarray->starting_index + start_subarray->size && i <= end_index; i++) {
+        for (; i < start_subarray->starting_index + start_subarray->size && i < end_index; i++) {
             sum += start_subarray->at(i);
         }
         start_subarray = start_subarray->next;
@@ -375,6 +375,7 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
     auto* current = first;
     double sum = 0;
     while (current != nullptr) {
+        // TODO stop execution if after end
         if (current->last_value < start || end < current->first_value) {
             // Completely outside the bounds
             output.push_back(0.);
@@ -408,8 +409,6 @@ pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weight
     size_t index = 0;
     auto* current = first;
     while (current != nullptr) {
-      std::cout << "  taking "<<weights[index] << "of chunk "<<index<< "\n";
-
         sum += weights[index++] * current->mean;
         current = current->next;
     }

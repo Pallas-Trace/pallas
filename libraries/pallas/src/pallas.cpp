@@ -503,22 +503,48 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
             output[id] = s.exclusive_durations->computeDurationBetween(start_index + 1, end_index);
         }
         // Then we need to compute the pro-ratio of the starting and the end events
+        // First we compute the capped duration, like in the following diagram
+        //                 start                    end
+        //   event_start    |           event_end    |
+        //       [          |               ]        |
+        //       [##########|###############]        | duration ( 25 ticks )
+        //       [#####     |        ##  ###]        | exclusive_duration ( 10 ticks = 40% of duration )
+        //       [          |###############]        | capped_duration ( 15 ticks )
+        //       [          |###        # ##]        | exclusive_duration * capped_duration / duration = 6 ticks
         // Starting event:
         pallas_timestamp_t start_event_start = s.timestamps->at(start_index);
         pallas_duration_t start_event_duration = s.durations->at(start_index);
         pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
-        if (start <= start_event_end) {
-            pallas_duration_t start_pro_rata = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
-            output[id] += s.exclusive_durations->at(start_index) * start_pro_rata / start_event_duration;
+        // Check if the starting event is actually in the bounds
+        if (start < start_event_end && start_event_start < end) {
+            if (start <= start_event_start && start_event_end <= end) {
+                // Trivial case where it's entirely contained in [start, end]
+                output[id] += s.exclusive_durations->at(start_index);
+            } else {
+                pallas_duration_t capped_duration = pallas_get_duration(
+                    std::max(start, start_event_start),
+                    std::min(start_event_end, end)
+                    );
+                output[id] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
+            }
         }
         // Ending event
         if (end_index != start_index) {
+            // Don't count it twice
             pallas_timestamp_t end_event_start = s.timestamps->at(end_index);
             pallas_duration_t end_event_duration = s.durations->at(end_index);
             pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
-            if (end_event_start <= end) {
-                pallas_duration_t end_pro_rata = pallas_get_duration(std::max(start, end_event_start), std::min(end_event_end, end));
-                output[id] += s.exclusive_durations->at(end_index) * end_pro_rata / end_event_duration;
+            if (start < end_event_end && end_event_start < end) {
+                if (start <= end_event_start && end_event_end <= end) {
+                    // Trivial case where it's entirely contained in [start, end]
+                    output[id] += s.exclusive_durations->at(end_index);
+                } else {
+                    pallas_duration_t capped_duration = pallas_get_duration(
+                        std::max(start, end_event_start),
+                        std::min(end_event_end, end)
+                    );
+                    output[id] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
+                }
             }
         }
     }

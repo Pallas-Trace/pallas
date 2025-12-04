@@ -419,7 +419,7 @@ class LinkedDurationVector {
     void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
     void final_update_mean() { mean /= size; }
- /** Returns the sum of the durations between the two indexes. */
+ /** Returns the sum of the durations between [start, end[. */
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
 
     ~LinkedDurationVector();
