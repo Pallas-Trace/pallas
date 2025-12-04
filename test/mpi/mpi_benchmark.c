@@ -80,7 +80,7 @@ static int mpi_comm_size;
 
 void* worker(void* arg __attribute__((unused))) {
   ThreadId local_thread_id = _new_thread();
-  thread_rank = local_thread_id;
+  pallas_thread_rank = local_thread_id;
   ThreadId global_thread_id = local_thread_id + base_thread_id;
   ThreadWriter* thread_writer =  pallas_thread_writer_new(archive, global_thread_id);;
   thread_writers[local_thread_id] = thread_writer;

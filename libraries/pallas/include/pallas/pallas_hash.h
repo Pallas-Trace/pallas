@@ -17,7 +17,7 @@ namespace pallas {
 uint32_t hash32(const byte * data, size_t len, uint32_t seed);
 
 inline uint32_t hash32_Token(const Token* data, size_t len, uint32_t seed) {
-    return hash32(reinterpret_cast<const uint8_t*>(data), len * sizeof(pallas::Token), SEED);
+    return hash32(reinterpret_cast<const byte*>(data), len * sizeof(pallas::Token), SEED);
 }
 /** Writes a 64bits hash value to out.*/
 uint64_t hash64(const byte* data, size_t len, uint32_t seed);

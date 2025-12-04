@@ -128,7 +128,7 @@ void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::Attribut
         if (es->attribute_buffer_size == 0) {
             pallas_log(DebugLevel::Debug, "Allocating attribute memory for event %u\n", es->id);
             es->attribute_buffer_size = NB_ATTRIBUTE_DEFAULT * sizeof(struct pallas::AttributeList);
-            es->attribute_buffer = new uint8_t[es->attribute_buffer_size];
+            es->attribute_buffer = new byte[es->attribute_buffer_size];
             pallas_assert(es->attribute_buffer != nullptr);
         } else {
             pallas_log(DebugLevel::Debug, "Doubling mem space of attributes for event %u\n", es->id);
@@ -342,7 +342,7 @@ void ThreadWriter::findSequence(size_t n) {
     unsigned found_sequence_id = 0;
     for (int array_len = 1; array_len <= n; array_len++) {
         auto token_array = &curTokenSeq[currentIndex - array_len + 1];
-        uint32_t hash = hash32(reinterpret_cast<uint8_t*>(token_array), array_len * sizeof(Token), SEED);
+        uint32_t hash = hash32_Token(token_array, array_len, SEED);
         if (thread->hashToSequence.find(hash) != thread->hashToSequence.end()) {
             auto& sequencesWithSameHash = thread->hashToSequence[hash];
             if (!sequencesWithSameHash.empty()) {
@@ -604,7 +604,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
         doubleMemorySpaceConstructor(a.threads, a.nb_allocated_threads);
     }
     thread = new Thread;
-    thread_rank = a.nb_threads;
+    pallas_thread_rank = a.nb_threads;
     a.threads[a.nb_threads++] = thread;
     thread->archive = &a;
     thread->id = thread_id;
@@ -650,7 +650,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: Searching for event {.event_type=%d}\n", e->record);
 
-    uint32_t hash = hash32(reinterpret_cast<uint8_t*>(e), sizeof(EventData), SEED);
+    uint32_t hash = hash32(reinterpret_cast<byte*>(e), sizeof(EventData), SEED);
     auto& eventWithSameHash = thread->hashToEvent[hash];
     if (!eventWithSameHash.empty()) {
         if (eventWithSameHash.size() > 1) {

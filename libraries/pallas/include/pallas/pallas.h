@@ -33,7 +33,7 @@
 /**
  * A simple alias to make some code clearer. We use uint8 because they're the size of a byte.
  */
-typedef uint8_t byte;
+typedef C_CXX(uint8_t, std::byte) byte;
 
 #ifdef __cplusplus
 namespace pallas {
@@ -414,7 +414,7 @@ typedef struct EventData {
     /** Size of this event, including record and event_size. */
     uint8_t event_size;
     /** Data related to this event ( parameter of functions, etc. ). Ends at this + this.event_size. */
-    uint8_t event_data[PALLAS_EVENT_DATA_MAX_SIZE];
+    byte event_data[PALLAS_EVENT_DATA_MAX_SIZE];
 } __attribute__((packed, aligned(256))) EventData;
 
 /**

@@ -345,13 +345,13 @@ inline static uint64_t* _pallas_zfp_decompress(size_t n, void* compressedArray, 
  */
 inline static byte* _pallas_sz_compress(uint64_t* src, size_t n, size_t& compressedSize) {
   SZ_Init(nullptr);
-  byte* compressedArray = SZ_compress(SZ_UINT64, src, &compressedSize, 0, 0, 0, 0, n);
+  byte* compressedArray = reinterpret_cast<byte*>(SZ_compress(SZ_UINT64, src, &compressedSize, 0, 0, 0, 0, n));
   SZ_Finalize();
   return compressedArray;
 }
 
 inline static uint64_t* _pallas_sz_decompress(size_t n, byte* compressedArray, size_t compressedSize) {
-  return static_cast<uint64_t*>(SZ_decompress(SZ_UINT64, compressedArray, compressedSize, 0, 0, 0, 0, n));
+  return static_cast<uint64_t*>(SZ_decompress(SZ_UINT64, reinterpret_cast<unsigned char*>(compressedArray), compressedSize, 0, 0, 0, 0, n));
 };
 
 #endif
@@ -563,7 +563,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         break;
     case pallas::EncodingAlgorithm::Masking: {
         encodedArray = new uint64_t[n];
-        encodedSize = _pallas_masking_encode(src, (uint8_t*)encodedArray, n);
+        encodedSize = _pallas_masking_encode(src, reinterpret_cast<byte*>(encodedArray), n);
         break;
     }
     case pallas::EncodingAlgorithm::LeadingZeroes: {
@@ -592,7 +592,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
     case pallas::CompressionAlgorithm::Histogram: {
         compressedSize = N_BYTES * n + 2 * sizeof(uint64_t);
         // Take into account that we add the min and the max.
-        compressedArray = new uint8_t[compressedSize];
+        compressedArray = new byte[compressedSize];
         compressedSize = _pallas_histogram_compress(src, n, compressedArray, compressedSize);
         break;
     }
@@ -962,7 +962,7 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
   e->attribute_buffer = nullptr;
 
   if (e->attribute_buffer_size > 0) {
-    e->attribute_buffer = new uint8_t[e->attribute_buffer_size];
+    e->attribute_buffer = new byte[e->attribute_buffer_size];
     if (e->attribute_buffer == nullptr) {
       pallas_error("Cannot allocate memory\n");
     }
@@ -972,7 +972,7 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
       byte* compressedArray = new byte[compressedSize];
       file.read(e->attribute_buffer, compressedSize, 1);
       e->attribute_buffer =
-        reinterpret_cast<uint8_t*>(_pallas_zstd_read(e->attribute_buffer_size, compressedArray, compressedSize));
+        reinterpret_cast<byte*>(_pallas_zstd_read(e->attribute_buffer_size, compressedArray, compressedSize));
       delete[] compressedArray;
     } else {
       file.read(e->attribute_buffer, e->attribute_buffer_size, 1);
