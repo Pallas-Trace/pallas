@@ -12,6 +12,10 @@
  *  @brief      Main include file for applications using OTF2.
  */
 
+#ifdef __cplusplus
+extern "C++" {
+#endif
+
 #include <otf2/OTF2_Reader.h>
 //#include <otf2/otf2_compiler.h>
 
@@ -23,6 +27,9 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 #include "pallas/pallas_read.h"
+#ifdef __cplusplus
+} // Extern C++
+#endif
 
 struct OTF2_GlobalDefWriter_struct {
   struct GlobalArchive * archive;
