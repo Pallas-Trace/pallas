@@ -2,7 +2,9 @@
 // Created by Aaron Bushnell on 23.09.2025
 //
 
+#include <sys/types.h>
 #include <unistd.h>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
