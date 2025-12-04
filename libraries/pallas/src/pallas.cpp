@@ -57,17 +57,21 @@ Event::Event(TokenId token_id, const EventData& e) {
 }
 
 Event* Thread::getEvent(Token token) const {
+#ifdef DEBUG
     if (token.type != TokenType::TypeEvent) {
         pallas_error("Trying to getEvent of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
+#endif
     pallas_assert(token.id < this->nb_events);
     return &this->events[token.id];
 }
 
 Sequence* Thread::getSequence(Token token) const {
+#ifdef DEBUG
     if (token.type != TypeSequence) {
         pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
+#endif
     pallas_assert(token.id < this->nb_sequences);
     return &sequences[token.id];
 }
