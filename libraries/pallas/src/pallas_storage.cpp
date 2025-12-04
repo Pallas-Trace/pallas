@@ -1040,6 +1040,9 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
 static void storeEventData(pallas::EventData& event,
                              const File& eventFile,
                              const pallas::ParameterHandler& parameter_handler) {
+    if (event.record == pallas::PALLAS_EVENT_MAX_ID) {
+      return;
+    }
     eventFile.write(&event, event.event_size, 1);
 }
 
@@ -1063,6 +1066,9 @@ static void storeEvent(pallas::Event& event,
                                     bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
+    if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
+      return;
+    }
     storeEventData(event.data, eventFile, *parameter_handler);
     eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
     if (event.attribute_pos > 0) {
@@ -1122,6 +1128,9 @@ static void storeSequence(pallas::Sequence& sequence,
     sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
     size_t size = sequence.size();
     sequenceFile.write(&size, sizeof(size), 1);
+    if (size == 0) {
+      return;
+    }
     sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
 #ifdef DEBUG
     for (const auto& t : sequence.tokens) {
@@ -1155,6 +1164,10 @@ static void readSequence(pallas::Sequence& sequence,
     sequenceFile.read(&sequence.type, sizeof(sequence.type), 1);
     size_t size;
     sequenceFile.read(&size, sizeof(size), 1);
+    // catch empty sequence
+    if (size == 0) {
+      return;
+    }
     sequence.tokens.resize(size);
     sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
