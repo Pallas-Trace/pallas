@@ -375,10 +375,11 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
     auto* current = first;
     double sum = 0;
     while (current != nullptr) {
-        // TODO stop execution if after end
-        if (current->last_value < start || end < current->first_value) {
-            // Completely outside the bounds
+        if (current->last_value < start) {
             output.push_back(0.);
+        } else if (end < current->last_value) {
+            // We're after the boundaries, we can stop searching.
+            break;
         } else if (start <= current->first_value && current->last_value <= end) {
             // Completely inside the bounds
             output.push_back(1.0);
@@ -406,10 +407,9 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
 
 pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weights) {
     double sum = 0;
-    size_t index = 0;
     auto* current = first;
-    while (current != nullptr) {
-        sum += weights[index++] * current->mean;
+    for (auto w: weights) {
+        sum += w * current->mean;
         current = current->next;
     }
     return sum;
