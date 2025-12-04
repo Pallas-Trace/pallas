@@ -18,6 +18,7 @@ link_libraries(pallas Threads::Threads)
 
 add_executable(write_benchmark write_benchmark.c)
 add_executable(write_benchmark_CPP write_benchmark.cpp)
+add_executable(test_snapshot snapshot.cpp)
 
 SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace/main.pallas)
 SET(TRACE_NO_COMP_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace_None/main.pallas)
@@ -32,19 +33,20 @@ add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
 add_test(NAME print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
+add_test(NAME test_snapshot COMMAND test_snapshot ${CMAKE_CURRENT_BINARY_DIR}/ABI_16/bt.A.4_trace/eztrace_log.pallas 1)
 add_test(NAME edit_benchmark COMMAND pallas_editor -c None ${TRACE_NAME})
 
 add_test (benchmark_checks bash
         "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
         "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
 
-set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark PROPERTIES
+set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark test_snapshot PROPERTIES
         REQUIRED_FILES ${TRACE_NAME}
         DEPENDS write_benchmark
 )
 set_tests_properties(benchmark_checks PROPERTIES
         REQUIRED_FILES ${TRACE_NAME}
-        DEPENDS "write_benchmark;info_benchmark;print_benchmark;print_benchmark_structure;print_benchmark_thread;edit_benchmark"
+        DEPENDS "write_benchmark;info_benchmark;print_benchmark;print_benchmark_structure;print_benchmark_thread;edit_benchmark;test_snapshot"
 )
 
 add_test(NAME info_edited_benchmark COMMAND pallas_info ${TRACE_NO_COMP_NAME})
