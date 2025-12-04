@@ -449,6 +449,114 @@ std::string Thread::getEventString(EventData* e) const {
         return "{.record=" + std::to_string(e->record) + ", .size=" + std::to_string(e->event_size) + "}";
     }
 }
+std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    // We will read the whole trace "smartly"
+    auto output = std::map<Token, pallas_duration_t>();
+    ThreadReader reader(this->archive, this->id, PALLAS_READ_FLAG_UNROLL_ALL);
+    auto current_token = reader.pollCurToken();
+    while (current_token.isValid()) {
+        pallas_timestamp_t current_timestamp = reader.currentState.currentFrame->current_timestamp;
+        size_t current_count = reader.currentState.currentFrame->tokenCount[current_token];
+        // End exploration if we're outside the boundaries
+        if (end < current_timestamp ) {
+            break;
+        }
+
+        // Skip exploration if we're in a Sequence or a Loop we have no interest in.
+        if (current_token.type == TypeSequence) {
+            auto current_sequence = reader.getSequenceOccurence(current_token, current_count);
+            if (current_sequence.timestamp + current_sequence.duration < start) {
+                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
+                continue;
+            }
+        }
+        if (current_token.type == TypeLoop) {
+            auto current_loop = reader.getLoopOccurence(current_token, current_count);
+            if (current_loop.timestamp + current_loop.duration < start) {
+                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
+                continue;
+            }
+        }
+
+
+        /* We're going to apply the following algorithm
+        Take the following example:
+
+            |                            |
+            |     [ Sequence B ]         |
+        [   |       Sequence A       ]   |
+            |                            |
+         ts_start                      ts_end
+
+        We would do the following algorithm:
+            Entering A:
+                map[S_A] = max(ts_start, start_A)
+
+            Entering B:
+                map[S_B] = max(ts_start, start_B)
+                map[S_A] = max(ts_start, start_B) - map[S_A]
+
+            Exiting B:
+                map[S_B] = min(ts_end, end_B) - map[S_B]
+                map[S_A] = min(ts_end, end_B) - map[S_A]
+
+            Exiting A:
+                map[S_A] = min(ts_end, end_A) - map[S_A]
+
+        The idea is to constantly have the following be true:
+        map[S_n] =  {
+            sum(duration no spent in other Sequences) IF not in another Sequence
+            start_m - sum(duration not spent in other Sequences) IF in Sequence_m
+        }
+        */
+
+        if (current_token.type != TypeEvent || reader.currentState.current_frame_index == 0) {
+            current_token = reader.getNextToken();
+            continue;
+        }
+
+        // Since we're at an Event, we know current_iterable is a Sequence (Loop have to contain Sequence Tokens)
+        auto bottom_sequence = reader.getSequenceOccurence(
+            reader.getCurIterable(),
+            (reader.currentState.currentFrame - 1)->tokenCount[reader.getCurIterable()]
+            )
+        ;
+        // Check if we're at the start or end of a block Sequence
+        pallas_timestamp_t ts = PALLAS_TIMESTAMP_INVALID;
+        if (bottom_sequence.sequence->type == SEQUENCE_BLOCK) {
+            if (current_token == bottom_sequence.sequence->tokens.front()) {
+                ts = std::max(start, current_timestamp);
+            }
+            if (current_token == bottom_sequence.sequence->tokens.back()) {
+                ts = std::min(end, current_timestamp);
+            }
+        }
+
+        if (ts == PALLAS_TIMESTAMP_INVALID) {
+            current_token = reader.getNextToken();
+            continue;
+        }
+
+        for (int i = reader.currentState.current_frame_index; i >= 0; i --) {
+            auto& sequence_token = reader.getFrameInCallstack(i);
+            if (sequence_token.type == TypeLoop) continue;
+            auto* sequence = getSequence(sequence_token);
+            if (sequence->type != SEQUENCE_BLOCK) continue;
+            if (output.find(sequence_token) == output.end()) {
+                output[sequence_token] = 0;
+            }
+
+            output[sequence_token] = ts - output[sequence_token];
+        }
+
+        current_token = reader.getNextToken();
+    }
+    // We need to reset reader.archive if we don't want to cause to memory issues.
+    reader.archive = nullptr;
+    return output;
+}
+
+
 
 std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
     auto filter = std::vector<Token>();

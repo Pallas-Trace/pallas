@@ -662,6 +662,8 @@ typedef struct Thread {
     /** Returns a string describing that Event. */
     std::string getEventString(EventData *e) const;
 
+    std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
+
     /** Prints a vector of Token. */
 
     void printTokenVector(const std::vector<Token> &) const;
