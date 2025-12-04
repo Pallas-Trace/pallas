@@ -526,7 +526,7 @@ void ThreadWriter::recordExitFunction() {
     const auto  [computed_duration, computed_exclusive_duration] = getLastSequenceDuration(sequence, 0);
 #ifdef DEBUG
     const pallas_duration_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
-    pallas_log(DebugLevel::Debug, "Computed duration = %lu\nSequence duration = %lu\n", computed_duration, sequence_duration);
+    pallas_log(DebugLevel::Debug, "Computed duration = %llu\nSequence duration = %llu\n", computed_duration, sequence_duration);
     pallas_assert(computed_duration == sequence_duration);
 #endif
 

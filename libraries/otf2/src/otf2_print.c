@@ -252,7 +252,7 @@ OTF2_CallbackCode print_global_def_location(void *userData,
 					    OTF2_LocationType locationType,
 					    uint64_t numberOfEvents,
 					    OTF2_LocationGroupRef locationGroup) {
-  OTF2_PRINT_DEF("Global_def_location(userData=%p, self=%ld, name=%d, locationType=%d, numberOfEvents=%ld, locationGroup=%d)\n",
+  OTF2_PRINT_DEF("Global_def_location(userData=%p, self=%lld, name=%d, locationType=%d, numberOfEvents=%lld, locationGroup=%d)\n",
 	 userData,
 	 self,
 	 name,
@@ -343,7 +343,7 @@ OTF2_GlobalDefReaderCallbacks* otf2_print_define_global_def_callbacks(OTF2_Reade
 
 
 #define OTF2_PRINT_GENERIC(event, location, timestamp, attributes)	\
-  printf( "%-*s %15ld %20lu  %s\n", otf2_EVENT_COLUMN_WIDTH, event, location, timestamp, attributes)
+  printf( "%-*s %15lld %20llu  %s\n", otf2_EVENT_COLUMN_WIDTH, event, location, timestamp, attributes)
 
 
 OTF2_CallbackCode print_enter(OTF2_LocationRef locationID,
@@ -374,7 +374,7 @@ OTF2_CallbackCode print_mpi_send(OTF2_LocationRef locationID,
 				  uint32_t msgTag,
 				  uint64_t msgLength) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "receiver: %d, comm: %x, tag: %d, len: %lu",
+  snprintf(buffer, STRING_MAX_LEN, "receiver: %d, comm: %x, tag: %d, len: %llu",
 	   receiver, communicator, msgTag, msgLength);
   OTF2_PRINT_GENERIC("MPI_SEND",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
@@ -390,7 +390,7 @@ OTF2_CallbackCode print_mpi_isend(OTF2_LocationRef locationID,
 				  uint64_t msgLength,
 				  uint64_t requestID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "receiver: %d, comm: %x, tag: %d, len: %lu, req: %p",
+  snprintf(buffer, STRING_MAX_LEN, "receiver: %d, comm: %x, tag: %d, len: %llu, req: %p",
 	   receiver, communicator, msgTag, msgLength, (void*)requestID);
   OTF2_PRINT_GENERIC("MPI_ISEND",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
@@ -427,7 +427,7 @@ OTF2_CallbackCode print_mpi_recv(OTF2_LocationRef locationID,
 				 uint32_t msgTag,
 				 uint64_t msgLength) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "sender: %d, comm: %x, tag: %d, len: %lu",
+  snprintf(buffer, STRING_MAX_LEN, "sender: %d, comm: %x, tag: %d, len: %llu",
 	   sender, communicator, msgTag, msgLength);
   OTF2_PRINT_GENERIC("MPI_RECV",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
@@ -443,7 +443,7 @@ OTF2_CallbackCode print_mpi_irecv(OTF2_LocationRef locationID,
 				  uint64_t msgLength,
 				  uint64_t requestID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "sender: %d, comm: %x, tag: %d, len: %lu, req: %p",
+  snprintf(buffer, STRING_MAX_LEN, "sender: %d, comm: %x, tag: %d, len: %llu, req: %p",
 	   sender, communicator, msgTag, msgLength, (void*)requestID);
   OTF2_PRINT_GENERIC("MPI_IRECV",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
@@ -489,7 +489,7 @@ OTF2_CallbackCode print_mpi_collective_end(OTF2_LocationRef locationID,
 					   uint64_t sizeSent,
 					   uint64_t sizeReceived) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "op: %d, comm: %x, root: %d, sent: %lu, recved: %lu",
+  snprintf(buffer, STRING_MAX_LEN, "op: %d, comm: %x, root: %d, sent: %llu, recved: %llu",
 	   collectiveOp, communicator, root, sizeSent, sizeReceived);
   OTF2_PRINT_GENERIC("MPI_COLLECTIVE_END",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
@@ -544,7 +544,7 @@ OTF2_CallbackCode print_omp_task_create(OTF2_LocationRef locationID,
 					OTF2_AttributeList* attributeList,
 					uint64_t taskID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "taskID: %lu", taskID);
+  snprintf(buffer, STRING_MAX_LEN, "taskID: %llu", taskID);
   OTF2_PRINT_GENERIC("OMP_TASK_CREATE",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
@@ -555,7 +555,7 @@ OTF2_CallbackCode print_omp_task_switch(OTF2_LocationRef locationID,
 					OTF2_AttributeList* attributeList,
 					uint64_t taskID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "taskID: %lu", taskID);
+  snprintf(buffer, STRING_MAX_LEN, "taskID: %llu", taskID);
   OTF2_PRINT_GENERIC("OMP_TASK_SWITCH",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
@@ -566,7 +566,7 @@ OTF2_CallbackCode print_omp_task_complete(OTF2_LocationRef locationID,
 					  OTF2_AttributeList* attributeList,
 					  uint64_t taskID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "taskID: %lu", taskID);
+  snprintf(buffer, STRING_MAX_LEN, "taskID: %llu", taskID);
   OTF2_PRINT_GENERIC("OMP_TASK_COMPLETE",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
@@ -929,7 +929,7 @@ OTF2_CallbackCode print_non_blocking_collective_complete(
 							 uint64_t sizeReceived,
 							 uint64_t requestID) {
   char buffer[STRING_MAX_LEN];
-  snprintf(buffer, STRING_MAX_LEN, "op: %d, comm: %x, root: %d, sent: %lu, recved:%lu, requestID: %p",
+  snprintf(buffer, STRING_MAX_LEN, "op: %d, comm: %x, root: %d, sent: %llu, recved:%llu, requestID: %p",
 	   collectiveOp, communicator, root, sizeSent, sizeReceived, (void*)requestID);
   OTF2_PRINT_GENERIC("NON_BLOCKING_COLLECTIVE_COMPLETE", locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
