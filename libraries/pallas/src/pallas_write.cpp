@@ -577,7 +577,7 @@ void ThreadWriter::threadClose() {
         recordExitFunction();
     }
     // Then we need to store the main sequence
-    auto& mainSequence = thread->sequences[0];
+    auto& mainSequence = thread->sequences[thread->sequence_root];
     mainSequence.tokens = sequence_stack[0];
     pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
@@ -640,8 +640,8 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     index_stack = new std::vector<size_t>[max_depth];
 
     // We need to initialize the main Sequence (Sequence 0)
-    auto& mainSequence = thread->sequences[0];
-    mainSequence.id = PALLAS_SEQUENCE_ID(0);
+    auto& mainSequence = thread->sequences[thread->sequence_root];
+    mainSequence.id = PALLAS_SEQUENCE_ID(thread->sequence_root);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;
