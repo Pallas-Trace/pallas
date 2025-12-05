@@ -100,20 +100,20 @@ typedef struct Definition {
 #ifdef __cplusplus
 
 template <class content_type>
-struct AdditionalContent {
+struct Metadata {
   content_type* content = nullptr;
   size_t (*write_content)(content_type*, FILE*) = nullptr;
   size_t (*read_content)(content_type*, FILE*) = nullptr;
   /* Next node in the linked-list structure.*/
-  AdditionalContent<void>* next = nullptr;
+  Metadata<void>* next = nullptr;
 };
 #else
-typedef struct AdditionalContent {
-  struct AdditionalContent* next;
+typedef struct Metadata {
+  struct Metadata* next;
   void* content;
   size_t (*write_content)(void*, FILE*);
   size_t (*read_content)(void*, FILE*);
-} AdditionalContent;
+} Metadata;
 #endif
 
 /**
@@ -140,21 +140,21 @@ typedef struct GlobalArchive {
   DEFINE_Vector(LocationGroup, location_groups);
 
   /** LinkedList of additional_content we want to add to the archive. */
-  AdditionalContent CXX(<void>)* additional_content CXX( = nullptr);
+  Metadata CXX(<void>)* metadata CXX( = nullptr);
     /** List of parameters. Only used when reading the trace. */
     ParameterHandler* parameter_handler;
 
 #ifdef __cplusplus
   /* Adds an additional content node.  */
   template <typename T>
-  void add_content(AdditionalContent<T>* o) {
+  void add_content(Metadata<T>* o) {
     pthread_mutex_lock(&lock);
-    auto* void_o = reinterpret_cast<AdditionalContent<void>*>(o);
-    if (additional_content == nullptr) {
-      additional_content = void_o;
+    auto* void_o = reinterpret_cast<Metadata<void>*>(o);
+    if (metadata == nullptr) {
+      metadata = void_o;
     } else {
-      auto old_next = additional_content->next;
-      additional_content->next = void_o;
+      auto old_next = metadata->next;
+      metadata->next = void_o;
       while (void_o->next != nullptr) {
         void_o = void_o->next;
       }
@@ -302,19 +302,19 @@ typedef struct Archive {
   /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
   DEFINE_Vector(LocationGroup, location_groups);
   /** LinkedList of additional_content we want to add to the archive. */
-  AdditionalContent CXX(<void>)* additional_content CXX( = nullptr);
+  Metadata CXX(<void>)* metadata CXX( = nullptr);
 #ifdef __cplusplus
 
   /* Adds an additional content node.  */
   template <typename T>
-  void add_content(AdditionalContent<T>* o) {
+  void add_content(Metadata<T>* o) {
     pthread_mutex_lock(&lock);
-    auto* void_o = reinterpret_cast<AdditionalContent<void>*>(o);
-    if (additional_content == nullptr) {
-      additional_content = void_o;
+    auto* void_o = reinterpret_cast<Metadata<void>*>(o);
+    if (metadata == nullptr) {
+      metadata = void_o;
     } else {
-      auto old_next = additional_content->next;
-      additional_content->next = void_o;
+      auto old_next = metadata->next;
+      metadata->next = void_o;
       while (void_o->next != nullptr) {
         void_o = void_o->next;
       }

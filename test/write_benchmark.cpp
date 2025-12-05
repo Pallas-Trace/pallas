@@ -91,7 +91,7 @@ void* worker(void* arg) {
 #endif
     archive.defineLocation(threadID, threadNameRef, processID);
     example_data data{"ThreadTest", 42};
-    AdditionalContent<example_data> content{&data, &write_example_data};
+    Metadata<example_data> content{&data, &write_example_data};
     archive.add_content(&content);
 
     ThreadWriter threadWriter(archive, threadID);
