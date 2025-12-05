@@ -377,7 +377,7 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
     while (current != nullptr) {
         if (current->last_value < start) {
             output.push_back(0.);
-        } else if (end < current->last_value) {
+        } else if (end < current->first_value) {
             // We're after the boundaries, we can stop searching.
             break;
         } else if (start <= current->first_value && current->last_value <= end) {
