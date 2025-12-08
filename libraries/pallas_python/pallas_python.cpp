@@ -538,10 +538,12 @@ PYBIND11_MODULE(pallas_trace, m) {
     py::class_<pallas::Archive>(m, "Archive", "A Pallas archive. If it exists, it's already been loaded.")
             .def_readonly("dir_name", &pallas::Archive::dir_name)
             .def_readonly("id", &pallas::Archive::id)
+            .def_readonly("metadata", &pallas::Archive::metadata)
             .def_property_readonly("locations", &Archive_get_locations)
             .def_property_readonly("strings", &Archive_get_strings)
             .def_property_readonly("regions", &Archive_get_regions)
-            .def_property_readonly("threads", &Archive_get_threads);
+            .def_property_readonly("threads", &Archive_get_threads)
+    ;
 
     m.def("open_trace", &open_trace, "Open a Pallas trace")
             .def("get_ABI", []() { return PALLAS_ABI_VERSION; });
@@ -551,6 +553,7 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def_readonly("dir_name", &pallas::GlobalArchive::dir_name)
             .def_readonly("trace_name", &pallas::GlobalArchive::trace_name)
             .def_readonly("fullpath", &pallas::GlobalArchive::fullpath)
+            .def_readonly("metadata", &pallas::GlobalArchive::metadata)
             .def_property_readonly("locations", &Trace_get_locations)
             .def_property_readonly("location_groups", &Trace_get_location_groups)
             .def_property_readonly("strings", &Trace_get_strings)
