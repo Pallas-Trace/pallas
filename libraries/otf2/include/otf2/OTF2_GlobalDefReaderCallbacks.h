@@ -717,7 +717,7 @@ typedef OTF2_CallbackCode (*OTF2_GlobalDefReaderCallback_Group)(void* userData,
                                                                 OTF2_Paradigm paradigm,
                                                                 OTF2_GroupFlag groupFlags,
                                                                 uint32_t numberOfMembers,
-                                                                const uint64_t* members);
+                                                                const uint32_t* members);
 
 /** @brief Registers the callback for the @eref{Group} definition.
  *

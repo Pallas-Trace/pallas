@@ -533,23 +533,110 @@ typedef struct Attribute {
     pallas_type_t type;
 } Attribute;
 
+/**
+ * List of possible types of a Group.
+ */
+enum GroupType {
+    /** Group of unknown type.*/
+    GROUP_TYPE_UNKNOWN        = 0,
+    /** Group of locations.*/
+    GROUP_TYPE_LOCATIONS      = 1,
+    /** Group of regions.*/
+    GROUP_TYPE_REGIONS        = 2,
+    /** Group of metrics.*/
+    GROUP_TYPE_METRIC         = 3,
+    /** List of locations which participated in the paradigm specified by the group definition.*/
+    GROUP_TYPE_COMM_LOCATIONS = 4,
+    /** A sub-group of the corresponding group definition with type
+     *  @eref{GROUP_TYPE_COMM_LOCATIONS} and the same paradigm.
+     *  The sub-group is formed by listing the indexes of the
+     *  @eref{GROUP_TYPE_COMM_LOCATIONS} group.
+     */
+    GROUP_TYPE_COMM_GROUP     = 5,
+    /** Special group type to efficiently handle self-like communicators
+     *  (i.e., MPI_COMM_SELF and friends). At most one definition of
+     *  this type is allowed to exist per paradigm.
+     */
+    GROUP_TYPE_COMM_SELF      = 6
+};
+
+/** List of known paradigms. Parallel paradigms have their expected paradigm class and known paradigm properties attached. */
+enum Paradigm {
+    /** An unknown paradigm. */
+    PARADIGM_UNKNOWN = 0,
+    /** User instrumentation. */
+    PARADIGM_USER = 1,
+    /** Compiler instrumentation. */
+    PARADIGM_COMPILER = 2,
+    /** OpenMP. */
+    PARADIGM_OPENMP = 3,
+    /** MPI. */
+    PARADIGM_MPI = 4,
+    /** CUDA. */
+    PARADIGM_CUDA = 5,
+    /** The measurement software. */
+    PARADIGM_MEASUREMENT_SYSTEM = 6,
+    /** POSIX threads. */
+    PARADIGM_PTHREAD = 7,
+    /** HMPP. */
+    PARADIGM_HMPP = 8,
+    /** OmpSs. */
+    PARADIGM_OMPSS = 9,
+    /** Hardware. */
+    PARADIGM_HARDWARE = 10,
+    /** GASPI. */
+    PARADIGM_GASPI = 11,
+    /** Unified Parallel C (UPC). */
+    PARADIGM_UPC = 12,
+    /** SGI SHMEM, Cray SHMEM, OpenSHMEM. */
+    PARADIGM_SHMEM = 13,
+    /** Windows threads. */
+    PARADIGM_WINTHREAD = 14,
+    /** Qt threads. */
+    PARADIGM_QTTHREAD = 15,
+    /** ACE threads. */
+    PARADIGM_ACETHREAD = 16,
+    /** TBB threads. */
+    PARADIGM_TBBTHREAD = 17,
+    /** OpenACC directives. */
+    PARADIGM_OPENACC = 18,
+    /** OpenCL API functions and kernels. */
+    PARADIGM_OPENCL = 19,
+    /** Multicore Task API functions. */
+    PARADIGM_MTAPI = 20,
+    /** Functions recorded by sampling, not by any means of instrumentation. */
+    PARADIGM_SAMPLING = 21,
+    /** Entity does not belong to any specific paradigm. */
+    PARADIGM_NONE = 22,
+    /** HIP API functions and kernels. */
+    PARADIGM_HIP = 23,
+    /** Kokkos API functions and kernels.*/
+    PARADIGM_KOKKOS = 24,
+    /** OpenMP target functions and kernels. */
+    PARADIGM_OPENMP_TARGET = 25
+};
+
 /** Reference for a pallas::Group */
 typedef Ref GroupRef;
 /** Invalid GroupRef */
 #define PALLAS_GROUPREF_INVALID ((PALLAS(StringRef))PALLAS_UNDEFINED_UINT32)
+
 /**
  * Define a Group reference structure used by PALLAS format.
- *
  */
 typedef struct Group {
     /** ID of that Group. */
     GroupRef group_ref;
     /** Name of that Group. */
     StringRef name;
+    /** The type of this group. */
+    enum GroupType group_type;
+    /** The paradigm of this group. */
+    enum Paradigm paradigm;
     /** Number of members. */
     uint32_t numberOfMembers;
-    /** Array of member id. TODO check when this is used and why this is an uint64 */
-    uint64_t* members;
+    /** Array of member id. */
+    uint32_t* members;
     CXX(~Group();)
 } Group;
 

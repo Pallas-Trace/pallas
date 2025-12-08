@@ -918,7 +918,9 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalDefinitions(OTF2_Reader* reader,
 				   OTF2_PARADIGM_UNKNOWN, // paradigm
 				   0, // groupFlags
 				   attr.second.numberOfMembers,
-				   attr.second.members));
+				   attr.second.members
+				   )
+				   );
     }
   }
 

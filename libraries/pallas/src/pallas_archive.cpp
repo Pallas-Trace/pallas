@@ -108,20 +108,27 @@ const Group* Definition::getGroup(GroupRef group_ref) const {
 /**
  * Creates a new Group and adds it to that definition. Error if the given pallas::GroupRef is already in use.
  */
-void Definition::addGroup(GroupRef group_ref, StringRef name, uint32_t number_of_members, const uint64_t* members) {
-  if (getGroup(group_ref)) {
-    pallas_error("Given group_ref was already in use.\n");
-  }
+void Definition::addGroup(GroupRef group_ref,
+                          StringRef name,
+                          GroupType group_type,
+                          Paradigm paradigm,
+                          uint32_t number_of_members,
+                          const uint64_t* members) {
+    if (getGroup(group_ref)) {
+        pallas_error("Given group_ref was already in use.\n");
+    }
 
-  auto& g = groups[group_ref];
-  g.group_ref = group_ref;
-  g.name = name;
-  g.numberOfMembers = number_of_members;
-  g.members = new uint64_t[number_of_members];
-  for (uint32_t i = 0; i < number_of_members; i++)
-    g.members[i] = members[i];
+    auto& g = groups[group_ref];
+    g.group_ref = group_ref;
+    g.name = name;
+    g.group_type = group_type;
+    g.paradigm = paradigm;
+    g.numberOfMembers = number_of_members;
+    g.members = new uint32_t[number_of_members];
+    for (uint32_t i = 0; i < number_of_members; i++)
+        g.members[i] = members[i];
 
-  pallas_log(DebugLevel::Verbose, "Register group #%zu{.ref=%d, .str=%d, .nbMembers=%d}\n", groups.size() - 1, g.group_ref, g.name, g.numberOfMembers);
+    pallas_log(DebugLevel::Verbose, "Register group #%zu{.ref=%d, .str=%d, .nbMembers=%d}\n", groups.size() - 1, g.group_ref, g.name, g.numberOfMembers);
 }
 
 /**
@@ -302,9 +309,10 @@ void GlobalArchive::addAttribute(AttributeRef attribute_ref, StringRef name_ref,
   pthread_mutex_unlock(&lock);
 }
 
-void GlobalArchive::addGroup(GroupRef group_ref, StringRef name, uint32_t number_of_members, const uint64_t* members) {
+void GlobalArchive::addGroup(GroupRef group_ref, StringRef name, GroupType group_type, Paradigm
+                             paradigm, uint32_t number_of_members, const uint64_t* members) {
   pthread_mutex_lock(&lock);
-  definitions.addGroup(group_ref, name, number_of_members, members);
+  definitions.addGroup(group_ref, name, group_type, paradigm, number_of_members, members);
   pthread_mutex_unlock(&lock);
 }
 
@@ -373,9 +381,9 @@ void Archive::addAttribute(AttributeRef attribute_ref, StringRef name_ref, Strin
   pthread_mutex_unlock(&lock);
 }
 
-void Archive::addGroup(GroupRef group_ref, StringRef name, uint32_t number_of_members, const uint64_t* members) {
+void Archive::addGroup(GroupRef group_ref, StringRef name, uint32_t number_of_members, const uint64_t* members, GroupType group_type, Paradigm paradigm) {
   pthread_mutex_lock(&lock);
-  definitions.addGroup(group_ref, name, number_of_members, members);
+  definitions.addGroup(group_ref, name, group_type, paradigm, number_of_members, members);
   pthread_mutex_unlock(&lock);
 }
 
@@ -512,8 +520,14 @@ void pallas_archive_register_attribute(pallas::Archive* archive,
                                        pallas::pallas_type_t type) {
   archive->addAttribute(attribute_ref, name_ref, description_ref, type);
 }
-void pallas_archive_register_group(pallas::Archive* archive, pallas::GroupRef group_ref, pallas::StringRef name, uint32_t numberOfMembers, const uint64_t* members) {
-  archive->addGroup(group_ref, name, numberOfMembers, members);
+void pallas_archive_register_group(pallas::Archive* archive,
+                                   pallas::GroupRef group_ref,
+                                   pallas::StringRef name,
+                                   pallas::GroupType group_type,
+                                   pallas::Paradigm paradigm,
+                                   uint32_t numberOfMembers,
+                                   const uint64_t* members) {
+    archive->addGroup(group_ref, name, numberOfMembers, members, group_type, paradigm);
 }
 void pallas_archive_register_comm(pallas::Archive* archive, pallas::CommRef comm_ref, pallas::StringRef name, pallas::GroupRef group, pallas::CommRef parent) {
   archive->addComm(comm_ref, name, group, parent);
@@ -532,8 +546,14 @@ void pallas_global_archive_register_attribute(pallas::GlobalArchive* archive,
                                               pallas::pallas_type_t type) {
   archive->addAttribute(attribute_ref, name_ref, description_ref, type);
 }
-void pallas_global_archive_register_group(pallas::GlobalArchive* archive, pallas::GroupRef group_ref, pallas::StringRef name, uint32_t numberOfMembers, const uint64_t* members) {
-  archive->addGroup(group_ref, name, numberOfMembers, members);
+void pallas_global_archive_register_group(pallas::GlobalArchive* archive,
+    pallas::GroupRef group_ref,
+    pallas::StringRef name,
+    pallas::GroupType group_type,
+    pallas::Paradigm paradigm,
+    uint32_t numberOfMembers,
+    const uint64_t* members) {
+  archive->addGroup(group_ref, name, group_type, paradigm, numberOfMembers, members);
 }
 void pallas_global_archive_register_comm(pallas::GlobalArchive* archive, pallas::CommRef comm_ref, pallas::StringRef name, pallas::GroupRef group, pallas::CommRef parent) {
   archive->addComm(comm_ref, name, group, parent);

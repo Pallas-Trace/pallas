@@ -44,7 +44,7 @@ struct otf2_group {
   OTF2_GroupRef ref;    /**< Id of that Group.*/
   OTF2_StringRef name;
   uint32_t numberOfMembers;
-  uint64_t* members;
+  uint32_t* members;
   struct otf2_string* name_str;
 };
 
@@ -276,10 +276,10 @@ OTF2_CallbackCode print_global_def_group(void* userData,
 					 OTF2_Paradigm paradigm,
 					 OTF2_GroupFlag groupFlags,
 					 uint32_t numberOfMembers,
-					 const uint64_t* members) {
+					 const uint32_t* members) {
   OTF2_PRINT_DEF("Global_def_group(userData=%p, self=%d, name=%d, groupType=%d, paradigm=%d, groupFlags=%x, numberOfMembers=%d, [", userData, self, name, groupType, paradigm, groupFlags, numberOfMembers);
   for(int i=0; i<numberOfMembers; i++ ) {
-    OTF2_PRINT_DEF("%s%lu", i>0?", ":"", members[i]);
+    OTF2_PRINT_DEF("%s%u", i>0?", ":"", members[i]);
   }
   OTF2_PRINT_DEF("]%c", '\n');
 

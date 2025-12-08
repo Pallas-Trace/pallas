@@ -91,7 +91,7 @@ typedef struct Definition {
   [[nodiscard]] const Attribute* getAttribute(AttributeRef) const;
   void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
   [[nodiscard]] const Group* getGroup(GroupRef) const;
-  void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*);
+  void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
   [[nodiscard]] const Comm* getComm(CommRef) const;
   void addComm(CommRef, StringRef, GroupRef, CommRef);
 #endif
@@ -186,7 +186,7 @@ typedef struct GlobalArchive {
    * Error if the given pallas::GroupRef is already in use.
    * Locks and unlocks the mutex for that operation.
    */
-  void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*);
+  void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
   /**
    * Creates a new Comm and adds it to that GlobalArchive.
    * Error if the given pallas::CommRef is already in use.
@@ -335,7 +335,7 @@ typedef struct Archive {
    * Error if the given pallas::GroupRef is already in use.
    * Locks and unlocks the mutex for that operation.
    */
-  void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*);
+  void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*, GroupType group_type, Paradigm paradigm);
   /**
    * Creates a new Comm and adds it to that definition.
    * Error if the given pallas::CommRef is already in use.
@@ -461,6 +461,8 @@ extern void pallas_global_archive_register_attribute(PALLAS(GlobalArchive) * arc
 extern void pallas_global_archive_register_group(PALLAS(GlobalArchive) * archive,
                                                  PALLAS(GroupRef) group_ref,
                                                  PALLAS(StringRef) name_ref,
+                                                 enum PALLAS(GroupType) group_type,
+                                                 enum PALLAS(Paradigm) paradigm,
                                                  uint32_t number_of_members,
                                                  const uint64_t* members);
 
@@ -527,7 +529,13 @@ extern void pallas_archive_register_attribute(PALLAS(Archive) * archive,
  * Error if the given pallas::GroupRef is already in use.
  * Locks and unlocks the mutex for that operation.
  */
-extern void pallas_archive_register_group(PALLAS(Archive) * archive, PALLAS(GroupRef) group_ref, PALLAS(StringRef) name_ref, uint32_t number_of_members, const uint64_t* members);
+    extern void pallas_archive_register_group(PALLAS(Archive) * archive,
+                                              PALLAS(GroupRef) group_ref,
+                                              PALLAS(StringRef) name_ref,
+                                              enum PALLAS(GroupType) group_type,
+                                              enum PALLAS(Paradigm) paradigm,
+                                              uint32_t number_of_members,
+                                              const uint64_t *members);
 
 /**
  * Creates a new Comm and adds it to that Archive.

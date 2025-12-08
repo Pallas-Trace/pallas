@@ -216,7 +216,7 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteGroup(OTF2_GlobalDefWriter* writerHandl
                                                OTF2_GroupFlag groupFlags,
                                                uint32_t numberOfMembers,
                                                const uint64_t* members) {
-  pallas_global_archive_register_group(writerHandle->archive, self, name, numberOfMembers, members);
+  pallas_global_archive_register_group(writerHandle->archive, self, name, groupType, paradigm, numberOfMembers, members);
   return OTF2_SUCCESS;
 }
 

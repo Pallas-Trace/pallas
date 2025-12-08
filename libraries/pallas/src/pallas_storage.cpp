@@ -1241,9 +1241,9 @@ static void readGroups(pallas::Definition& definitions, File& file) {
     tempGroup.group_ref = ref;
     file.read(&tempGroup.name, sizeof(tempGroup.name), 1);
     file.read(&tempGroup.numberOfMembers, sizeof(tempGroup.numberOfMembers), 1);
-    tempGroup.members = new uint64_t[tempGroup.numberOfMembers];
+    tempGroup.members = new uint32_t[tempGroup.numberOfMembers];
     pallas_assert(tempGroup.members);
-    file.read(tempGroup.members, sizeof(uint64_t), tempGroup.numberOfMembers);
+    file.read(tempGroup.members, sizeof(tempGroup.members), tempGroup.numberOfMembers);
     pallas_log(pallas::DebugLevel::Debug, "\tLoad Group {.ref=%d, .name=%d, .nb_members=%d}\n", tempGroup.group_ref,
                tempGroup.name, tempGroup.numberOfMembers);
   }

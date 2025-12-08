@@ -119,7 +119,7 @@ OTF2_ErrorCode OTF2_DefWriter_WriteGroup(OTF2_DefWriter* writer,
                                          OTF2_GroupFlag groupFlags,
                                          uint32_t numberOfMembers,
                                          const uint64_t* members) {
-  pallas_archive_register_group(writer->archive, self, name, numberOfMembers, members);
+  pallas_archive_register_group(writer->archive, self, name, groupType, paradigm, numberOfMembers, members);
   return OTF2_SUCCESS;
 }
 
