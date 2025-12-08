@@ -18,7 +18,7 @@ if ! which tar &> /dev/null; then
 fi
 
 
-PALLAS_ABI=$("$PALLAS_CONFIG_PATH" | grep ABI | cut -d ' ' -f 3)
+PALLAS_ABI=$("$PALLAS_CONFIG_PATH" | grep ABI -m 1 | cut -d ' ' -f 3)
 print_info "Pallas ABI: ${PALLAS_ABI}"
 mkdir -p "ABI_$PALLAS_ABI"
 cd "ABI_$PALLAS_ABI" || print_error "Folder ABI_${PALLAS_ABI} wasn't created"
