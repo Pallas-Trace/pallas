@@ -33,7 +33,7 @@ add_test(NAME info_benchmark COMMAND pallas_info ${TRACE_NAME})
 add_test(NAME print_benchmark COMMAND pallas_print ${TRACE_NAME})
 add_test(NAME print_benchmark_structure COMMAND pallas_print -S ${TRACE_NAME})
 add_test(NAME print_benchmark_thread COMMAND pallas_print -T ${TRACE_NAME})
-add_test(NAME test_snapshot COMMAND test_snapshot /home/khatharsis/lu.B.64_trace/eztrace_log.pallas 10)
+add_test(NAME test_snapshot COMMAND test_snapshot ${TRACE_NAME} 10)
 add_test(NAME edit_benchmark COMMAND pallas_editor -c None ${TRACE_NAME})
 
 add_test (benchmark_checks bash

@@ -152,6 +152,20 @@ public:
             _pallas_fwrite(ptr, size, n, file);
     }
 
+    void writeString(const std::string& str) const {
+        auto size = str.size() + 1;
+        _pallas_fwrite(&size, sizeof(size), 1, file);
+        _pallas_fwrite(str.data(), sizeof(char), size, file);
+    }
+
+    [[nodiscard]] std::string readString() const {
+        size_t size = 0;
+        _pallas_fread(&size, sizeof(size), 1, file);
+        char* str = new char[size];
+        _pallas_fread(str, sizeof(char), size, file);
+        return str;
+    }
+
     explicit File(const char* path, const char* mode = nullptr) {
         this->path = strdup(path);
         if (mode) {
@@ -210,7 +224,7 @@ static void storeRegions(pallas::Definition& definitions, File& file);
 static void storeAttributes(pallas::Definition& definitions, File& file);
 static void storeGroups(pallas::Definition& definitions, File& file);
 static void storeComms(pallas::Definition& definitions, File& file);
-static void storeMetadata(pallas::Metadata<void> *metadata, File& file);
+static void storeMetadata(pallas::Metadata& metadata, File& file);
 
 static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
 static void storeLocations(std::vector<pallas::Location>& locations, File& file);
@@ -237,7 +251,7 @@ static void readGroups(pallas::Definition& definitions, File& file);
 static void readComms(pallas::Definition& definitions, File& file);
 static void readLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
 static void readLocations(std::vector<pallas::Location>& locations, File& file);
-static void readMetadata(pallas::Metadata<void> *metadata, File& file);
+static void readMetadata(pallas::Metadata& metadata, File& file);
 void pallasLoadThread(pallas::Archive* globalArchive, pallas::ThreadId thread_id);
 
 static pallas::Archive* pallasGetArchive(pallas::GlobalArchive* global_archive,
@@ -1315,53 +1329,31 @@ static void readLocations(std::vector<pallas::Location>& locations, File& file) 
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %lu locations\n", locations.size());
 }
 
-static void storeMetadata(pallas::Metadata<void> *metadata, File& file) {
-    pallas_log(pallas::DebugLevel::Debug, "\tStoring additional content.\n");
-    // We have to start by leaving enough space to later write the number of content and bytes we wrote
-    size_t original_position = ftell(file.file);
-    fseek(file.file, sizeof(size_t) * 2, SEEK_CUR);
-    size_t sum = 0;
-    size_t count = 0;
-    while (metadata != nullptr) {
-        size_t before_position = ftell(file.file);
-        size_t n_bytes_written = metadata->write_content(metadata->content, file.file);
-        size_t actual_bytes_written = ftell( file.file ) - before_position;
-        if (n_bytes_written == actual_bytes_written) {
-            pallas_warn("Mismatch in # of bytes written and # of bytes user write_content returns: %lu != %lu\n", n_bytes_written, actual_bytes_written);
-        }
-        sum += actual_bytes_written;
-        count ++;
-        metadata = metadata->next;
+static void storeMetadata(pallas::Metadata& metadata, File& file) {
+    pallas_log(pallas::DebugLevel::Debug, "\tStoring metadata.\n");
+    auto size = metadata.size();
+    file.write(&size, sizeof(size), 1);
+    file.write(&size, sizeof(size), 1);
+    // TODO this is done because we want to stay compatible with the ABI 16.
+    //      Once we change ABI, change this.
+    for (auto& [key, value]: metadata) {
+        file.writeString(key);
+        file.writeString(value);
     }
-    // Then go back to the start to write the data.
-    fseek(file.file, original_position, SEEK_SET);
-    file.write(&sum, sizeof(size_t), 1);
-    file.write(&count, sizeof(size_t), 1);
-    fseek(file.file, sum, SEEK_CUR);
-    pallas_log(pallas::DebugLevel::Debug, "\tStored %lu additional contents for %lu bytes + %lu for padding\n", count, sum, 2* sizeof(size_t));
 }
 
-static void readMetadata(pallas::Metadata<void> *metadata, File& file) {
-    pallas_log(pallas::DebugLevel::Verbose, "\tReading additional content\n");
-    size_t original_position = ftell(file.file);
-    size_t theo_sum;
-    size_t theo_count;
-    file.read(&theo_sum, sizeof(size_t), 1);
-    file.read(&theo_count, sizeof(size_t), 1);
-    size_t sum = 0;
-    size_t count = 0;
-    while (metadata != nullptr && (sum < theo_sum && count < theo_count)) {
-        sum += metadata->read_content(metadata->content, file.file);
-        count ++;
+static void readMetadata(pallas::Metadata& metadata, File& file) {
+    pallas_log(pallas::DebugLevel::Debug, "\tReading metadata.\n");
+    size_t size;
+    file.read(&size, sizeof(size), 1);
+    file.read(&size, sizeof(size), 1);
+    // TODO this is done because we want to stay compatible with the ABI 16.
+    //      Once we change ABI, change this.
+    for (size_t i = 0; i < size; i ++) {
+        auto key = file.readString();
+        auto value = file.readString();
+        metadata[key] = value;
     }
-    if (theo_count != count) {
-        pallas_warn("Mismatch in # of data and # of data user described: %lu != %lu\n", theo_count, count);
-    }
-    if (theo_sum != sum) {
-        pallas_warn("Mismatch in # of data written and # of data user defined read_content returns: %lu != %lu\n", theo_sum, sum);
-    }
-    fseek(file.file, original_position + sizeof(size_t) * 2 + theo_sum, SEEK_SET);
-    pallas_log(pallas::DebugLevel::Verbose, "\tRead %lu additional contents for %lu bytes\n", count, sum);
 }
 
 static File pallasGetThreadFile(const char* dir_name, pallas::Thread* thread, const char* mode) {

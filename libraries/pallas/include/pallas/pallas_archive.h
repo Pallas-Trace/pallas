@@ -98,22 +98,9 @@ typedef struct Definition {
 } Definition;
 
 #ifdef __cplusplus
-
-template <class content_type>
-struct Metadata {
-  content_type* content = nullptr;
-  size_t (*write_content)(content_type*, FILE*) = nullptr;
-  size_t (*read_content)(content_type*, FILE*) = nullptr;
-  /* Next node in the linked-list structure.*/
-  Metadata<void>* next = nullptr;
-};
+typedef std::map<std::string, std::string> Metadata;
 #else
-typedef struct Metadata {
-  struct Metadata* next;
-  void* content;
-  size_t (*write_content)(void*, FILE*);
-  size_t (*read_content)(void*, FILE*);
-} Metadata;
+typedef byte Metadata[MAP_SIZE];
 #endif
 
 /**
@@ -139,27 +126,16 @@ typedef struct GlobalArchive {
   /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
   DEFINE_Vector(LocationGroup, location_groups);
 
-  /** LinkedList of additional_content we want to add to the archive. */
-  Metadata CXX(<void>)* metadata CXX( = nullptr);
+    /** Metadata map we want to store to the trace. */
+    Metadata metadata;
     /** List of parameters. Only used when reading the trace. */
     ParameterHandler* parameter_handler;
 
 #ifdef __cplusplus
-  /* Adds an additional content node.  */
-  template <typename T>
-  void add_content(Metadata<T>* o) {
+  /** Adds an additional content node.  */
+  void add_metadata(const std::string& key, const std::string& value) {
     pthread_mutex_lock(&lock);
-    auto* void_o = reinterpret_cast<Metadata<void>*>(o);
-    if (metadata == nullptr) {
-      metadata = void_o;
-    } else {
-      auto old_next = metadata->next;
-      metadata->next = void_o;
-      while (void_o->next != nullptr) {
-        void_o = void_o->next;
-      }
-      void_o->next = old_next;
-    }
+    metadata[key] = value;
     pthread_mutex_unlock(&lock);
   };
   /**
@@ -278,48 +254,37 @@ typedef struct GlobalArchive {
  * An Archive represents a process.
  */
 typedef struct Archive {
-  /** Name of the directory in which the archive is recorded. */
-  char* dir_name;
-  /** Archive-wise lock, used for synchronising some threads. */
-  pthread_mutex_t lock;
+    /** Name of the directory in which the archive is recorded. */
+    char *dir_name;
+    /** Archive-wise lock, used for synchronising some threads. */
+    pthread_mutex_t lock;
 
-  /** ID for the pallas::LocationGroup of that Archive. */
-  LocationGroupId id CXX({PALLAS_LOCATION_GROUP_ID_INVALID});
-  /** The Global Archive is the archive encompassing the whole execution. */
-  GlobalArchive* global_archive;
+    /** ID for the pallas::LocationGroup of that Archive. */
+    LocationGroupId id CXX({PALLAS_LOCATION_GROUP_ID_INVALID});
+    /** The Global Archive is the archive encompassing the whole execution. */
+    GlobalArchive *global_archive;
 
-  /** Array of Thread.
-   * The memory of each thread is handled by their reader / writer individually. */
-  struct Thread** threads CXX({nullptr});
-  /** Number of Thread in #threads. */
-  size_t nb_threads;
-  /** Size of #threads. */
-  size_t nb_allocated_threads;
-  /** Local definitions. */
-  Definition definitions;
-  /** Vector of Locations. Each location uniquely identifies a Thread. */
-  DEFINE_Vector(Location, locations);
-  /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
-  DEFINE_Vector(LocationGroup, location_groups);
-  /** LinkedList of additional_content we want to add to the archive. */
-  Metadata CXX(<void>)* metadata CXX( = nullptr);
+    /** Array of Thread.
+     * The memory of each thread is handled by their reader / writer individually. */
+    struct Thread **threads CXX({nullptr});
+    /** Number of Thread in #threads. */
+    size_t nb_threads;
+    /** Size of #threads. */
+    size_t nb_allocated_threads;
+    /** Local definitions. */
+    Definition definitions;
+    /** Vector of Locations. Each location uniquely identifies a Thread. */
+    DEFINE_Vector(Location, locations);
+    /** Vector of LocationGroups. Each LocationGroup uniquely identifies an Archive. */
+    DEFINE_Vector(LocationGroup, location_groups);
+    /** Metadata map we want to store to the archive. */
+    Metadata metadata;
 #ifdef __cplusplus
 
-  /* Adds an additional content node.  */
-  template <typename T>
-  void add_content(Metadata<T>* o) {
+  /** Adds an entry to the metadata. */
+  void add_metadata(const std::string &key, const std::string &value) {
     pthread_mutex_lock(&lock);
-    auto* void_o = reinterpret_cast<Metadata<void>*>(o);
-    if (metadata == nullptr) {
-      metadata = void_o;
-    } else {
-      auto old_next = metadata->next;
-      metadata->next = void_o;
-      while (void_o->next != nullptr) {
-        void_o = void_o->next;
-      }
-      void_o->next = old_next;
-    }
+    metadata[key] = value;
     pthread_mutex_unlock(&lock);
   };
   /**
@@ -605,6 +570,10 @@ extern const struct PALLAS(Group) * pallas_archive_get_group(PALLAS(GlobalArchiv
  * doesn't have a match, or nullptr if it doesn't have a match in the global_archive.
  */
 extern const struct PALLAS(Comm) * pallas_archive_get_comm(PALLAS(GlobalArchive) * archive, PALLAS(CommRef) comm_ref);
+
+extern void pallas_global_archive_add_metadata(PALLAS(GlobalArchive*) archive, const char* key, const char* value);
+
+extern void pallas_archive_add_metadata(PALLAS(Archive*) archive, const char* key, const char* value);
 
 #ifdef __cplusplus
 };

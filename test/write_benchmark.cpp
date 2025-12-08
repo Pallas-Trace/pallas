@@ -73,10 +73,6 @@ struct example_data {
     size_t random_number;
 };
 
-size_t write_example_data(example_data* d, FILE* file) {
-    return fwrite(d, sizeof(example_data), 1, file);
-}
-
 
 void* worker(void* arg) {
     ThreadId threadID = newThread();
@@ -90,9 +86,7 @@ void* worker(void* arg) {
     StringRef threadNameRef = registerString(*archive.global_archive, os.str());
 #endif
     archive.defineLocation(threadID, threadNameRef, processID);
-    example_data data{"ThreadTest", 42};
-    Metadata<example_data> content{&data, &write_example_data};
-    archive.add_content(&content);
+    archive.add_metadata("ThreadTest", "42");
 
     ThreadWriter threadWriter(archive, threadID);
 

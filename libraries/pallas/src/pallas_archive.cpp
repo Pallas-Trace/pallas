@@ -570,6 +570,14 @@ const pallas::Group* pallas_archive_get_group(pallas::GlobalArchive* archive, pa
 const pallas::Comm* pallas_archive_get_communicator(pallas::GlobalArchive* archive, pallas::CommRef comm_ref) {
   return archive->getComm(comm_ref);
 }
+
+void pallas_global_archive_add_metadata(pallas::GlobalArchive* archive, const char* key, const char * value) {
+    archive->add_metadata(key, value);
+}
+
+void pallas_archive_add_metadata(pallas::GlobalArchive* archive, const char* key, const char * value) {
+    archive->add_metadata(key, value);
+}
 /* -*-
   mode: c++;
   c-file-style: "k&r";
