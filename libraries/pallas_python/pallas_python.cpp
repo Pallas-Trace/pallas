@@ -471,6 +471,7 @@ PYBIND11_MODULE(pallas_trace, m) {
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
             .def_readonly("id", &pallas::Thread::id)
             .def_property_readonly("starting_timestamp", [](const pallas::Thread& self) { return self.first_timestamp; })
+            .def_property_readonly("finish_timestamp", [](const pallas::Thread& self) { return (self.first_timestamp + self.sequences[0].durations->at(0)); })
             .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEvents(self); })
             .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
             .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
