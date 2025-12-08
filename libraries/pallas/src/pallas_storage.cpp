@@ -1333,9 +1333,6 @@ static void storeMetadata(pallas::Metadata& metadata, File& file) {
     pallas_log(pallas::DebugLevel::Debug, "\tStoring metadata.\n");
     auto size = metadata.size();
     file.write(&size, sizeof(size), 1);
-    file.write(&size, sizeof(size), 1);
-    // TODO this is done because we want to stay compatible with the ABI 16.
-    //      Once we change ABI, change this.
     for (auto& [key, value]: metadata) {
         file.writeString(key);
         file.writeString(value);
@@ -1346,9 +1343,6 @@ static void readMetadata(pallas::Metadata& metadata, File& file) {
     pallas_log(pallas::DebugLevel::Debug, "\tReading metadata.\n");
     size_t size;
     file.read(&size, sizeof(size), 1);
-    file.read(&size, sizeof(size), 1);
-    // TODO this is done because we want to stay compatible with the ABI 16.
-    //      Once we change ABI, change this.
     for (size_t i = 0; i < size; i ++) {
         auto key = file.readString();
         auto value = file.readString();
