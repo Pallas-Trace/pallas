@@ -265,7 +265,7 @@ void info_definitions(Definition& definitions) {
     for (auto& [groupRef, group] : definitions.groups) {
       printf("\t\t%d: '%s' [", group.group_ref, definitions.getString(group.name)->str);
       for (uint32_t i = 0; i < group.numberOfMembers; i++) {
-        printf("%s%lu", i > 0 ? ", " : "", group.members[i]);
+        printf("%s%u", i > 0 ? ", " : "", group.members[i]);
       }
       printf("]\n");
     }
