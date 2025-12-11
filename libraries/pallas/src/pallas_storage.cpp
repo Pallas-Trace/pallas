@@ -1246,8 +1246,8 @@ static void readGroups(pallas::Definition& definitions, File& file, uint8_t abi_
         g.group_ref = ref;
         file.read(&g.name, sizeof(g.name), 1);
         if ( abi_version >= 17 ) {
-            file.write(&g.group_type, sizeof(g.group_type), 1);
-            file.write(&g.paradigm, sizeof(g.paradigm), 1);
+            file.read(&g.group_type, sizeof(g.group_type), 1);
+            file.read(&g.paradigm, sizeof(g.paradigm), 1);
         }
         file.read(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
         g.members = new uint32_t[g.numberOfMembers];
