@@ -1188,6 +1188,7 @@ static void readRegions(pallas::Definition& definitions, File& file, uint8_t abi
   for (size_t i = 0; i < size; i++) {
     file.read(&tempRegion, sizeof(pallas::Region), 1);
     definitions.regions[tempRegion.region_ref] = tempRegion;
+      pallas_log(pallas::DebugLevel::Debug, "\tLoad Region {.ref=%u}\n", tempRegion.region_ref);
   }
 
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu regions\n", definitions.regions.size());
@@ -1232,7 +1233,7 @@ static void storeGroups(pallas::Definition& definitions, File& file) {
         file.write(&g.group_type, sizeof(g.group_type), 1);
         file.write(&g.paradigm, sizeof(g.paradigm), 1);
         file.write(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
-        file.write(g.members, sizeof(uint64_t), g.numberOfMembers);
+        file.write(g.members, sizeof(uint32_t), g.numberOfMembers);
     }
 }
 
@@ -1254,13 +1255,13 @@ static void readGroups(pallas::Definition& definitions, File& file, uint8_t abi_
         pallas_assert(g.members);
         if (abi_version == 16 ) {
             auto temp = new uint64_t [g.numberOfMembers];
-            file.read(temp, sizeof(temp), g.numberOfMembers);
+            file.read(temp, sizeof(uint64_t), g.numberOfMembers);
             for (size_t i = 0; i < g.numberOfMembers; i ++) {
                 g.members[i] = temp[i];
             }
             delete[] temp;
         } else {
-            file.read(g.members, sizeof(g.members), g.numberOfMembers);
+            file.read(g.members, sizeof(uint32_t), g.numberOfMembers);
         }
         pallas_log(pallas::DebugLevel::Debug, "\tLoad Group {.ref=%d, .name=%d, .nb_members=%d}\n", g.group_ref,
                    g.name, g.numberOfMembers);
