@@ -67,7 +67,10 @@ if (SZ_FOUND)
 endif ()
 
 set_property(TARGET pallas
-        PROPERTY PUBLIC_HEADER ${PALLAS_HEADERS})
+        PROPERTY PUBLIC_HEADER ${PALLAS_HEADERS}
+)
+
+
 
 
 target_compile_options(pallas

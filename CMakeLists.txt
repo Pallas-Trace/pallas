@@ -185,3 +185,9 @@ include(PrintOpts)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pallas.pc.in
         ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc DESTINATION "${INSTALL_PKGCONFIG_DIR}")
+if (NOT unordered_dense_FOUND)
+    install(
+            DIRECTORY ${PROJECT_SOURCE_DIR}/extern/unordered_dense/include/ankerl
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif()
+
