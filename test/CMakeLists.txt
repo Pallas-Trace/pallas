@@ -19,10 +19,12 @@ link_libraries(pallas Threads::Threads)
 add_executable(write_benchmark write_benchmark.c)
 add_executable(write_benchmark_CPP write_benchmark.cpp)
 add_executable(test_snapshot test_snapshot.cpp)
+add_executable(write_pattern write_pattern.cpp)
 
 SET(TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace/main.pallas)
 SET(TRACE_NO_COMP_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_trace_None/main.pallas)
 SET(CPP_TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_benchmark_CPP_trace/main.pallas)
+SET(PATTERN_TRACE_NAME ${CMAKE_CURRENT_BINARY_DIR}/write_pattern_trace/main.pallas)
 
 SET(N_THREADS 4)
 SET(N_ITER 2000)
@@ -111,6 +113,28 @@ set_tests_properties(benchmark_checks_logical PROPERTIES
         DEPENDS "info_benchmark_logical;print_benchmark_logical;print_benchmark_structure_logical;print_benchmark_thread_logical"
 )
 
+add_test(NAME write_pattern_benchmark COMMAND write_pattern)
+add_test(NAME info_pattern_benchmark COMMAND pallas_info ${PATTERN_TRACE_NAME})
+add_test(NAME print_pattern_benchmark COMMAND pallas_print ${PATTERN_TRACE_NAME})
+add_test(NAME print_pattern_benchmark_structure COMMAND pallas_print -S ${PATTERN_TRACE_NAME})
+add_test(NAME print_pattern_benchmark_thread COMMAND pallas_print -T ${PATTERN_TRACE_NAME})
+
+add_test (benchmark_checks bash
+        "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
+        "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
+
+set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark test_snapshot PROPERTIES
+        REQUIRED_FILES ${TRACE_NAME}
+        DEPENDS write_benchmark
+)
+set_tests_properties(benchmark_checks PROPERTIES
+        REQUIRED_FILES ${TRACE_NAME}
+        DEPENDS "write_benchmark;info_benchmark;print_benchmark;print_benchmark_structure;print_benchmark_thread;edit_benchmark;test_snapshot"
+)
+
+
+
+
 add_executable(find_loop find_loop.cpp)
 add_test(NAME find_loop COMMAND find_loop 50 100)
 
@@ -124,27 +148,27 @@ add_executable(test_hash test_hash.cpp)
 #add_test(NAME test_hash COMMAND test_hash)
 
 # Instantaneous
-#add_test(check_stark_bt.A.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.A.4")
-## Takes 4 / 8 / 8 s
-#add_test(check_stark_bt.B.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.B.16")
-## Takes 8 / 11 / 11 s
-#add_test(check_stark_amg.4.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.4.16")
-#
-#if (GIT_BRANCH STREQUAL "main")
-#    # Takes 40 / 60 / 60 s
-#    add_test(check_stark_amg.16.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.16.4")
-#    # Takes 180 / 210 / 410 s
-#    add_test(check_stark_amg.64.1 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.64.1")
-#    # Takes 50 / 80 / 160 s
-#    add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.C.64")
-#    set_tests_properties(check_stark_amg.16.4 check_stark_amg.64.1 check_stark_bt.C.64 PROPERTIES
-#            COST 50
-#    )
-#endif()
-#
-#set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES
-#        COST 100
-#)
-#set_tests_properties(check_stark_bt.B.16 check_stark_amg.4.16 PROPERTIES
-#        COST 150
-#)
+add_test(check_stark_bt.A.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.A.4")
+# Takes 4 / 8 / 8 s
+add_test(check_stark_bt.B.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.B.16")
+# Takes 8 / 11 / 11 s
+add_test(check_stark_amg.4.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.4.16")
+
+if (GIT_BRANCH STREQUAL "main")
+    # Takes 40 / 60 / 60 s
+    add_test(check_stark_amg.16.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.16.4")
+    # Takes 180 / 210 / 410 s
+    add_test(check_stark_amg.64.1 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.64.1")
+    # Takes 50 / 80 / 160 s
+    add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "bt.C.64")
+    set_tests_properties(check_stark_amg.16.4 check_stark_amg.64.1 check_stark_bt.C.64 PROPERTIES
+            COST 50
+    )
+endif()
+
+set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES
+        COST 100
+)
+set_tests_properties(check_stark_bt.B.16 check_stark_amg.4.16 PROPERTIES
+        COST 150
+)
