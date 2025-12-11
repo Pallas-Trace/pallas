@@ -88,6 +88,9 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     s->hash = hash;
     s->id = sid;
     sequencesWithSameHash.push_back(index);
+    if (s->tokens[0].type != TypeEvent || thread->getEvent(s->tokens[0])->data.record != PALLAS_EVENT_ENTER) {
+        s->type = SEQUENCE_LOOP;
+    }
     return *s;
 }
 
@@ -145,7 +148,7 @@ void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::Attribut
 }
 
 void ThreadWriter::storeToken(Token t, size_t i) {
-    pallas_log(DebugLevel::Debug, "storeToken: (%c%d) in seq at callstack[%d] (size: %zu)\n", PALLAS_TOKEN_TYPE_C(t), t.id, cur_depth, sequence_stack[cur_depth].size() + 1);
+    pallas_log(DebugLevel::Debug, "storeToken: (%c%d) n°%d in seq at callstack[%d] (size: %zu)\n", PALLAS_TOKEN_TYPE_C(t), t.id,i, cur_depth, sequence_stack[cur_depth].size() + 1);
     sequence_stack[cur_depth].push_back(t);
     index_stack[cur_depth].push_back(i);
     pallas_log(DebugLevel::Debug, "storeToken: %s\n",thread->getTokenArrayString(sequence_stack[cur_depth].data(), 0, sequence_stack[cur_depth].size()).c_str());
@@ -176,6 +179,7 @@ Loop* ThreadWriter::squashLoop(Loop* loop) {
             } else {
                 pallas_warn("Could not delete L%d after squashing\n", loop->self_id.id);
             }
+            pallas_log(DebugLevel::Debug, "squashLoop: L%d => L%d\n", loop->self_id.id, otherLoop.self_id.id);
             loop->repeated_token = Token();
             loop->self_id = Token();
             loop->nb_iterations = 0;
@@ -275,8 +279,17 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
         curTokenSeq.back() = loop->self_id;
     }
     incrementLoop(loop);
+    auto old_loop = loop->self_id;
     loop = squashLoop(loop);
-    curTokenSeq.back() = loop->self_id;
+    if (old_loop != loop->self_id) {
+        // We Got Squashed
+        curTokenSeq.pop_back();
+        // Don't forget !
+        // A loop's index sequence value is actually the index value of its first sequence
+        auto index = curIndexSeq.back();
+        curIndexSeq.pop_back();
+        storeToken(loop->self_id, index);
+    }
 }
 
 void ThreadWriter::checkLoopBefore() {
@@ -298,10 +311,20 @@ void ThreadWriter::checkLoopBefore() {
             curTokenSeq[cur_index - 1] = loop->self_id;
         }
         incrementLoop(loop);
+        auto old_loop = loop->self_id;
         loop = squashLoop(loop);
-        curTokenSeq[cur_index - 1] = loop->self_id;
-        curTokenSeq.resize(cur_index);
-        curIndexSeq.resize(cur_index);
+        if (old_loop != loop->self_id) {
+            // We Got Squashed
+            curTokenSeq.resize(cur_index - 1);
+            // Don't forget !
+            // A loop's index sequence value is actually the index value of its first sequence
+            auto index = curIndexSeq[cur_index - 1];
+            curIndexSeq.resize(cur_index - 1);
+            storeToken(loop->self_id, index);
+        } else {
+            curTokenSeq.resize(cur_index);
+            curIndexSeq.resize(cur_index);
+        }
         pallas_log(DebugLevel::Debug, "checkLoopBefore: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
     }
 }
@@ -516,19 +539,6 @@ void ThreadWriter::recordExitFunction() {
     sequence.timestamps->add(sequence_start_timestamp[cur_depth]);
     sequence.exclusive_durations->add(computed_exclusive_duration);
     sequence.durations->add(computed_duration);
-
-#ifdef DEBUG
-    bool contains_sequence = false;
-    for (const auto t: sequence.tokens ) {
-        if (t.type != TypeEvent) {
-            contains_sequence = true;
-            break;
-        }
-    }
-    if (contains_sequence) {
-        pallas_assert_inferior(computed_exclusive_duration, computed_duration);
-    }
-#endif
 
 
 
