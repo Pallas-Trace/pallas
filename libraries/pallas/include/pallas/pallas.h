@@ -14,11 +14,9 @@
 #pragma once
 
 #include <pthread.h>
-#include "pallas_config.h"
-#include "pallas_dbg.h"
-#include "pallas_linked_vector.h"
-#include "pallas_log.h"
-#include "pallas_timestamp.h"
+#include "utils/pallas_dbg.h"
+#include "utils/pallas_linked_vector.h"
+#include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
 #include <cstring>

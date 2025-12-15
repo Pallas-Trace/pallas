@@ -2,13 +2,12 @@
 // Created by khatharsis on 02/12/25.
 //
 
-
+#include <iomanip>
 #include <iostream>
 #include <pallas/pallas.h>
 #include <pallas/pallas_archive.h>
-#include <pallas/pallas_storage.h>
 
-#include <iomanip>
+#include <pallas/utils/pallas_storage.h>
 
 static int id_width = 8;
 static int value_width = 14;

@@ -2,15 +2,16 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-#include <filesystem>
 #if __cplusplus >= 202002L && (__GNUC__ >= 13 || __clang__ >= 14 || _MSC_VER >= 1929)
 #include <format>
 #define HAS_FORMAT
 #endif
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_write.h"
 #include "pallas/pallas_record.h"
-#include "pallas/pallas_log.h"
+
+#include "pallas/utils/pallas_log.h"
 
 using namespace pallas;
 

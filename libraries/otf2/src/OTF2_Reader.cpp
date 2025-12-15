@@ -2,8 +2,8 @@
 #include <stdlib.h>
 
 #include "pallas/pallas.h"
-#include "pallas/pallas_log.h"
-#include "pallas/pallas_storage.h"
+#include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_storage.h"
 #include "pallas/pallas_record.h"
 #include "otf2/OTF2_Reader.h"
 #include "otf2/otf2.h"
@@ -50,7 +50,7 @@ OTF2_Reader* OTF2_Reader_Open(const char* anchorFilePath) {
   init_OTF2_GlobalDefReader(reader, reader->global_def_reader);
   reader->global_evt_reader = (OTF2_GlobalEvtReader*)malloc(sizeof(OTF2_GlobalEvtReader));
   init_OTF2_GlobalEvtReader(reader, reader->global_evt_reader);
-  
+
   return reader;
 }
 
@@ -173,8 +173,8 @@ pallas::ThreadReader* _get_next_global_event(OTF2_Reader* reader, OTF2_GlobalEvt
 	retval = tr;
       }
     }
-  }  
-  
+  }
+
   return retval;
 }
 
@@ -197,13 +197,13 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 			  (PALLAS(AttributeList)**)&attribute_list,
 			  &time,
 			  &region_ref);
-	
+
 	evtReader->callbacks.OTF2_GlobalEvtReaderCallback_Enter_callback(thread_reader->thread_trace->id,
 									 time,
 									 evtReader->user_data,
 									 attribute_list,
 									 region_ref);
-	
+
       }
       break;
     case pallas::PALLAS_EVENT_LEAVE:
@@ -216,7 +216,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 			  (PALLAS(AttributeList)**) &attribute_list,
 			  &time,
 			  &region_ref);
-	
+
 	evtReader->callbacks.OTF2_GlobalEvtReaderCallback_Leave_callback(thread_reader->thread_trace->id,
 									 time,
 									 evtReader->user_data,
@@ -244,7 +244,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									     communicator,
 									     msgTag,
 									     msgLength);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_ISEND:
@@ -271,7 +271,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									      msgTag,
 									      msgLength,
 									      requestID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE:
@@ -285,7 +285,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										      evtReader->user_data,
 										      attribute_list,
 										      requestID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_IRECV_REQUEST:
@@ -299,7 +299,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										     evtReader->user_data,
 										     attribute_list,
 										     requestID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_RECV:
@@ -323,7 +323,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									     communicator,
 									     msgTag,
 									      msgLength);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_IRECV:
@@ -350,7 +350,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									      msgTag,
 									      msgLength,
 									      requestID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_REQUEST_TEST:
@@ -370,7 +370,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 											time,
 											evtReader->user_data,
 											attribute_list);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_MPI_COLLECTIVE_END:
@@ -397,7 +397,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										      root,
 										      sizeSent,
 										      sizeReceived);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_FORK:
@@ -411,7 +411,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									     evtReader->user_data,
 									     attribute_list,
 									     numberOfRequestedThreads);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_JOIN:
@@ -423,7 +423,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 								       time,
 								       evtReader->user_data,
 								       attribute_list);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_ACQUIRE_LOCK:
@@ -439,7 +439,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										    attribute_list,
 										    lockID,
 										    acquisitionOrder);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_RELEASE_LOCK:
@@ -456,7 +456,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										  attribute_list,
 										  lockID,
 										    acquisitionOrder);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_TASK_CREATE:
@@ -470,7 +470,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										   evtReader->user_data,
 										   attribute_list,
 										   taskID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_TASK_SWITCH:
@@ -484,7 +484,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										   evtReader->user_data,
 										   attribute_list,
 										   taskID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_OMP_TASK_COMPLETE:
@@ -498,23 +498,23 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										     evtReader->user_data,
 										     attribute_list,
 										     taskID);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_METRIC:
-	// not implemented 
+	// not implemented
 	break;
 
       case pallas::PALLAS_EVENT_PARAMETER_STRING:
-	// not implemented 
+	// not implemented
 	break;
 
       case pallas::PALLAS_EVENT_PARAMETER_INT:
-	// not implemented 
+	// not implemented
 	break;
 
       case pallas::PALLAS_EVENT_PARAMETER_UNSIGNED_INT:
-	// not implemented 
+	// not implemented
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_FORK:
@@ -529,7 +529,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										attribute_list,
 										OTF2_PARADIGM_UNKNOWN,
 										numberOfRequestedThreads);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_JOIN:
@@ -542,7 +542,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										evtReader->user_data,
 										attribute_list,
 										OTF2_PARADIGM_UNKNOWN);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_TEAM_BEGIN:
@@ -555,7 +555,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										     evtReader->user_data,
 										     attribute_list,
 										     OTF2_UNDEFINED_COMM);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_TEAM_END:
@@ -568,7 +568,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										   evtReader->user_data,
 										   attribute_list,
 										   OTF2_UNDEFINED_COMM);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_ACQUIRE_LOCK:
@@ -586,7 +586,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										       OTF2_PARADIGM_UNKNOWN,
 										       lockID,
 										       acquisitionOrder);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_RELEASE_LOCK:
@@ -604,7 +604,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										       OTF2_PARADIGM_UNKNOWN,
 										       lockID,
 										       acquisitionOrder);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_TASK_CREATE:
@@ -619,7 +619,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										      OTF2_UNDEFINED_COMM,
 										      0,// TODO:  creatingThread
 										      0);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_TASK_SWITCH:
@@ -634,7 +634,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										      OTF2_UNDEFINED_COMM,
 										      0,// TODO:  creatingThread
 										      0);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_TASK_COMPLETE:
@@ -649,7 +649,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 											OTF2_UNDEFINED_COMM,
 										      0,// TODO:  creatingThread
 										      0);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_CREATE:
@@ -663,7 +663,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										  attribute_list,
 										  OTF2_UNDEFINED_COMM,
 										  0);
-	}	
+	}
 	break;
 
       case pallas::PALLAS_EVENT_THREAD_BEGIN:
@@ -692,7 +692,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 										attribute_list,
 										OTF2_UNDEFINED_COMM,
 										0);
-	}	
+	}
 	break;
 
     case pallas::PALLAS_EVENT_THREAD_END:
@@ -706,7 +706,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									     attribute_list,
 									       OTF2_UNDEFINED_COMM,
 										 0 );
-	}	
+	}
 	break;
 
     case pallas::PALLAS_EVENT_IO_CREATE_HANDLE:
@@ -784,13 +784,13 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 									     time,
 									     evtReader->user_data,
 									     attribute_list);
-	}	
-	break;	
+	}
+	break;
     default:
       printf("Unsupported event type %d\n", event_type);
     }
 
-  } // todo: else ? 
+  } // todo: else ?
 
   if (! thread_reader->getNextToken(PALLAS_READ_FLAG_UNROLL_ALL).isValid()) {
     pallas_assert(thread_reader->isEndOfTrace());
@@ -844,7 +844,7 @@ OTF2_ErrorCode OTF2_Reader_ReadLocalDefinitions(OTF2_Reader* reader,
     nb_definition_read++;					\
   } while(0)
 
-  
+
   // TODO: implement local definition
   // out:
   *definitionsRead = nb_definition_read;
@@ -885,7 +885,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalDefinitions(OTF2_Reader* reader,
       CHECK_OTF2_CALLBACK_SUCCESS(defReader->callbacks.OTF2_GlobalDefReaderCallback_Region_callback
 				  (defReader->user_data,
 				   region.first,
-				   region.second.string_ref, // name	
+				   region.second.string_ref, // name
 				   OTF2_UNDEFINED_STRING, // canonicalName
 				   OTF2_UNDEFINED_STRING, // description
 				   OTF2_REGION_ROLE_UNKNOWN, // regionRole

@@ -9,7 +9,7 @@
 #pragma once
 #ifdef __cplusplus
 #include <cstddef>
-#include <queue>
+#include <deque>
 #include <string>
 
 #ifdef WITH_SZ

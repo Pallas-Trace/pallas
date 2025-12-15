@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "pallas/pallas.h"
-#include "pallas/pallas_log.h"
+#include "pallas/utils/pallas_log.h"
 #include "otf2/OTF2_GlobalDefWriter.h"
 #include "otf2/otf2.h"
 

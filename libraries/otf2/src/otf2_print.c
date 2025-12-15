@@ -8,7 +8,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include "otf2/otf2.h"
-#include "pallas/pallas_log.h"
+#include "pallas/utils/pallas_log.h"
 
 #define check_status( status, ...) if(status != OTF2_SUCCESS) {	\
     fprintf(stderr,  __VA_ARGS__);				\
@@ -266,7 +266,7 @@ OTF2_CallbackCode print_global_def_location(void *userData,
   pallas_assert(user_data->locations);
   user_data->locations[index] = self;
   return OTF2_CALLBACK_SUCCESS;
-  
+
 }
 
 OTF2_CallbackCode print_global_def_group(void* userData,
@@ -582,7 +582,7 @@ OTF2_CallbackCode print_thread_fork(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_FORK",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_thread_team_begin(OTF2_LocationRef locationID,
 					  OTF2_TimeStamp time,
@@ -594,7 +594,7 @@ OTF2_CallbackCode print_thread_team_begin(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_TEAM_BEGIN",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_thread_acquire_lock(OTF2_LocationRef locationID,
 					    OTF2_TimeStamp time,
@@ -608,7 +608,7 @@ OTF2_CallbackCode print_thread_acquire_lock(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_ACQUIRE_LOCK",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_thread_task_create(OTF2_LocationRef locationID,
 					   OTF2_TimeStamp time,
@@ -622,7 +622,7 @@ OTF2_CallbackCode print_thread_task_create(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_TASK_CREATE",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_thread_task_complete(OTF2_LocationRef locationID,
 					     OTF2_TimeStamp time,
@@ -636,7 +636,7 @@ OTF2_CallbackCode print_thread_task_complete(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_TASK_COMPLETE",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_thread_begin(OTF2_LocationRef locationID,
 				     OTF2_TimeStamp time,
@@ -649,7 +649,7 @@ OTF2_CallbackCode print_thread_begin(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_BEGIN",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
   }
-  
+
 
 OTF2_CallbackCode print_thread_end(OTF2_LocationRef locationID,
 				   OTF2_TimeStamp time,
@@ -662,7 +662,7 @@ OTF2_CallbackCode print_thread_end(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("THREAD_END",  locationID, time, buffer);
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 OTF2_CallbackCode print_thread_wait(OTF2_LocationRef locationID,
 				    OTF2_TimeStamp time,
 				    void* userData,
@@ -744,7 +744,7 @@ OTF2_CallbackCode print_io_create_handle(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("IO_CREATE_HANDLE",  locationID, time, "");
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_io_duplicate_handle(OTF2_LocationRef locationID,
 					    OTF2_TimeStamp time,
@@ -756,7 +756,7 @@ OTF2_CallbackCode print_io_duplicate_handle(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("IO_DUPLICATE_HANDLE", locationID, time, "");
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_io_change_status_flags(OTF2_LocationRef locationID,
 					       OTF2_TimeStamp time,
@@ -767,7 +767,7 @@ OTF2_CallbackCode print_io_change_status_flags(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("IO_CHANGE_STATUS_FLAGS", locationID, time, "");
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_io_operation_begin(OTF2_LocationRef locationID,
 					   OTF2_TimeStamp time,
@@ -781,7 +781,7 @@ OTF2_CallbackCode print_io_operation_begin(OTF2_LocationRef locationID,
   OTF2_PRINT_GENERIC("IO_OPERATION_BEGIN", locationID, time, "");
   return OTF2_CALLBACK_SUCCESS;
 }
-  
+
 
 OTF2_CallbackCode print_io_operation_issued(OTF2_LocationRef locationID,
 					    OTF2_TimeStamp time,
@@ -1012,7 +1012,7 @@ OTF2_GlobalEvtReaderCallbacks* otf2_print_create_global_evt_callbacks(OTF2_Reade
   OTF2_GlobalEvtReaderCallbacks_SetNonBlockingCollectiveCompleteCallback( evt_callbacks, print_non_blocking_collective_complete );
   OTF2_GlobalEvtReaderCallbacks_SetCommCreateCallback( evt_callbacks, print_comm_create );
   OTF2_GlobalEvtReaderCallbacks_SetCommDestroyCallback( evt_callbacks, print_comm_destroy );
-  
+
   return evt_callbacks;
 }
 
@@ -1168,7 +1168,7 @@ int main(int argc, char** argv) {
     check_status( status, "Close global definition reader." );
     status = OTF2_Reader_CloseEvtFiles( reader );
     check_status( status, "Close event files for reading." );
-    
+
 
     return EXIT_SUCCESS;
 }

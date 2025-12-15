@@ -1,16 +1,17 @@
 //
 // Created by khatharsis on 11/12/25.
 //
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <atomic>
 #include <sstream>
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_record.h"
 #include "pallas/pallas_write.h"
-#include "pallas/pallas_log.h"
+
 using namespace pallas;
 
 std::vector<RegionRef> regions;

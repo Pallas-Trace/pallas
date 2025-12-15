@@ -6,11 +6,13 @@
 #include <limits>
 #include <string>
 #include <iomanip>
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_log.h"
 #include "pallas/pallas_read.h"
-#include "pallas/pallas_storage.h"
+
+#include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_storage.h"
 
 bool verbose = false;
 bool per_thread = false;
@@ -142,7 +144,7 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
     pallas_duration_t duration = 0;
     if(! threads_data[min_reader].callstack_duration.empty()) {
       duration = threads_data[min_reader].callstack_duration.back();
-    }   
+    }
 
     pallas_timestamp_t first_timestamp = min_reader->thread_trace->getFirstTimestamp();
     if(! threads_data[min_reader].callstack_timestamp.empty()) {
@@ -219,7 +221,7 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
  * Unlike with printCSV, the function calls timestamp may overlap: if
  * foo calls bar, this will look like this:
  * T0,foo,17,25,8
- * T0,bar,19,22,3 
+ * T0,bar,19,22,3
  *
  * Moreover, the timestamps are not sorted
  */
@@ -289,7 +291,7 @@ void printIntervals(pallas::GlobalArchive& trace) {
       pallas::Token t = it->first;
       pallas::Sequence *seq = thread->getSequence(t);
       pallas_duration_t d = it->second;
-      sum_duration += d;      
+      sum_duration += d;
       std::cout << thread->getTokenString(t) << ": "<<d<<"\t"<< seq->guessName(thread)<<"\n";
     }
 

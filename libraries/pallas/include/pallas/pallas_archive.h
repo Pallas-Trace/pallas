@@ -11,7 +11,8 @@
 #pragma once
 
 #include "pallas.h"
-#include "pallas_parameter_handler.h"
+#include "utils/pallas_parameter_handler.h"
+#include "pallas_config.h"
 
 #define GLOBAL_ARCHIVE_DEPRECATED_LOCATION CXX([[deprecated("You should record Locations on the Archives")]])
 

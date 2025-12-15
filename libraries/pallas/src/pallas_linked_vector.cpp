@@ -7,8 +7,10 @@
 #include <deque>
 #include <iostream>
 #include <sstream>
-#include "pallas/pallas_linked_vector.h"
-#include "pallas/pallas_log.h"
+
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_linked_vector.h"
+#include "pallas/utils/pallas_log.h"
 
 #define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
 

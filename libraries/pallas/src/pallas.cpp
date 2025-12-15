@@ -3,15 +3,15 @@
  * See LICENSE in top-level directory.
  */
 
-#include <cinttypes>
-#include <set>
+#include <iostream>
 #include <sstream>
 
 #include "pallas/pallas.h"
-#include <pallas/pallas_hash.h>
-#include <pallas/pallas_record.h>
+#include "pallas/pallas_record.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_log.h"
+
+#include "pallas/utils/pallas_hash.h"
+#include "pallas/utils/pallas_log.h"
 __thread uint64_t pallas_thread_rank = 0;
 unsigned int pallas_mpi_rank = 0;
 
