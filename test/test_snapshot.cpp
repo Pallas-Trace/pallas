@@ -34,7 +34,10 @@ static inline float error(pallas_duration_t a, pallas_duration_t b) {
 int main(int argc, char** argv) {
     char* trace_name = argv[1];
     size_t nb_frames = 10;
-    if (argc > 2) {
+    if (argc <= 1) {
+        pallas_error("test_snapshot usage: at least one argument (Pallas trace) expected !\n");
+    }
+    if (3 <= argc) {
         nb_frames = atoi(argv[2]);
     }
 
@@ -45,14 +48,16 @@ int main(int argc, char** argv) {
     for (auto* thread : trace->getThreadList()) {
         std::cout << std::endl << "========== Thread " << thread->id << " ==========" << std::endl;
         pallas_timestamp_t start = thread->first_timestamp;
-        pallas_timestamp_t end = thread->getDuration();
+        pallas_timestamp_t end = thread->first_timestamp + thread->getDuration();
         auto step = (end - start) / nb_frames;
         for (int i = 0; i < nb_frames; i++) {
-            std::cout << "========== Slice " << i << " ==========" << std::endl;
+            auto frame_start = start + i * step;
+            auto frame_end = start + (i+1) * step;
+            std::cout << "========== Slice " << i << ": " << frame_start << " - " << frame_end << " ==========" << std::endl;
             print_header();
-            auto snapshotExact = thread->getSnapshotViewExact(start + i * step, start + (i + 1) * step);
-            auto snapshot = thread->getSnapshotView(start + i * step, start + (i + 1) * step);
-            auto snapshotFast = thread->getSnapshotViewFast(start + i * step, start + (i + 1) * step);
+            auto snapshotExact = thread->getSnapshotViewExact(frame_start, frame_end);
+            auto snapshot = thread->getSnapshotView(frame_start, frame_end);
+            auto snapshotFast = thread->getSnapshotViewFast(frame_start, frame_end);
             for (size_t j = 1; j < thread->nb_sequences; j++) {
                 auto token = pallas::Token(pallas::TypeSequence, j);
                 auto* sequence = thread->getSequence(token);
@@ -76,6 +81,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        break;
     }
 
     mape_normal /= counter;

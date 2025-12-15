@@ -483,25 +483,36 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         Take the following example:
 
             |                            |
-            |     [ Sequence B ]         |
-        [   |       Sequence A       ]   |
-            |                            |
+            |     [ Sequence A ]         |
+        [   |#####  Sequence B  #####]   |
+    [       |       Sequence C        ***|    ]
          ts_start                      ts_end
 
+         The shading ( # and * ) corresponds to the value we want to get from the function
+
         We would do the following algorithm:
-            Entering A:
-                map[S_A] = max(ts_start, start_A)
-
+            Entering C:
+                map[S_C] = max(ts_start, start_C) = ts_start
             Entering B:
-                map[S_B] = max(ts_start, start_B)
-                map[S_A] = max(ts_start, start_B) - map[S_A]
+                map[S_B] = max(ts_start, start_B) = ts_start
+                map[S_C] = max(ts_start, start_B) - map[S_B] = 0 ( makes sense, because it's outside the window )
 
-            Exiting B:
-                map[S_B] = min(ts_end, end_B) - map[S_B]
-                map[S_A] = min(ts_end, end_B) - map[S_A]
+            Entering A:
+                map[S_A] = max(ts_start, start_A) = start_A
+                map[S_B] = max(ts_start, start_A) - map[S_B] = start_A - ts_start ( first area shaded in # )
+                map[S_C] = map[S_C]
 
             Exiting A:
-                map[S_A] = min(ts_end, end_A) - map[S_A]
+                map[S_A] = min(ts_end, end_A) - map[S_A] = end_A - start_A = duration_A
+                map[S_B] = min(ts_end, end_A) - map[S_B] = end_A - (start_A - ts_start)
+                map[S_C] = map[S_C]
+
+            Exiting B:
+                map[S_B] = min(ts_end, end_B) - map[S_B] = (end_B - end_A) + (start_A - ts_start)  ( the 2 area shaded in # )
+                map[S_C] = min(ts_end, end_B) - map[S_C] = end_B
+
+            Exiting the window:
+                map[S_C] = ts_end - map[S_C] = ts_end - end_B ( the area shaded in * )
 
         The idea is to constantly have the following be true:
         map[S_n] =  {
@@ -537,6 +548,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
             continue;
         }
 
+
         for (int i = reader.currentState.current_frame_index; i >= 0; i --) {
             auto& sequence_token = reader.getFrameInCallstack(i);
             if (sequence_token.type == TypeLoop) continue;
@@ -547,9 +559,24 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
             }
 
             output[sequence_token] = ts - output[sequence_token];
+            break; // Break at the first valid sequence
         }
 
         current_token = reader.getNextToken();
+    }
+    // Then we need to finalise the durations of all the functions that haven't been exited yet.
+    for (int i = reader.currentState.current_frame_index; i > 0; i --) {
+        auto& sequence_token = reader.getFrameInCallstack(i);
+        if (sequence_token.type == TypeLoop) continue;
+        auto* sequence = getSequence(sequence_token);
+        if (sequence->type != SEQUENCE_BLOCK) continue;
+        if (output.find(sequence_token) == output.end()) {
+            pallas_warn("Possible error in getSnapshotViewExact: could not find starting value for S%d\n", sequence_token.id);
+            output[sequence_token] = 0;
+        }
+
+        output[sequence_token] = end - output[sequence_token];
+        break;
     }
     // We need to reset reader.archive if we don't want to cause to memory issues.
     reader.archive = nullptr;
