@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 prefix=$(dirname $(realpath $0))
 libdir="@INSTALL_LIBDIR@"
@@ -44,7 +44,7 @@ EOF
 }
 
 while [ $# -ge 1 ]; do
-      case $1 in 
+      case $1 in
          "--cflags")
 	    echo "-I@INSTALL_INCLUDEDIR@"
 	    ;;
@@ -105,4 +105,4 @@ while [ $# -ge 1 ]; do
 	 ;;
       esac
       shift
-done  
+done
