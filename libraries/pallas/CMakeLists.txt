@@ -21,6 +21,8 @@ set(PALLAS_HEADERS
         include/pallas/pallas_read.h
         include/pallas/pallas_write.h
         include/pallas/pallas_record.h
+)
+set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_log.h
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
@@ -44,6 +46,7 @@ target_sources(pallas
         src/pallas_linked_vector.cpp
         src/pallas_parameter_handler.cpp
         src/pallas_record.cpp
+        ${PALLAS_UTILS_HEADERS}
         PUBLIC
         ${PALLAS_HEADERS}
 )
@@ -68,6 +71,9 @@ endif ()
 
 set_property(TARGET pallas
         PROPERTY PUBLIC_HEADER ${PALLAS_HEADERS}
+)
+set_property(TARGET pallas
+        PROPERTY PRIVATE_HEADER ${PALLAS_UTILS_HEADERS}
 )
 
 
@@ -121,8 +127,8 @@ endif ()
 
 install(TARGETS pallas EXPORT PALLASLibTargets
         LIBRARY DESTINATION ${INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
+        PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
 )
-
-install(DIRECTORY include/pallas/ DESTINATION ${INSTALL_INCLUDEDIR}/pallas)
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
