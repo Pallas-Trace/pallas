@@ -17,17 +17,17 @@ set(PALLAS_HEADERS
         include/pallas/pallas_archive.h
         include/pallas/pallas_attribute.h
         ${CMAKE_CURRENT_BINARY_DIR}/include/pallas/pallas_config.h
-        include/pallas/pallas_dbg.h
         include/pallas/pallas.h
-        include/pallas/pallas_hash.h
-        include/pallas/pallas_linked_vector.h
-	    include/pallas/pallas_parameter_handler.h
         include/pallas/pallas_read.h
-        include/pallas/pallas_storage.h
-        include/pallas/pallas_timestamp.h
         include/pallas/pallas_write.h
         include/pallas/pallas_record.h
-        include/pallas/pallas_log.h
+        include/pallas/utils/pallas_log.h
+        include/pallas/utils/pallas_dbg.h
+        include/pallas/utils/pallas_hash.h
+        include/pallas/utils/pallas_linked_vector.h
+        include/pallas/utils/pallas_storage.h
+        include/pallas/utils/pallas_timestamp.h
+	      include/pallas/utils/pallas_parameter_handler.h
 )
 
 target_sources(pallas
