@@ -4,7 +4,6 @@
  */
 
 #include <cinttypes>
-#include <set>
 #include <sstream>
 
 #include "pallas/pallas.h"
@@ -479,47 +478,47 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         }
 
 
-        /* We're going to apply the following algorithm
-        Take the following example:
+        // We're going to apply the following algorithm
+        // Take the following example:
+        //
+        //         |                            |
+        //         |     [ Sequence A ]         |
+        //     [   |#####  Sequence B  #####]   |
+        // [       |       Sequence C        ***|    ]
+        //      ts_start                      ts_end
+        //
+        // The shading ( # and * ) corresponds to the value we want to get from the function
+        //
+        // We would do the following algorithm:
+        //     Entering C:
+        //         map[S_C] = max(ts_start, start_C) = ts_start
+        //     Entering B:
+        //         map[S_B] = max(ts_start, start_B) = ts_start
+        //         map[S_C] = max(ts_start, start_B) - map[S_B] = 0 ( makes sense, because it's outside the window )
+        //
+        //     Entering A:
+        //         map[S_A] = max(ts_start, start_A) = start_A
+        //         map[S_B] = max(ts_start, start_A) - map[S_B] = start_A - ts_start ( first area shaded in # )
+        //         map[S_C] = map[S_C]
+        //
+        //     Exiting A:
+        //         map[S_A] = min(ts_end, end_A) - map[S_A] = end_A - start_A = duration_A
+        //         map[S_B] = min(ts_end, end_A) - map[S_B] = end_A - (start_A - ts_start)
+        //         map[S_C] = map[S_C]
+        //
+        //     Exiting B:
+        //         map[S_B] = min(ts_end, end_B) - map[S_B] = (end_B - end_A) + (start_A - ts_start)  ( the 2 area shaded in # )
+        //         map[S_C] = min(ts_end, end_B) - map[S_C] = end_B
+        //
+        //     Exiting the window:
+        //         map[S_C] = ts_end - map[S_C] = ts_end - end_B ( the area shaded in * )
+        //
+        // The idea is to constantly have the following be true:
+        // map[S_n] =  {
+        //     sum(duration no spent in other Sequences) IF not in another Sequence
+        //     start_m - sum(duration not spent in other Sequences) IF in Sequence_m
+        // }
 
-            |                            |
-            |     [ Sequence A ]         |
-        [   |#####  Sequence B  #####]   |
-    [       |       Sequence C        ***|    ]
-         ts_start                      ts_end
-
-         The shading ( # and * ) corresponds to the value we want to get from the function
-
-        We would do the following algorithm:
-            Entering C:
-                map[S_C] = max(ts_start, start_C) = ts_start
-            Entering B:
-                map[S_B] = max(ts_start, start_B) = ts_start
-                map[S_C] = max(ts_start, start_B) - map[S_B] = 0 ( makes sense, because it's outside the window )
-
-            Entering A:
-                map[S_A] = max(ts_start, start_A) = start_A
-                map[S_B] = max(ts_start, start_A) - map[S_B] = start_A - ts_start ( first area shaded in # )
-                map[S_C] = map[S_C]
-
-            Exiting A:
-                map[S_A] = min(ts_end, end_A) - map[S_A] = end_A - start_A = duration_A
-                map[S_B] = min(ts_end, end_A) - map[S_B] = end_A - (start_A - ts_start)
-                map[S_C] = map[S_C]
-
-            Exiting B:
-                map[S_B] = min(ts_end, end_B) - map[S_B] = (end_B - end_A) + (start_A - ts_start)  ( the 2 area shaded in # )
-                map[S_C] = min(ts_end, end_B) - map[S_C] = end_B
-
-            Exiting the window:
-                map[S_C] = ts_end - map[S_C] = ts_end - end_B ( the area shaded in * )
-
-        The idea is to constantly have the following be true:
-        map[S_n] =  {
-            sum(duration no spent in other Sequences) IF not in another Sequence
-            start_m - sum(duration not spent in other Sequences) IF in Sequence_m
-        }
-        */
 
         if (current_token.type != TypeEvent || reader.currentState.current_frame_index == 0) {
             current_token = reader.getNextToken();
@@ -752,7 +751,6 @@ void _sequenceGetTokenCountReading(Sequence* seq, const Thread* thread, TokenCou
 void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCountMap& sequenceTokenCountMap, bool isReversedOrder) {
     size_t loop_nb_iterations = loop->nb_iterations;
     auto* loop_sequence = thread->getSequence(loop->repeated_token);
-    // This creates bug idk why ?????
     TokenCountMap temp = loop_sequence->getTokenCountReading(thread, isReversedOrder);
     temp *= loop_nb_iterations;
     sequenceTokenCountMap += temp;
