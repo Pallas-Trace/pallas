@@ -259,14 +259,14 @@ typedef struct GlobalArchive {
     /**
      * Aggregates a list of the locations of all the Archives.
      */
-    std::vector<Location> getLocationList();
+    [[nodiscard]] std::vector<Location> getLocationList();
 
     /**r example, the std::vector template has a default argument for the allocator:
      * Aggregates a list of the Threads of all the Archives.
      */
-    std::vector<Thread*> getThreadList();
+    [[nodiscard]] std::vector<Thread*> getThreadList();
 
-    Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
+    [[nodiscard]] Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
 
     void freeArchive(LocationGroupId archiveId);
 
