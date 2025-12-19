@@ -4,7 +4,10 @@
  */
 
 #include "otf2/OTF2_Archive.h"
-#include "pallas/pallas_storage.h"
+
+#include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_storage.h"
+
 OTF2_Archive* OTF2_Archive_Open(const char* archivePath,
                                 const char* archiveName,
                                 const OTF2_FileMode fileMode,

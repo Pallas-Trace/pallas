@@ -3,9 +3,9 @@
  * See LICENSE in top-level directory.
  */
 
-#include "pallas/pallas_dbg.h"
-#include "pallas/pallas_linked_vector.h"
-#include "pallas/pallas_log.h"
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_linked_vector.h"
+#include "pallas/utils/pallas_log.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {

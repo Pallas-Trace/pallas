@@ -2,8 +2,10 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-#include "pallas/pallas_timestamp.h"
+
 #include "pallas/pallas_write.h"
+
+#include "pallas/utils/pallas_timestamp.h"
 
 #define NANOSECONDS(timestamp) std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp).count()
 

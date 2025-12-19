@@ -3,12 +3,15 @@
  * See LICENSE in top-level directory.
  */
 
-#include "pallas/pallas_read.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_log.h"
+#include "pallas/pallas_read.h"
+
+#include "pallas/utils/pallas_log.h"
 
 namespace pallas {
 

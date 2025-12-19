@@ -3,17 +3,19 @@
  * See LICENSE in top-level directory.
  */
 
-#include <libgen.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <zstd.h>
+#include <algorithm>
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
+#include <iostream>
+#include <filesystem>
+#include <libgen.h>
 #include <sstream>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <zstd.h>
 
 #ifdef WITH_ZFP
 #include <zfp.h>
@@ -21,15 +23,13 @@
 #ifdef WITH_SZ
 #include <sz.h>
 #endif
-#include "pallas/pallas.h"
-#include "pallas/pallas_dbg.h"
-#include "pallas/pallas_log.h"
-#include "pallas/pallas_parameter_handler.h"
-#include "pallas/pallas_storage.h"
 
-#include <algorithm>
-#include <iostream>
-#include <filesystem>
+#include "pallas/pallas.h"
+
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_storage.h"
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;

@@ -8,8 +8,8 @@
 // domain. The author hereby disclaims copyright to this source code.
 // This is actually the C port of the Murmur3 Hash algorithm, which I have further modified
 // So that it can hash efficiently the sequences.
-// The OG C implementation can be found here: https://github.com/PeterScott/murmur3
-#include "pallas/pallas_hash.h"
+// The original C implementation can be found here: https://github.com/PeterScott/murmur3
+#include "pallas/utils/pallas_hash.h"
 
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros

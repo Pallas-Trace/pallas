@@ -3,17 +3,18 @@
  * See LICENSE in top-level directory.
  */
 
-#include "pallas/pallas_parameter_handler.h"
-
-#include <pallas_config.h>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <sstream>
-#include "pallas/pallas_dbg.h"
-#include "pallas/pallas_log.h"
+
+#include "pallas_config.h"
+
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_log.h"
 
 namespace pallas {
 

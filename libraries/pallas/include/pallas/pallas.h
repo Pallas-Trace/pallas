@@ -14,11 +14,13 @@
 #pragma once
 
 #include <pthread.h>
+
 #include "pallas_config.h"
-#include "pallas_dbg.h"
-#include "pallas_linked_vector.h"
-#include "pallas_log.h"
-#include "pallas_timestamp.h"
+
+#include "utils/pallas_dbg.h"
+#include "utils/pallas_log.h"
+#include "utils/pallas_linked_vector.h"
+#include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
 #include <cstring>
@@ -339,19 +341,19 @@ public:
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountWriting(const struct Thread* thread);
+    [[nodiscard]] TokenCountMap& getTokenCountWriting(const struct Thread* thread);
 
     /** Getter for #tokenCount during the reading process.
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
+    [[nodiscard]] TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
                                         bool isReversedOrder = false);
 
     /** Tries to guess the name of the sequence
      * @returns A string that describes the sequence.
      */
-    std::string guessName(const pallas::Thread* thread);
+    [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 
     ~Sequence() {
         delete durations;
@@ -399,7 +401,7 @@ typedef struct Loop {
     uint64_t nb_occurrences;
 #ifdef __cplusplus
     /** Tries to guess the name of the loop. */
-    std::string guessName(const pallas::Thread* thread);
+    [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 #endif
 } Loop;
 
@@ -710,46 +712,47 @@ typedef struct Thread {
     void resetVectorsOffsets();
 
     /** Returns the Event corresponding to the given Token. */
-    Event *getEvent(Token) const;
+    [[nodiscard]] Event* getEvent(Token) const;
 
     /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
      * @param array Array of tokens.
      * @param array_size Number of tokens in array.
      * @param hash Hash32 of the array. Optional.
      */
-    Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0); Loop *getLoop(Token) const;
+    [[nodiscard]] Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0) const;
+    [[nodiscard]] Loop* getLoop(Token) const;
 
     /** Returns the n-th token in the given Sequence/Loop. */
-    Token &getToken(Token, int) const;
+    [[nodiscard]] Token& getToken(Token, int) const;
 
     /** Returns the corresponding Sequence. Cannot return an invalid Sequence. */
-    Sequence* getSequence(Token) const;
+    [[nodiscard]] Sequence* getSequence(Token) const;
 
     /** Return the duration of the thread. */
-    pallas_duration_t getDuration() const;
+    [[nodiscard]] pallas_duration_t getDuration() const;
 
     /** Return the first timestamp of the thread. */
-    pallas_timestamp_t getFirstTimestamp() const;
+    [[nodiscard]] pallas_timestamp_t getFirstTimestamp() const;
 
     /** Return the last timestamp of the thread. */
-    pallas_timestamp_t getLastTimestamp() const;
+    [[nodiscard]] pallas_timestamp_t getLastTimestamp() const;
 
     /** Return the number of events of the thread. */
-    size_t getEventCount() const;
+    [[nodiscard]] size_t getEventCount() const;
 
     /**
      * Get the given Token, along with its id.
      * E_E, E_L, E_S indicates an Enter, Leave or Singleton Event.
      * S and L indicates a Sequence or a Loop.
      */
-    std::string getTokenString(Token) const;
+    [[nodiscard]] std::string getTokenString(Token) const;
     /** Returns a string for that array of Tokens */
-    std::string getTokenArrayString(const Token *array, size_t start_index, size_t len) const;
+    [[nodiscard]] std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const;
 
     /** Returns a string describing that Event. */
-    std::string getEventString(EventData *e) const;
+    [[nodiscard]] std::string getEventString(EventData* e) const;
 
-    std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     /** Prints a vector of Token. */
 
@@ -788,7 +791,7 @@ typedef struct Thread {
     void printRegion(RegionRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
-    const char *getRegionStringFromEvent(pallas::EventData *e) const;
+    [[nodiscard]] const char* getRegionStringFromEvent(pallas::EventData* e) const;
 
     /** Prints the value of the attribute.*/
     void printAttributeValue(const struct AttributeData *attr, pallas_type_t type) const;
@@ -812,14 +815,14 @@ typedef struct Thread {
     /**
      * Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame.
      */
-    std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     // /*** Returns a snapshot of the thread's total time spent in each Block Sequence in *filter* during that time frame. */
     // std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end,
     //                                                        std::vector<Token> &filter) const;
 
     /*** Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame. */
-    std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     /** Create a blank new Thread. This is used when reading the trace. */
     Thread();
