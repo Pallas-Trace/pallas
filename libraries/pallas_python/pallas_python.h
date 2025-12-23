@@ -11,8 +11,8 @@ namespace py = pybind11;
 
 #include <pallas/pallas.h>
 #include <pallas/pallas_archive.h>
-#include <pallas/pallas_storage.h>
 #include <pallas/pallas_record.h>
+#include <pallas/utils/pallas_storage.h>
 /* -*-
    mode: c;
    c-file-style: "k&r";
