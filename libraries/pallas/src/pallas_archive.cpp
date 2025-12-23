@@ -469,6 +469,19 @@ const char* Archive::getName() {
   return global_archive->getString(global_archive->getLocationGroup(id)->name)->str;
 }
 
+void GlobalArchive::add_metadata(const std::string& key, const std::string& value) {
+    pthread_mutex_lock(&lock);
+    metadata[key] = value;
+    pthread_mutex_unlock(&lock);
+};
+void Archive::add_metadata(const std::string& key, const std::string& value) {
+    pthread_mutex_lock(&lock);
+    metadata[key] = value;
+    pthread_mutex_unlock(&lock);
+};
+void Archive::store(const ParameterHandler* parameter_handler) {
+    store(dir_name, parameter_handler);
+}
 } /* namespace pallas*/
 
 /********************** C Bindings **********************/
