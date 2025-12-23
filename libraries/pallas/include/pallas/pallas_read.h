@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #endif
 #include "pallas.h"
+#include "pallas_archive.h"
 #include "pallas_attribute.h"
 #include "utils/pallas_timestamp.h"
 

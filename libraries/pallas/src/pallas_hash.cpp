@@ -242,6 +242,9 @@ uint64_t hash64(const byte* data, size_t len, uint32_t seed) {
   // We don't need the 128-bit hash I think.
   return h1;
 }
+uint32_t hash32_Token(const Token* data, size_t len, uint32_t seed) {
+    return hash32(reinterpret_cast<const byte*>(data), len * sizeof(pallas::Token), SEED);
+}
 }  // namespace pallas
 /* -*-
    mode: c;

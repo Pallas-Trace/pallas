@@ -88,38 +88,32 @@ typedef struct Token {
     enum TokenType type: 2; /**< Type of our Token. */
     TokenId id: 30; /**< ID of our Token. */
 #ifdef __cplusplus
-  /**
-   * Construct a Token.
-   * @param type Type of the Token.
-   * @param id ID of the Token.
-   */
-  Token(TokenType type, uint32_t id) {
-    this->type = type;
-    this->id = id;
-  }
-  /**
-   * Construct an Invalid Token.
-   */
-  Token() {
-    type = TypeInvalid;
-    id = PALLAS_TOKEN_ID_INVALID;
-  }
+    /**
+     * Construct a Token.
+     * @param type Type of the Token.
+     * @param id ID of the Token.
+     */
+    Token(TokenType type, uint32_t id);
+    /**
+     * Construct an Invalid Token.
+     */
+    Token();
 
- public:
-  /** Checks for equality between Tokens.
-   * @param other Token to check for equality.
-   * @return Boolean indicating if the Tokens are equals.
-   */
-  bool operator==(const Token& other) const { return (other.type == type && other.id == id); }
-  bool operator!=(const Token& other) const { return ! operator==(other); }
-  /** Checks for ordering between Tokens. Absolute order is decided first on type then on id.
-   * @param other Token to check for ordering.
-   * @return Boolean indicating if this < other.
-   */
-  bool operator<(const Token& other) const { return (type < other.type || (type == other.type && id < other.id)); }
-  /** Returns true if the Token is a Sequence or a Loop. */
-  [[nodiscard]] inline bool isIterable() const { return type == TypeSequence || type == TypeLoop; }
-  [[nodiscard]] inline bool isValid() const { return type != TypeInvalid && id != PALLAS_TOKEN_ID_INVALID; }
+   public:
+    /** Checks for equality between Tokens.
+     * @param other Token to check for equality.
+     * @return Boolean indicating if the Tokens are equals.
+     */
+    bool operator==(const Token& other) const;
+    bool operator!=(const Token& other) const;
+    /** Checks for ordering between Tokens. Absolute order is decided first on type then on id.
+     * @param other Token to check for ordering.
+     * @return Boolean indicating if this < other.
+     */
+    bool operator<(const Token& other) const;
+    /** Returns true if the Token is a Sequence or a Loop. */
+    [[nodiscard]] bool isIterable() const;
+    [[nodiscard]] bool isValid() const;
 #endif
 } Token;
 
@@ -213,10 +207,7 @@ enum Record {
 struct custom_hash_unique_object_representation {
     using is_avalanching = void;
 
-    [[nodiscard]] auto operator()(Token const& f) const noexcept -> uint64_t {
-        static_assert(std::has_unique_object_representations_v<Token>);
-        return ankerl::unordered_dense::detail::wyhash::hash(&f, sizeof(f));
-    }
+    [[nodiscard]] auto operator()(Token const& f) const noexcept -> uint64_t;
 };
 /*************************** Sequences **********************/
 /**
@@ -227,68 +218,29 @@ struct custom_hash_unique_object_representation {
  *  This class also comes with addition and multiplication, so that we can easily use them.
  */
 struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_unique_object_representation> {
-  /** Adds each (key, value) pair of the other map to this one. */
-  void operator+=(const TokenCountMap& other) {
-    for (const auto& [key, value] : other) {
-      if (count(key) == 0) {
-        insert({key, value});
-      } else {
-        at(key) += value;
-      }
-    }
-  }
-  /** Substracts each (key, value) pair of the other map to this one. */
-  void operator-=(const TokenCountMap& other) {
-    for (const auto& [key, value] : other) {
-      if (count(key) == 0) {
-        insert({key, -value});
-      } else {
-        at(key) -= value;
-      }
-    }
-  }
-  /** Returns a new map with the same keys, but each value has been multiplied by the given value.
-   * @param multiplier Constant multiplier for each value.
-   * @returns New map with a copy of the keys and the values. Each value has been multiplied by `multiplier`.
-   */
-  TokenCountMap operator*(size_t multiplier) const {
-    auto otherMap = TokenCountMap();
-    for (const auto& [key, value] : *this) {
-      otherMap[key] = value * multiplier;
-    }
-    return otherMap;
-  }
+    /** Adds each (key, value) pair of the other map to this one. */
+    void operator+=(const TokenCountMap& other);
+    /** Substracts each (key, value) pair of the other map to this one. */
+    void operator-=(const TokenCountMap& other);
+    /** Returns a new map with the same keys, but each value has been multiplied by the given value.
+     * @param multiplier Constant multiplier for each value.
+     * @returns New map with a copy of the keys and the values. Each value has been multiplied by `multiplier`.
+     */
+    TokenCountMap operator*(size_t multiplier) const;
 
-  void operator*=(size_t multiplier)  {
-    for (const auto& [key, value] : *this) {
-      this->at(key) = value * multiplier;
-    }
-  }
+    void operator*=(size_t multiplier);
 
-  /** Return the value associated with t, or 0 if t was not found.
-   *
-   *  This is useful when searching for a token count: if the token has never been encountered, it
-   *  won't be found by the map find() function, and we return 0 (instead of an errornous value such
-   *  as -1).
-   *  @param t Token whose mapped value is accessed.
-   *  @returns Mapped value associated with `t`, or 0 if t was not found..
-   */
-  [[nodiscard]] size_t get_value(const Token& t) const {
-    auto res = find(t);
-    if (res == end())
-      return 0;
-    return res->second;
-  }
-  /** Count the number of Events in the tokenCountMap. */
-  [[nodiscard]] size_t getEventCount() const {
-    size_t sum = 0;
-    for (auto keyValue : *this) {
-      Token t = keyValue.first;
-      if(t.type == TypeEvent)
-	      sum += keyValue.second;
-    }
-    return sum;
-  }
+    /** Return the value associated with t, or 0 if t was not found.
+     *
+     *  This is useful when searching for a token count: if the token has never been encountered, it
+     *  won't be found by the map find() function, and we return 0 (instead of an errornous value such
+     *  as -1).
+     *  @param t Token whose mapped value is accessed.
+     *  @returns Mapped value associated with `t`, or 0 if t was not found..
+     */
+    [[nodiscard]] size_t get_value(const Token& t) const;
+    /** Count the number of Events in the tokenCountMap. */
+    [[nodiscard]] size_t getEventCount() const;
 };
 #endif
 
@@ -335,52 +287,29 @@ typedef struct Sequence {
 public:
     /** Getter for the size of that Sequence.
      * @returns Number of tokens in that Sequence. */
-    [[nodiscard]] size_t size() const { return tokens.size(); }
+    [[nodiscard]] size_t size() const;
 
     /** Getter for #tokenCount during the writting process.
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so backwards. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountWriting(const struct Thread* thread);
+    [[nodiscard]] TokenCountMap& getTokenCountWriting(const struct Thread* thread);
 
     /** Getter for #tokenCount during the reading process.
      * If need be, counts the number of Token in that Sequence to initialize it.
      * When counting these tokens, it does so forward. offsetMap allows you to start the count with an offset.
      * @returns Reference to #tokenCount.*/
-    TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
+    [[nodiscard]] TokenCountMap& getTokenCountReading(const pallas::Thread* thread,
                                         bool isReversedOrder = false);
 
     /** Tries to guess the name of the sequence
      * @returns A string that describes the sequence.
      */
-    std::string guessName(const pallas::Thread* thread);
+    [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 
-    ~Sequence() {
-        delete durations;
-        delete exclusive_durations;
-        delete timestamps;
-    };
-    Sequence& operator=(Sequence&& other) {
-        if (this == &other)
-            return *this;
-        durations = other.durations;
-        exclusive_durations = other.exclusive_durations;
-        timestamps = other.timestamps;
-        id = other.id;
-        type = other.type;
-        hash = other.hash;
-        tokens = std::move(other.tokens);
-        tokenCount = std::move(other.tokenCount);
-        other.durations = nullptr;
-        other.exclusive_durations = nullptr;
-        other.timestamps = nullptr;
-        return *this;
-    };
-    Sequence(ParameterHandler& parameter_handler) {
-        durations = new LinkedDurationVector(parameter_handler);
-        exclusive_durations = new LinkedDurationVector(parameter_handler);
-        timestamps = new LinkedVector(parameter_handler);
-    }
+    ~Sequence();
+    Sequence& operator=(Sequence&& other);
+    Sequence(ParameterHandler& parameter_handler);
     explicit Sequence() {};
 #endif
 } Sequence;
@@ -401,7 +330,7 @@ typedef struct Loop {
     uint64_t nb_occurrences;
 #ifdef __cplusplus
     /** Tries to guess the name of the loop. */
-    std::string guessName(const pallas::Thread* thread);
+    [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 #endif
 } Loop;
 
@@ -712,46 +641,47 @@ typedef struct Thread {
     void resetVectorsOffsets();
 
     /** Returns the Event corresponding to the given Token. */
-    Event *getEvent(Token) const;
+    [[nodiscard]] Event* getEvent(Token) const;
 
     /** Returns the first Token matching a Sequence for the given array, Token() if nothing matches.
      * @param array Array of tokens.
      * @param array_size Number of tokens in array.
      * @param hash Hash32 of the array. Optional.
      */
-    Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0); Loop *getLoop(Token) const;
+    [[nodiscard]] Token matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash = 0) const;
+    [[nodiscard]] Loop* getLoop(Token) const;
 
     /** Returns the n-th token in the given Sequence/Loop. */
-    Token &getToken(Token, int) const;
+    [[nodiscard]] Token& getToken(Token, int) const;
 
     /** Returns the corresponding Sequence. Cannot return an invalid Sequence. */
-    Sequence* getSequence(Token) const;
+    [[nodiscard]] Sequence* getSequence(Token) const;
 
     /** Return the duration of the thread. */
-    pallas_duration_t getDuration() const;
+    [[nodiscard]] pallas_duration_t getDuration() const;
 
     /** Return the first timestamp of the thread. */
-    pallas_timestamp_t getFirstTimestamp() const;
+    [[nodiscard]] pallas_timestamp_t getFirstTimestamp() const;
 
     /** Return the last timestamp of the thread. */
-    pallas_timestamp_t getLastTimestamp() const;
+    [[nodiscard]] pallas_timestamp_t getLastTimestamp() const;
 
     /** Return the number of events of the thread. */
-    size_t getEventCount() const;
+    [[nodiscard]] size_t getEventCount() const;
 
     /**
      * Get the given Token, along with its id.
      * E_E, E_L, E_S indicates an Enter, Leave or Singleton Event.
      * S and L indicates a Sequence or a Loop.
      */
-    std::string getTokenString(Token) const;
+    [[nodiscard]] std::string getTokenString(Token) const;
     /** Returns a string for that array of Tokens */
-    std::string getTokenArrayString(const Token *array, size_t start_index, size_t len) const;
+    [[nodiscard]] std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const;
 
     /** Returns a string describing that Event. */
-    std::string getEventString(EventData *e) const;
+    [[nodiscard]] std::string getEventString(EventData* e) const;
 
-    std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     /** Prints a vector of Token. */
 
@@ -790,7 +720,7 @@ typedef struct Thread {
     void printRegion(RegionRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
-    const char *getRegionStringFromEvent(pallas::EventData *e) const;
+    [[nodiscard]] const char* getRegionStringFromEvent(pallas::EventData* e) const;
 
     /** Prints the value of the attribute.*/
     void printAttributeValue(const struct AttributeData *attr, pallas_type_t type) const;
@@ -814,14 +744,14 @@ typedef struct Thread {
     /**
      * Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame.
      */
-    std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     // /*** Returns a snapshot of the thread's total time spent in each Block Sequence in *filter* during that time frame. */
     // std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end,
     //                                                        std::vector<Token> &filter) const;
 
     /*** Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame. */
-    std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
+    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     /** Create a blank new Thread. This is used when reading the trace. */
     Thread();

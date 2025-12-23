@@ -246,35 +246,34 @@ const LocationGroup* GlobalArchive::getLocationGroup(LocationGroupId location_gr
   }
   return nullptr;
 }
-
 const Location* GlobalArchive::getLocation(ThreadId location_id) {
-  for (auto& lg : location_groups) {
-    auto a = getArchive(lg.id)->getLocation(location_id);
-    if (a != nullptr) {
-      return a;
+    for (auto& lg : location_groups) {
+        auto a = getArchive(lg.id)->getLocation(location_id);
+        if (a != nullptr) {
+            return a;
+        }
     }
-  }
   return nullptr;
 }
 
 std::vector<Location> GlobalArchive::getLocationList() {
-  std::vector<Location> output;
-  for (auto& lg: location_groups) {
-    auto a = getArchive(lg.id);
-    output.insert(output.end(), a->locations.begin(), a->locations.end());
-  }
-  return output;
+    std::vector<Location> output;
+    for (auto& lg : location_groups) {
+        auto a = getArchive(lg.id);
+        output.insert(output.end(), a->locations.begin(), a->locations.end());
+    }
+    return output;
 }
 
 std::vector<Thread*> GlobalArchive::getThreadList() {
-  std::vector<Thread*> output;
-  for (auto& lg: location_groups) {
-    auto a = getArchive(lg.id);
-    for (const auto& l : a->locations) {
-        auto* t = a->getThread(l.id);
-      output.push_back(t);
+    std::vector<Thread*> output;
+    for (auto& lg : location_groups) {
+        auto a = getArchive(lg.id);
+        for (const auto& l : a->locations) {
+            auto* t = a->getThread(l.id);
+            output.push_back(t);
+        }
     }
-  }
   return output;
 }
 
@@ -470,6 +469,19 @@ const char* Archive::getName() {
   return global_archive->getString(global_archive->getLocationGroup(id)->name)->str;
 }
 
+void GlobalArchive::add_metadata(const std::string& key, const std::string& value) {
+    pthread_mutex_lock(&lock);
+    metadata[key] = value;
+    pthread_mutex_unlock(&lock);
+};
+void Archive::add_metadata(const std::string& key, const std::string& value) {
+    pthread_mutex_lock(&lock);
+    metadata[key] = value;
+    pthread_mutex_unlock(&lock);
+};
+void Archive::store(const ParameterHandler* parameter_handler) {
+    store(dir_name, parameter_handler);
+}
 } /* namespace pallas*/
 
 /********************** C Bindings **********************/

@@ -43,7 +43,7 @@ typedef struct ThreadWriter {
      * Returns the inclusive and exclusive block duration / block duration for the offset-th last given Sequence.
      * The Sequence's token need to be in curIndexSeq for this to work out.
      */
-    std::array<pallas_duration_t, 2> getLastSequenceDuration(const Sequence& sequence, size_t offset = 0) const;
+    [[nodiscard]] std::array<pallas_duration_t, 2> getLastSequenceDuration(const Sequence& sequence, size_t offset = 0) const;
     /** Finds a Loop in the current Sequence using a basic quadratic algorithm.
      *
      * For each correct possible loop length, this algorithm tries two things:
@@ -66,15 +66,15 @@ typedef struct ThreadWriter {
      * Does not change the current array of tokens.
      * @sequence_id ID of the sequence being repeated.
      * */
-    Loop* createLoop(Token sequence_id);
+    [[nodiscard]] Loop* createLoop(Token sequence_id);
     /** Increments the counter of loop by 1. */
     void incrementLoop(Loop *loop);
     /** Duplicates the given loop. The new loop has nb_occurrences set to 1, the old loop has it decreased by 1. */
-    Loop* unsquashLoop(Loop* loop);
+    [[nodiscard]] Loop* unsquashLoop(Loop* loop);
     /** Checks all the over loops to see if one is strictly similar.
      * If so, removes this loop, increment the other's nb_occurrences by 1, and returns it.
      */
-    Loop* squashLoop(Loop* loop);
+    [[nodiscard]] Loop* squashLoop(Loop* loop);
     /** Create a Loop and change the current array of token to reflect that.
      *
      * For example, replaces `[E1, E2, E3, E4, E1, E2, E3, E4]` with `[L1]`,
@@ -101,11 +101,11 @@ typedef struct ThreadWriter {
     /** Search for a sequence_id that matches the given array as a Sequence.
      * If none of the registered sequence match, register a new Sequence.
      */
-    Sequence &getOrCreateSequenceFromArray(Token *token_array, size_t array_len);
+    [[nodiscard]] Sequence &getOrCreateSequenceFromArray(Token *token_array, size_t array_len);
     /** Returns the current timestamp. */
-    pallas_timestamp_t getTimestamp();
+    [[nodiscard]] pallas_timestamp_t getTimestamp();
     /** Returns t if it's valid, of the current timestamp. */
-    pallas_timestamp_t timestamp(pallas_timestamp_t t);
+    [[nodiscard]] pallas_timestamp_t timestamp(pallas_timestamp_t t);
 
     // See pallas_timestamp.cpp for why these were deleted.
     // /** Adds the given duration to all the stored addresses to complete.*/
@@ -117,8 +117,8 @@ typedef struct ThreadWriter {
     /** Returns the ID corresponding to the given EventData.
      * If there isn't already one, creates a corresponding Event.
      */
-    TokenId getEventId(EventData* e);
-    ThreadWriter(Archive& archive, ThreadId thread_id);
+    [[nodiscard]] TokenId getEventId(EventData* e);
+    [[nodiscard]] ThreadWriter(Archive& archive, ThreadId thread_id);
     void threadClose();
     /** Creates the new Event and stores it. Returns the occurence index of that new Event. */
     size_t storeEvent(enum EventType event_type, TokenId event_id, pallas_timestamp_t ts, struct AttributeList* attribute_list);
