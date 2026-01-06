@@ -1,0 +1,12 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pallas_trace"
+version = "0.17.0"
+
+[tool.scikit-build.cmake.define]
+ENABLE_PYTHON = "ON"
+BUILD_DOC = "OFF"
+BUILD_TESTING = "OFF"
