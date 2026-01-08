@@ -401,7 +401,7 @@ std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<
     return output;
 }
 
-PYBIND11_MODULE(pallas_trace, m) {
+PYBIND11_MODULE(_core, m) {
     m.doc() = "Python API for the Pallas library";
 
     setupEnums(m);

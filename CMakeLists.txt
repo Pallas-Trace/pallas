@@ -29,8 +29,13 @@ option(ENABLE_OTF2 "Enable OTF2 compatibility layer" ON)
 option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
-option(ENABLE_PYTHON "Enable the Python interface" OFF)
 option(ENABLE_MPI_TEST "MPI tests" ON)
+option(INSTALL_PYTHON "Install the Python library instead" OFF)
+
+if(INSTALL_PYTHON)
+  set(ENABLE_OTF2 OFF)
+  set(ENABLE_MPI_TEST OFF)
+endif()
 
 # Get the current working branch
 execute_process(
@@ -173,21 +178,19 @@ add_subdirectory(libraries/pallas)
 if (ENABLE_OTF2)
     add_subdirectory(libraries/otf2)
 endif ()
-if (ENABLE_PYTHON)
+if (INSTALL_PYTHON)
     add_subdirectory(libraries/pallas_python)
+else()
+  add_subdirectory(apps)
+  add_subdirectory(test)
+  include(PrintOpts)
+
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pallas.pc.in
+          ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc DESTINATION "${INSTALL_PKGCONFIG_DIR}")
+  if (NOT unordered_dense_FOUND)
+      install(
+              DIRECTORY ${PROJECT_SOURCE_DIR}/extern/unordered_dense/include/ankerl
+              DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  endif()
 endif()
-add_subdirectory(apps)
-add_subdirectory(test)
-
-
-include(PrintOpts)
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pallas.pc.in
-        ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc)
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc DESTINATION "${INSTALL_PKGCONFIG_DIR}")
-if (NOT unordered_dense_FOUND)
-    install(
-            DIRECTORY ${PROJECT_SOURCE_DIR}/extern/unordered_dense/include/ankerl
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-endif()
-

@@ -7,6 +7,6 @@ name = "pallas_trace"
 version = "0.17.0"
 
 [tool.scikit-build.cmake.define]
-ENABLE_PYTHON = "ON"
+INSTALL_PYTHON = "ON"
 BUILD_DOC = "OFF"
 BUILD_TESTING = "OFF"

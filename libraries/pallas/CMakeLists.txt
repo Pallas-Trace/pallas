@@ -11,7 +11,12 @@ configure_file(
         @ONLY
 )
 
-add_library(pallas SHARED)
+if (INSTALL_PYTHON)
+  add_library(pallas STATIC)
+  set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
+else()
+  add_library(pallas SHARED)
+endif()
 
 set(PALLAS_HEADERS
         include/pallas/pallas_archive.h
@@ -90,12 +95,12 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(pallas PRIVATE -Wno-class-memaccess)
 endif()
-    message("Warning list: ${WARNINGS}")
+message("Warning list: ${WARNINGS}")
 
 target_link_libraries(pallas
         PUBLIC
-        dl
         unordered_dense::unordered_dense
+        dl
         PRIVATE
         ${CMAKE_DL_LIBS}
         m
@@ -125,10 +130,12 @@ else ()
     endif ()
 endif ()
 
-install(TARGETS pallas EXPORT PALLASLibTargets
-        LIBRARY DESTINATION ${INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
-        PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
-)
+if (NOT INSTALL_PYTHON)
+  install(TARGETS pallas EXPORT PALLASLibTargets
+          LIBRARY DESTINATION ${INSTALL_LIBDIR}
+          PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
+          PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
+  )
+endif()
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
