@@ -5,6 +5,26 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "pallas_trace"
 version = "0.17.0"
+authors = [
+  { name="Catherine Guelque", email="catherine.guelque@telecom-sudparis.eu" },
+  { name="Francois Trahay", email="francois.trahay@telecom-sudparis.eu" },
+  { name="Valentin Delis", email="valentin.delis@ensiie.fr" },
+  { name="Louis Delyon", email="louis_delyon@telecom-sudparis.eu" },
+]
+
+description = "Pallas is a scalable trace format for HPC applications."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Unix",
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+[project.urls]
+Homepage = "https://gitlab.inria.fr/pallas/pallas"
+Issues = "https://gitlab.inria.fr/pallas/pallas/issues"
 
 [tool.scikit-build.cmake.define]
 INSTALL_PYTHON = "ON"
