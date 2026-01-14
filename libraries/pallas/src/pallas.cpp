@@ -3,18 +3,106 @@
  * See LICENSE in top-level directory.
  */
 
-#include <cinttypes>
+#include <iostream>
 #include <sstream>
 
 #include "pallas/pallas.h"
-#include <pallas/pallas_hash.h>
-#include <pallas/pallas_record.h>
+#include "pallas/pallas_record.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_log.h"
+
+#include "pallas/utils/pallas_hash.h"
+#include "pallas/utils/pallas_log.h"
 __thread uint64_t pallas_thread_rank = 0;
 unsigned int pallas_mpi_rank = 0;
 
 namespace pallas {
+
+Token::Token(TokenType type, uint32_t id) {
+    this->type = type;
+    this->id = id;
+}
+
+Token::Token() {
+    type = TypeInvalid;
+    id = PALLAS_TOKEN_ID_INVALID;
+}
+
+bool Token::operator==(const Token& other) const {
+    return (other.type == type && other.id == id);
+}
+
+bool Token::operator!=(const Token& other) const {
+    return !operator==(other);
+}
+
+bool Token::operator<(const Token& other) const {
+    return (type < other.type || (type == other.type && id < other.id));
+}
+
+bool Token::isIterable() const {
+    return type == TypeSequence || type == TypeLoop;
+}
+
+bool Token::isValid() const {
+    return type != TypeInvalid && id != PALLAS_TOKEN_ID_INVALID;
+}
+
+auto custom_hash_unique_object_representation::operator()(Token const& f) const noexcept -> uint64_t {
+    static_assert(std::has_unique_object_representations_v<Token>);
+    return ankerl::unordered_dense::detail::wyhash::hash(&f, sizeof(f));
+}
+
+void TokenCountMap::operator+=(const TokenCountMap& other) {
+    for (const auto& [key, value] : other) {
+        if (count(key) == 0) {
+            insert({key, value});
+        } else {
+            at(key) += value;
+        }
+    }
+}
+
+void TokenCountMap::operator-=(const TokenCountMap& other) {
+    for (const auto& [key, value] : other) {
+        if (count(key) == 0) {
+            insert({key, -value});
+        } else {
+            at(key) -= value;
+        }
+    }
+}
+
+TokenCountMap TokenCountMap::operator*(size_t multiplier) const {
+    auto otherMap = TokenCountMap();
+    for (const auto& [key, value] : *this) {
+        otherMap[key] = value * multiplier;
+    }
+    return otherMap;
+}
+
+void TokenCountMap::operator*=(size_t multiplier) {
+    for (const auto& [key, value] : *this) {
+        this->at(key) = value * multiplier;
+    }
+}
+
+size_t TokenCountMap::get_value(const Token& t) const {
+    auto res = find(t);
+    if (res == end())
+        return 0;
+    return res->second;
+}
+
+size_t TokenCountMap::getEventCount() const {
+    size_t sum = 0;
+    for (auto keyValue : *this) {
+        Token t = keyValue.first;
+        if (t.type == TypeEvent)
+            sum += keyValue.second;
+    }
+    return sum;
+}
+
 void Thread::loadTimestamps() {
     DOFOR(i, nb_events) {
         events[i].timestamps->load_all_data();
@@ -84,13 +172,12 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
     return memcmp(array1, array2, sizeof(Token) * size1) == 0;
 }
 
-
-Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash) {
+Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t hash) const {
     if (hash == 0)
         hash = hash32_Token(array, array_size, SEED);
 
     pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_size, hash);
-    auto& sequencesWithSameHash = hashToSequence[hash];
+    auto& sequencesWithSameHash = hashToSequence.at(hash);
     if (!sequencesWithSameHash.empty()) {
         if (sequencesWithSameHash.size() > 1) {
             pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
@@ -726,8 +813,7 @@ String::~String() {
     free(this->str);
 }
 
-
-std::string Sequence::guessName(const pallas::Thread* thread) {
+std::string Sequence::guessName(const pallas::Thread* thread) const {
     Token t_start = this->tokens[0];
     if (t_start.type == TypeEvent) {
         EventData& data = thread->getEvent(t_start)->data;
@@ -757,7 +843,7 @@ void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCoun
     sequenceTokenCountMap[loop->repeated_token] += loop_nb_iterations;
 }
 
-std::string Loop::guessName(const Thread* t) {
+std::string Loop::guessName(const Thread* t) const {
     Sequence* s = t->getSequence(this->repeated_token);
     return s->guessName(t);
 }
@@ -815,7 +901,38 @@ TokenCountMap& Sequence::getTokenCountWriting(const Thread* thread) {
     }
     return tokenCount;
 }
-} // namespace pallas
+
+size_t Sequence::size() const {
+    return tokens.size();
+}
+
+Sequence::~Sequence() {
+    delete durations;
+    delete exclusive_durations;
+    delete timestamps;
+};
+Sequence& Sequence::operator=(Sequence&& other) {
+    if (this == &other)
+        return *this;
+    durations = other.durations;
+    exclusive_durations = other.exclusive_durations;
+    timestamps = other.timestamps;
+    id = other.id;
+    type = other.type;
+    hash = other.hash;
+    tokens = std::move(other.tokens);
+    tokenCount = std::move(other.tokenCount);
+    other.durations = nullptr;
+    other.exclusive_durations = nullptr;
+    other.timestamps = nullptr;
+    return *this;
+};
+Sequence::Sequence(ParameterHandler& parameter_handler) {
+    durations = new LinkedDurationVector(parameter_handler);
+    exclusive_durations = new LinkedDurationVector(parameter_handler);
+    timestamps = new LinkedVector(parameter_handler);
+}
+}  // namespace pallas
 
 void* pallas_realloc(void* buffer, int cur_size, int new_size, size_t datatype_size) {
     void* new_buffer = (void*)realloc(buffer, new_size * datatype_size);

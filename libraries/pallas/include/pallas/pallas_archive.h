@@ -11,7 +11,8 @@
 #pragma once
 
 #include "pallas.h"
-#include "pallas_parameter_handler.h"
+#include "pallas_config.h"
+#include "utils/pallas_parameter_handler.h"
 
 #define GLOBAL_ARCHIVE_DEPRECATED_LOCATION CXX([[deprecated("You should record Locations on the Archives")]])
 
@@ -24,76 +25,76 @@ class ParameterHandler;
  * A LocationGroup can be a process, a machine, etc.
  */
 struct LocationGroup {
-  /** Unique id for that group. */
-  LocationGroupId id;
-  /** Group name */
-  StringRef name;
-  /** Parent of that group. */
-  LocationGroupId parent;
+    /** Unique id for that group. */
+    LocationGroupId id;
+    /** Group name */
+    StringRef name;
+    /** Parent of that group. */
+    LocationGroupId parent;
 };
 
 /**
  * A Location is basically a thread (or GPU stream).
  */
 struct Location {
-  /** Unique id for that location. */
-  ThreadId id;
-  /** Location name. */
-  StringRef name;
-  /** Group containing that location. */
-  LocationGroupId parent;
+    /** Unique id for that location. */
+    ThreadId id;
+    /** Location name. */
+    StringRef name;
+    /** Group containing that location. */
+    LocationGroupId parent;
 };
 
 /**
  * A Definition stores Strings, Regions and Attributes.
  */
 typedef struct Definition {
-  /** List of String stored in that Definition. */
+    /** List of String stored in that Definition. */
 #ifdef __cplusplus
-  std::map<StringRef, String> strings;
+    std::map<StringRef, String> strings;
 #else
-  byte strings[MAP_SIZE];
+    byte strings[MAP_SIZE];
 #endif
 
-  /** List of Region stored in that Definition. */
+    /** List of Region stored in that Definition. */
 #ifdef __cplusplus
-  std::map<RegionRef, Region> regions;
+    std::map<RegionRef, Region> regions;
 #else
-  byte regions[MAP_SIZE];
+    byte regions[MAP_SIZE];
 #endif
 
-  /** List of Attribute stored in that Definition. */
+    /** List of Attribute stored in that Definition. */
 #ifdef __cplusplus
-  std::map<AttributeRef, Attribute> attributes;
+    std::map<AttributeRef, Attribute> attributes;
 #else
-  byte attributes[MAP_SIZE];
+    byte attributes[MAP_SIZE];
 #endif
 
-  /** List of Group stored in that Definition. */
+    /** List of Group stored in that Definition. */
 #ifdef __cplusplus
-  std::map<GroupRef, Group> groups;
+    std::map<GroupRef, Group> groups;
 #else
-  byte groups[MAP_SIZE];
+    byte groups[MAP_SIZE];
 #endif
 
-  /** List of Comm stored in that Definition. */
+    /** List of Comm stored in that Definition. */
 #ifdef __cplusplus
-  std::map<CommRef, Comm> comms;
+    std::map<CommRef, Comm> comms;
 #else
-  byte comms[MAP_SIZE];
+    byte comms[MAP_SIZE];
 #endif
 
 #ifdef __cplusplus
-  [[nodiscard]] const String* getString(StringRef) const;
-  void addString(StringRef, const char*);
-  [[nodiscard]] const Region* getRegion(RegionRef) const;
-  void addRegion(RegionRef, StringRef);
-  [[nodiscard]] const Attribute* getAttribute(AttributeRef) const;
-  void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
-  [[nodiscard]] const Group* getGroup(GroupRef) const;
-  void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
-  [[nodiscard]] const Comm* getComm(CommRef) const;
-  void addComm(CommRef, StringRef, GroupRef, CommRef);
+    [[nodiscard]] const String* getString(StringRef) const;
+    void addString(StringRef, const char*);
+    [[nodiscard]] const Region* getRegion(RegionRef) const;
+    void addRegion(RegionRef, StringRef);
+    [[nodiscard]] const Attribute* getAttribute(AttributeRef) const;
+    void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
+    [[nodiscard]] const Group* getGroup(GroupRef) const;
+    void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
+    [[nodiscard]] const Comm* getComm(CommRef) const;
+    void addComm(CommRef, StringRef, GroupRef, CommRef);
 #endif
 } Definition;
 
@@ -114,7 +115,7 @@ typedef struct GlobalArchive {
     /** Name of the directory + name if the trace. */
     char* fullpath;
     /** This GlobalArchive's ABI version. Mostly used in storage-related stuff. */
-    uint8_t abi_version CXX({ PALLAS_ABI_VERSION });
+    uint8_t abi_version CXX({PALLAS_ABI_VERSION});
     /** Archive-wise lock, used for synchronising some threads. */
     pthread_mutex_t lock;
     /** Definitions. */
@@ -140,11 +141,7 @@ typedef struct GlobalArchive {
 
 #ifdef __cplusplus
     /** Adds an additional content node.  */
-    void add_metadata(const std::string& key, const std::string& value) {
-        pthread_mutex_lock(&lock);
-        metadata[key] = value;
-        pthread_mutex_unlock(&lock);
-    };
+    void add_metadata(const std::string& key, const std::string& value);
     /**
      * Getter for a String from its id.
      * @returns First String matching the given pallas::StringRef in this GlobalArchive. Nullptr if none was found.
@@ -258,14 +255,14 @@ typedef struct GlobalArchive {
     /**
      * Aggregates a list of the locations of all the Archives.
      */
-    std::vector<Location> getLocationList();
+    [[nodiscard]] std::vector<Location> getLocationList();
 
     /**r example, the std::vector template has a default argument for the allocator:
      * Aggregates a list of the Threads of all the Archives.
      */
-    std::vector<Thread*> getThreadList();
+    [[nodiscard]] std::vector<Thread*> getThreadList();
 
-    Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
+    [[nodiscard]] Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
 
     void freeArchive(LocationGroupId archiveId);
 
@@ -280,18 +277,18 @@ typedef struct GlobalArchive {
  */
 typedef struct Archive {
     /** Name of the directory in which the archive is recorded. */
-    char *dir_name;
+    char* dir_name;
     /** Archive-wise lock, used for synchronising some threads. */
     pthread_mutex_t lock;
 
     /** ID for the pallas::LocationGroup of that Archive. */
     LocationGroupId id CXX({PALLAS_LOCATION_GROUP_ID_INVALID});
     /** The Global Archive is the archive encompassing the whole execution. */
-    GlobalArchive *global_archive;
+    GlobalArchive* global_archive;
 
     /** Array of Thread.
      * The memory of each thread is handled by their reader / writer individually. */
-    struct Thread **threads CXX({nullptr});
+    struct Thread** threads CXX({nullptr});
     /** Number of Thread in #threads. */
     size_t nb_threads;
     /** Size of #threads. */
@@ -306,107 +303,103 @@ typedef struct Archive {
     Metadata metadata;
 #ifdef __cplusplus
 
-  /** Adds an entry to the metadata. */
-  void add_metadata(const std::string &key, const std::string &value) {
-    pthread_mutex_lock(&lock);
-    metadata[key] = value;
-    pthread_mutex_unlock(&lock);
-  };
-  /**
-   * Getter for a String from its id.
-   * @returns First String matching the given pallas::StringRef in this archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const String* getString(StringRef string_ref);
-  /**
-   * Getter for a Region from its id.
-   * @returns First Region matching the given pallas::RegionRef in this archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const Region* getRegion(RegionRef region_ref);
-  /**
-   * Getter for a Attribute from its id.
-   * @returns First Attribute matching the given pallas::AttributeRef in this archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const Attribute* getAttribute(AttributeRef attribute_ref);
-  /**
-   * Getter for a Group from its id.
-   * @returns First Group matching the given pallas::GroupRef in this archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const Group* getGroup(GroupRef group_ref);
-  /**
-   * Getter for a Comm from its id.
-   * @returns First Comm matching the given pallas::CommRef in this archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const Comm* getComm(CommRef comm_ref);
-  /**
-   * Creates a new String and adds it to that Archive.
-   * Error if the given pallas::StringRef is already in use.
-   * Locks and unlocks the mutex for that operation.
-   */
-  void addString(StringRef, const char*);
-  /**
-   * Creates a new Region and adds it to that Archive.
-   * Error if the given pallas::RegionRef is already in use.
-   * Locks and unlocks the mutex for that operation.
-   */
-  void addRegion(RegionRef, StringRef);
-  /**
-   * Creates a new Attribute and adds it to that Archive.
-   * Error if the given pallas::AttributeRef is already in use.
-   * Locks and unlocks the mutex for that operation.
-   */
-  void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
-  /**
-   * Creates a new Group and adds it to that definition.
-   * Error if the given pallas::GroupRef is already in use.
-   * Locks and unlocks the mutex for that operation.
-   */
-  void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*, GroupType group_type, Paradigm paradigm);
-  /**
-   * Creates a new Comm and adds it to that definition.
-   * Error if the given pallas::CommRef is already in use.
-   * Locks and unlocks the mutex for that operation.
-   */
-  void addComm(CommRef, StringRef, GroupRef, CommRef);
-  /**
-   * Creates a new Location and adds it to that Archive.
-   */
-  void defineLocation(ThreadId id, StringRef name, LocationGroupId parent);
-
-  /**
-   * Creates a new LocationGroup and adds it to that Archive.
-   */
-  void defineLocationGroup(LocationGroupId id, StringRef name, LocationGroupId parent);
-  /**
-   * Getter for a LocationGroup from its id.
-   * @returns First LocationGroup matching the given pallas::LocationGroupId in this Archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const LocationGroup* getLocationGroup(LocationGroupId) const;
-  /**
-   * Getter for a Location from its id.
-   * @returns First Location matching the given pallas::ThreadId in this Archive, then global_archive. Nullptr if none was found.
-   */
-  [[nodiscard]] const Location* getLocation(ThreadId) const;
-
-  [[nodiscard]] Thread* getThread(ThreadId);
-  [[nodiscard]] Thread* getThreadAt(size_t index);
-  const char* getName();
-  void freeThread(ThreadId);
-  void freeThreadAt(size_t);
-
-  /**
-   * Store this Archive.
-   * @param path Path to the root directory.
-   * @param parameter_handler Handler for the storage options.
-   */
-  void store(const char *path, const ParameterHandler* parameter_handler);
+    /** Adds an entry to the metadata. */
+    void add_metadata(const std::string& key, const std::string& value);
     /**
-   * Store this GlobalArchive to dir_name.
-   * @param parameter_handler Handler for the storage options.
-   */
-    void store (const ParameterHandler* parameter_handler = nullptr) { store(dir_name, parameter_handler); }
-  Archive(const char* dirname, LocationGroupId archive_id);
-  Archive(GlobalArchive& global_archive, LocationGroupId archive_id);
-  ~Archive();
+     * Getter for a String from its id.
+     * @returns First String matching the given pallas::StringRef in this archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const String* getString(StringRef string_ref);
+    /**
+     * Getter for a Region from its id.
+     * @returns First Region matching the given pallas::RegionRef in this archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Region* getRegion(RegionRef region_ref);
+    /**
+     * Getter for a Attribute from its id.
+     * @returns First Attribute matching the given pallas::AttributeRef in this archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Attribute* getAttribute(AttributeRef attribute_ref);
+    /**
+     * Getter for a Group from its id.
+     * @returns First Group matching the given pallas::GroupRef in this archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Group* getGroup(GroupRef group_ref);
+    /**
+     * Getter for a Comm from its id.
+     * @returns First Comm matching the given pallas::CommRef in this archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Comm* getComm(CommRef comm_ref);
+    /**
+     * Creates a new String and adds it to that Archive.
+     * Error if the given pallas::StringRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addString(StringRef, const char*);
+    /**
+     * Creates a new Region and adds it to that Archive.
+     * Error if the given pallas::RegionRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addRegion(RegionRef, StringRef);
+    /**
+     * Creates a new Attribute and adds it to that Archive.
+     * Error if the given pallas::AttributeRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
+    /**
+     * Creates a new Group and adds it to that definition.
+     * Error if the given pallas::GroupRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addGroup(GroupRef, StringRef, uint32_t, const uint64_t*, GroupType group_type, Paradigm paradigm);
+    /**
+     * Creates a new Comm and adds it to that definition.
+     * Error if the given pallas::CommRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addComm(CommRef, StringRef, GroupRef, CommRef);
+    /**
+     * Creates a new Location and adds it to that Archive.
+     */
+    void defineLocation(ThreadId id, StringRef name, LocationGroupId parent);
+
+    /**
+     * Creates a new LocationGroup and adds it to that Archive.
+     */
+    void defineLocationGroup(LocationGroupId id, StringRef name, LocationGroupId parent);
+    /**
+     * Getter for a LocationGroup from its id.
+     * @returns First LocationGroup matching the given pallas::LocationGroupId in this Archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const LocationGroup* getLocationGroup(LocationGroupId) const;
+    /**
+     * Getter for a Location from its id.
+     * @returns First Location matching the given pallas::ThreadId in this Archive, then global_archive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Location* getLocation(ThreadId) const;
+
+    [[nodiscard]] Thread* getThread(ThreadId);
+    [[nodiscard]] Thread* getThreadAt(size_t index);
+    const char* getName();
+    void freeThread(ThreadId);
+    void freeThreadAt(size_t);
+
+    /**
+     * Store this Archive.
+     * @param path Path to the root directory.
+     * @param parameter_handler Handler for the storage options.
+     */
+    void store(const char* path, const ParameterHandler* parameter_handler);
+    /**
+     * Store this GlobalArchive to dir_name.
+     * @param parameter_handler Handler for the storage options.
+     */
+    void store(const ParameterHandler* parameter_handler = nullptr);
+    Archive(const char* dirname, LocationGroupId archive_id);
+    Archive(GlobalArchive& global_archive, LocationGroupId archive_id);
+    ~Archive();
 #endif
 } Archive;
 
@@ -554,13 +547,13 @@ extern void pallas_archive_register_attribute(PALLAS(Archive) * archive,
  * Error if the given pallas::GroupRef is already in use.
  * Locks and unlocks the mutex for that operation.
  */
-    extern void pallas_archive_register_group(PALLAS(Archive) * archive,
-                                              PALLAS(GroupRef) group_ref,
-                                              PALLAS(StringRef) name_ref,
-                                              enum PALLAS(GroupType) group_type,
-                                              enum PALLAS(Paradigm) paradigm,
-                                              uint32_t number_of_members,
-                                              const uint64_t *members);
+extern void pallas_archive_register_group(PALLAS(Archive) * archive,
+                                          PALLAS(GroupRef) group_ref,
+                                          PALLAS(StringRef) name_ref,
+                                          enum PALLAS(GroupType) group_type,
+                                          enum PALLAS(Paradigm) paradigm,
+                                          uint32_t number_of_members,
+                                          const uint64_t* members);
 
 /**
  * Creates a new Comm and adds it to that Archive.

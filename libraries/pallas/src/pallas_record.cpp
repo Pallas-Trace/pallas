@@ -3,9 +3,11 @@
  * See LICENSE in top-level directory.
  */
 
-#include "pallas/pallas_record.h"
-#include "pallas/pallas_log.h"
 #include <stdarg.h>
+
+#include "pallas/pallas_record.h"
+
+#include "pallas/utils/pallas_log.h"
 
 namespace pallas {
   static inline void init_event(EventData* e, enum Record record) {
@@ -95,7 +97,7 @@ namespace pallas {
 
     pallas_recursion_shield--;
   }
-  
+
   void pallas_read_enter(ThreadReader* thread_reader,
                          struct AttributeList** attribute_list,
                          pallas_timestamp_t *time,
@@ -179,7 +181,7 @@ namespace pallas {
 				     pallas_timestamp_t* time) {
     PALLAS_READ_PROLOG(PALLAS_EVENT_THREAD_END);
     if(attribute_list) *attribute_list = NULL; // todo: implement
-    if(time) *time = e.timestamp;	
+    if(time) *time = e.timestamp;
   }
 
   void pallas_record_thread_team_begin(ThreadWriter* thread_writer,
@@ -204,7 +206,7 @@ namespace pallas {
     if(attribute_list) *attribute_list = NULL; //TODO
     if(time) *time = e.timestamp;
   }
-  
+
   void pallas_record_thread_team_end(ThreadWriter* thread_writer,
 				     struct AttributeList* attribute_list __attribute__((unused)),
 				     pallas_timestamp_t time) {
@@ -360,7 +362,7 @@ namespace pallas {
     if(msgLength) pallas_event_pop_data(e.event, msgLength, sizeof(*msgLength), &cursor);
     if(requestID) pallas_event_pop_data(e.event, requestID, sizeof(*requestID), &cursor);
   }
-  
+
 
   void pallas_record_mpi_isend_complete(ThreadWriter* thread_writer,
 					struct AttributeList* attribute_list __attribute__((unused)),
@@ -572,7 +574,7 @@ namespace pallas {
     PALLAS_READ_PROLOG(PALLAS_EVENT_MPI_COLLECTIVE_END);
     if(attribute_list) * attribute_list = NULL;
     if(time) *time = e.timestamp;
-   
+
     if(collectiveOp) pallas_event_pop_data(e.event, collectiveOp, sizeof(*collectiveOp), &cursor);
     if(communicator) pallas_event_pop_data(e.event, communicator, sizeof(*communicator), &cursor);
     if(root) pallas_event_pop_data(e.event, root, sizeof(*root), &cursor);
@@ -606,7 +608,7 @@ namespace pallas {
     if(numberOfRequestedThreads) pallas_event_pop_data(e.event, numberOfRequestedThreads, sizeof(*numberOfRequestedThreads), &cursor);
   }
 
-  
+
   void pallas_record_omp_join(ThreadWriter* thread_writer,
 			      AttributeList* attribute_list,
 			      pallas_timestamp_t time) {
@@ -656,7 +658,7 @@ namespace pallas {
     if(lockID) pallas_event_pop_data(e.event, lockID, sizeof(*lockID), &cursor);
   }
 
-  
+
   void pallas_record_thread_acquire_lock(ThreadWriter* thread_writer,
 					 AttributeList* attribute_list,
 					 pallas_timestamp_t time,
@@ -716,7 +718,7 @@ namespace pallas {
     if(acquisitionOrder) *acquisitionOrder = 0;
   }
 
-  
+
   void pallas_record_omp_release_lock(ThreadWriter* thread_writer,
 				      AttributeList* attribute_list,
 				      pallas_timestamp_t time,
@@ -746,7 +748,7 @@ namespace pallas {
     if(acquisitionOrder) *acquisitionOrder = 0;
   }
 
-  
+
   void pallas_record_omp_task_create(ThreadWriter* thread_writer,
 				     AttributeList* attribute_list,
 				     pallas_timestamp_t time,
@@ -885,7 +887,7 @@ namespace pallas {
     if(time) *time = e.timestamp;
   }
 
-  
+
 }  // namespace pallas
 
 

@@ -1,7 +1,9 @@
 //
 // Created by khatharsis on 23/09/25.
 //
-#include "pallas/pallas.h"
+#include <iostream>
+
+#include "pallas_config.h"
 
 int main() {
     std::cout << "Pallas tracing library v" << PALLAS_VERSION_MAJOR << "." << PALLAS_VERSION_MINOR << "." << PALLAS_VERSION_PATCH << std::endl

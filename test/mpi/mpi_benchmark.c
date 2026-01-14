@@ -3,7 +3,6 @@
  * See LICENSE in top-level directory.
  */
 #include <mpi.h>
-#include <pallas/pallas_log.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +11,8 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_record.h"
 #include "pallas/pallas_write.h"
-#include "pallas/pthread_barrier_wrapper.h"
+
+#include <pallas/utils/pallas_log.h>
 
 static GlobalArchive * trace = NULL;
 static Archive * archive = NULL;

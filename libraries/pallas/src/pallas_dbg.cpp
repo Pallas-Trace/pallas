@@ -2,9 +2,11 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-#include "pallas/pallas_dbg.h"
-#include "pallas/pallas.h"
-#include "pallas/pallas_log.h"
+
+#include <cstring>
+
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_log.h"
 
 namespace pallas {
 enum DebugLevel debugLevel = DebugLevel::Normal;

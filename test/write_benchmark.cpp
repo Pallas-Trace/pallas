@@ -2,10 +2,11 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <atomic>
+#include <iostream>
 #include <sstream>
 #if __cplusplus >= 202002L && (__GNUC__ >= 13 || __clang__ >= 14 || _MSC_VER >= 1929)
 #include <format>
@@ -16,8 +17,6 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_record.h"
 #include "pallas/pallas_write.h"
-#include "pallas/pallas_log.h"
-#include "pallas/pthread_barrier_wrapper.h"
 
 using namespace pallas;
 static LocationGroupId processID;

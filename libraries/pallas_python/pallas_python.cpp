@@ -217,6 +217,10 @@ struct PyLinkedVector {
     pallas::LinkedDurationVector* linked_duration_vector;
 };
 
+struct PyThreadIterator {
+    pallas::ThreadReader inner;
+};
+
 std::map<pallas::StringRef, std::string>& Archive_get_strings(pallas::Archive& archive) {
     auto& map = *new std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : archive.definitions.strings) {
@@ -401,7 +405,40 @@ std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<
     return output;
 }
 
-PYBIND11_MODULE(pallas_trace, m) {
+auto makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader) {
+    switch (t.type) {
+    case pallas::TypeEvent: {
+        return py::make_tuple(
+                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
+                    PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
+                    thread_reader.currentState.currentFrame->tokenCount[t]
+                );
+    }
+    case pallas::TypeSequence: {
+        return py::make_tuple(
+                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
+                    PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
+                    thread_reader.currentState.currentFrame->tokenCount[t]
+                );
+    }
+    case pallas::TypeLoop: {
+        return py::make_tuple(
+                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
+                    PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
+                    thread_reader.currentState.currentFrame->tokenCount[t]
+                );
+    }
+    default: { // pallas::TypeInvalid
+        return py::make_tuple(
+                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
+                    pallas::Token()),
+                    0
+                );
+    }
+    }
+}
+
+PYBIND11_MODULE(_core, m) {
     m.doc() = "Python API for the Pallas library";
 
     setupEnums(m);
@@ -482,43 +519,65 @@ PYBIND11_MODULE(pallas_trace, m) {
             .def("getSnapshotView", &pallas::Thread::getSnapshotView)
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
             .def("__iter__", [](const pallas::Thread& self) {
+                auto inner = pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
+                return PyThreadIterator{inner};
+            })
+            .def("reader", [](const pallas::Thread& self) {
                 return new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
-            }, py::keep_alive<0, 1>());
+            });
 
-    py::class_<pallas::ThreadReader>(m, "Thread_Iterator", "An iterator over the thread.")
-            .def("__next__", [](pallas::ThreadReader& self) {
-                if (self.moveToNextToken()) {
-                    auto t = self.pollCurToken();
-                    switch (t.type) {
-                    case pallas::TypeEvent: {
-                        return py::make_tuple(
-                                std::variant<PyEvent, PySequence, PyLoop>(
-                                        PyEvent{self.thread_trace->getEvent(t), self.thread_trace}),
-                                self.currentState.currentFrame->tokenCount[t]
-                                );
-                    }
-                    case pallas::TypeSequence: {
-                        return py::make_tuple(
-                                std::variant<PyEvent, PySequence, PyLoop>(
-                                        PySequence{self.thread_trace->getSequence(t), self.thread_trace}),
-                                self.currentState.currentFrame->tokenCount[t]
-                                );
-                    }
-                    case pallas::TypeLoop: {
-                        return py::make_tuple(
-                                std::variant<PyEvent, PySequence, PyLoop>(
-                                        PyLoop{self.thread_trace->getLoop(t), self.thread_trace}),
-                                self.currentState.currentFrame->tokenCount[t]
-                                );
-                    }
-                    case pallas::TypeInvalid: {
+    py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
+            .def("__next__", [](PyThreadIterator& self) {
+                if (self.inner.moveToNextToken()) {
+                    auto t = self.inner.pollCurToken();
+                    if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
-                    }
+                    return makePyObjectFromToken(t, self.inner);
                 }
-                // Control flow: else
                 throw py::stop_iteration();
             });
+    py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
+            .def_property_readonly("callstack", [](pallas::ThreadReader& self) {
+                std::vector<py::tuple> res;
+                res.reserve(self.currentState.current_frame_index);
+                for (int i = 1; i <= self.currentState.current_frame_index; i++) {
+                    res.push_back(
+                        makePyObjectFromToken(
+                            self.currentState.callstack[i].callstack_iterable,
+                            self
+                        )
+                    );
+                }
+                res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
+                return res;
+            }, py::keep_alive<0, 1>())
+            .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
+                int flags = PALLAS_READ_FLAG_NONE;
+                if (enter_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
+                if (enter_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
+                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                self.moveToNextToken(flags);
+            })
+            .def("pollCurToken", [](pallas::ThreadReader& self) {
+                return makePyObjectFromToken(self.pollCurToken(), self);
+            })
+            .def("enterIfStartOfBlock", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
+                int flags = PALLAS_READ_FLAG_NONE;
+                if (enter_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
+                if (enter_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
+                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                return self.enterIfStartOfBlock(flags);
+            })
+            .def("exitIfEndOfBlock", [](pallas::ThreadReader& self, bool exit_sequence = true, bool exit_loop = true) {
+                int flags = PALLAS_READ_FLAG_NONE;
+                if (exit_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
+                if (exit_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
+                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                return self.exitIfEndOfBlock(flags);
+            })
+            .def("isEndOfCurrentBlock", &pallas::ThreadReader::isEndOfCurrentBlock)
+            .def("isEndOfTrace", &pallas::ThreadReader::isEndOfTrace);
 
     py::class_<PyLocationGroup>(m, "LocationGroup", "A group of Pallas locations. Usually means a process.")
             .def_readonly("id", &PyLocationGroup::id)

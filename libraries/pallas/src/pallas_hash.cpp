@@ -8,8 +8,8 @@
 // domain. The author hereby disclaims copyright to this source code.
 // This is actually the C port of the Murmur3 Hash algorithm, which I have further modified
 // So that it can hash efficiently the sequences.
-// The OG C implementation can be found here: https://github.com/PeterScott/murmur3
-#include "pallas/pallas_hash.h"
+// The original C implementation can be found here: https://github.com/PeterScott/murmur3
+#include "pallas/utils/pallas_hash.h"
 
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
@@ -241,6 +241,9 @@ uint64_t hash64(const byte* data, size_t len, uint32_t seed) {
 
   // We don't need the 128-bit hash I think.
   return h1;
+}
+uint32_t hash32_Token(const Token* data, size_t len, uint32_t seed) {
+    return hash32(reinterpret_cast<const byte*>(data), len * sizeof(pallas::Token), SEED);
 }
 }  // namespace pallas
 /* -*-

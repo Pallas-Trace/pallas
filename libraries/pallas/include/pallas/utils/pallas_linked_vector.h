@@ -8,7 +8,6 @@
  */
 #pragma once
 
-#include "pallas_dbg.h"
 #include "pallas_timestamp.h"
 #ifndef __cplusplus
 #include <stdint.h>
@@ -16,9 +15,6 @@
 #ifdef __cplusplus
 #include <cstdint>
 #include <cstring>
-#include <iostream>
-#include <memory>
-#include <utility>
 #include <vector>
 
 #include "pallas_parameter_handler.h"

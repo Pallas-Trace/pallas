@@ -2,15 +2,14 @@
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
-#include <algorithm>
 #include <iomanip>
 #include <iostream>
-#include <string>
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_log.h"
 #include "pallas/pallas_read.h"
-#include "pallas/pallas_storage.h"
+
+#include "pallas/utils/pallas_log.h"
 
 static void printHeader() {
     std::cout << std::setw(4 + 1 + 6 + 1) << " " << std::right << std::setw(16) << "Stored" << " / " << std::right << std::setw(16) << "Computed" << std::endl;

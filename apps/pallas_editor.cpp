@@ -2,14 +2,14 @@
 // Created by khatharsis on 17/04/24.
 //
 
+#include <iostream>
+
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_dbg.h"
-#include "pallas/pallas_log.h"
-#include "pallas/pallas_parameter_handler.h"
-#include "pallas/pallas_read.h"
-#include "pallas/pallas_storage.h"
-#include "pallas/pallas_write.h"
+
+#include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_storage.h"
 
 using namespace pallas;
 std::vector compressionValues = {

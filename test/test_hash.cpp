@@ -3,12 +3,9 @@
  * See LICENSE in top-level directory.
  */
 
-#include <inttypes.h>
 #include <stdlib.h>
-#include "pallas/pallas_hash.h"
-#include "pallas/pallas_log.h"
 
-#include "stdlib.h"
+#include "pallas/utils/pallas_hash.h"
 
 #define MAX_EVENT (1000000)
 #define MAX_SEQUENCE (1 << 14)

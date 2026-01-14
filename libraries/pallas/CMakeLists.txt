@@ -11,23 +11,30 @@ configure_file(
         @ONLY
 )
 
-add_library(pallas SHARED)
+if (INSTALL_PYTHON)
+  add_library(pallas STATIC)
+  set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
+else()
+  add_library(pallas SHARED)
+endif()
 
 set(PALLAS_HEADERS
         include/pallas/pallas_archive.h
         include/pallas/pallas_attribute.h
         ${CMAKE_CURRENT_BINARY_DIR}/include/pallas/pallas_config.h
-        include/pallas/pallas_dbg.h
         include/pallas/pallas.h
-        include/pallas/pallas_hash.h
-        include/pallas/pallas_linked_vector.h
-	    include/pallas/pallas_parameter_handler.h
         include/pallas/pallas_read.h
-        include/pallas/pallas_storage.h
-        include/pallas/pallas_timestamp.h
         include/pallas/pallas_write.h
         include/pallas/pallas_record.h
-        include/pallas/pallas_log.h
+)
+set(PALLAS_UTILS_HEADERS
+        include/pallas/utils/pallas_log.h
+        include/pallas/utils/pallas_dbg.h
+        include/pallas/utils/pallas_hash.h
+        include/pallas/utils/pallas_linked_vector.h
+        include/pallas/utils/pallas_storage.h
+        include/pallas/utils/pallas_timestamp.h
+	      include/pallas/utils/pallas_parameter_handler.h
 )
 
 target_sources(pallas
@@ -44,6 +51,7 @@ target_sources(pallas
         src/pallas_linked_vector.cpp
         src/pallas_parameter_handler.cpp
         src/pallas_record.cpp
+        ${PALLAS_UTILS_HEADERS}
         PUBLIC
         ${PALLAS_HEADERS}
 )
@@ -69,6 +77,9 @@ endif ()
 set_property(TARGET pallas
         PROPERTY PUBLIC_HEADER ${PALLAS_HEADERS}
 )
+set_property(TARGET pallas
+        PROPERTY PRIVATE_HEADER ${PALLAS_UTILS_HEADERS}
+)
 
 
 
@@ -84,12 +95,12 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(pallas PRIVATE -Wno-class-memaccess)
 endif()
-    message("Warning list: ${WARNINGS}")
+message("Warning list: ${WARNINGS}")
 
 target_link_libraries(pallas
         PUBLIC
-        dl
         unordered_dense::unordered_dense
+        dl
         PRIVATE
         ${CMAKE_DL_LIBS}
         m
@@ -119,9 +130,12 @@ else ()
     endif ()
 endif ()
 
-install(TARGETS pallas EXPORT PALLASLibTargets
-        LIBRARY DESTINATION ${INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
-)
+if (NOT INSTALL_PYTHON)
+  install(TARGETS pallas EXPORT PALLASLibTargets
+          LIBRARY DESTINATION ${INSTALL_LIBDIR}
+          PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
+          PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
+  )
+endif()
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)

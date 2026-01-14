@@ -3,7 +3,6 @@
  * See LICENSE in top-level directory.
  */
 
-#include <cinttypes>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -11,14 +10,12 @@
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
-#include "pallas/pallas_hash.h"
-#include "pallas/pallas_log.h"
-#include "pallas/pallas_parameter_handler.h"
-#include "pallas/pallas_storage.h"
-#include "pallas/pallas_timestamp.h"
 #include "pallas/pallas_write.h"
 
-#include <pallas/pallas_read.h>
+#include "pallas/utils/pallas_hash.h"
+#include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_timestamp.h"
 
 thread_local int pallas_recursion_shield = 0;
 namespace pallas {
@@ -148,7 +145,8 @@ void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::Attribut
 }
 
 void ThreadWriter::storeToken(Token t, size_t i) {
-    pallas_log(DebugLevel::Debug, "storeToken: (%c%d) n°%d in seq at callstack[%d] (size: %zu)\n", PALLAS_TOKEN_TYPE_C(t), t.id,i, cur_depth, sequence_stack[cur_depth].size() + 1);
+    pallas_log(DebugLevel::Debug, "storeToken: (%c%d) n°%zu in seq at callstack[%d] (size: %zu)\n", PALLAS_TOKEN_TYPE_C(t), t.id, i, cur_depth,
+               sequence_stack[cur_depth].size() + 1);
     sequence_stack[cur_depth].push_back(t);
     index_stack[cur_depth].push_back(i);
     pallas_log(DebugLevel::Debug, "storeToken: %s\n",thread->getTokenArrayString(sequence_stack[cur_depth].data(), 0, sequence_stack[cur_depth].size()).c_str());
