@@ -177,19 +177,19 @@ Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t
         hash = hash32_Token(array, array_size, SEED);
 
     pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: Searching for sequence {.size=%zu, .hash=%x}\n", array_size, hash);
-    auto& sequencesWithSameHash = hashToSequence.at(hash);
-    if (!sequencesWithSameHash.empty()) {
-        if (sequencesWithSameHash.size() > 1) {
+    auto sequencesWithSameHash = hashToSequence.find(hash);
+    if (sequencesWithSameHash != hashToSequence.end()) {
+        if (sequencesWithSameHash->second.size() > 1) {
             pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
         }
-        for (const auto sid : sequencesWithSameHash) {
+        for (const auto sid : sequencesWithSameHash->second) {
             if (_pallas_arrays_equal(array, array_size, sequences[sid].tokens.data(), sequences[sid].size())) {
                 pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: \t found with id=%u\n", sid);
                 return PALLAS_SEQUENCE_ID(sid);
             }
         }
     }
-    return {};
+    return Token();
 }
 
 Loop* Thread::getLoop(Token token) const {
