@@ -6,7 +6,7 @@
 #include "pallas_config.h"
 
 int main() {
-    std::cout << "Pallas tracing library v" << PALLAS_VERSION_MAJOR << "." << PALLAS_VERSION_MINOR << "." << PALLAS_VERSION_PATCH << std::endl
+    std::cout << "Pallas tracing library v" << PALLAS_VERSION_MAJOR << "." << PALLAS_VERSION_MINOR << std::endl
             << "\tABI = " << PALLAS_ABI_VERSION << std::endl
             << "\tGit Branch = " << PALLAS_BRANCH << std::endl
             << "\tGit Hash = " << PALLAS_COMMIT_HASH << std::endl
