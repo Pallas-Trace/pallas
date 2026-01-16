@@ -26,13 +26,13 @@ eztrace -t "<your modules>" ./my-app
 ## Instrumenting
 If you want to have a full trace of your application, you can use EZTrace's `compiler_instrumentation` module.
 First, you've got to compile your application with `CFLAGS="-finstrument-functions" LDFLAGS="-rdynamic"`.
-Then, simply use 
-```bash 
+Then, simply use
+```bash
 eztrace -t compiler_instrumentation <my_app>
 ```
 
 ## In your application
-You can also skip EZTrace and trace your application yourself. 
+You can also skip EZTrace and trace your application yourself.
 For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/).
 
 # Reading your trace
@@ -42,7 +42,8 @@ The first one will print the content of a trace, while the second one will print
 
 ## Using Python
 Pallas comes with a Python library to read your traces.
-You need to enable building it with `-DENABLE_PYTHON=ON`
+You can install it locally by running `pip install .`.
+Otherwise it is available on the PyPi repository : `pip install pallas_trace`
 
 Its requirements are the following:
 - Python >=3.11
@@ -55,7 +56,7 @@ import pallas_trace as pallas
 trace = pallas.open_trace("<trace_name>.pallas")
 ```
 
-You can run your own instance of a Jupyter-Notebook with Pallas already installed 
+You can run your own instance of a Jupyter-Notebook with Pallas already installed
 and some examples provided my doing the following steps (require Docker):
 ```bash
 docker run -p 8888:8888 -w /jupyter-notebook -it eztrace/pallas:latest  jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser
@@ -64,12 +65,12 @@ docker run -p 8888:8888 -w /jupyter-notebook -it eztrace/pallas:latest  jupyter-
 Learn how to use the Python API in the [Python section of the documentation](04-analyzing-pallas/03-build-analysis/README.md)
 
 ## Using C/C++
-You can also use the Pallas library to read your traces. 
+You can also use the Pallas library to read your traces.
 Once again, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/index.md).
 
 ## Visualizing Pallas traces
 
-[Blup](https://gitlab.inria.fr/blup/blup) is a web-based trace visualizer able to display Pallas traces. 
+[Blup](https://gitlab.inria.fr/blup/blup) is a web-based trace visualizer able to display Pallas traces.
 It uses the Pallas Python API.
 
 ![](https://gitlab.inria.fr/blup/blup/-/raw/main/doc/screenshot.png)

@@ -41,7 +41,7 @@ root_folder/
 │       └── ...
 ├── archive_1/
 │   └── ...
-└── ... 
+└── ...
 ```
 Since each process and thread has its own folder, it enables highly parallel read / write performance on NFS,
 without ruining your performance.
@@ -64,7 +64,7 @@ This compact representation enables efficient storage and lookup:
 
 ```mermaid
 flowchart TD
-    Token["`**Token** 
+    Token["`**Token**
     *type*: TokenType
     *id*: TokenId`"]
 
@@ -244,8 +244,6 @@ Pallas has a few CMake variables you can edit:
 | `BUILD_DOC`               | Build the doxygen documentation. Requires the Doxygen library.                | ON / OFF |
 | `ENABLE_SZ`               | Build Pallas with SZ support.                                                 | ON / OFF |
 | `ENABLE_ZFP`              | Build Pallas with ZFP support.                                                | ON / OFF |
-| `ENABLE_PYTHON`           | Build the Pallas Python library.                                              | ON / OFF |
-| `Python3_INSTALL_LOCALLY` | Install the Pallas Python library for the user instead of system-wide.        | ON / OFF |
 
 Pallas also has a few compile-time macros which you can configure in `libraries/pallas/include/pallas/pallas_config.h.in`.
 These are mostly related to the initial size of arrays used when writing Pallas traces.
@@ -264,7 +262,7 @@ There are two crucial steps:
 #### Building with Pallas
 We recommend using `pkg-config` to get the correct flags when building with Pallas.
 ```bash
-gcc youfile.c $(pkg-config --libs pallas)  $(pkg-config --cflags pallas) 
+gcc youfile.c $(pkg-config --libs pallas)  $(pkg-config --cflags pallas)
 ```
 
 You can also use CMake:
@@ -333,7 +331,7 @@ int main() {
 There are two ways a user might want to store custom data in Pallas:
 either in the GlobalArchive/Archive (for information about the execution, for example),
 or in an Event (for information concerning a specific logged event).
-The former can be done by using the `AdditionalData<T>` template, which takes a pointer and a writer function 
+The former can be done by using the `AdditionalData<T>` template, which takes a pointer and a writer function
 (allowing you to create complex ways of writing your custom data):
 ```cpp
 // Define a custom structure that holds the data
