@@ -16,12 +16,13 @@ cmake ..
 cmake --install . --config Release
 ```
 ### Optional libraries
-If you want to use SZ and ZFP, you should install them, 
+If you want to use SZ and ZFP, you should install them,
 then feed their install directory to CMake, using `{SZ/ZFP}_ROOT_DIR`
 
 ## Python Library
 Pallas comes with a Python library to read your traces.
-You need to enable building it with `-DENABLE_PYTHON=ON`
+You can install it locally by running `pip install .`.
+Otherwise it is available on the PyPi repository : `pip install pallas_trace`
 
 Its requirements are the following:
 - Python >=3.11
@@ -53,9 +54,9 @@ Their documentation is available [here](https://pallas.gitlabpages.inria.fr/pall
 #include <pallas/pallas_write.h>
 namespace pallas;
 int main() {
-    GlobalArchive globalArchive("<trace directory>", "<main trace file name>"); 
+    GlobalArchive globalArchive("<trace directory>", "<main trace file name>");
     globalArchive.addString(...);                   // Register a String
-    
+
     // Add a process
     globalArchive.addLocationGroup(<processID>);    // Register a LocationGroup
     Archive archive(globalArchive, <processID>);
@@ -70,7 +71,7 @@ int main() {
 
     // Start logging
     pallas_record_generic(&threadWriter, <custom Attribute>, <timestamp>, <name>);
-    
+
     // Write the trace to file
     threadWriter.close();
     globalArchive.close();
@@ -154,4 +155,3 @@ Feel free to use the following publications to reference Pallas:
   MONTH = Jun,
 }
 ```
-
