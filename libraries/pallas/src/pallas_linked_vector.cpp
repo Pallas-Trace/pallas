@@ -164,23 +164,32 @@ SAME_FOR_BOTH_VECTORS(
   })
 
 uint64_t& LinkedVector::operator[](size_t pos) {
-      SubArray* correct_sub = last;
-      while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
-      }
-      if (correct_sub->array == nullptr) {
-          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-              parameter_handler.subvector_queue.pop_front();
-              delete temp->array;
-              temp->array = nullptr;
-              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-          }
-          load_data(correct_sub);
-          loaded_subarrays.insert(correct_sub);
-      }
-      return (*correct_sub)[pos];
+    SubArray* correct_sub = last;
+    while (pos < correct_sub->starting_index) {
+        correct_sub = correct_sub->previous;
+    }
+    if (correct_sub->array == nullptr) {
+        // TODO We should not load data for small vectors ( <= 2 )
+        //      This is a small temporary fix which should speed cleanup times
+        if (pos == correct_sub->starting_index) {
+            return correct_sub->first_value;
+        }
+        if (pos == correct_sub->starting_index + correct_sub->size - 1) {
+            return correct_sub->last_value;
+        }
+        while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
+            parameter_handler.subvector_queue.pop_front();
+            delete temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
+        load_data(correct_sub);
+        loaded_subarrays.insert(correct_sub);
+    }
+    return (*correct_sub)[pos];
 }
+
 uint64_t& LinkedDurationVector::operator[](size_t pos) {
       SubArray* correct_sub = last;
       while (pos < correct_sub->starting_index) {
@@ -307,7 +316,6 @@ uint64_t& LinkedDurationVector::back() {
 void LinkedVector::free_data() {
     if (first == nullptr)
         return;
-    pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
     auto& dq = parameter_handler.subvector_queue;
     for (auto* sub : loaded_subarrays) {
         // We need to remove the subvector from the global memory queue
@@ -315,25 +323,13 @@ void LinkedVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
+        delete sub->array;
         parameter_handler.loaded_durations_size -= sub->size;
     }
-    if (is_contiguous) {
-        free(first);
-    } else {
-        auto * sub = first;
-        while (sub->next) {
-            sub = sub->next;
-            delete sub->previous;
-        }
-        delete sub;
-    }
-    first = nullptr;
-    last = nullptr;
 }
 void LinkedDurationVector::free_data() {
     if (first == nullptr)
         return;
-    pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
     auto& dq = parameter_handler.subvector_queue;
     for (auto* sub : loaded_subarrays) {
         // We need to remove the subvector from the global memory queue
@@ -341,8 +337,13 @@ void LinkedDurationVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
+        delete sub->array;
         parameter_handler.loaded_durations_size -= sub->size;
     }
+}
+
+LinkedVector::~LinkedVector() {
+    free_data();
     if (is_contiguous) {
         free(first);
     } else {
@@ -353,16 +354,20 @@ void LinkedDurationVector::free_data() {
         }
         delete sub;
     }
-    first = nullptr;
-    last = nullptr;
-}
-
-LinkedVector::~LinkedVector() {
-    free_data();
 }
 
 LinkedDurationVector::~LinkedDurationVector() {
     free_data();
+    if (is_contiguous) {
+        free(first);
+    } else {
+        auto * sub = first;
+        while (sub->next) {
+            sub = sub->next;
+            delete sub->previous;
+        }
+        delete sub;
+    }
 }
 
 SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
