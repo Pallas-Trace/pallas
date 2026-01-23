@@ -4,6 +4,8 @@
  */
 #include "pallas_python.h"
 
+#include <iostream>
+
 std::string Token_toString(pallas::Token t) {
     std::string out;
     switch (t.type) {
@@ -438,6 +440,78 @@ auto makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader)
     }
 }
 
+py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
+    size_t size = trace.nb_archives * trace.nb_archives;
+    size_t datasize = sizeof(uint64_t);
+    auto* matrix = new uint64_t[size]();
+    py::capsule free_when_done(matrix, [](void * f) {
+        auto* matrix = reinterpret_cast<uint64_t*>(f);
+        delete[] matrix;
+    });
+
+
+    for (auto& thread: trace.getThreadList()) {
+        auto& receiver = thread->archive->id;
+        for (size_t i = 0; i<thread->nb_events; i ++) {
+            auto& event = thread->events[i];
+            if (event.data.record != pallas::PALLAS_EVENT_MPI_IRECV && event.data.record != pallas::PALLAS_EVENT_MPI_RECV) {
+                continue;
+            }
+            uint32_t sender = *(uint32_t*)&event.data.event_data[0];
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+            matrix[sender * trace.nb_archives + receiver] += msgLength * event.nb_occurrences;
+        }
+    }
+    return py::array_t<uint64_t>(
+        {trace.nb_archives, trace.nb_archives},
+        {trace.nb_archives * datasize, datasize},
+        matrix,
+        free_when_done);
+}
+
+
+py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trace, pallas_timestamp_t start, pallas_timestamp_t end) {
+    size_t size = trace.nb_archives * trace.nb_archives;
+    size_t datasize = sizeof(uint64_t);
+    auto* matrix = new uint64_t[size]();
+    py::capsule free_when_done(matrix, [](void * f) {
+        auto* matrix = reinterpret_cast<uint64_t*>(f);
+        delete[] matrix;
+    });
+
+
+    for (auto& thread: trace.getThreadList()) {
+        auto& receiver = thread->archive->id;
+        for (size_t i = 0; i<thread->nb_events; i ++) {
+            auto& event = thread->events[i];
+            if (event.data.record != pallas::PALLAS_EVENT_MPI_IRECV && event.data.record != pallas::PALLAS_EVENT_MPI_RECV) {
+                continue;
+            }
+            if (event.timestamps->back() < start || event.timestamps->front() > end)
+                continue;
+            size_t count = 0;
+            for (size_t j = event.timestamps->getFirstOccurrenceBefore(start); j < event.nb_occurrences; j ++) {
+                auto ts = event.timestamps->at(j);
+                if (ts < start)
+                    continue;
+                if (end < ts )
+                    break;
+                count ++;
+            }
+            uint32_t sender = *(uint32_t*)&event.data.event_data[0];
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+            matrix[sender * trace.nb_archives + receiver] += msgLength * count;
+        }
+    }
+    return py::array_t<uint64_t>(
+        {trace.nb_archives, trace.nb_archives},
+        {trace.nb_archives * datasize, datasize},
+        matrix,
+        free_when_done);
+}
+
+
+
 PYBIND11_MODULE(_core, m) {
     m.doc() = "Python API for the Pallas library";
 
@@ -607,7 +681,14 @@ PYBIND11_MODULE(_core, m) {
     ;
 
     m.def("open_trace", &open_trace, "Open a Pallas trace")
-            .def("get_ABI", []() { return PALLAS_ABI_VERSION; });
+            .def("get_ABI", []() { return PALLAS_ABI_VERSION; })
+            .def("get_communication_matrix", get_communication_matrix )
+            .def("get_communication_matrix", get_communication_matrix_timed)
+            .def("get_communication_matrix", [](pallas::GlobalArchive& trace, double_t start, double_t end) {
+                // Enables autoconvert from double to uint64, in case of linspace
+                return get_communication_matrix_timed(trace, start, end);
+            })
+    ;
 
     py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
             .def(py::init(&open_trace), "Open a trace file and read its structure.")
@@ -619,7 +700,22 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("location_groups", &Trace_get_location_groups)
             .def_property_readonly("strings", &Trace_get_strings)
             .def_property_readonly("regions", &Trace_get_regions)
-            .def_property_readonly("archives", &Trace_get_archives);
+            .def_property_readonly("archives", &Trace_get_archives)
+            .def_property_readonly("starting_timestamp", [](pallas::GlobalArchive& self) {
+                pallas_timestamp_t out = -1;
+                for (auto& thread: self.getThreadList()) {
+                    out = std::min(out, thread->first_timestamp);
+                }
+                return out;
+            })
+            .def_property_readonly("ending_timestamp", [](pallas::GlobalArchive& self) {
+                pallas_timestamp_t out = 0;
+                for (auto& thread: self.getThreadList()) {
+                    out = std::max(out, thread->getLastTimestamp());
+                }
+                return out;
+            })
+    ;
 }
 
 /* -*-

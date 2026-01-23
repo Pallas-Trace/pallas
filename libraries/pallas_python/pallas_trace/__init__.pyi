@@ -709,6 +709,23 @@ class Vector:
 def get_ABI() -> int:
     ...
 
+def get_communication_matrix(trace: Trace) -> numpy.typing.NDArray[numpy.uint64]:
+    """
+    Returns an MPI communication matrix for given trace.
+    Doesn't read more than the grammar.
+    :param trace: Trace being read.
+    :return: N² matrix, where N is the number of MPI processes.
+    """
+    ...
+
+def get_communication_matrix(trace: Trace, start: numpy.uint64, end: numpy.uint64) -> numpy.typing.NDArray[numpy.uint64]:
+    """
+    Returns an MPI communication matrix for the given trace between the two given timestamps.
+    Only loads the timestamps when necessary.
+    :param trace: Trace being read.
+    :return: N² matrix, where N is the number of MPI processes.
+    """
+    ...
 
 def open_trace(path: str) -> Trace:
     """

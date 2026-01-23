@@ -21,6 +21,7 @@ from ._core import (
     # Functions
     get_ABI,
     open_trace,
+    get_communication_matrix,
 
     # Enums
     BUFFER_FLUSH,
