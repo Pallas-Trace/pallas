@@ -828,6 +828,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
 
 void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
     _pallas_fwrite(&size, sizeof(size), 1, vectorFile);
+    _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
     if (size == 0)
         return;
     final_update_mean();
@@ -872,6 +873,8 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
+    _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+
     if (size == 0) {
         return;
     }
@@ -879,15 +882,11 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
     _pallas_fread(&min, sizeof(min), 1, vectorFile);
     _pallas_fread(&max, sizeof(max), 1, vectorFile);
     _pallas_fread(&mean, sizeof(mean), 1, vectorFile);
-    size_t temp_size = 0;
-    while (temp_size < size) {
-        last = new SubArray(vectorFile, last);
-        if (first == nullptr) {
-            first = last;
-        }
-        temp_size += last->size;
+    first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+    is_contiguous = true;
+    for (size_t i = 0; i <n_sub_array; i++) {
+        last = new (&first[i]) SubArray(vectorFile, last);
     }
-
 }
 
 void pallas::LinkedVector::load_data(SubArray* sub) {

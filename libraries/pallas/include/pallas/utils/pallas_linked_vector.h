@@ -228,6 +228,10 @@ class LinkedDurationVector {
     size_t size = 0;
     /** Number of times the vector's data is linked somewhere. */
     size_t ref = 0;
+    /** Number of Sub-arrays. */
+    size_t n_sub_array = 1;
+    /** Describes if the SubArrays were all defined contiguously or not. */
+    bool is_contiguous = false;
     /**
      * Adds a new element at the end of the vector, after its current last element.
      * Updates mean, min and max.
@@ -402,6 +406,8 @@ class LinkedDurationVector {
          */
         SubArray(FILE* file, SubArray* previous = nullptr);
     };
+    /** Set of loaded subarrays indexes. */
+    std::set<SubArray*> loaded_subarrays;
 
     /** First array list in the linked array list structure.*/
     SubArray* first;
