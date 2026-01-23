@@ -779,6 +779,7 @@ void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file,  const Pa
 
 void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
     _pallas_fwrite(&size, sizeof(size), 1, infoFile);
+    _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, infoFile);
     if (size == 0)
         return;
     // Write the Subarrays statistics
@@ -814,16 +815,14 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
+    _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
     if (size == 0) {
         return;
     }
-    size_t temp_size = 0;
-    while (temp_size < size) {
-        last = new SubArray(vectorFile, last);
-        if (first == nullptr) {
-            first = last;
-        }
-        temp_size += last->size;
+    first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+    is_contiguous = true;
+    for (size_t i = 0; i <n_sub_array; i++) {
+        last = new (&first[i]) SubArray(vectorFile, last);
     }
 }
 

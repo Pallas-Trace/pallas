@@ -138,6 +138,7 @@ uint64_t* LinkedDurationVector::add(uint64_t val) {
 uint64_t* LinkedVector::add(uint64_t val) {
     if (this->last->size >= this->last->allocated) {
         last = new SubArray(DEFAULT_VECTOR_SIZE, last);
+        n_sub_array++;
     }
     size++;
     return last->add(val);
@@ -175,6 +176,7 @@ uint64_t& LinkedVector::operator[](size_t pos) {
               parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
           }
           load_data(correct_sub);
+          loaded_subarrays.insert(correct_sub);
       }
       return (*correct_sub)[pos];
 }
@@ -305,18 +307,24 @@ void LinkedVector::free_data() {
     if (first == nullptr)
         return;
     pallas_log(DebugLevel::Debug, "Freeing timestamps from %p\n", this);
-    SubArray* sub = first;
     auto& dq = parameter_handler.subvector_queue;
-    while (sub) {
-        auto* temp = sub->next;
+    for (auto* sub : loaded_subarrays) {
         // We need to remove the subvector from the global memory queue
         auto it = std::find(dq.begin(), dq.end(), sub);
         if (it != dq.end()) {
             dq.erase(it);
         }
         parameter_handler.loaded_durations_size -= sub->size;
+    }
+    if (is_contiguous) {
+        free(first);
+    } else {
+        auto * sub = first;
+        while (sub->next) {
+            sub = sub->next;
+            delete sub->previous;
+        }
         delete sub;
-        sub = temp;
     }
     first = nullptr;
     last = nullptr;
