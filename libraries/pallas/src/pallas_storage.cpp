@@ -835,7 +835,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
                 first = last;
             }
             temp_size += last->size;
-            n_sub_array;
+            n_sub_array++;
         }
     }
 }
