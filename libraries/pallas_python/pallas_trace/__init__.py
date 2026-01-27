@@ -22,6 +22,7 @@ from ._core import (
     get_ABI,
     open_trace,
     get_communication_matrix,
+    get_message_size_histogram,
 
     # Enums
     BUFFER_FLUSH,
