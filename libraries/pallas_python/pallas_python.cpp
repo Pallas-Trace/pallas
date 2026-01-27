@@ -440,6 +440,14 @@ auto makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader)
     }
 }
 
+#define IS_MPI_SEND(e) (e.data.record == pallas::PALLAS_EVENT_MPI_ISEND || \
+e.data.record == pallas::PALLAS_EVENT_MPI_SEND )
+
+#define IS_MPI_RECV(e) (e.data.record == pallas::PALLAS_EVENT_MPI_IRECV || \
+e.data.record == pallas::PALLAS_EVENT_MPI_RECV )
+
+#define IS_MPI_COMM(e) (IS_MPI_RECV(e) || IS_MPI_SEND(e))
+
 /** Returns a communication matrix of all the messages received. */
 py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
     size_t size = trace.nb_archives * trace.nb_archives;
@@ -455,7 +463,7 @@ py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
         auto& receiver = thread->archive->id;
         for (size_t i = 0; i<thread->nb_events; i ++) {
             auto& event = thread->events[i];
-            if (event.data.record != pallas::PALLAS_EVENT_MPI_IRECV && event.data.record != pallas::PALLAS_EVENT_MPI_RECV) {
+            if (!IS_MPI_RECV(event)) {
                 continue;
             }
             uint32_t sender = *(uint32_t*)&event.data.event_data[0];
@@ -470,7 +478,7 @@ py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
         free_when_done);
 }
 
-/** Returns a communication matrix of all the messages received between start and end. */
+/** Returns a communication matrix of all the messages exchanged between start and end. */
 py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trace, pallas_timestamp_t start, pallas_timestamp_t end) {
     size_t size = trace.nb_archives * trace.nb_archives;
     size_t datasize = sizeof(uint64_t);
@@ -482,10 +490,10 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
 
 
     for (auto& thread: trace.getThreadList()) {
-        auto& receiver = thread->archive->id;
+        auto& pid = thread->archive->id;
         for (size_t i = 0; i<thread->nb_events; i ++) {
             auto& event = thread->events[i];
-            if (event.data.record != pallas::PALLAS_EVENT_MPI_IRECV && event.data.record != pallas::PALLAS_EVENT_MPI_RECV) {
+            if (!IS_MPI_COMM(event)) {
                 continue;
             }
             if (event.timestamps->back() < start || event.timestamps->front() > end)
@@ -499,9 +507,15 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
                     break;
                 count ++;
             }
-            uint32_t sender = *(uint32_t*)&event.data.event_data[0];
-            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
-            matrix[sender * trace.nb_archives + receiver] += msgLength * count;
+            if (IS_MPI_RECV(event)) {
+                uint32_t sender = *(uint32_t*)&event.data.event_data[0];
+                uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+                matrix[sender * trace.nb_archives + pid] += msgLength * count;
+            } else {
+                uint32_t receiver = *(uint32_t*)&event.data.event_data[0];
+                uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+                matrix[pid * trace.nb_archives + receiver] += msgLength * count;
+            }
         }
     }
     return py::array_t<uint64_t>(
@@ -511,13 +525,13 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
         free_when_done);
 }
 
-/** Returns a histogram ( in the form of a sorted map ) of all the messages sent. */
+/** Returns a histogram ( in the form of a sorted map ) of all communications received. */
 std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& trace, bool count_data_amount = false) {
     std::map<uint64_t, uint64_t> output;
     for (auto& thread: trace.getThreadList()) {
         for (size_t i = 0; i < thread->nb_events; i ++) {
             auto& event = thread->events[i];
-            if (event.data.record != pallas::PALLAS_EVENT_MPI_ISEND && event.data.record != pallas::PALLAS_EVENT_MPI_SEND) {
+            if (!IS_MPI_COMM(event)) {
                 continue;
             }
             uint64_t msgLength = *(uint64_t*) &event.data.event_data[sizeof(uint32_t) * 3];
@@ -530,11 +544,6 @@ std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& t
     return output;
 }
 
-#define IS_MPI_COMM(e) (e.data.record != pallas::PALLAS_EVENT_MPI_ISEND || \
-e.data.record != pallas::PALLAS_EVENT_MPI_IRECV || \
-e.data.record != pallas::PALLAS_EVENT_MPI_SEND || \
-e.data.record != pallas::PALLAS_EVENT_MPI_RECV \
-    )
 /** Returns a histogram ( in the form of a sorted map ) of all communications in a single archive. */
 std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& archive, bool count_data_amount = false) {
     std::map<uint64_t, uint64_t> output;
@@ -590,7 +599,7 @@ py::array_t<uint64_t>  get_communication_over_time(pallas::GlobalArchive& trace,
                 }
                 output[i] += count * (count_messages ? 1 : msgLength);
             }
-            event.timestamps->free_data();
+            // event.timestamps->free_data();
         }
     }
     return output_numpy;
