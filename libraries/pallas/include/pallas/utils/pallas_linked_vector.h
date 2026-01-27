@@ -212,7 +212,7 @@ private:
     LinkedVector(ParameterHandler& p);
 
     /** Creates a new LinkedVector from a file. Doesn't actually load it until and element is accessed. */
-    LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler);
+    LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version);
 
     /**
      * Classic destructor. Calls free_data().
@@ -447,7 +447,7 @@ class LinkedDurationVector {
      * Loads a LinkedDurationVector from a file.
      * Only loads the statistics, doesn't load the timestamps until they're accessed.
      */
-    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler);
+    LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version);
 
     /**
      * Creates a new LinkedDurationVector.

@@ -810,19 +810,33 @@ pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     }
 }
 
-pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler) : parameter_handler(parameter_handler) {
+pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version) : parameter_handler(parameter_handler) {
     filePath = valueFilePath;
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
-    _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+    if (abi_version >= 18) {
+        _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+    }
     if (size == 0) {
         return;
     }
-    first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
-    is_contiguous = true;
-    for (size_t i = 0; i <n_sub_array; i++) {
-        last = new (&first[i]) SubArray(vectorFile, last);
+    if (abi_version >= 18) {
+        first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+        is_contiguous = true;
+        for (size_t i = 0; i <n_sub_array; i++) {
+            last = new (&first[i]) SubArray(vectorFile, last);
+        }
+    } else {
+        size_t temp_size = 0;
+        while (temp_size < size) {
+            last = new SubArray(vectorFile, last);
+            if (first == nullptr) {
+                first = last;
+            }
+            temp_size += last->size;
+            n_sub_array;
+        }
     }
 }
 
@@ -868,12 +882,13 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
 }
 
 
-pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler): parameter_handler(parameter_handler) {
+pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version): parameter_handler(parameter_handler) {
     filePath = valueFilePath;
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
-    _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+    if (abi_version >= 18)
+        _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
 
     if (size == 0) {
         return;
@@ -882,10 +897,22 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
     _pallas_fread(&min, sizeof(min), 1, vectorFile);
     _pallas_fread(&max, sizeof(max), 1, vectorFile);
     _pallas_fread(&mean, sizeof(mean), 1, vectorFile);
-    first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
-    is_contiguous = true;
-    for (size_t i = 0; i <n_sub_array; i++) {
-        last = new (&first[i]) SubArray(vectorFile, last);
+    if (abi_version >= 18) {
+        first = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+        is_contiguous = true;
+        for (size_t i = 0; i <n_sub_array; i++) {
+            last = new (&first[i]) SubArray(vectorFile, last);
+        }
+    } else {
+        size_t temp_size = 0;
+        while (temp_size < size) {
+            last = new SubArray(vectorFile, last);
+            if (first == nullptr) {
+                first = last;
+            }
+            temp_size += last->size;
+            n_sub_array++;
+        }
     }
 }
 
@@ -1043,7 +1070,7 @@ static void readEvent(pallas::Event& event,
         event.attribute_buffer = new byte[event.attribute_buffer_size];
         eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
     }
-    event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler);
+    event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler, abi_version);
     event.nb_occurrences = event.timestamps->size;
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
 }
@@ -1109,9 +1136,9 @@ static void readSequence(pallas::Sequence& sequence,
     sequence.tokens.resize(size);
     sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
-        sequence.durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
-        sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler);
-        sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler);
+        sequence.durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.timestamps = new pallas::LinkedVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
     }
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(),
                sequence.durations->size);
