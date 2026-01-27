@@ -727,6 +727,28 @@ def get_communication_matrix(trace: Trace, start: numpy.uint64, end: numpy.uint6
     """
     ...
 
+def get_communication_over_time(trace: Trace, timestamps:numpy.typing.NDArray[numpy.uint64], count_messages: bool) -> numpy.typing.NDArray[numpy.uint64]:
+    """
+    Returns a histogram of the communications over time for this trace.
+    :param trace: Trace being read.
+    :param timestamps: Bins of timestamps. If this is [a, b, c, d], the first bin is [a, b), but the last is [c, d].
+    :param count_messages: Enable if you want to count the number of messages rather than the amount of data.
+    :return: Amount of data (or messages) sent for each bin.
+    """
+    ...
+
+
+def get_communication_over_time(archive: Archive, timestamps:numpy.typing.NDArray[numpy.uint64], count_messages: bool) -> numpy.typing.NDArray[numpy.uint64]:
+    """
+    Returns a histogram of the communications over time for this archive.
+    :param trace: Trace being read.
+    :param timestamps: Bins of timestamps. If this is [a, b, c, d], the first bin is [a, b), but the last is [c, d].
+    :param count_messages: Enable if you want to count the number of messages rather than the amount of data.
+    :return: Amount of data (or messages) sent for each bin.
+    """
+    ...
+
+
 def open_trace(path: str) -> Trace:
     """
     Open a Pallas trace

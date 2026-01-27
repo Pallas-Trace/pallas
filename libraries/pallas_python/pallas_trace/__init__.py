@@ -23,6 +23,7 @@ from ._core import (
     open_trace,
     get_communication_matrix,
     get_message_size_histogram,
+    get_communication_over_time,
 
     # Enums
     BUFFER_FLUSH,

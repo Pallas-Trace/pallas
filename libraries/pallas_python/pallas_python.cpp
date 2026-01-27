@@ -530,16 +530,22 @@ std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& t
     return output;
 }
 
-/** Returns a histogram ( in the form of a sorted map ) of all the messages sent in a single archive. */
+#define IS_MPI_COMM(e) (e.data.record != pallas::PALLAS_EVENT_MPI_ISEND || \
+e.data.record != pallas::PALLAS_EVENT_MPI_IRECV || \
+e.data.record != pallas::PALLAS_EVENT_MPI_SEND || \
+e.data.record != pallas::PALLAS_EVENT_MPI_RECV \
+    )
+/** Returns a histogram ( in the form of a sorted map ) of all communications in a single archive. */
 std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& archive, bool count_data_amount = false) {
     std::map<uint64_t, uint64_t> output;
     for (auto& loc : archive.locations) {
         auto* thread = archive.getThread(loc.id);
         for (size_t i = 0; i < thread->nb_events; i ++) {
             auto& event = thread->events[i];
-            if (event.data.record != pallas::PALLAS_EVENT_MPI_ISEND && event.data.record != pallas::PALLAS_EVENT_MPI_SEND) {
+            if (!IS_MPI_COMM(event)) {
                 continue;
             }
+            // TODO Mayyyyybe we should allow for segregation between Recv, IRecv, Send, and ISend
             uint64_t msgLength = *(uint64_t*) &event.data.event_data[sizeof(uint32_t) * 3];
             if (!output.contains(msgLength)) {
                 output[msgLength] = 0;
@@ -550,6 +556,87 @@ std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& a
     return output;
 }
 
+py::array_t<uint64_t>  get_communication_over_time(pallas::GlobalArchive& trace, py::array_t<uint64_t> timestamps, bool count_messages = false) {
+    // Warning: timestamps are bins, meaning the return is one size smaller than the actually value
+    size_t n_bins = timestamps.size() - 1;
+    auto output_numpy = py::array_t<uint64_t>(n_bins);
+    uint64_t * output = (uint64_t * ) output_numpy.request().ptr;
+    std::memset(output, 0, sizeof(uint64_t) * n_bins);
+    for (auto& thread : trace.getThreadList()) {
+        for (size_t eid = 0; eid < thread->nb_events; eid++) {
+            auto& event = thread->events[eid];
+            if (!IS_MPI_COMM(event)) {
+                continue;
+            }
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+            size_t last_occurrence = event.timestamps->getFirstOccurrenceBefore(timestamps.at(0));
+            for (size_t i = 0; i < n_bins; i++) {
+                pallas_timestamp_t start = timestamps.at(i);
+                pallas_timestamp_t end = timestamps.at(i + 1);
+                if (event.timestamps->back() < start)
+                    break;
+                if (event.timestamps->front() > end)
+                    continue;
+                size_t count = 0;
+                // TODO This might be optimized if end-start is "long enough" ( ie more than one subvector length )
+                //      This is optimized enough tho
+                for (; last_occurrence < event.nb_occurrences; last_occurrence++) {
+                    auto ts = event.timestamps->at(last_occurrence);
+                    if (ts < start)
+                        continue;
+                    if (end < ts)
+                        break;
+                    count++;
+                }
+                output[i] += count * (count_messages ? 1 : msgLength);
+            }
+            event.timestamps->free_data();
+        }
+    }
+    return output_numpy;
+}
+
+
+py::array_t<uint64_t>  get_communication_over_time_archive(pallas::Archive& archive, py::array_t<uint64_t> timestamps, bool count_messages = false) {
+    // Warning: timestamps are bins, meaning the return is one size smaller than the actually value
+    size_t n_bins = timestamps.size() - 1;
+    auto output_numpy = py::array_t<uint64_t>(n_bins);
+    uint64_t * output = (uint64_t * ) output_numpy.request().ptr;
+    std::memset(output, 0, sizeof(uint64_t) * n_bins);
+    for (auto& loc: archive.locations) {
+        auto* thread = archive.getThread(loc.id);
+        for (size_t eid = 0; eid < thread->nb_events; eid++) {
+            auto& event = thread->events[eid];
+            if (!IS_MPI_COMM(event)) {
+                continue;
+            }
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
+            size_t last_occurrence = event.timestamps->getFirstOccurrenceBefore(timestamps.at(0));
+            for (size_t i = 0; i < n_bins; i++) {
+                pallas_timestamp_t start = timestamps.at(i);
+                pallas_timestamp_t end = timestamps.at(i + 1);
+                if (event.timestamps->back() < start)
+                    break;
+                if (event.timestamps->front() > end)
+                    continue;
+                size_t count = 0;
+                // TODO This might be optimized if end-start is "long enough" ( ie more than one subvector length )
+                //      This is optimized enough tho
+                for (; last_occurrence < event.nb_occurrences; last_occurrence++) {
+                    auto ts = event.timestamps->at(last_occurrence);
+                    if (ts < start)
+                        continue;
+                    if (end < ts)
+                        break;
+                    count++;
+                }
+                output[i] += count * (count_messages ? 1 : msgLength);
+            }
+            event.timestamps->free_data();
+        }
+    }
+    return output_numpy;
+}
 
 
 PYBIND11_MODULE(_core, m) {
@@ -735,10 +822,20 @@ PYBIND11_MODULE(_core, m) {
                  "Doesn't read more than the grammar.\n")
             .def("get_message_size_histogram", get_message_size_histogram, py::arg("trace"), py::kw_only(), py::arg("count_data_amount") = false,
                  "Returns a histogram of the message sizes sent in this trace.\n"
-                 ":param: count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
+                 ":param count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
             .def("get_message_size_histogram", get_message_size_histogram_local, py::arg("archive"), py::kw_only(), py::arg("count_data_amount") = false,
                  "Returns a histogram of the message sizes sent in this archive.\n"
-                 ":param: count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.");
+                 ":param count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
+            .def("get_communication_over_time", get_communication_over_time, py::arg("trace"), py::arg("timestamps"),
+                py::kw_only(), py::arg("count_messages") = false,
+                "Returns a binned histogram for the given timestamps.\n"
+                ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
+                ":param count_messages: If False, count the number of messages rather than the data amount.")
+            .def("get_communication_over_time", get_communication_over_time_archive, py::arg("archive"), py::arg("timestamps"),
+                py::kw_only(), py::arg("count_messages") = false,
+                "Returns a binned histogram for the given timestamps.\n"
+                ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
+                ":param count_messages: If False, count the number of messages rather than the data amount.");
 
     py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
             .def(py::init(&open_trace), "Open a trace file and read its structure.")
