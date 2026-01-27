@@ -751,20 +751,8 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("strings", &Trace_get_strings)
             .def_property_readonly("regions", &Trace_get_regions)
             .def_property_readonly("archives", &Trace_get_archives)
-            .def_property_readonly("starting_timestamp", [](pallas::GlobalArchive& self) {
-                pallas_timestamp_t out = -1;
-                for (auto& thread: self.getThreadList()) {
-                    out = std::min(out, thread->first_timestamp);
-                }
-                return out;
-            })
-            .def_property_readonly("ending_timestamp", [](pallas::GlobalArchive& self) {
-                pallas_timestamp_t out = 0;
-                for (auto& thread: self.getThreadList()) {
-                    out = std::max(out, thread->getLastTimestamp());
-                }
-                return out;
-            })
+            .def_property_readonly("starting_timestamp", &pallas::GlobalArchive::get_starting_timestamp)
+            .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp)
     ;
 }
 

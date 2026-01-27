@@ -329,6 +329,22 @@ GlobalArchive::~GlobalArchive() {
   delete[] archive_list;
 };
 
+pallas_timestamp_t GlobalArchive::get_starting_timestamp() {
+    pallas_timestamp_t out = -1;
+    for (auto& thread: getThreadList()) {
+        out = std::min(out, thread->first_timestamp);
+    }
+    return out;
+}
+
+pallas_timestamp_t GlobalArchive::get_ending_timestamp() {
+    pallas_timestamp_t out = 0;
+    for (auto& thread: getThreadList()) {
+        out = std::max(out, thread->getLastTimestamp());
+    }
+    return out;
+}
+
 Archive::~Archive() {
     pallas_log(DebugLevel::Debug, "Deleting Archive %d\n", id);
   free(dir_name);

@@ -267,6 +267,10 @@ typedef struct GlobalArchive {
     void freeArchive(LocationGroupId archiveId);
 
     [[nodiscard]] struct Archive* getArchiveFromLocation(ThreadId) const;
+    /** Returns the starting timestamp of this trace. Loads the threads. */
+    pallas_timestamp_t get_starting_timestamp();
+    /** Returns the final timestamp of this trace. Loads the threads. */
+    pallas_timestamp_t get_ending_timestamp();
 
     ~GlobalArchive();
 #endif
