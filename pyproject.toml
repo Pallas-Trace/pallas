@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pallas_trace"
-version = "0.17.0"
+version = "0.18.0"
 authors = [
   { name="Catherine Guelque", email="catherine.guelque@telecom-sudparis.eu" },
   { name="Francois Trahay", email="francois.trahay@telecom-sudparis.eu" },
