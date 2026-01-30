@@ -24,6 +24,7 @@ from ._core import (
     get_communication_matrix,
     get_message_size_histogram,
     get_communication_over_time,
+    get_sequences_statistics,
 
     # Enums
     BUFFER_FLUSH,
