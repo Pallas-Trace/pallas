@@ -57,7 +57,7 @@ trace = pallas.open_trace("<trace_name>.pallas")
 ```
 
 You can run your own instance of a Jupyter-Notebook with Pallas already installed
-and some examples provided my doing the following steps (require Docker):
+and some examples provided by doing the following steps (require Docker):
 ```bash
 docker run -p 8888:8888 -w /jupyter-notebook -it eztrace/pallas:latest  jupyter-notebook --allow-root --ip=0.0.0.0 --no-browser
 ```
