@@ -664,6 +664,9 @@ py::object get_sequences_statistics(pallas::Thread& thread) {
     df["max"] = py::array_t<pallas_duration_t>(nb_lines);
     df["nb_occurrences"] = py::array_t<uint64_t>(nb_lines);
 
+    // I'm kind of concerned because all of these are, as far as I know, copies
+    // And i'd much rather they weren't
+
     auto sequence_id = (uint32_t*)df["Sequence_id"].cast<py::array_t<uint32_t>>().request().ptr;
     auto name = (py::object*) df["Name"].cast<py::array_t<py::object>>().request().ptr;
 
