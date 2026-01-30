@@ -10,4 +10,3 @@ docker push "${REGISTRY}/${URI}":latest
 
 docker build -f Dockerfile_pallas_intel . -t "${REGISTRY}/${URI}"/intel:latest && \
 docker push "${REGISTRY}/${URI}"/intel:latest
-glpat-t-mNVi5NfYBK6AT6z3FR
