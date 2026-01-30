@@ -657,15 +657,13 @@ py::object get_sequences_statistics(pallas::Thread& thread) {
     py::object df = pandas.attr("DataFrame")();
     df["Sequence_id"] = py::array_t<uint32_t>(nb_lines);
     // FIXME I want a column with the name but i've got no idea how to do that
-    //df["Name"] = py::list(nb_lines);
-
+    auto name = py::list(nb_lines);
     df["min"] = py::array_t<pallas_duration_t>(nb_lines);
     df["mean"] = py::array_t<pallas_duration_t>(nb_lines);
     df["max"] = py::array_t<pallas_duration_t>(nb_lines);
     df["nb_occurrences"] = py::array_t<uint64_t>(nb_lines);
 
     auto sequence_id = (uint32_t*)df["Sequence_id"].cast<py::array_t<uint32_t>>().request().ptr;
-    auto name = df["Sequence_id"].cast<py::list>();
 
     auto min = (pallas_duration_t*)df["min"].cast<py::array_t<pallas_duration_t>>().request().ptr;
     auto max = (pallas_duration_t*)df["max"].cast<py::array_t<pallas_duration_t>>().request().ptr;
@@ -677,12 +675,14 @@ py::object get_sequences_statistics(pallas::Thread& thread) {
     for (size_t i = 0; i < nb_lines; i ++) {
         auto& s = thread.sequences[i];
         sequence_id[i] = s.id.id;
-        //name.append(py::str(s.guessName(&thread).c_str()));
+        name[i] = py::str(s.guessName(&thread));
         min[i] = s.durations->min;
         mean[i] = s.durations->mean;
         max[i] = s.durations->max;
         nb_occurrences[i] = s.durations->size;
     }
+    df["Name"] = (name);
+
 
     return df;
 }
