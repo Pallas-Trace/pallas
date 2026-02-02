@@ -656,7 +656,6 @@ py::object get_sequences_statistics(pallas::Thread& thread) {
     py::module pandas = py::module::import("pandas");
     py::object df = pandas.attr("DataFrame")();
     df["Sequence_id"] = py::array_t<uint32_t>(nb_lines);
-    // FIXME I want a column with the name but i've got no idea how to do that
     df["Name"] = py::array_t<py::object>(nb_lines);
 
     df["min"] = py::array_t<pallas_duration_t>(nb_lines);
