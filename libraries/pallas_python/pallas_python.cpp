@@ -5,7 +5,7 @@
 #include "pallas_python.h"
 #include <pybind11/numpy.h>
 #include <iostream>
-
+py::module pandas;
 std::string Token_toString(pallas::Token t) {
     std::string out;
     switch (t.type) {
@@ -646,52 +646,45 @@ py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive& archi
     return output_numpy;
 }
 
+struct SequenceStatisticsLine {
+    uint32_t sequence_id;
+    pallas_duration_t min;
+    pallas_duration_t mean;
+    pallas_duration_t max;
+    uint64_t nb_occurrences;
+};
+
 py::object get_sequences_statistics(pallas::Thread& thread) {
     // 2. Créer un dictionnaire Python
     size_t nb_columns = 6;
     size_t nb_lines = thread.nb_sequences;
 
-
-    // 3. Importer pandas et créer le DataFrame
-    py::module pandas = py::module::import("pandas");
-    py::object df = pandas.attr("DataFrame")();
-    df["Sequence_id"] = py::array_t<uint32_t>(nb_lines);
-    df["Name"] = py::array_t<py::object>(nb_lines);
-
-    df["min"] = py::array_t<pallas_duration_t>(nb_lines);
-    df["mean"] = py::array_t<pallas_duration_t>(nb_lines);
-    df["max"] = py::array_t<pallas_duration_t>(nb_lines);
-    df["nb_occurrences"] = py::array_t<uint64_t>(nb_lines);
-
-    // I'm kind of concerned because all of these are, as far as I know, copies
-    // And i'd much rather they weren't
-
-    auto sequence_id = (uint32_t*)df["Sequence_id"].cast<py::array_t<uint32_t>>().request().ptr;
-    auto name = (py::object*) df["Name"].cast<py::array_t<py::object>>().request().ptr;
-
-    auto min = (pallas_duration_t*)df["min"].cast<py::array_t<pallas_duration_t>>().request().ptr;
-    auto max = (pallas_duration_t*)df["max"].cast<py::array_t<pallas_duration_t>>().request().ptr;
-    auto mean = (pallas_duration_t*)df["mean"].cast<py::array_t<pallas_duration_t>>().request().ptr;
-
-    auto nb_occurrences = (uint64_t*)df["nb_occurrences"].cast<py::array_t<uint64_t>>().request().ptr;
-
+    py::array_t<SequenceStatisticsLine> test_numpy_array(nb_lines);
+    py::list name_list(nb_lines);
 
     for (size_t i = 0; i < nb_lines; i ++) {
         auto& s = thread.sequences[i];
-        sequence_id[i] = s.id.id;
-        name[i] = py::str(s.guessName(&thread));
-        min[i] = s.durations->min;
-        mean[i] = s.durations->mean;
-        max[i] = s.durations->max;
-        nb_occurrences[i] = s.durations->size;
+        auto& line = test_numpy_array.mutable_at(i);
+        line.sequence_id = s.id.id;
+        name_list[i] = py::str(s.guessName(&thread));
+        line.min = s.durations->min;
+        line.mean = s.durations->mean;
+        line.max = s.durations->max;
+        line.nb_occurrences = s.durations->size;
     }
 
+
+    // 3. Importer pandas et créer le DataFrame
+    py::object df = pandas.attr("DataFrame")(test_numpy_array);
+    df["name"] = name_list;
 
     return df;
 }
 
 
 PYBIND11_MODULE(_core, m) {
+    PYBIND11_NUMPY_DTYPE(SequenceStatisticsLine, sequence_id, min, mean, max, nb_occurrences);
+    pandas = py::module::import("pandas");
     m.doc() = "Python API for the Pallas library";
 
     setupEnums(m);
@@ -708,6 +701,7 @@ PYBIND11_MODULE(_core, m) {
             .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
             .def("as_numpy_array", [](PyLinkedVector& self) {
                 py::capsule free_when_done(&self, [](void* f) {
+
                 });
 
                 if (self.linked_vector)
