@@ -324,7 +324,7 @@ void LinkedVector::free_data() {
             dq.erase(it);
         }
         delete sub->array;
-        sub->array == nullptr;
+        sub->array = nullptr;
         parameter_handler.loaded_durations_size -= sub->size;
     }
 }
