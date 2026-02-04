@@ -517,7 +517,7 @@ void ThreadWriter::recordExitFunction() {
     }
 
     if (last_event->record != expected_record) {
-        pallas_warn("Unexpected Leave event in sequence starting with non-matching Enter event:%s/%s\n",
+        pallas_warn("Unexpected Leave event in sequence starting with non-matching Enter event: %s/%s\n",
         thread->getEventString(first_event).c_str(),
         thread->getEventString(last_event).c_str());
         return;

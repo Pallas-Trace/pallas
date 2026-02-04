@@ -3,9 +3,9 @@
  * See LICENSE in top-level directory.
  */
 #include "pallas_python.h"
-
+#include <pybind11/numpy.h>
 #include <iostream>
-
+py::module pandas;
 std::string Token_toString(pallas::Token t) {
     std::string out;
     switch (t.type) {
@@ -412,29 +412,30 @@ auto makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader)
     case pallas::TypeEvent: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                    PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
-                    thread_reader.currentState.currentFrame->tokenCount[t]
+                        PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
+                thread_reader.currentState.currentFrame->tokenCount[t]
                 );
     }
     case pallas::TypeSequence: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                    PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
-                    thread_reader.currentState.currentFrame->tokenCount[t]
+                        PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
+                thread_reader.currentState.currentFrame->tokenCount[t]
                 );
     }
     case pallas::TypeLoop: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                    PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
-                    thread_reader.currentState.currentFrame->tokenCount[t]
+                        PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
+                thread_reader.currentState.currentFrame->tokenCount[t]
                 );
     }
-    default: { // pallas::TypeInvalid
+    default: {
+        // pallas::TypeInvalid
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                    pallas::Token()),
-                    0
+                        pallas::Token()),
+                0
                 );
     }
     }
@@ -453,15 +454,14 @@ py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
     size_t size = trace.nb_archives * trace.nb_archives;
     size_t datasize = sizeof(uint64_t);
     auto* matrix = new uint64_t[size]();
-    py::capsule free_when_done(matrix, [](void * f) {
+    py::capsule free_when_done(matrix, [](void* f) {
         auto* matrix = reinterpret_cast<uint64_t*>(f);
         delete[] matrix;
     });
 
-
-    for (auto& thread: trace.getThreadList()) {
+    for (auto& thread : trace.getThreadList()) {
         auto& receiver = thread->archive->id;
-        for (size_t i = 0; i<thread->nb_events; i ++) {
+        for (size_t i = 0; i < thread->nb_events; i++) {
             auto& event = thread->events[i];
             if (!IS_MPI_RECV(event)) {
                 continue;
@@ -472,10 +472,10 @@ py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
         }
     }
     return py::array_t<uint64_t>(
-        {trace.nb_archives, trace.nb_archives},
-        {trace.nb_archives * datasize, datasize},
-        matrix,
-        free_when_done);
+            {trace.nb_archives, trace.nb_archives},
+            {trace.nb_archives * datasize, datasize},
+            matrix,
+            free_when_done);
 }
 
 /** Returns a communication matrix of all the messages exchanged between start and end. */
@@ -483,15 +483,14 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
     size_t size = trace.nb_archives * trace.nb_archives;
     size_t datasize = sizeof(uint64_t);
     auto* matrix = new uint64_t[size]();
-    py::capsule free_when_done(matrix, [](void * f) {
+    py::capsule free_when_done(matrix, [](void* f) {
         auto* matrix = reinterpret_cast<uint64_t*>(f);
         delete[] matrix;
     });
 
-
-    for (auto& thread: trace.getThreadList()) {
+    for (auto& thread : trace.getThreadList()) {
         auto& pid = thread->archive->id;
-        for (size_t i = 0; i<thread->nb_events; i ++) {
+        for (size_t i = 0; i < thread->nb_events; i++) {
             auto& event = thread->events[i];
             if (!IS_MPI_COMM(event)) {
                 continue;
@@ -499,13 +498,13 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
             if (event.timestamps->back() < start || event.timestamps->front() > end)
                 continue;
             size_t count = 0;
-            for (size_t j = event.timestamps->getFirstOccurrenceBefore(start); j < event.nb_occurrences; j ++) {
+            for (size_t j = event.timestamps->getFirstOccurrenceBefore(start); j < event.nb_occurrences; j++) {
                 auto ts = event.timestamps->at(j);
                 if (ts < start)
                     continue;
-                if (end < ts )
+                if (end < ts)
                     break;
-                count ++;
+                count++;
             }
             if (IS_MPI_RECV(event)) {
                 uint32_t sender = *(uint32_t*)&event.data.event_data[0];
@@ -519,22 +518,22 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
         }
     }
     return py::array_t<uint64_t>(
-        {trace.nb_archives, trace.nb_archives},
-        {trace.nb_archives * datasize, datasize},
-        matrix,
-        free_when_done);
+            {trace.nb_archives, trace.nb_archives},
+            {trace.nb_archives * datasize, datasize},
+            matrix,
+            free_when_done);
 }
 
 /** Returns a histogram ( in the form of a sorted map ) of all communications received. */
 std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& trace, bool count_data_amount = false) {
     std::map<uint64_t, uint64_t> output;
-    for (auto& thread: trace.getThreadList()) {
-        for (size_t i = 0; i < thread->nb_events; i ++) {
+    for (auto& thread : trace.getThreadList()) {
+        for (size_t i = 0; i < thread->nb_events; i++) {
             auto& event = thread->events[i];
             if (!IS_MPI_COMM(event)) {
                 continue;
             }
-            uint64_t msgLength = *(uint64_t*) &event.data.event_data[sizeof(uint32_t) * 3];
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
             if (!output.contains(msgLength)) {
                 output[msgLength] = 0;
             }
@@ -549,13 +548,13 @@ std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& a
     std::map<uint64_t, uint64_t> output;
     for (auto& loc : archive.locations) {
         auto* thread = archive.getThread(loc.id);
-        for (size_t i = 0; i < thread->nb_events; i ++) {
+        for (size_t i = 0; i < thread->nb_events; i++) {
             auto& event = thread->events[i];
             if (!IS_MPI_COMM(event)) {
                 continue;
             }
             // TODO Mayyyyybe we should allow for segregation between Recv, IRecv, Send, and ISend
-            uint64_t msgLength = *(uint64_t*) &event.data.event_data[sizeof(uint32_t) * 3];
+            uint64_t msgLength = *(uint64_t*)&event.data.event_data[sizeof(uint32_t) * 3];
             if (!output.contains(msgLength)) {
                 output[msgLength] = 0;
             }
@@ -565,11 +564,11 @@ std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& a
     return output;
 }
 
-py::array_t<uint64_t>  get_communication_over_time(pallas::GlobalArchive& trace, py::array_t<uint64_t> timestamps, bool count_messages = false) {
+py::array_t<uint64_t> get_communication_over_time(pallas::GlobalArchive& trace, py::array_t<uint64_t> timestamps, bool count_messages = false) {
     // Warning: timestamps are bins, meaning the return is one size smaller than the actually value
     size_t n_bins = timestamps.size() - 1;
     auto output_numpy = py::array_t<uint64_t>(n_bins);
-    uint64_t * output = (uint64_t * ) output_numpy.request().ptr;
+    uint64_t* output = (uint64_t*)output_numpy.request().ptr;
     std::memset(output, 0, sizeof(uint64_t) * n_bins);
     for (auto& thread : trace.getThreadList()) {
         for (size_t eid = 0; eid < thread->nb_events; eid++) {
@@ -606,13 +605,13 @@ py::array_t<uint64_t>  get_communication_over_time(pallas::GlobalArchive& trace,
 }
 
 
-py::array_t<uint64_t>  get_communication_over_time_archive(pallas::Archive& archive, py::array_t<uint64_t> timestamps, bool count_messages = false) {
+py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive& archive, py::array_t<uint64_t> timestamps, bool count_messages = false) {
     // Warning: timestamps are bins, meaning the return is one size smaller than the actually value
     size_t n_bins = timestamps.size() - 1;
     auto output_numpy = py::array_t<uint64_t>(n_bins);
-    uint64_t * output = (uint64_t * ) output_numpy.request().ptr;
+    uint64_t* output = (uint64_t*)output_numpy.request().ptr;
     std::memset(output, 0, sizeof(uint64_t) * n_bins);
-    for (auto& loc: archive.locations) {
+    for (auto& loc : archive.locations) {
         auto* thread = archive.getThread(loc.id);
         for (size_t eid = 0; eid < thread->nb_events; eid++) {
             auto& event = thread->events[eid];
@@ -647,8 +646,45 @@ py::array_t<uint64_t>  get_communication_over_time_archive(pallas::Archive& arch
     return output_numpy;
 }
 
+struct SequenceStatisticsLine {
+    uint32_t sequence_id;
+    pallas_duration_t min;
+    pallas_duration_t mean;
+    pallas_duration_t max;
+    uint64_t nb_occurrences;
+};
+
+py::object get_sequences_statistics(pallas::Thread& thread) {
+    // 2. Créer un dictionnaire Python
+    size_t nb_columns = 6;
+    size_t nb_lines = thread.nb_sequences;
+
+    py::array_t<SequenceStatisticsLine> test_numpy_array(nb_lines);
+    py::list name_list(nb_lines);
+
+    for (size_t i = 0; i < nb_lines; i ++) {
+        auto& s = thread.sequences[i];
+        auto& line = test_numpy_array.mutable_at(i);
+        line.sequence_id = s.id.id;
+        name_list[i] = py::str(s.guessName(&thread));
+        line.min = s.durations->min;
+        line.mean = s.durations->mean;
+        line.max = s.durations->max;
+        line.nb_occurrences = s.durations->size;
+    }
+
+
+    // 3. Importer pandas et créer le DataFrame
+    py::object df = pandas.attr("DataFrame")(test_numpy_array);
+    df["name"] = name_list;
+
+    return df;
+}
+
 
 PYBIND11_MODULE(_core, m) {
+    PYBIND11_NUMPY_DTYPE(SequenceStatisticsLine, sequence_id, min, mean, max, nb_occurrences);
+    pandas = py::module::import("pandas");
     m.doc() = "Python API for the Pallas library";
 
     setupEnums(m);
@@ -665,6 +701,7 @@ PYBIND11_MODULE(_core, m) {
             .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
             .def("as_numpy_array", [](PyLinkedVector& self) {
                 py::capsule free_when_done(&self, [](void* f) {
+
                 });
 
                 if (self.linked_vector)
@@ -713,7 +750,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("data", [](const PyEvent& self) { return EventData_get_data(&self.self->data); })
             .def_property_readonly("nb_occurrences", [](const PyEvent& self) { return self.self->nb_occurrences; })
             .def_property_readonly("timestamps", [](const PyEvent& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
-            .def("guessName",[](const PyEvent& self) {return self.thread->getEventString(&self.self->data);})
+            .def("guessName", [](const PyEvent& self) { return self.thread->getEventString(&self.self->data); })
             .def("__repr__", [](const PyEvent& self) { return "<pallas_python.Event " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
@@ -734,7 +771,8 @@ PYBIND11_MODULE(_core, m) {
             })
             .def("reader", [](const pallas::Thread& self) {
                 return new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
-            });
+            })
+    ;
 
     py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
             .def("__next__", [](PyThreadIterator& self) {
@@ -753,20 +791,20 @@ PYBIND11_MODULE(_core, m) {
                 res.reserve(self.currentState.current_frame_index);
                 for (int i = 1; i <= self.currentState.current_frame_index; i++) {
                     res.push_back(
-                        makePyObjectFromToken(
-                            self.currentState.callstack[i].callstack_iterable,
-                            self
-                        )
-                    );
+                            makePyObjectFromToken(
+                                    self.currentState.callstack[i].callstack_iterable,
+                                    self
+                                    )
+                            );
                 }
                 res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
                 return res;
             }, py::keep_alive<0, 1>())
             .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = PALLAS_READ_FLAG_NONE;
-                if (enter_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
-                if (enter_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
-                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
+                if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
+                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
                 self.moveToNextToken(flags);
             })
             .def("pollCurToken", [](pallas::ThreadReader& self) {
@@ -774,16 +812,16 @@ PYBIND11_MODULE(_core, m) {
             })
             .def("enterIfStartOfBlock", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = PALLAS_READ_FLAG_NONE;
-                if (enter_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
-                if (enter_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
-                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
+                if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
+                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
                 return self.enterIfStartOfBlock(flags);
             })
             .def("exitIfEndOfBlock", [](pallas::ThreadReader& self, bool exit_sequence = true, bool exit_loop = true) {
                 int flags = PALLAS_READ_FLAG_NONE;
-                if (exit_sequence) {flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;}
-                if (exit_loop) {flags |= PALLAS_READ_FLAG_UNROLL_LOOP;}
-                if (!flags) {flags = PALLAS_READ_FLAG_NO_UNROLL;}
+                if (exit_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
+                if (exit_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
+                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
                 return self.exitIfEndOfBlock(flags);
             })
             .def("isEndOfCurrentBlock", &pallas::ThreadReader::isEndOfCurrentBlock)
@@ -800,11 +838,11 @@ PYBIND11_MODULE(_core, m) {
             .def_readonly("parent", &PyLocation::parent)
             .def("__repr__", [](const PyLocation& self) { return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>"; });
     py::class_<PyRegion>(m, "Region", "A Pallas region.")
-    .def_readonly("id", &PyRegion::id)
-    .def_readonly("name", &PyRegion::name)
-    .def("__repr__", [](const PyRegion& self) {
-        return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
-    });
+            .def_readonly("id", &PyRegion::id)
+            .def_readonly("name", &PyRegion::name)
+            .def("__repr__", [](const PyRegion& self) {
+                return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
+            });
 
     py::class_<pallas::Archive>(m, "Archive", "A Pallas archive. If it exists, it's already been loaded.")
             .def_readonly("dir_name", &pallas::Archive::dir_name)
@@ -813,8 +851,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("locations", &Archive_get_locations)
             .def_property_readonly("strings", &Archive_get_strings)
             .def_property_readonly("regions", &Archive_get_regions)
-            .def_property_readonly("threads", &Archive_get_threads)
-    ;
+            .def_property_readonly("threads", &Archive_get_threads);
 
     m.def("open_trace", &open_trace, "Open a Pallas trace")
             .def("get_ABI", []() { return PALLAS_ABI_VERSION; })
@@ -836,15 +873,16 @@ PYBIND11_MODULE(_core, m) {
                  "Returns a histogram of the message sizes sent in this archive.\n"
                  ":param count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
             .def("get_communication_over_time", get_communication_over_time, py::arg("trace"), py::arg("timestamps"),
-                py::kw_only(), py::arg("count_messages") = false,
-                "Returns a binned histogram for the given timestamps.\n"
-                ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
-                ":param count_messages: If False, count the number of messages rather than the data amount.")
+                 py::kw_only(), py::arg("count_messages") = false,
+                 "Returns a binned histogram for the given timestamps.\n"
+                 ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
+                 ":param count_messages: If False, count the number of messages rather than the data amount.")
             .def("get_communication_over_time", get_communication_over_time_archive, py::arg("archive"), py::arg("timestamps"),
-                py::kw_only(), py::arg("count_messages") = false,
-                "Returns a binned histogram for the given timestamps.\n"
-                ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
-                ":param count_messages: If False, count the number of messages rather than the data amount.");
+                 py::kw_only(), py::arg("count_messages") = false,
+                 "Returns a binned histogram for the given timestamps.\n"
+                 ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
+                 ":param count_messages: If False, count the number of messages rather than the data amount.")
+    .def("get_sequences_statistics", get_sequences_statistics);
 
     py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
             .def(py::init(&open_trace), "Open a trace file and read its structure.")
@@ -858,8 +896,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("regions", &Trace_get_regions)
             .def_property_readonly("archives", &Trace_get_archives)
             .def_property_readonly("starting_timestamp", &pallas::GlobalArchive::get_starting_timestamp)
-            .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp)
-    ;
+            .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp);
 }
 
 /* -*-

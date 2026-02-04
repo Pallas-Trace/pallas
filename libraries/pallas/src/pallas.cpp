@@ -330,24 +330,26 @@ std::string Thread::getEventString(EventData* e) const {
     case PALLAS_EVENT_ENTER: {
         RegionRef region_ref;
         pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        if (archive->global_archive) {
-            const Region* region = archive->getRegion(region_ref);
-            const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
-            return "Enter " + std::to_string(region_ref) + "(" + region_name + ")";
-        } else {
-            return "Enter" + std::to_string(region_ref);
+        const Region* region = archive->getRegion(region_ref);
+        if (! region) {
+            return "Enter " + std::to_string(region_ref) + " (INVALID)";
         }
+        if (auto region_str = archive->getString(region->string_ref)) {
+            return "Enter " + std::to_string(region_ref) + " (" + region_str->str + ")";
+        }
+        return "Enter " + std::to_string(region_ref);
     }
     case PALLAS_EVENT_LEAVE: {
         RegionRef region_ref;
         pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        if (archive->global_archive) {
-            const Region* region = archive->getRegion(region_ref);
-            const char* region_name = region ? archive->getString(region->string_ref)->str : "INVALID";
-            return "Leave " + std::to_string(region_ref) + "(" + region_name + ")";
-        } else {
-            return "Leave " + std::to_string(region_ref);
+        const Region* region = archive->getRegion(region_ref);
+        if (! region) {
+            return "Leave " + std::to_string(region_ref) + " (INVALID)";
         }
+        if (auto region_str = archive->getString(region->string_ref)) {
+            return "Leave " + std::to_string(region_ref) + " (" + region_str->str + ")";
+        }
+        return "Leave " + std::to_string(region_ref);
     }
     case PALLAS_EVENT_THREAD_BEGIN:
         return "THREAD_BEGIN()";
