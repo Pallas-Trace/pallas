@@ -3,7 +3,6 @@
 
 extern py::module pandas;
 
-/** Returns a communication matrix of all the messages received. */
 py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
     size_t size = trace.nb_archives * trace.nb_archives;
     size_t datasize = sizeof(uint64_t);
@@ -32,7 +31,6 @@ py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace) {
             free_when_done);
 }
 
-/** Returns a communication matrix of all the messages exchanged between start and end. */
 py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trace, pallas_timestamp_t start, pallas_timestamp_t end) {
     size_t size = trace.nb_archives * trace.nb_archives;
     size_t datasize = sizeof(uint64_t);
@@ -78,7 +76,6 @@ py::array_t<uint64_t> get_communication_matrix_timed(pallas::GlobalArchive& trac
             free_when_done);
 }
 
-/** Returns a histogram ( in the form of a sorted map ) of all communications received. */
 std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& trace, bool count_data_amount) {
     std::map<uint64_t, uint64_t> output;
     for (auto& thread : trace.getThreadList()) {
@@ -97,7 +94,6 @@ std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive& t
     return output;
 }
 
-/** Returns a histogram ( in the form of a sorted map ) of all communications in a single archive. */
 std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive& archive, bool count_data_amount) {
     std::map<uint64_t, uint64_t> output;
     for (auto& loc : archive.locations) {

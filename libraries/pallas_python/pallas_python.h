@@ -29,14 +29,6 @@ e.data.record == pallas::PALLAS_EVENT_MPI_RECV )
 
 #define IS_MPI_COMM(e) (IS_MPI_RECV(e) || IS_MPI_SEND(e))
 
-struct SequenceStatisticsLine {
-    uint32_t sequence_id;
-    pallas_duration_t min;
-    pallas_duration_t mean;
-    pallas_duration_t max;
-    uint64_t nb_occurrences;
-};
-
 /* -*-
    mode: c;
    c-file-style: "k&r";

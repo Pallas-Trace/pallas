@@ -11,7 +11,11 @@ if (Python3_FOUND)
     endif()
 endif()
 
-execute_process(COMMAND pybind11-config --cmakedir OUTPUT_VARIABLE pybind11_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(
+    COMMAND pybind11-config --cmakedir
+    OUTPUT_VARIABLE pybind11_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 find_package(pybind11 CONFIG REQUIRED)
 
 
