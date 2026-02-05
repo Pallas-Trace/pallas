@@ -11,25 +11,32 @@ Building is done with CMake and any compiler (GCC, Clang, Intel OneAPI).
 ZSTD is required.
 ```bash
 git clone https://gitlab.inria.fr/pallas/pallas.git
-mkdir -p pallas/build && cd pallas/build
+cd pallas
+mkdir -p build && cd build
 cmake ..
 cmake --install . --config Release
 ```
+
 ### Optional libraries
 If you want to use SZ and ZFP, you should install them,
 then feed their install directory to CMake, using `{SZ/ZFP}_ROOT_DIR`
 
 ## Python Library
 Pallas comes with a Python library to read your traces.
-You can install it locally by running `pip install .`.
-Otherwise it is available on the PyPi repository : `pip install pallas_trace`
+It is available on the PyPi repository : `pip install pallas_trace`
+
+### Building it locally
+There are 2 ways you can build it locally :
+- Using pip by running `pip install .`, this will build and install a standalone version of the Pallas Python library.
+- Using the `INSTALL_PYTHON` option in cmake, this links the Pallas C++ library dynamically instead of statically in the Python library. This means that `libpallas.so` will have to be in your `LD_LIBRARY_PATH` when using the python library.
 
 Its requirements are the following:
 - Python >=3.11
 - Numpy
 - pybind11
 
-You can then read it like this:
+### Usage
+You can then use it like this:
 ```python
 import pallas_trace as pallas
 trace = pallas.open_trace("<my_trace_file>.pallas")

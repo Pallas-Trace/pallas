@@ -42,18 +42,22 @@ The first one will print the content of a trace, while the second one will print
 
 ## Using Python
 Pallas comes with a Python library to read your traces.
-You can install it locally by running `pip install .`.
-Otherwise it is available on the PyPi repository : `pip install pallas_trace`
+It is available on the PyPi repository : `pip install pallas_trace`
+
+There are 2 ways you can build it locally :
+- Using pip by running `pip install .`, this will build and install a standalone version of the Pallas Python library.
+- Using the `INSTALL_PYTHON` option in cmake, this links the Pallas C++ library dynamically instead of statically in the Python library. This means that `libpallas.so` will have to be in your `LD_LIBRARY_PATH` when using the python library.
 
 Its requirements are the following:
 - Python >=3.11
 - Numpy
 - pybind11
 
-You can then read your trace like this:
+You can then use it like this:
 ```python
 import pallas_trace as pallas
-trace = pallas.open_trace("<trace_name>.pallas")
+trace = pallas.open_trace("<my_trace_file>.pallas")
+help( trace ) # Get some help reading you trace :)
 ```
 
 You can run your own instance of a Jupyter-Notebook with Pallas already installed
