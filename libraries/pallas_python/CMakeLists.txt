@@ -15,7 +15,13 @@ execute_process(COMMAND pybind11-config --cmakedir OUTPUT_VARIABLE pybind11_DIR 
 find_package(pybind11 CONFIG REQUIRED)
 
 
-pybind11_add_module(pallas_python MODULE pallas_python.cpp)
+pybind11_add_module(pallas_python
+    MODULE
+    pallas_python.cpp
+    python_analysis.cpp
+    python_read.cpp
+    python_tokens.cpp
+)
 set_target_properties(pallas_python PROPERTIES OUTPUT_NAME "_core")
 pybind11_extension(pallas_python)
 if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)

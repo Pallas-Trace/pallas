@@ -7,12 +7,36 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-namespace py = pybind11;
 
 #include <pallas/pallas.h>
 #include <pallas/pallas_archive.h>
 #include <pallas/pallas_record.h>
 #include <pallas/utils/pallas_storage.h>
+
+#define READ(data, cursor, type, name)                              \
+    {                                                               \
+        type name;                                                  \
+        pallas_event_pop_data(data, &name, sizeof(type), &cursor);  \
+        dict[#name] = name;                                         \
+    }
+
+
+#define IS_MPI_SEND(e) (e.data.record == pallas::PALLAS_EVENT_MPI_ISEND || \
+e.data.record == pallas::PALLAS_EVENT_MPI_SEND )
+
+#define IS_MPI_RECV(e) (e.data.record == pallas::PALLAS_EVENT_MPI_IRECV || \
+e.data.record == pallas::PALLAS_EVENT_MPI_RECV )
+
+#define IS_MPI_COMM(e) (IS_MPI_RECV(e) || IS_MPI_SEND(e))
+
+struct SequenceStatisticsLine {
+    uint32_t sequence_id;
+    pallas_duration_t min;
+    pallas_duration_t mean;
+    pallas_duration_t max;
+    uint64_t nb_occurrences;
+};
+
 /* -*-
    mode: c;
    c-file-style: "k&r";
