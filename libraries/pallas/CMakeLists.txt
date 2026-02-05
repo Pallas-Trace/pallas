@@ -11,11 +11,11 @@ configure_file(
         @ONLY
 )
 
-if (INSTALL_PYTHON)
-  add_library(pallas STATIC)
-  set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
+if (PIP)
+    add_library(pallas STATIC)
+    set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
 else()
-  add_library(pallas SHARED)
+    add_library(pallas SHARED)
 endif()
 
 set(PALLAS_HEADERS
@@ -34,7 +34,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_linked_vector.h
         include/pallas/utils/pallas_storage.h
         include/pallas/utils/pallas_timestamp.h
-	      include/pallas/utils/pallas_parameter_handler.h
+       include/pallas/utils/pallas_parameter_handler.h
 )
 
 target_sources(pallas
@@ -119,9 +119,9 @@ if (DOXYGEN_FOUND AND BUILD_DOC)
 
     # note the option ALL which allows to build the docs together with the application
     doxygen_add_docs(pallas_doc ALL
-			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-			COMMENT "Generating API documentation with Doxygen"
-			CONFIG_FILE ${DOXYGEN_OUT})
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+   COMMENT "Generating API documentation with Doxygen"
+   CONFIG_FILE ${DOXYGEN_OUT})
 
     install(DIRECTORY "${DOXYGEN_OUTPUT_DIRECTORY}" TYPE DOC)
 else ()
@@ -130,8 +130,8 @@ else ()
     endif ()
 endif ()
 
-if (NOT INSTALL_PYTHON)
-  install(TARGETS pallas EXPORT PALLASLibTargets
+if (NOT PIP)
+    install(TARGETS pallas EXPORT PALLASLibTargets
           LIBRARY DESTINATION ${INSTALL_LIBDIR}
           PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
           PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils

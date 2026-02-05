@@ -39,5 +39,12 @@ target_link_libraries(pallas_python
         ${Python3_LIBRARIES}
 )
 
-install(TARGETS pallas_python DESTINATION pallas_trace)
-install(DIRECTORY pallas_trace/ DESTINATION pallas_trace)
+if (PIP)
+    install(TARGETS pallas_python DESTINATION pallas_trace)
+    install(DIRECTORY pallas_trace/ DESTINATION pallas_trace)
+else()
+    message("Installing Python library in : ${Python3_SITELIB}")
+
+    install(TARGETS pallas_python DESTINATION ${Python3_SITELIB}/pallas_trace)
+    install(DIRECTORY pallas_trace/ DESTINATION ${Python3_SITELIB}/pallas_trace)
+endif()

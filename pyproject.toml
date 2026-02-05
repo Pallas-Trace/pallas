@@ -27,6 +27,4 @@ Homepage = "https://gitlab.inria.fr/pallas/pallas"
 Issues = "https://gitlab.inria.fr/pallas/pallas/issues"
 
 [tool.scikit-build.cmake.define]
-INSTALL_PYTHON = "ON"
-BUILD_DOC = "OFF"
-BUILD_TESTING = "OFF"
+PIP = "ON"
