@@ -1,6 +1,7 @@
 #include "python_read.h"
 
 #include <pallas/utils/pallas_storage.h>
+#include <vector>
 
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
     auto vector = std::vector<pallas::Thread*>();
@@ -211,4 +212,48 @@ py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_re
                 );
     }
     }
+}
+
+py::array_t<uint64_t> linked_vector_to_numpy(PyLinkedVector& self) {
+    py::capsule free_when_done(&self, [](void* f) {
+
+    });
+
+    if (self.linked_vector)
+        return py::array_t<uint64_t>(
+                {self.linked_vector->size},
+                {sizeof(uint64_t)},
+                &self.linked_vector->at(0),
+                free_when_done
+                );
+    else
+        return py::array_t<uint64_t>(
+                {self.linked_duration_vector->size},
+                {sizeof(uint64_t)},
+                &self.linked_duration_vector->at(0),
+                free_when_done
+                );
+}
+
+std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self) {
+    std::vector<py::tuple> res;
+    res.reserve(self.currentState.current_frame_index);
+    for (int i = 1; i <= self.currentState.current_frame_index; i++) {
+        res.push_back(
+                makePyObjectFromToken(
+                        self.currentState.callstack[i].callstack_iterable,
+                        self
+                        )
+                );
+    }
+    res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
+    return res;
+}
+
+int get_read_flags_from_bools(bool enter_sequence, bool enter_loop) {
+    int flags = PALLAS_READ_FLAG_NONE;
+    if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
+    if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
+    if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
+    return flags;
 }

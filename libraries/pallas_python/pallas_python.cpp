@@ -100,26 +100,7 @@ PYBIND11_MODULE(_core, m) {
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
             .def_property_readonly("size", [](PyLinkedVector self) { return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size; })
             .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
-            .def("as_numpy_array", [](PyLinkedVector& self) {
-                py::capsule free_when_done(&self, [](void* f) {
-
-                });
-
-                if (self.linked_vector)
-                    return py::array_t<uint64_t>(
-                            {self.linked_vector->size},
-                            {sizeof(uint64_t)},
-                            &self.linked_vector->at(0),
-                            free_when_done
-                            );
-                else
-                    return py::array_t<uint64_t>(
-                            {self.linked_duration_vector->size},
-                            {sizeof(uint64_t)},
-                            &self.linked_duration_vector->at(0),
-                            free_when_done
-                            );
-            });
+            .def("as_numpy_array", &linked_vector_to_numpy);
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
             .def_property_readonly("id", [](const PySequence& self) { return self.self->id; })
@@ -186,43 +167,22 @@ PYBIND11_MODULE(_core, m) {
                 }
                 throw py::stop_iteration();
             });
+
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
-            .def_property_readonly("callstack", [](pallas::ThreadReader& self) {
-                std::vector<py::tuple> res;
-                res.reserve(self.currentState.current_frame_index);
-                for (int i = 1; i <= self.currentState.current_frame_index; i++) {
-                    res.push_back(
-                            makePyObjectFromToken(
-                                    self.currentState.callstack[i].callstack_iterable,
-                                    self
-                                    )
-                            );
-                }
-                res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
-                return res;
-            }, py::keep_alive<0, 1>())
+            .def_property_readonly("callstack", &thread_reader_get_callstack, py::keep_alive<0, 1>())
             .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
-                int flags = PALLAS_READ_FLAG_NONE;
-                if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
-                if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
-                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
+                int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
                 self.moveToNextToken(flags);
             })
             .def("pollCurToken", [](pallas::ThreadReader& self) {
                 return makePyObjectFromToken(self.pollCurToken(), self);
             })
             .def("enterIfStartOfBlock", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
-                int flags = PALLAS_READ_FLAG_NONE;
-                if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
-                if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
-                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
+                int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
                 return self.enterIfStartOfBlock(flags);
             })
             .def("exitIfEndOfBlock", [](pallas::ThreadReader& self, bool exit_sequence = true, bool exit_loop = true) {
-                int flags = PALLAS_READ_FLAG_NONE;
-                if (exit_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
-                if (exit_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
-                if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
+                int flags = get_read_flags_from_bools(exit_sequence, exit_loop);
                 return self.exitIfEndOfBlock(flags);
             })
             .def("isEndOfCurrentBlock", &pallas::ThreadReader::isEndOfCurrentBlock)
@@ -233,11 +193,13 @@ PYBIND11_MODULE(_core, m) {
             .def_readonly("name", &PyLocationGroup::name)
             .def_readonly("parent", &PyLocationGroup::parent)
             .def("__repr__", [](const PyLocationGroup& self) { return "<pallas_python.LocationGroup " + std::to_string(self.id) + ": '" + self.name + "'>"; });
+
     py::class_<PyLocation>(m, "Location", "A Pallas location. Usually means an execution thread.")
             .def_readonly("id", &PyLocation::id)
             .def_readonly("name", &PyLocation::name)
             .def_readonly("parent", &PyLocation::parent)
             .def("__repr__", [](const PyLocation& self) { return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>"; });
+
     py::class_<PyRegion>(m, "Region", "A Pallas region.")
             .def_readonly("id", &PyRegion::id)
             .def_readonly("name", &PyRegion::name)
@@ -283,7 +245,7 @@ PYBIND11_MODULE(_core, m) {
                  "Returns a binned histogram for the given timestamps.\n"
                  ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
                  ":param count_messages: If False, count the number of messages rather than the data amount.")
-    .def("get_sequences_statistics", get_sequences_statistics);
+            .def("get_sequences_statistics", get_sequences_statistics);
 
     py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
             .def(py::init(&open_trace), "Open a trace file and read its structure.")

@@ -11,6 +11,7 @@
 #include "python_tokens.h"
 
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 namespace py = pybind11;
 
@@ -76,3 +77,9 @@ std::vector<PyEvent> threadGetEventsMatching(pallas::Thread& t, pallas::Record r
 std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<pallas::Record> records);
 
 py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader);
+
+py::array_t<uint64_t> linked_vector_to_numpy(PyLinkedVector& self);
+
+std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self);
+
+int get_read_flags_from_bools(bool enter_sequence, bool enter_loop);
