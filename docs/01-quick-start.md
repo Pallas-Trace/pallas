@@ -46,7 +46,7 @@ It is available on the PyPi repository : `pip install pallas_trace`
 
 There are 2 ways you can build it locally :
 - Using pip by running `pip install .`, this will build and install a standalone version of the Pallas Python library.
-- Using the `INSTALL_PYTHON` option in cmake, this links the Pallas C++ library dynamically instead of statically in the Python library. This means that `libpallas.so` will have to be in your `LD_LIBRARY_PATH` when using the python library.
+- Using the `ENABLE_PYTHON` option in cmake, this links the Pallas C++ library dynamically instead of statically in the Python library. This means that `libpallas.so` will have to be in your `LD_LIBRARY_PATH` when using the python library.
 
 Its requirements are the following:
 - Python >=3.11
