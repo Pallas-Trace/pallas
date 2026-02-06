@@ -1,5 +1,6 @@
 #include "python_read.h"
 
+#include <variant>
 #include <pallas/utils/pallas_storage.h>
 #include <vector>
 
