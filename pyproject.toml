@@ -28,4 +28,4 @@ Homepage = "https://gitlab.inria.fr/pallas/pallas"
 Issues = "https://gitlab.inria.fr/pallas/pallas/issues"
 
 [tool.scikit-build.cmake.define]
-PIP = "ON"
+_PIP = "ON"

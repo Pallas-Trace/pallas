@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.14.0)
 set (CMAKE_CXX_STANDARD 20)
 
 find_package(Python3 COMPONENTS Interpreter Development NumPy)
+if (Python3_DYNAMIC)
+pkg_check_modules(pallas pallas REQUIRED)
+endif()
 
 if (Python3_FOUND)
     if (Python3_VERSION VERSION_LESS 3.10)
@@ -26,6 +29,11 @@ pybind11_add_module(pallas_python
     python_read.cpp
     python_tokens.cpp
 )
+if (Python3_DYNAMIC)
+    target_include_directories(pallas_python PUBLIC ${pallas_INCLUDE_DIRS} )
+    target_link_directories(pallas_python PRIVATE ${pallas_LIBRARY_DIRS})
+endif()
+
 set_target_properties(pallas_python PROPERTIES OUTPUT_NAME "_core")
 pybind11_extension(pallas_python)
 if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
@@ -42,10 +50,12 @@ target_compile_options(pallas_python
 
 target_link_libraries(pallas_python PRIVATE pybind11::headers)
 
+
 target_link_libraries(pallas_python
         PRIVATE
         dl
         pallas
+        ${pallas_LIBRARIES}
         ${Python3_LIBRARIES}
 )
 

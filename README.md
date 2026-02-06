@@ -26,14 +26,15 @@ Pallas comes with a Python library to read your traces.
 It is available on the PyPi repository : `pip install pallas_trace`
 
 ### Building it locally
-There are 2 ways you can build it locally :
-- Using pip by running `pip install .`, this will build and install a standalone version of the Pallas Python library.
-- Using the `ENABLE_PYTHON` option in cmake, this links the Pallas C++ library dynamically instead of statically in the Python library. This means that `libpallas.so` will have to be in your `LD_LIBRARY_PATH` when using the python library.
+You need to install the Python library via pip by running `pip install .`.
+This will build and install a standalone version of the Pallas Python library.
+To link it dynamically instead, you can use the flag `--config-settings=cmake.define.Python3_DYNAMIC=ON`, 
+but Pallas needs to be installed ( and in your LD_LIBRARY_PATH as well as in your pkg-config path).
 
-Its requirements are the following:
+Its requirements to build are the following:
 - Python >=3.11
-- Numpy
 - pybind11
+However, the library uses numpy and pandas, so you will need these as well.
 
 ### Usage
 You can then use it like this:

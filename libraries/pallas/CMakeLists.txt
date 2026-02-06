@@ -11,7 +11,7 @@ configure_file(
         @ONLY
 )
 
-if (_PIP)
+if (_PIP AND NOT Python3_DYNAMIC)
     add_library(pallas STATIC)
     set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
 else()
@@ -81,15 +81,13 @@ set_property(TARGET pallas
         PROPERTY PRIVATE_HEADER ${PALLAS_UTILS_HEADERS}
 )
 
-
-
-
 target_compile_options(pallas
         PUBLIC
         -D_GNU_SOURCE
         PRIVATE
         -Wall -Wextra ${WARNINGS}
 )
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(pallas PRIVATE -Wno-nontrivial-memcall)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -136,6 +134,6 @@ if (NOT _PIP)
           PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
           PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
   )
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
 endif()
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
