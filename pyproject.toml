@@ -21,6 +21,7 @@ classifiers = [
 ]
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
+dependencies = ["pandas", "numpy"]
 
 [project.urls]
 Homepage = "https://gitlab.inria.fr/pallas/pallas"

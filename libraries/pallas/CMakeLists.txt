@@ -11,7 +11,7 @@ configure_file(
         @ONLY
 )
 
-if (PIP)
+if (_PIP)
     add_library(pallas STATIC)
     set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
 else()
@@ -130,7 +130,7 @@ else ()
     endif ()
 endif ()
 
-if (NOT PIP)
+if (NOT _PIP)
     install(TARGETS pallas EXPORT PALLASLibTargets
           LIBRARY DESTINATION ${INSTALL_LIBDIR}
           PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
