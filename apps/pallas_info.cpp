@@ -408,19 +408,20 @@ void info_thread_summary(Thread* thread) {
   }
 }
 
-void info_threads(Archive* archive) {
-  if (!(cmd & list_threads))
-    return;
-  if (thread_to_print >= 0 && !_archiveContainsThread(archive, thread_to_print)) {
-    return;
-  }
-
-  if (archive->threads) {
-    for (int i = 0; i < archive->nb_threads; i++) {
-      auto thread = archive->getThreadAt(i);
-      info_thread_summary(thread);
+void info_threads(Archive *archive) {
+    if (!(cmd & list_threads))
+        return;
+    if (thread_to_print >= 0 && !_archiveContainsThread(archive, thread_to_print)) {
+        return;
     }
-  }
+
+    if (archive->threads) {
+        for (int i = 0; i < archive->nb_threads; i++) {
+            auto thread = archive->getThreadAt(i);
+            info_thread_summary(thread);
+            archive->freeThreadAt(i);
+        }
+    }
 }
 
 void info_trace(GlobalArchive* trace) {
