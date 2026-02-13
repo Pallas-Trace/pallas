@@ -419,41 +419,42 @@ void info_threads(Archive *archive) {
         for (int i = 0; i < archive->nb_threads; i++) {
             auto thread = archive->getThreadAt(i);
             info_thread_summary(thread);
-            archive->freeThreadAt(i);
         }
     }
 }
 
-void info_trace(GlobalArchive* trace) {
-  info_global_archive(trace);
+void info_trace(GlobalArchive *trace) {
+    info_global_archive(trace);
 
-  if (cmd & list_archives) {
-    info_archive_header();
-    for (int i = 0; i < trace->nb_archives; i++) {
-      info_archive(trace->archive_list[i]);
+    if (cmd & list_archives) {
+        info_archive_header();
+        for (auto &lg: trace->location_groups) {
+            auto* archive = trace->getArchive(lg.id);
+            info_archive(archive);
+            info_archive_definition(archive);
+            trace->freeArchive(lg.id);
+        }
     }
-    printf("\n");
-    for (int i = 0; i < trace->nb_archives; i++) {
-      info_archive_definition(trace->archive_list[i]);
-    }
-  }
 
-  if (cmd & list_threads) {
-    info_thread_header();
-    for (int i = 0; i < trace->nb_archives; i++) {
-      info_threads(trace->archive_list[i]);
+    if (cmd & list_threads) {
+        info_thread_header();
+        for (auto &lg: trace->location_groups) {
+            auto *archive = trace->getArchive(lg.id);
+            info_threads(archive);
+            trace->freeArchive(lg.id);
+        }
     }
-  }
 
-  if (cmd & show_thread_content) {
-    for (int i = 0; i < trace->nb_archives; i++) {
-      for (int j = 0; j < trace->archive_list[i]->nb_threads; j++) {
-        auto thread = trace->archive_list[i]->getThreadAt(j);
-        if (thread)
-          info_thread(thread);
-      }
+    if (cmd & show_thread_content) {
+        for (auto &lg: trace->location_groups) {
+            auto* archive = trace->getArchive(lg.id);
+            for (auto& l: archive->locations) {
+                if (auto * thread = archive->getThread(l.id))
+                    info_thread(thread);
+            }
+            trace->freeArchive(lg.id);
+        }
     }
-  }
 }
 
 void usage(const char* prog_name) {
