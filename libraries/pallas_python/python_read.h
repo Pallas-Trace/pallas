@@ -37,6 +37,12 @@ struct PyLinkedVector {
     pallas::LinkedDurationVector* linked_duration_vector;
 };
 
+struct PyLinkedVectorIterator {
+    pallas::LinkedVector* linked_vector;
+    pallas::LinkedDurationVector* linked_duration_vector;
+    size_t index;
+};
+
 struct PyThreadIterator {
     pallas::ThreadReader inner;
 };

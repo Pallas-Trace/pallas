@@ -1,31 +1,4 @@
 from ._core import (
-    __doc__,
-
-    # Objects
-    Archive,
-    Event,
-    Location,
-    LocationGroup,
-    Loop,
-    Sequence,
-    Thread,
-    ThreadReader,
-    Thread_Iterator,
-    Token,
-    TokenType,
-    Trace,
-    Vector,
-    Record,
-    Region,
-
-    # Functions
-    get_ABI,
-    open_trace,
-    get_communication_matrix,
-    get_message_size_histogram,
-    get_communication_over_time,
-    get_sequences_statistics,
-
     # Enums
     BUFFER_FLUSH,
     COMM_CREATE,
@@ -90,11 +63,35 @@ from ._core import (
     THREAD_TEAM_BEGIN,
     THREAD_TEAM_END,
     THREAD_WAIT,
+    # Objects
+    Archive,
+    Event,
+    Location,
+    LocationGroup,
+    Loop,
+    Record,
+    Region,
+    Sequence,
+    Thread,
+    Thread_Iterator,
+    ThreadReader,
+    Token,
+    TokenType,
+    Trace,
+    Vector,
+    Vector_Iterator,
+    __doc__,
+    # Functions
+    get_ABI,
+    get_communication_matrix,
+    get_communication_over_time,
+    get_message_size_histogram,
+    get_sequences_statistics,
+    open_trace,
 )
 
 __all__ = [
     __doc__,
-
     # Objects
     Archive,
     Event,
@@ -109,13 +106,12 @@ __all__ = [
     TokenType,
     Trace,
     Vector,
+    Vector_Iterator,
     Record,
     Region,
-
     # Functions
     get_ABI,
     open_trace,
-
     # Enums
     BUFFER_FLUSH,
     COMM_CREATE,

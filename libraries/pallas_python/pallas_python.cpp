@@ -100,7 +100,22 @@ PYBIND11_MODULE(_core, m) {
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
             .def_property_readonly("size", [](PyLinkedVector self) { return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size; })
             .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
+            .def("__iter__", [](const PyLinkedVector self) { return PyLinkedVectorIterator{self.linked_vector, self.linked_duration_vector, 0}; })
             .def("as_numpy_array", &linked_vector_to_numpy);
+
+    py::class_<PyLinkedVectorIterator>(m, "Vector_Iterator", "An iterator over a Pallas custom vector")
+        .def("__next__", [](PyLinkedVectorIterator& self) {
+            if (self.linked_vector) {
+                if (self.index < self.linked_vector->size) {
+                    return self.linked_vector->at(self.index++);
+                }
+            } else {
+                if (self.index < self.linked_duration_vector->size) {
+                    return self.linked_duration_vector->at(self.index++);
+                }
+            }
+            throw py::stop_iteration();
+        });
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
             .def_property_readonly("id", [](const PySequence& self) { return self.self->id; })
@@ -169,7 +184,7 @@ PYBIND11_MODULE(_core, m) {
             });
 
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
-            .def_property_readonly("callstack", &thread_reader_get_callstack, py::keep_alive<0, 1>())
+            .def_property_readonly("callstack", &thread_reader_get_callstack)
             .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
                 self.moveToNextToken(flags);
