@@ -480,28 +480,28 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "OMP_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "OMP_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_ACQUIRE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "THREAD_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "THREAD_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "OMP_RELEASE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "OMP_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "THREAD_RELEASE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "THREAD_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_TASK_CREATE: {
         uint64_t taskID;
