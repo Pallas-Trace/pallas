@@ -169,7 +169,7 @@ PYBIND11_MODULE(_core, m) {
             });
 
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
-            .def_property_readonly("callstack", &thread_reader_get_callstack, py::keep_alive<0, 1>())
+            // .def_property_readonly("callstack", &thread_reader_get_callstack, py::keep_alive<0, 1>())
             .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
                 self.moveToNextToken(flags);
