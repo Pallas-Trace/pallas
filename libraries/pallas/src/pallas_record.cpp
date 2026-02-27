@@ -659,28 +659,30 @@ namespace pallas {
   }
 
 
-  void pallas_record_thread_acquire_lock(ThreadWriter* thread_writer,
-					 AttributeList* attribute_list,
-					 pallas_timestamp_t time,
-					 uint32_t lockID,
-					 uint32_t acquisitionOrder) {
-    if (pallas_recursion_shield)
-      return;
-    pallas_recursion_shield++;
-    EventData e;
-    init_event(&e, PALLAS_EVENT_THREAD_ACQUIRE_LOCK);
-    push_data(&e, &lockID, sizeof(lockID));
-    //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
-    pallas_recursion_shield--;
+  void pallas_record_thread_acquire_lock(ThreadWriter *thread_writer,
+                                         AttributeList *attribute_list,
+                                         pallas_timestamp_t time,
+                                         uint32_t lockID,
+                                         uint32_t acquisitionOrder) {
+      if (pallas_recursion_shield)
+          return;
+      pallas_recursion_shield++;
+      EventData e;
+      init_event(&e, PALLAS_EVENT_THREAD_ACQUIRE_LOCK);
+      push_data(&e, &lockID, sizeof(lockID));
+      //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
+      TokenId e_id = thread_writer->getEventId(&e);
+      // TODO We are currently discarding the "OTF2 PARADIGM" argument from OTF2
+      //      And I'm not sure this is a good idea.
+      thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+      pallas_recursion_shield--;
   }
 
   void pallas_read_thread_acquire_lock(ThreadReader* thread_reader,
-				       AttributeList** attribute_list,
-				       pallas_timestamp_t* time,
-				       uint32_t* lockID,
-				       uint32_t* acquisitionOrder) {
+                                       AttributeList** attribute_list,
+                                       pallas_timestamp_t* time,
+                                       uint32_t* lockID,
+                                       uint32_t* acquisitionOrder) {
     PALLAS_READ_PROLOG(PALLAS_EVENT_THREAD_ACQUIRE_LOCK);
     if(attribute_list) * attribute_list = NULL;
     if(time) *time = e.timestamp;

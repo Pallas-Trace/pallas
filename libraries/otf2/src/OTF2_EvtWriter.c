@@ -447,24 +447,40 @@ OTF2_ErrorCode OTF2_EvtWriter_ThreadTeamEnd(OTF2_EvtWriter* writer,
   return OTF2_SUCCESS;
 }
 
-OTF2_ErrorCode OTF2_EvtWriter_ThreadAcquireLock(OTF2_EvtWriter* writer,
-                                                OTF2_AttributeList* attributeList,
+OTF2_ErrorCode OTF2_EvtWriter_ThreadAcquireLock(OTF2_EvtWriter *writer,
+                                                OTF2_AttributeList *attributeList,
                                                 OTF2_TimeStamp time,
                                                 OTF2_Paradigm model,
                                                 uint32_t lockID,
                                                 uint32_t acquisitionOrder) {
-  pallas_record_thread_acquire_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
-  return OTF2_SUCCESS;
+    switch (model) {
+        case OTF2_PARADIGM_OPENMP: {
+            pallas_record_omp_acquire_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
+            break;
+        }
+        default: {
+            pallas_record_thread_acquire_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
+        }
+    }
+    return OTF2_SUCCESS;
 }
 
-OTF2_ErrorCode OTF2_EvtWriter_ThreadReleaseLock(OTF2_EvtWriter* writer,
-                                                OTF2_AttributeList* attributeList,
+OTF2_ErrorCode OTF2_EvtWriter_ThreadReleaseLock(OTF2_EvtWriter *writer,
+                                                OTF2_AttributeList *attributeList,
                                                 OTF2_TimeStamp time,
                                                 OTF2_Paradigm model,
                                                 uint32_t lockID,
                                                 uint32_t acquisitionOrder) {
-  pallas_record_thread_release_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
-  return OTF2_SUCCESS;
+    switch (model) {
+        case OTF2_PARADIGM_OPENMP: {
+            pallas_record_omp_release_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
+            break;
+        }
+        default: {
+            pallas_record_thread_release_lock(writer->thread_writer, attributeList, time, lockID, acquisitionOrder);
+        }
+    }
+    return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_EvtWriter_ThreadTaskCreate(OTF2_EvtWriter* writer,
