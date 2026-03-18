@@ -48,6 +48,12 @@ struct PyThreadIterator {
     pallas::ThreadReader inner;
 };
 
+struct PyAttributeHandle {
+    pallas::pallas_type_t type;
+    struct pallas::AttributeData *attr;
+    pallas::Archive *archive;
+};
+
 
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive);
 
@@ -90,3 +96,5 @@ py::array_t<uint64_t> linked_vector_to_numpy(PyLinkedVector& self);
 std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self);
 
 int get_read_flags_from_bools(bool enter_sequence, bool enter_loop);
+
+py::dict get_attributes(PyEvent &event, size_t occurence);

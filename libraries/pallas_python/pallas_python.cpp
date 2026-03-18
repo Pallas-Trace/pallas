@@ -155,6 +155,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("nb_occurrences", [](const PyEvent& self) { return self.self->nb_occurrences; })
             .def_property_readonly("timestamps", [](const PyEvent& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
             .def("guessName", [](const PyEvent& self) { return self.thread->getEventString(&self.self->data); })
+            .def("getAttributes", get_attributes)
             .def("__repr__", [](const PyEvent& self) { return "<pallas_python.Event " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
