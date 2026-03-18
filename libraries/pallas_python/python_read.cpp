@@ -327,7 +327,8 @@ py::dict get_attributes(PyEvent &event, size_t occurence) {
                 result[archive->getString(attribute->name)->str] = archive->getString(data->value.string_ref)->str;
                 break;
                 default:
-                std::cerr << "Attributes of type " << (int)attribute->type << " are not yet handled in python" << std::endl;
+                // TODO : Add more attribute types
+                pallas_warn("Attributes of type %d are not yet handled in python\n", (int)attribute->type);
                 break;
             }
         }
