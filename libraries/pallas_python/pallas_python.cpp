@@ -3,6 +3,7 @@
  * See LICENSE in top-level directory.
  */
 #include "pallas_python.h"
+#include "pallas/pallas.h"
 #include "python_tokens.h"
 #include "python_read.h"
 #include "python_analysis.h"
@@ -18,6 +19,11 @@ void setupEnums(const py::module_& m) {
             .value("EVENT", pallas::TypeEvent)
             .value("SEQUENCE", pallas::TypeSequence)
             .value("LOOP", pallas::TypeLoop)
+            .export_values();
+
+    py::enum_<pallas::SequenceType>(m, "SequenceType")
+            .value("SEQUENCE_BLOCK", pallas::SEQUENCE_BLOCK)
+            .value("SEQUENCE_LOOP", pallas::SEQUENCE_LOOP)
             .export_values();
 
     py::enum_<pallas::Record>(m, "Record")
@@ -128,6 +134,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
+            .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
             .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
             .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
             .def("contains", [](const PySequence& self, const PyEvent& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })

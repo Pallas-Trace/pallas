@@ -50,6 +50,8 @@ from ._core import (
     PROGRAM_BEGIN,
     PROGRAM_END,
     SEQUENCE,
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
     THREAD_ACQUIRE_LOCK,
     THREAD_BEGIN,
     THREAD_CREATE,
@@ -111,6 +113,10 @@ __all__ = [
     Region,
     # Functions
     get_ABI,
+    get_communication_matrix,
+    get_communication_over_time,
+    get_message_size_histogram,
+    get_sequences_statistics,
     open_trace,
     # Enums
     BUFFER_FLUSH,
@@ -163,6 +169,8 @@ __all__ = [
     PROGRAM_BEGIN,
     PROGRAM_END,
     SEQUENCE,
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
     THREAD_ACQUIRE_LOCK,
     THREAD_BEGIN,
     THREAD_CREATE,
