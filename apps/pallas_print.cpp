@@ -240,16 +240,19 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
       pallas_timestamp_t ts = s->timestamps->at(0);
 
       for(int occurence_id = 0; occurence_id < s->durations->size; occurence_id++) {
-	pallas_duration_t duration = s->durations->at(occurence_id);
-	pallas_timestamp_t ts = s->timestamps->at(occurence_id);
+        if(s->type != pallas::SEQUENCE_BLOCK) {
+          continue;
+        }
+        pallas_duration_t duration = s->durations->at(occurence_id);
+        pallas_timestamp_t ts = s->timestamps->at(occurence_id);
 
-	if(first_line) {
-	  std::cout<<"Thread,Function,Start,Finish,Duration\n";
-	  first_line = false;
-	}
+        if (first_line) {
+            std::cout << "Thread,Function,Start,Finish,Duration\n";
+            first_line = false;
+        }
 
-	std::cout<<reader.thread_trace->getName()<<",";
-	std::cout<<seq_name<<","<<ts<<","<<ts+duration<<","<<duration<<"\n";
+        std::cout << reader.thread_trace->getName() << ",";
+        std::cout << seq_name << "," << ts << "," << ts + duration << "," << duration << "\n";
       }
     }
   }
