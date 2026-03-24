@@ -408,8 +408,17 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
             // Completely inside the bounds
             output.push_back(1.0);
         } else if (current->first_value < start && start <= current->last_value) {
-            // Starting bounds
+          // Starting bounds
+
+ 	  if(end < current->last_value) {
+	    // [ first_value ...  start ...  end ... last_value]
+	    double ratio = static_cast<double>(end-start) / (current->last_value - current->first_value);
+            output.push_back(ratio);
+	  } else {
+	    // [ first_value ...  start ...   last_value] [... end ]
             output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value) );
+	  }
+
         } else if (current->first_value <= end && end < current->last_value) {
             // Ending bounds
             output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
