@@ -744,14 +744,15 @@ typedef struct Thread {
     /**
      * Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame.
      */
-    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
+  //    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
+  [[nodiscard]] std::map<std::tuple<Token,std::string>, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     // /*** Returns a snapshot of the thread's total time spent in each Block Sequence in *filter* during that time frame. */
     // std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end,
     //                                                        std::vector<Token> &filter) const;
 
     /*** Returns a snapshot of the thread's total time spent in each Block Sequence during that time frame. */
-    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
+  [[nodiscard]] std::map<std::tuple<Token,std::string>, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     /** Create a blank new Thread. This is used when reading the trace. */
     Thread();

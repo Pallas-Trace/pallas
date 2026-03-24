@@ -673,40 +673,41 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
 
 
-std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
-    auto filter = std::vector<Token>();
+  std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
+
+  auto filter = std::vector<Token>();
     for (size_t i = 0; i < nb_sequences; i++) {
         auto& s = sequences[i];
         if (s.type == SEQUENCE_BLOCK) {
             filter.emplace_back(s.id);
         }
     }
-    auto output = std::map<Token, pallas_duration_t>();
+
+    auto output = std::map<std::tuple<Token,std::string>, pallas_duration_t>();
     for (Token& t : filter) {
         auto* s = getSequence(t);
         if (s->type != SEQUENCE_BLOCK)
             continue;
-        output[t] = 0;
         // s.durations.min here because we don't want to load anything.
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min < start) {
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
         pallas_duration_t mean = s->exclusive_durations->weightedMean(weights);
-        output[t] = mean;
+        output[std::tuple(t, s->guessName(this))] = mean;
     }
+
     return output;
 }
 
-std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
-    auto output = std::map<Token, pallas_duration_t>();
+  std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    auto output = std::map<std::tuple<Token,std::string>, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i++) {
         auto& s = sequences[i];
-        Token id = s.id;
         if (s.type != SEQUENCE_BLOCK)
             continue;
-        output[id] = 0;
-        if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
+
+	if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
             continue;
         }
         size_t start_index = s.timestamps->getFirstOccurrenceBefore(start);
@@ -720,6 +721,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
         }
         pallas_assert_inferior_equal(s.timestamps->at(end_index), end);
 #endif
+	std::tuple<Token,std::string> id=std::tuple<Token,std::string>(s.id, s.guessName(this));
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if (start_index + 1 < end_index) {
@@ -821,7 +823,7 @@ std::string Sequence::guessName(const pallas::Thread* thread) const {
         EventData& data = thread->getEvent(t_start)->data;
         if (data.record == PALLAS_EVENT_ENTER) {
             const char* event_name = thread->getRegionStringFromEvent(&data);
-            return event_name;
+	    return event_name;
         }
         if (data.record == PALLAS_EVENT_THREAD_TEAM_BEGIN || data.record == PALLAS_EVENT_THREAD_BEGIN) {
             return "thread";
