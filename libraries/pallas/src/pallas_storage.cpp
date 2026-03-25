@@ -866,6 +866,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
             // This means that the trace was made before the fix of 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82
             // And this isn't the mean, but the sum
             // Hence:
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
             sub_array->mean /= sub_array->size;
             // TODO: We should eventually retire this piece of code
         }
