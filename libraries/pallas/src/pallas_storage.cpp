@@ -850,7 +850,8 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fwrite(&min, sizeof(min), 1, vectorFile);
     _pallas_fwrite(&max, sizeof(max), 1, vectorFile);
     _pallas_fwrite(&mean, sizeof(mean), 1, vectorFile);
-
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
     // Then write the statistics for all the sub_arrays.
     auto* sub_array = first;
     while (sub_array) {
@@ -861,6 +862,8 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
         _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
+        pallas_assert_inferior_equal(sub_array->mean, sub_array->max);
+        pallas_assert_inferior_equal(sub_array->min, sub_array->mean);
         _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, vectorFile);
         sub_array = sub_array->next;
     }
@@ -872,6 +875,8 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fread(&min, sizeof(min), 1, file);
     _pallas_fread(&max, sizeof(max), 1, file);
     _pallas_fread(&mean, sizeof(mean), 1, file);
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
     _pallas_fread(&offset, sizeof(offset), 1, file);
     allocated = 0;
     this->previous = previous;

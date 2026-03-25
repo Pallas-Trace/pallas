@@ -117,11 +117,25 @@ void LinkedDurationVector::update_statistics() {
     mean += val;
 }
 
+void LinkedDurationVector::final_update_mean() {
+    mean /= size;
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
+    last->final_update_mean();
+}
+
+
 void LinkedDurationVector::SubArray::update_statistics() {
     auto& val = at(size - 1 + starting_index);
         max = std::max(max, val);
         min = std::min(min, val);
         mean += val;
+}
+
+void LinkedDurationVector::SubArray::final_update_mean() {
+    mean /= size;
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
 }
 
 uint64_t* LinkedDurationVector::add(uint64_t val) {
