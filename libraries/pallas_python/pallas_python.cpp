@@ -3,6 +3,7 @@
  * See LICENSE in top-level directory.
  */
 #include "pallas_python.h"
+#include "pallas/pallas.h"
 #include "python_tokens.h"
 #include "python_read.h"
 #include "python_analysis.h"
@@ -18,6 +19,11 @@ void setupEnums(const py::module_& m) {
             .value("EVENT", pallas::TypeEvent)
             .value("SEQUENCE", pallas::TypeSequence)
             .value("LOOP", pallas::TypeLoop)
+            .export_values();
+
+    py::enum_<pallas::SequenceType>(m, "SequenceType")
+            .value("SEQUENCE_BLOCK", pallas::SEQUENCE_BLOCK)
+            .value("SEQUENCE_LOOP", pallas::SEQUENCE_LOOP)
             .export_values();
 
     py::enum_<pallas::Record>(m, "Record")
@@ -128,6 +134,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
+            .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
             .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
             .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
             .def("contains", [](const PySequence& self, const PyEvent& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
@@ -148,6 +155,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("nb_occurrences", [](const PyEvent& self) { return self.self->nb_occurrences; })
             .def_property_readonly("timestamps", [](const PyEvent& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
             .def("guessName", [](const PyEvent& self) { return self.thread->getEventString(&self.self->data); })
+            .def("getAttributes", get_attributes)
             .def("__repr__", [](const PyEvent& self) { return "<pallas_python.Event " + std::to_string(self.self->id) + ">"; });
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
@@ -161,6 +169,7 @@ PYBIND11_MODULE(_core, m) {
             .def("get_events_from_record", threadGetEventsMatchingList)
             .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
             .def("getSnapshotView", &pallas::Thread::getSnapshotView)
+            .def("getSnapshotViewByName", &pallas::Thread::getSnapshotViewByName)
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
             .def("__iter__", [](const pallas::Thread& self) {
                 auto inner = pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);

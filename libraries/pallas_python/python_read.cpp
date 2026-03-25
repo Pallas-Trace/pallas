@@ -1,8 +1,15 @@
 #include "python_read.h"
 
+#include <cstdint>
+#include <iostream>
 #include <variant>
 #include <pallas/utils/pallas_storage.h>
+#include <pybind11/pytypes.h>
 #include <vector>
+#include "pallas/pallas.h"
+#include "pallas/pallas_archive.h"
+#include "pallas/pallas_attribute.h"
+#include "pallas/pallas_read.h"
 
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
     auto vector = std::vector<pallas::Thread*>();
@@ -257,4 +264,76 @@ int get_read_flags_from_bools(bool enter_sequence, bool enter_loop) {
     if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
     if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
     return flags;
+}
+
+
+py::dict get_attributes(PyEvent &event, size_t occurence) {
+    py::dict result;
+    pallas::Archive *archive = event.thread->archive;
+    auto *summary = event.self;
+    pallas::AttributeList *attribute_list;
+    if (event.self->attribute_buffer == nullptr) return result;
+    if (summary->attribute_pos < summary->attribute_buffer_size) {
+        attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
+        while (attribute_list->index < occurence) { /* move to the next attribute until we reach the needed index */
+            summary->attribute_pos += attribute_list->struct_size;
+            attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
+        }
+        if (attribute_list->index > occurence) {
+            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurence, attribute_list->index);
+        }
+    } else {
+        return result;
+    }
+    byte *reading_addr = (byte *)attribute_list->attributes;
+    for (int i = 0; i < attribute_list->nb_values; i++) {
+        pallas::AttributeData *data = (pallas::AttributeData *)reading_addr;
+        const pallas::Attribute *attribute = archive->getAttribute(data->ref);
+        if (attribute) {
+            switch (attribute->type) {
+                case pallas::PALLAS_TYPE_NONE:
+                break;
+                case pallas::PALLAS_TYPE_UINT8:
+                result[archive->getString(attribute->name)->str] = &data->value.uint8;
+                break;
+                case pallas::PALLAS_TYPE_UINT16:
+                result[archive->getString(attribute->name)->str] = &data->value.uint16;
+                break;
+                case pallas::PALLAS_TYPE_UINT32:
+                result[archive->getString(attribute->name)->str] = &data->value.uint32;
+                break;
+                case pallas::PALLAS_TYPE_UINT64:
+                result[archive->getString(attribute->name)->str] = &data->value.uint64;
+                break;
+                case pallas::PALLAS_TYPE_INT8:
+                result[archive->getString(attribute->name)->str] = &data->value.int8;
+                break;
+                case pallas::PALLAS_TYPE_INT16:
+                result[archive->getString(attribute->name)->str] = &data->value.int16;
+                break;
+                case pallas::PALLAS_TYPE_INT32:
+                result[archive->getString(attribute->name)->str] = &data->value.int32;
+                break;
+                case pallas::PALLAS_TYPE_INT64:
+                result[archive->getString(attribute->name)->str] = &data->value.int64;
+                break;
+                case pallas::PALLAS_TYPE_FLOAT:
+                result[archive->getString(attribute->name)->str] = &data->value.float32;
+                break;
+                case pallas::PALLAS_TYPE_DOUBLE:
+                result[archive->getString(attribute->name)->str] = &data->value.float64;
+                break;
+                case pallas::PALLAS_TYPE_STRING:
+                result[archive->getString(attribute->name)->str] = archive->getString(data->value.string_ref)->str;
+                break;
+                default:
+                // TODO : Add more attribute types
+                pallas_warn("Attributes of type %d are not yet handled in python\n", (int)attribute->type);
+                break;
+            }
+        }
+        uint16_t size = data->struct_size;
+        reading_addr += size;
+    }
+    return result;
 }
