@@ -96,8 +96,9 @@ class LinkedVector {
      */
     void reset_offsets();
 
-    /*** Given a starting and an ending timestamp, returns an array containing the weights for the proportional time spent in each sub-vector.
-     * TODO This description is terrible.
+    /**
+     * Given a starting and an ending timestamp, returns an array containing the ratio, for each subvector,
+     * of the time spent between those two timestamps over the total duration of the subvector.
      */
     std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
 

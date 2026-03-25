@@ -396,31 +396,44 @@ SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
 
 std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<double>();
-    auto* current = first;
+    auto *current = first;
     double sum = 0;
+    // While loop to go through all the SubVectors.
+    // Legend:
+    //   - : Time spent in current vector but NOT in the window
+    //   # : Time spent in current vector AND in the window
+    // We store in output the ratio of # / ( - + # )
+    // i.e. the ratio of time spent in window over duration of current vector
     while (current != nullptr) {
         if (current->last_value < start) {
+            // first_value ... last_value ... [ start ... end ]
+            // --------------------------
+            // Completely outside of the range
             output.push_back(0.);
         } else if (end < current->first_value) {
-            // We're after the boundaries, we can stop searching.
+            // [ start ... end ] .. first_value ... last_value
+            //                      --------------------------
+            // We're past the boundaries, we can stop searching.
             break;
         } else if (start <= current->first_value && current->last_value <= end) {
+            // [ start ... first_value ... last_value ... end ]
+            //             ##########################
             // Completely inside the bounds
             output.push_back(1.0);
-        } else if (current->first_value < start && start <= current->last_value) {
-          // Starting bounds
-
- 	  if(end < current->last_value) {
-	    // [ first_value ...  start ...  end ... last_value]
-	    double ratio = static_cast<double>(end-start) / (current->last_value - current->first_value);
-            output.push_back(ratio);
-	  } else {
-	    // [ first_value ...  start ...   last_value] [... end ]
-            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value) );
-	  }
-
+        } else if (current->first_value < start && end < current->last_value) {
+            // first_value ... [ start ... end ] ... last_value
+            // ----------------#################---------------
+            // We have to compute the ratio of the two intervals to "guess" the weight of this vector in the total
+            output.push_back(static_cast<double>(end - start) / (current->last_value - current->first_value));
+        } else if (current->first_value < start && current->last_value < end) {
+            // first_value ... [ start ... last_value ... end ]
+            // ----------------######################
+            // Same thing except the window ends in the current vector
+            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value));
         } else if (current->first_value <= end && end < current->last_value) {
-            // Ending bounds
+            // [ start ... first_value ... end ] ... last_value
+            //             #####################---------------
+            // Same thing except the window starts in the current vector and isn't entirely contained in it.
             output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
         } else {
             pallas_error("This is not supposed to happen !\n");
