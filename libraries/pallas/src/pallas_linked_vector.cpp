@@ -442,20 +442,29 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
         sum += output.back();
         current = current->next;
     }
-    // Don't normalise if it's too small
-    if (sum > 1.0) {
-        for (auto& i : output) {
-            i /= sum;
-        }
-    }
+    // Then we need to normalize the weight vector
+    // UPDATE: We don't actually need to normalize the weight vector
+    //
+    // For example, a vector formatted like this:
+    //          start                   end
+    //          |                         |
+    // A: [......##][########][#######][##......]
+    // B:   [....############]
+    // A would have a non-normalized weight of [ .25, 1, 1, .25 ] -> [ .1, .4, .4, 0.1 ]
+    // B would have a non-normalized weight of [ .75 ] and that's that
+    // if (sum > 1.0) {
+    //     for (auto &i: output) {
+    //         i /= sum;
+    //     }
+    // }
     return output;
 }
 
-pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weights) {
+pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights) {
     double sum = 0;
     auto* current = first;
     for (auto w: weights) {
-        sum += w * current->mean;
+        sum += w * current->mean * current->size;
         current = current->next;
     }
     return sum;

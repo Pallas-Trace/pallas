@@ -296,7 +296,7 @@ class LinkedDurationVector {
     /**
      * Returns the weighted mean over the subvectors.
      */
-    pallas_duration_t weightedMean(std::vector<double>& weights);
+    pallas_duration_t weightedSum(std::vector<double>& weights);
 
     /**
      * Resets the offsets of all the subvectors.

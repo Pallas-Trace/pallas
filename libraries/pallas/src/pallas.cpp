@@ -693,8 +693,8 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
-        pallas_duration_t mean = s->exclusive_durations->weightedMean(weights);
-        output[std::tuple(t, s->guessName(this))] = mean;
+        pallas_duration_t sum = s->exclusive_durations->weightedSum(weights);
+        output[std::tuple(t, s->guessName(this))] = sum;
     }
 
     return output;
