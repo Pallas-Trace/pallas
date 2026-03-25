@@ -862,6 +862,13 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
         _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
+        if (sub_array-> max < sub_array->mean) {
+            // This means that the trace was made before the fix of 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82
+            // And this isn't the mean, but the sum
+            // Hence:
+            sub_array->mean /= sub_array->size;
+            // TODO: We should eventually retire this piece of code
+        }
         pallas_assert_inferior_equal(sub_array->mean, sub_array->max);
         pallas_assert_inferior_equal(sub_array->min, sub_array->mean);
         _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, vectorFile);
