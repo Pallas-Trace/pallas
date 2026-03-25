@@ -845,7 +845,9 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
     if (size == 0)
         return;
-    final_update_mean();
+    if (parameter_handler->does_stats_need_compute) {
+        final_update_mean();
+    }
     // Write the statistics to the vectorFile
     _pallas_fwrite(&min, sizeof(min), 1, vectorFile);
     _pallas_fwrite(&max, sizeof(max), 1, vectorFile);
@@ -1658,12 +1660,15 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
 
   file.read(&archive->id, sizeof(pallas::LocationGroupId), 1);
   file.read(&archive->nb_threads, sizeof(int), 1);
-  delete[] archive->threads;
   archive->threads = new pallas::Thread*[archive->nb_threads]();
   archive->nb_allocated_threads = archive->nb_threads;
   readDefinitions(archive->definitions, file, abi_version);
   readLocationGroups(archive->location_groups, file, abi_version);
   readLocations(archive->locations, file, abi_version);
+    for (auto& l: locations) {
+        if (l.parent == archive->id)
+            archive->locations.emplace_back(l);
+    }
   readMetadata(archive->metadata, file, abi_version);
   file.close();
 
@@ -1764,6 +1769,7 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     auto* trace = new pallas::GlobalArchive(dir_name.c_str(), trace_name.c_str());
     trace->abi_version = abi_version;
     trace->parameter_handler = new pallas::ParameterHandler(file.file);
+    trace->parameter_handler->does_stats_need_compute = false;
     pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name, trace->trace_name);
 
     readDefinitions(trace->definitions, file, abi_version);
@@ -1779,14 +1785,6 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
         trace->archive_list = nullptr;
 
     file.close();
-
-    for (auto& locationGroup : trace->location_groups) {
-        auto* archive = trace->getArchive(locationGroup.id);
-        std::copy_if(trace->locations.begin(), trace->locations.end(), std::back_inserter(archive->locations),
-                     [locationGroup](pallas::Location l) { return l.parent == locationGroup.id; });
-    }
-    trace->locations.clear();
-    // This weird bit of code with the location is just to make sure that they stay local
     return trace;
 }
 
