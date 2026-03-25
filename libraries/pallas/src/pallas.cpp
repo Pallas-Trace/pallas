@@ -674,7 +674,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
 
 std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
-    auto interval_duration = end - start;
+    pallas_duration_t interval_duration = end - start;
     auto filter = std::vector<Token>();
     for (size_t i = 0; i < nb_sequences; i++) {
         auto &s = sequences[i];
@@ -690,6 +690,20 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
             continue;
         // s.durations.min here because we don't want to load anything.
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min < start) {
+            continue;
+        }
+        if (s->timestamps->size == 1) {
+            // Special treatment for edge case
+            // We know the timestamp is in the interval
+            // So we compute it ourselves
+            pallas_duration_t duration = s->exclusive_durations->min;
+            pallas_timestamp_t t_start = s->timestamps->front();
+            pallas_timestamp_t t_end = duration + t_start;
+            if (end < t_end) {
+                output[std::tuple(t, s->guessName(this))] = end - t_start;
+            } else {
+                output[std::tuple(t, s->guessName(this))] = duration;
+            }
             continue;
         }
         std::vector weights = s->timestamps->getWeights(start, end);
