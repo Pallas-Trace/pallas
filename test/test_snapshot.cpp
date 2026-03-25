@@ -55,26 +55,29 @@ int main(int argc, char** argv) {
             std::cout << "========== Slice " << i << ": " << frame_start << " - " << frame_end << " ==========" << std::endl;
             print_header();
             auto snapshotExact = thread->getSnapshotViewExact(frame_start, frame_end);
-            auto snapshot = thread->getSnapshotView(frame_start, frame_end);
-            auto snapshotFast = thread->getSnapshotViewFast(frame_start, frame_end);
+            std::map<std::tuple<pallas::Token,std::string>, pallas_duration_t> snapshot = thread->getSnapshotView(frame_start, frame_end);
+            std::map<std::tuple<pallas::Token,std::string>, pallas_duration_t> snapshotFast = thread->getSnapshotViewFast(frame_start, frame_end);
             for (size_t j = 1; j < thread->nb_sequences; j++) {
                 auto token = pallas::Token(pallas::TypeSequence, j);
                 auto* sequence = thread->getSequence(token);
+		std::string sequence_name = sequence->guessName(thread);
+		std::tuple<pallas::Token,std::string> tuple = std::tuple<pallas::Token,std::string>(token, sequence_name);
+
                 if (sequence->type == pallas::SEQUENCE_BLOCK) {
-                    if (snapshot[token] + snapshotFast[token] == 0) {
+                    if (snapshot[tuple] + snapshotFast[tuple] == 0) {
                         continue;
                     }
-                    float error_normal = error(snapshotExact[token], snapshot[token]);
+                    float error_normal = error(snapshotExact[token], snapshot[tuple]);
                     mape_normal += error_normal;
-                    float error_fast = error(snapshotExact[token], snapshotFast[token]);
+                    float error_fast = error(snapshotExact[token], snapshotFast[tuple]);
                     mape_fast += error_fast;
                     counter ++;
                     std::cout <<
                             std::setw(id_width-1) << std::right << j << " " <<
                             std::setw(value_width) << std::left << snapshotExact[token] <<
-                            std::setw(value_width) << std::left << snapshot[token] <<
+                            std::setw(value_width) << std::left << snapshot[tuple] <<
                             std::setw(err_width) << std::left << std::setprecision(3) <<  error_normal <<
-                            std::setw(value_width) << std::left << snapshotFast[token] <<
+                            std::setw(value_width) << std::left << snapshotFast[tuple] <<
                             std::setw(err_width) << std::left << std::setprecision(3) << error_fast <<
                             std::endl;
                 }

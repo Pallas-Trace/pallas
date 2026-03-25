@@ -286,16 +286,17 @@ void printIntervals(pallas::GlobalArchive& trace) {
 
     pallas_timestamp_t start = thread->getFirstTimestamp();
     pallas_timestamp_t end = thread->getLastTimestamp();
-    std::map<pallas::Token, pallas_duration_t> m = thread->getSnapshotViewFast(start, end);
+    std::map<std::tuple<pallas::Token,std::string>, pallas_duration_t> m = thread->getSnapshotViewFast(start, end);
 
     pallas_duration_t interval_duration = end-start;
     pallas_duration_t sum_duration = 0;
     for (auto it = m.begin(); it != m.end(); it++) {
-      pallas::Token t = it->first;
-      pallas::Sequence *seq = thread->getSequence(t);
+      std::tuple<pallas::Token,std::string> tuple = it->first;
+      pallas::Token t = std::get<pallas::Token>(tuple);
+      std::string sequence_name = std::get<std::string>(tuple);
       pallas_duration_t d = it->second;
       sum_duration += d;
-      std::cout << thread->getTokenString(t) << ": "<<d<<"\t"<< seq->guessName(thread)<<"\n";
+      std::cout << thread->getTokenString(t) << ": "<<d<<"\t"<< sequence_name<<"\n";
     }
 
     std::cout<<"total duration:    " <<sum_duration<<"\n";
