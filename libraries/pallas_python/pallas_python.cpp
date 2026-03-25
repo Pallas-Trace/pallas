@@ -169,6 +169,7 @@ PYBIND11_MODULE(_core, m) {
             .def("get_events_from_record", threadGetEventsMatchingList)
             .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
             .def("getSnapshotView", &pallas::Thread::getSnapshotView)
+            .def("getSnapshotViewByName", &pallas::Thread::getSnapshotViewByName)
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
             .def("__iter__", [](const pallas::Thread& self) {
                 auto inner = pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);

@@ -746,6 +746,7 @@ typedef struct Thread {
      */
   //    [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
   [[nodiscard]] std::map<std::tuple<Token,std::string>, pallas_duration_t> getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const;
+  [[nodiscard]] std::map<std::string, pallas_duration_t> getSnapshotViewByName(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
     // /*** Returns a snapshot of the thread's total time spent in each Block Sequence in *filter* during that time frame. */
     // std::map<Token, pallas_duration_t> getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end,
