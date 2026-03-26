@@ -125,7 +125,8 @@ void Definition::addGroup(GroupRef group_ref,
     for (uint32_t i = 0; i < number_of_members; i++)
         g.members[i] = members[i];
 
-    pallas_log(DebugLevel::Verbose, "Register group #%zu{.ref=%d, .str=%d, .nbMembers=%d}\n", groups.size() - 1, g.group_ref, g.name, g.numberOfMembers);
+    pallas_log(DebugLevel::Verbose, "Register group #%zu{.ref=%d, .name=%d, .type=%d, .paradigm=%d, .nbMembers=%d}\n",
+        groups.size() - 1, g.group_ref, g.name, g.group_type, g.paradigm, g.numberOfMembers);
 }
 
 /**
