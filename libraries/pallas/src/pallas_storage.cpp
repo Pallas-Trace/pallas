@@ -878,10 +878,14 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fread(&max, sizeof(max), 1, file);
     _pallas_fread(&mean, sizeof(mean), 1, file);
     if (max < mean) {
+        static bool show_warning = true;
         // This means that the trace was made before the fix of 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82
         // And this isn't the mean, but the sum
         // Hence:
-        pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+        if (show_warning) {
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+            show_warning = false;
+        }
         mean /= size;
         // TODO: We should eventually retire this piece of code
     }
