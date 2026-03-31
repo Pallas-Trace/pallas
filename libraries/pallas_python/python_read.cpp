@@ -277,6 +277,8 @@ py::dict get_attributes(PyEvent &event, size_t occurence) {
         attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
         while (attribute_list->index < occurence) { /* move to the next attribute until we reach the needed index */
             summary->attribute_pos += attribute_list->struct_size;
+            if (summary->attribute_pos >= summary->attribute_buffer_size)
+                return result;
             attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
         }
         if (attribute_list->index > occurence) {
@@ -286,53 +288,81 @@ py::dict get_attributes(PyEvent &event, size_t occurence) {
         return result;
     }
     byte *reading_addr = (byte *)attribute_list->attributes;
+    byte *reading_end = (byte *)attribute_list + attribute_list->struct_size;
     for (int i = 0; i < attribute_list->nb_values; i++) {
+        if (reading_addr >= reading_end) break;
         pallas::AttributeData *data = (pallas::AttributeData *)reading_addr;
+        uint16_t size = data->struct_size;
+        if (size == 0) break;
         const pallas::Attribute *attribute = archive->getAttribute(data->ref);
         if (attribute) {
-            switch (attribute->type) {
-                case pallas::PALLAS_TYPE_NONE:
-                break;
-                case pallas::PALLAS_TYPE_UINT8:
-                result[archive->getString(attribute->name)->str] = &data->value.uint8;
-                break;
-                case pallas::PALLAS_TYPE_UINT16:
-                result[archive->getString(attribute->name)->str] = &data->value.uint16;
-                break;
-                case pallas::PALLAS_TYPE_UINT32:
-                result[archive->getString(attribute->name)->str] = &data->value.uint32;
-                break;
-                case pallas::PALLAS_TYPE_UINT64:
-                result[archive->getString(attribute->name)->str] = &data->value.uint64;
-                break;
-                case pallas::PALLAS_TYPE_INT8:
-                result[archive->getString(attribute->name)->str] = &data->value.int8;
-                break;
-                case pallas::PALLAS_TYPE_INT16:
-                result[archive->getString(attribute->name)->str] = &data->value.int16;
-                break;
-                case pallas::PALLAS_TYPE_INT32:
-                result[archive->getString(attribute->name)->str] = &data->value.int32;
-                break;
-                case pallas::PALLAS_TYPE_INT64:
-                result[archive->getString(attribute->name)->str] = &data->value.int64;
-                break;
-                case pallas::PALLAS_TYPE_FLOAT:
-                result[archive->getString(attribute->name)->str] = &data->value.float32;
-                break;
-                case pallas::PALLAS_TYPE_DOUBLE:
-                result[archive->getString(attribute->name)->str] = &data->value.float64;
-                break;
-                case pallas::PALLAS_TYPE_STRING:
-                result[archive->getString(attribute->name)->str] = archive->getString(data->value.string_ref)->str;
-                break;
-                default:
-                // TODO : Add more attribute types
-                pallas_warn("Attributes of type %d are not yet handled in python\n", (int)attribute->type);
-                break;
+            const pallas::String *name_str = archive->getString(attribute->name);
+            if (name_str) {
+                switch (attribute->type) {
+                    case pallas::PALLAS_TYPE_NONE:
+                    break;
+                    case pallas::PALLAS_TYPE_UINT8: {
+                    uint8_t v = data->value.uint8;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_UINT16: {
+                    uint16_t v = data->value.uint16;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_UINT32: {
+                    uint32_t v = data->value.uint32;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_UINT64: {
+                    uint64_t v = data->value.uint64;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_INT8: {
+                    int8_t v = data->value.int8;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_INT16: {
+                    int16_t v = data->value.int16;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_INT32: {
+                    int32_t v = data->value.int32;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_INT64: {
+                    int64_t v = data->value.int64;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_FLOAT: {
+                    float v = data->value.float32;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_DOUBLE: {
+                    double v = data->value.float64;
+                    result[name_str->str] = v;
+                    break;
+                    }
+                    case pallas::PALLAS_TYPE_STRING: {
+                        const pallas::String *val_str = archive->getString(data->value.string_ref);
+                        if (val_str) result[name_str->str] = val_str->str;
+                    }
+                    break;
+                    default:
+                    // TODO : Add more attribute types
+                    pallas_warn("Attributes of type %d are not yet handled in python\n", (int)attribute->type);
+                    break;
+                }
             }
         }
-        uint16_t size = data->struct_size;
         reading_addr += size;
     }
     return result;
