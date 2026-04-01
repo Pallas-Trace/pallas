@@ -163,6 +163,7 @@ SAME_FOR_BOTH_VECTORS(void, load_all_data() {
     auto* v = first;
     while (v) {
         load_data(v);
+        loaded_subarrays.insert(v);
         v = v->next;
     }
 })
