@@ -194,7 +194,7 @@ uint64_t& LinkedVector::operator[](size_t pos) {
         while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
             auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
             parameter_handler.subvector_queue.pop_front();
-            delete temp->array;
+            delete[] temp->array;
             temp->array = nullptr;
             parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
         }
@@ -213,11 +213,12 @@ uint64_t& LinkedDurationVector::operator[](size_t pos) {
           while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
               auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
               parameter_handler.subvector_queue.pop_front();
-              delete temp->array;
+              delete[] temp->array;
               temp->array = nullptr;
               parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
           }
           load_data(correct_sub);
+          loaded_subarrays.insert(correct_sub);
       }
       return (*correct_sub)[pos];
 }
@@ -337,7 +338,7 @@ void LinkedVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
-        delete sub->array;
+        delete[] sub->array;
         sub->array = nullptr;
         parameter_handler.loaded_durations_size -= sub->size;
     }
@@ -352,7 +353,7 @@ void LinkedDurationVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
-        delete sub->array;
+        delete[] sub->array;
         sub->array = nullptr;
         parameter_handler.loaded_durations_size -= sub->size;
     }
@@ -361,6 +362,18 @@ void LinkedDurationVector::free_data() {
 LinkedVector::~LinkedVector() {
     free_data();
     if (is_contiguous) {
+        // All the subvectors were allocated using a single big calloc
+#ifdef DEBUG
+        auto* temp = first;
+        auto& dq = parameter_handler.subvector_queue;
+        for (int i = 0; i < n_sub_array; i ++, temp++) {
+            // Check we've correctly cleared it
+            // And cleared it from the queue
+            pallas_assert(temp->array == nullptr);
+            auto it = std::find(dq.begin(), dq.end(), temp);
+            pallas_assert(it == dq.end());
+        }
+#endif
         free(first);
     } else {
         auto * sub = first;
@@ -375,6 +388,18 @@ LinkedVector::~LinkedVector() {
 LinkedDurationVector::~LinkedDurationVector() {
     free_data();
     if (is_contiguous) {
+        // All the subvectors were allocated using a single big calloc
+#ifdef DEBUG
+        auto* temp = first;
+        auto& dq = parameter_handler.subvector_queue;
+        for (int i = 0; i < n_sub_array; i ++, temp++) {
+            // Check we've correctly cleared it
+            // And cleared it from the queue
+            pallas_assert_equals(temp->array, nullptr);
+            auto it = std::find(dq.begin(), dq.end(), temp);
+            pallas_assert(it == dq.end());
+        }
+#endif
         free(first);
     } else {
         auto * sub = first;
