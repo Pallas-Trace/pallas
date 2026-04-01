@@ -172,8 +172,7 @@ PYBIND11_MODULE(_core, m) {
             .def("getSnapshotViewByName", &pallas::Thread::getSnapshotViewByName)
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
             .def("__iter__", [](const pallas::Thread& self) {
-                auto inner = pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
-                return PyThreadIterator{inner};
+                return new PyThreadIterator{new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL)};
             })
             .def("reader", [](const pallas::Thread& self) {
                 return new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
@@ -182,12 +181,12 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
             .def("__next__", [](PyThreadIterator& self) {
-                if (self.inner.moveToNextToken()) {
-                    auto t = self.inner.pollCurToken();
+                if (self.inner->moveToNextToken()) {
+                    auto t = self.inner->pollCurToken();
                     if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
-                    return makePyObjectFromToken(t, self.inner);
+                    return makePyObjectFromToken(t, *self.inner);
                 }
                 throw py::stop_iteration();
             });

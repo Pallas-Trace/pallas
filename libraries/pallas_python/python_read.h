@@ -45,7 +45,10 @@ struct PyLinkedVectorIterator {
 };
 
 struct PyThreadIterator {
-    pallas::ThreadReader inner;
+    pallas::ThreadReader *inner;
+    ~PyThreadIterator() {
+        delete inner;
+    }
 };
 
 struct PyAttributeHandle {
