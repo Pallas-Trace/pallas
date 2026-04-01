@@ -624,7 +624,10 @@ void ThreadReader::loadCheckpoint(Cursor* checkpoint) {
 }
 
 ThreadReader::~ThreadReader() {
-    pallas_log(DebugLevel::Debug, "Deleting ThreadReader %d\n", this->thread_trace->id);
+    if (thread_trace && archive) {
+        pallas_log(DebugLevel::Debug, "Deleting ThreadReader %d\n", this->thread_trace->id);
+        archive->freeThread(this->thread_trace->id);
+    }
 }
 
 ThreadReader::ThreadReader(const ThreadReader& other) = default;
