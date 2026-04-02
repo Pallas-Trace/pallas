@@ -60,21 +60,21 @@ struct PyAttributeHandle {
 
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive);
 
-std::map<pallas::StringRef, std::string>& Archive_get_strings(pallas::Archive& archive);
+std::map<pallas::StringRef, std::string> Archive_get_strings(pallas::Archive& archive);
 
-std::map<pallas::ThreadId, PyLocation>& Archive_get_locations(pallas::Archive& archive);
+std::map<pallas::ThreadId, PyLocation> Archive_get_locations(pallas::Archive& archive);
 
-std::map<pallas::RegionRef, PyRegion>& Archive_get_regions(pallas::Archive& archive);
+std::map<pallas::RegionRef, PyRegion> Archive_get_regions(pallas::Archive& archive);
 
-std::map<pallas::ThreadId, PyLocation>& Trace_get_locations(pallas::GlobalArchive& trace);
+std::map<pallas::ThreadId, PyLocation> Trace_get_locations(pallas::GlobalArchive& trace);
 
-std::map<pallas::LocationGroupId, PyLocationGroup>& Trace_get_location_groups(pallas::GlobalArchive& trace);
+std::map<pallas::LocationGroupId, PyLocationGroup> Trace_get_location_groups(pallas::GlobalArchive& trace);
 
-std::map<pallas::StringRef, std::string>& Trace_get_strings(pallas::GlobalArchive& trace);
+std::map<pallas::StringRef, std::string> Trace_get_strings(pallas::GlobalArchive& trace);
 
-std::map<pallas::RegionRef, PyRegion>& Trace_get_regions(pallas::GlobalArchive& trace);
+std::map<pallas::RegionRef, PyRegion> Trace_get_regions(pallas::GlobalArchive& trace);
 
-py::list& Trace_get_archives(pallas::GlobalArchive& trace);
+py::list* Trace_get_archives(pallas::GlobalArchive& trace);
 
 pallas::GlobalArchive* open_trace(const std::string& path);
 

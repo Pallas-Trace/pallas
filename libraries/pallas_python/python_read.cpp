@@ -19,34 +19,34 @@ std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
     return vector;
 }
 
-std::map<pallas::StringRef, std::string>& Archive_get_strings(pallas::Archive& archive) {
-    auto& map = *new std::map<pallas::StringRef, std::string>();
+std::map<pallas::StringRef, std::string> Archive_get_strings(pallas::Archive& archive) {
+    auto map = std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : archive.definitions.strings) {
         map.insert(std::pair(key, archive.getString(r.string_ref)->str));
     }
     return map;
 }
 
-std::map<pallas::ThreadId, PyLocation>& Archive_get_locations(pallas::Archive& archive) {
-    auto& map = *new std::map<pallas::ThreadId, PyLocation>();
+std::map<pallas::ThreadId, PyLocation> Archive_get_locations(pallas::Archive& archive) {
+    auto map = std::map<pallas::ThreadId, PyLocation>();
     for (auto& loc : archive.locations) {
         map.insert(std::pair(loc.id, PyLocation{loc.id, archive.getString(loc.name)->str, archive.getLocationGroup(loc.parent)}));
     }
     return map;
 }
 
-std::map<pallas::RegionRef, PyRegion>& Archive_get_regions(pallas::Archive& archive) {
-    auto& map = *new std::map<pallas::RegionRef, PyRegion>();
+std::map<pallas::RegionRef, PyRegion> Archive_get_regions(pallas::Archive& archive) {
+    auto map = std::map<pallas::RegionRef, PyRegion>();
     for (auto& [key, r] : archive.definitions.regions) {
         map.insert(std::pair(key, PyRegion{r.region_ref, archive.getString(r.string_ref)->str}));
     }
     return map;
 }
 
-std::map<pallas::ThreadId, PyLocation>& Trace_get_locations(pallas::GlobalArchive& trace) {
-    auto& map = *new std::map<pallas::ThreadId, PyLocation>();
+std::map<pallas::ThreadId, PyLocation> Trace_get_locations(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::ThreadId, PyLocation>();
     for (auto& lg : trace.location_groups) {
-        auto a = trace.getArchive(lg.id);
+        auto* a = trace.getArchive(lg.id);
         for (const auto& [key, value] : Archive_get_locations(*a)) {
             map.insert(std::pair(key, value));
         }
@@ -54,35 +54,35 @@ std::map<pallas::ThreadId, PyLocation>& Trace_get_locations(pallas::GlobalArchiv
     return map;
 }
 
-std::map<pallas::LocationGroupId, PyLocationGroup>& Trace_get_location_groups(pallas::GlobalArchive& trace) {
-    auto& map = *new std::map<pallas::LocationGroupId, PyLocationGroup>();
+std::map<pallas::LocationGroupId, PyLocationGroup> Trace_get_location_groups(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::LocationGroupId, PyLocationGroup>();
     for (auto& lg : trace.location_groups) {
         map.insert(std::pair(lg.id, PyLocationGroup{lg.id, trace.getString(lg.name)->str, trace.getLocationGroup(lg.parent)}));
     }
     return map;
 }
 
-std::map<pallas::StringRef, std::string>& Trace_get_strings(pallas::GlobalArchive& trace) {
-    auto& map = *new std::map<pallas::StringRef, std::string>();
+std::map<pallas::StringRef, std::string> Trace_get_strings(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : trace.definitions.strings) {
         map.insert(std::pair(key, trace.getString(r.string_ref)->str));
     }
     return map;
 }
 
-std::map<pallas::RegionRef, PyRegion>& Trace_get_regions(pallas::GlobalArchive& trace) {
-    auto& map = *new std::map<pallas::RegionRef, PyRegion>();
+std::map<pallas::RegionRef, PyRegion> Trace_get_regions(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::RegionRef, PyRegion>();
     for (auto& [key, r] : trace.definitions.regions) {
         map.insert(std::pair(key, PyRegion{r.region_ref, trace.getString(r.string_ref)->str}));
     }
     return map;
 }
 
-py::list& Trace_get_archives(pallas::GlobalArchive& trace) {
-    auto& list = *new py::list(trace.location_groups.size());
+py::list* Trace_get_archives(pallas::GlobalArchive& trace) {
+    auto* list = new py::list(trace.location_groups.size());
     int i = 0;
     for (auto& locationGroup : trace.location_groups) {
-        list[i++] = trace.getArchive(locationGroup.id);
+        list->operator[](i++) = trace.getArchive(locationGroup.id);
     }
     return list;
 }
