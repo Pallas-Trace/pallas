@@ -17,6 +17,8 @@ unsigned int pallas_mpi_rank = 0;
 
 namespace pallas {
 
+const Token INVALID_TOKEN = Token();
+
 Token::Token(TokenType type, uint32_t id) {
     this->type = type;
     this->id = id;

@@ -8,6 +8,7 @@
 #include <cstring>
 #include <iostream>
 
+#include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_read.h"
 
@@ -664,6 +665,80 @@ ThreadReader& ThreadReader::operator=(ThreadReader&& other) noexcept {
     other.pallas_read_flag = 0;
     return *this;
 }
+
+
+MultiThreadReader::MultiThreadReader(std::vector<Thread *> threads) {
+    this->n_threads = threads.size();
+    this->readers = new ThreadReader[this->n_threads];
+    this->current_thread_reader = nullptr;
+
+    for (size_t i = 0; i < this->n_threads; i++) {
+        Thread *thread = threads[i];
+        this->readers[i] = ThreadReader(thread->archive, thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
+        while (!this->readers[i].isEndOfTrace() && this->readers[i].pollCurToken().type != TypeEvent) {
+            this->readers[i].moveToNextToken();
+        }
+    }
+}
+
+MultiThreadReader::MultiThreadReader(GlobalArchive &trace) {
+    auto threads = trace.getThreadList();
+    this->n_threads = threads.size();
+    this->readers = new ThreadReader[this->n_threads];
+    this->current_thread_reader = nullptr;
+
+    for (size_t i = 0; i < this->n_threads; i++) {
+        Thread *thread = threads[i];
+        this->readers[i] = ThreadReader(thread->archive, thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
+        while (!this->readers[i].isEndOfTrace() && this->readers[i].pollCurToken().type != TypeEvent) {
+            this->readers[i].moveToNextToken();
+        }
+    }
+}
+
+MultiThreadReader::~MultiThreadReader() {
+    delete[] this->readers;
+}
+
+const Token &MultiThreadReader::pollCurToken() const {
+    if (this->current_thread_reader == nullptr) {
+        return INVALID_TOKEN;
+    }
+    return this->current_thread_reader->pollCurToken();
+}
+
+bool MultiThreadReader::moveToNextToken() {
+    if (this->current_thread_reader != nullptr) {
+        this->current_thread_reader->moveToNextToken();
+    }
+    pallas::ThreadReader* min_reader = &readers[0];
+    pallas_timestamp_t min_timestamp = std::numeric_limits<unsigned long>::max();
+    for (size_t i = 0; i < this->n_threads; i++) {
+        auto *reader = &this->readers[i];
+        while (!reader->isEndOfTrace() && reader->pollCurToken().type != TypeEvent) {
+            reader->moveToNextToken();
+        }
+        if (!reader->isEndOfTrace() && reader->currentState.currentFrame->current_timestamp < min_timestamp) {
+            min_reader = reader;
+            min_timestamp = reader->currentState.currentFrame->current_timestamp;
+        }
+    }
+    if (min_timestamp == std::numeric_limits<unsigned long>::max()) {
+        return false;
+    }
+    this->current_thread_reader = min_reader;
+    return true;
+}
+
+Token MultiThreadReader::getNextToken() {
+    if (this->moveToNextToken()) {
+        return this->pollCurToken();
+    }
+    return INVALID_TOKEN;
+}
+
+
+/* C bindings */
 
 ThreadReader pallasCreateThreadReader(Archive* archive, ThreadId threadId, int options) {
     return {archive, threadId, options};
