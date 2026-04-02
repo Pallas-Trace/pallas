@@ -8,6 +8,7 @@
 #include <pallas/pallas_archive.h>
 #include <pallas/pallas_record.h>
 
+#include "pallas/pallas_read.h"
 #include "python_tokens.h"
 
 #include <pybind11/pybind11.h>
@@ -51,10 +52,11 @@ struct PyThreadIterator {
     }
 };
 
-struct PyAttributeHandle {
-    pallas::pallas_type_t type;
-    struct pallas::AttributeData *attr;
-    pallas::Archive *archive;
+struct PyTraceIterator {
+    pallas::MultiThreadReader *inner;
+    ~PyTraceIterator() {
+        delete inner;
+    }
 };
 
 
