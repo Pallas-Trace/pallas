@@ -15,6 +15,7 @@
 #include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
+#include <vector>
 namespace pallas {
 #endif
 
@@ -142,6 +143,12 @@ typedef struct ThreadReader {
      */
     ThreadReader(Archive *archive, ThreadId threadId, int pallas_read_flag);
 
+    /**
+     * This is just for convenience and should not be used as is
+     * Using an empty ThreadReader can and **will** segfault
+     */
+    ThreadReader() = default;
+
     /** Returns the Sequence being run at the given frame. */
     [[nodiscard]] const Token &getFrameInCallstack(int frame_number) const;
 
@@ -262,6 +269,29 @@ typedef struct ThreadReader {
     ThreadReader &operator=(ThreadReader &&other) noexcept;
 #endif
 } ThreadReader;
+
+typedef struct MultiThreadReader {
+    size_t n_threads;
+    ThreadReader *readers;
+    ThreadReader *current_thread_reader;
+    #ifdef __cplusplus
+    MultiThreadReader(std::vector<Thread *> threads);
+
+    /** Used to get a multi-thread reader of every thread in a trace */
+    MultiThreadReader(GlobalArchive &trace);
+    ~MultiThreadReader();
+
+    /** Gets the current Token. */
+    [[nodiscard]] const Token &pollCurToken() const;
+
+    /** Updates the internal state, returns true if internal state was actually changed */
+    bool moveToNextToken();
+
+    /** Gets the next token and updates the reader's state if it returns a value.
+     * It is exactly equivalent to `moveToNextToken()` then `pollCurToken()` */
+    Token getNextToken();
+    #endif
+} MultiThreadReader;
 
 /* C bindings */
 

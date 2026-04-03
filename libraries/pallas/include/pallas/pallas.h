@@ -117,6 +117,8 @@ typedef struct Token {
 #endif
 } Token;
 
+extern const Token INVALID_TOKEN;
+
 /** Creates a Token for an Event. */
 #define PALLAS_EVENT_ID(i) PALLAS(Token)(PALLAS(TypeEvent), i)
 /** Creates a Token for a Sequence. */

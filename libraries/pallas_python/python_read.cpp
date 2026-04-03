@@ -1,7 +1,6 @@
 #include "python_read.h"
 
 #include <cstdint>
-#include <iostream>
 #include <variant>
 #include <pallas/utils/pallas_storage.h>
 #include <pybind11/pytypes.h>

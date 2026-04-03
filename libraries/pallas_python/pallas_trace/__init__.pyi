@@ -434,7 +434,7 @@ class Thread_Iterator:
     An iterator over the thread.
     """
 
-    def __next__(self) -> tuple: ...
+    def __next__(self) -> tuple[Event | Sequence | Loop, int]: ...
 
 class ThreadReader:
     """
@@ -510,6 +510,7 @@ class Trace:
         """
         Open a trace file and read its structure.
         """
+    def __iter__(self) -> Trace_Iterator: ...
     @property
     def archives(self) -> list[Archive]: ...
     @property
@@ -528,6 +529,13 @@ class Trace:
     def strings(self) -> dict[int, str]: ...
     @property
     def trace_name(self) -> str: ...
+
+class Trace_Iterator:
+    """
+    An iterator over the trace.
+    """
+
+    def __next__(self) -> tuple[Thread, tuple[Event, int]]: ...
 
 class Vector:
     """

@@ -4,9 +4,11 @@
  */
 #include "pallas_python.h"
 #include "pallas/pallas.h"
+#include "pallas/pallas_read.h"
 #include "python_tokens.h"
 #include "python_read.h"
 #include "python_analysis.h"
+#include <pybind11/cast.h>
 #include <pybind11/numpy.h>
 
 namespace py = pybind11;
@@ -191,6 +193,18 @@ PYBIND11_MODULE(_core, m) {
                 throw py::stop_iteration();
             });
 
+    py::class_<PyTraceIterator>(m, "Trace_Iterator", "An iterator over the trace.")
+            .def("__next__", [](PyTraceIterator& self) {
+                if (self.inner->moveToNextToken()) {
+                    auto t = self.inner->pollCurToken();
+                    if (!t.isValid()) {
+                        throw py::stop_iteration();
+                    }
+                    return py::make_tuple(self.inner->current_thread_reader->thread_trace, makePyObjectFromToken(t, *self.inner->current_thread_reader));
+                }
+                throw py::stop_iteration();
+            });
+
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
             .def_property_readonly("callstack", &thread_reader_get_callstack)
             .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
@@ -282,7 +296,11 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("regions", &Trace_get_regions)
             .def_property_readonly("archives", &Trace_get_archives)
             .def_property_readonly("starting_timestamp", &pallas::GlobalArchive::get_starting_timestamp)
-            .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp);
+            .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp)
+            .def("__iter__", [](pallas::GlobalArchive& self) {
+                return new PyTraceIterator{new pallas::MultiThreadReader(self)};
+            })
+    ;
 }
 
 /* -*-
