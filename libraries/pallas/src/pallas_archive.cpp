@@ -357,7 +357,6 @@ Archive::~Archive() {
 
 Archive::Archive(GlobalArchive& global_archive, LocationGroupId archive_id) : Archive(global_archive.dir_name, archive_id) {
   this->global_archive = &global_archive;
-    threads == nullptr;
 }
 
 Archive::Archive(const char* dirname, LocationGroupId archive_id) {
