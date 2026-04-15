@@ -427,8 +427,11 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         if (t.type != pallas::TypeEvent) {
             continue;
         }
-        if (PyErr_CheckSignals() != 0)
+        if (PyErr_CheckSignals() != 0) {
+            processes.clear();
+            delete completed_messages;
             throw py::error_already_set();
+        }
         auto *cur_reader = reader.current_thread_reader;
         auto lgid = reader.current_thread_reader->archive->id;
         auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
