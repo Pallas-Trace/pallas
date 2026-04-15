@@ -20,6 +20,12 @@ std::string Token_toString(pallas::Token t) {
     out += std::to_string(t.id);
     return out;
 }
+#define READ(data, cursor, type, name)                              \
+{                                                               \
+type name;                                                  \
+pallas_event_pop_data(data, &name, sizeof(type), &cursor);  \
+dict[#name] = name;                                         \
+}
 
 py::dict& EventData_get_data(pallas::EventData* data) {
     auto& dict = *new py::dict();

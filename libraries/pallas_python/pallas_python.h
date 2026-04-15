@@ -13,12 +13,7 @@
 #include <pallas/pallas_record.h>
 #include <pallas/utils/pallas_storage.h>
 
-#define READ(data, cursor, type, name)                              \
-    {                                                               \
-        type name;                                                  \
-        pallas_event_pop_data(data, &name, sizeof(type), &cursor);  \
-        dict[#name] = name;                                         \
-    }
+
 
 
 #define IS_MPI_SEND(e) (e.data.record == pallas::PALLAS_EVENT_MPI_ISEND || \
