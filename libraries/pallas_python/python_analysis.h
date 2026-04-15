@@ -38,3 +38,5 @@ py::array_t<uint64_t> get_communication_over_time(pallas::GlobalArchive& trace, 
 py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive& archive, py::array_t<uint64_t> timestamps, bool count_messages = false);
 
 py::object get_sequences_statistics(pallas::Thread& thread);
+
+py::object get_mpi_message_list(pallas::GlobalArchive &trace);

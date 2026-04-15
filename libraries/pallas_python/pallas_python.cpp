@@ -282,7 +282,8 @@ PYBIND11_MODULE(_core, m) {
                  "Returns a binned histogram for the given timestamps.\n"
                  ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
                  ":param count_messages: If False, count the number of messages rather than the data amount.")
-            .def("get_sequences_statistics", get_sequences_statistics);
+            .def("get_sequences_statistics", get_sequences_statistics)
+            .def("get_mpi_message_list", get_mpi_message_list);
 
     py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
             .def(py::init(&open_trace), "Open a trace file and read its structure.")
