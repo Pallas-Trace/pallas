@@ -267,9 +267,9 @@ struct MPIMessage : MPIMessageLine {
 enum send_receive { send, recv };
 
 struct MPIMatchedMessage {
-    std::shared_ptr<MPIMessage> message;
+    MPIMessage * message;
     enum send_receive sr; // Is it a send, or a receive ?
-    MPIMatchedMessage(const std::shared_ptr<MPIMessage>& message, enum send_receive sr)
+    MPIMatchedMessage(MPIMessage * message, enum send_receive sr)
         : message(message), sr(sr) {
     }
 };
@@ -281,12 +281,12 @@ struct MpiRequest {
     /** Timestamp of call to MPI_IRecv. */
     pallas_timestamp_t ts = 0;
     /** Message corresponding to that request. */
-    std::shared_ptr<MPIMessage> message = nullptr;
+    MPIMessage * message = nullptr;
 };
 
 struct MPIProcessData {
-    std::list<std::shared_ptr<MPIMessage>> pending_smessages;
-    std::list<std::shared_ptr<MPIMessage>> pending_rmessages;
+    std::list<MPIMessage *> pending_smessages;
+    std::list<MPIMessage *> pending_rmessages;
     std::list<MpiRequest *> pending_requests;
     std::list<MPIMatchedMessage> matched_messages;
 };
@@ -302,7 +302,7 @@ static int local_rank_to_global(pallas::GlobalArchive &trace, uint32_t communica
 static std::map<pallas::LocationGroupId, MPIProcessData> processes;
 
 
-static void update_message_timestamps(MPIProcessData &p, std::shared_ptr<MPIMessage>& m, int status,
+static void update_message_timestamps(MPIProcessData &p, MPIMessage *& m, int status,
                                       pallas_timestamp_t ts, std::vector<MPIMessageLine> *completed_messages) {
     if (status & status_isend_occured) {
         m->isend_ts = ts;
@@ -356,7 +356,7 @@ static void process_leave_mpi_wait(MPIProcessData &p, pallas_timestamp_t ts,
     p.matched_messages.clear();
 }
 
-static std::shared_ptr<MPIMessage> match_isend(uint32_t sender,
+static MPIMessage * match_isend(uint32_t sender,
                                uint32_t receiver,
                                uint32_t msg_tag,
                                uint64_t msg_length,
@@ -378,13 +378,13 @@ static std::shared_ptr<MPIMessage> match_isend(uint32_t sender,
             return m;
         }
     }
-    std::shared_ptr<MPIMessage> m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
+    MPIMessage * m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
     p_sender.pending_smessages.push_back(m);
     update_message_timestamps(p_sender, m, status, isend_ts, completed_messages);
     return m;
 }
 
-static std::shared_ptr<MPIMessage> match_irecv(uint32_t sender,
+static MPIMessage * match_irecv(uint32_t sender,
                                uint32_t receiver,
                                uint32_t msg_tag,
                                uint64_t msg_length,
@@ -406,7 +406,7 @@ static std::shared_ptr<MPIMessage> match_irecv(uint32_t sender,
             return m;
         }
     }
-    std::shared_ptr<MPIMessage> m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
+    MPIMessage * m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
     p_receiver.pending_rmessages.push_back(m);
     update_message_timestamps(p_receiver, m, status, irecv_ts, completed_messages);
     return m;
@@ -420,6 +420,9 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     for (auto lgid: trace.location_groups) {
         processes[lgid.id] = MPIProcessData();
     }
+    pallas_timestamp_t first_timestamp = trace.get_starting_timestamp();
+    pallas_timestamp_t last_timestamp = trace.get_ending_timestamp();
+    pallas_duration_t duration = last_timestamp - first_timestamp;
 
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
     reader.getNextToken();
@@ -435,7 +438,12 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         auto *cur_reader = reader.current_thread_reader;
         auto lgid = reader.current_thread_reader->archive->id;
         auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
-        std::cout << data.timestamp << "\r";
+        static uint progress_counter = 0;
+        if (progress_counter == 0) {
+            std::cout << (static_cast<float>(data.timestamp - first_timestamp) * 100) / duration << "%\r";
+            progress_counter = 1000;
+        }
+        progress_counter --;
         MPIProcessData &p = processes[lgid];
         byte *cursor = nullptr;
         switch (data.event->record) {
