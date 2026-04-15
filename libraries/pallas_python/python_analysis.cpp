@@ -302,7 +302,7 @@ static int local_rank_to_global(pallas::GlobalArchive &trace, uint32_t communica
 static std::map<pallas::LocationGroupId, MPIProcessData> processes;
 
 
-static void update_message_timestamps(MPIProcessData &p, MPIMessage *& m, int status,
+static void update_message_timestamps(MPIProcessData &p, MPIMessage * m, int status,
                                       pallas_timestamp_t ts, std::vector<MPIMessageLine> *completed_messages) {
     if (status & status_isend_occured) {
         m->isend_ts = ts;
@@ -312,6 +312,8 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *& m, int st
         m->start_swait_ts = ts;
         m->status |= status_swait_started;
         p.matched_messages.emplace_back(m, send);
+        auto& lst=  processes[m->sender].pending_smessages;
+        assert(std::ranges::find(lst, m) != lst.end());
     }
     if (status & status_swait_ended) {
         m->end_swait_ts = ts;
@@ -327,6 +329,8 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *& m, int st
         m->status |= status_rwait_started;
 
         p.matched_messages.emplace_back(m, recv);
+        auto& lst=  processes[m->receiver].pending_rmessages;
+        assert(std::ranges::find(lst, m) != lst.end());
     }
     if (status & status_rwait_ended) {
         m->end_rwait_ts = ts;
@@ -335,10 +339,12 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *& m, int st
 
     if (m->status == status_complete) {
         /* Remove the message from the pending message list*/
-        processes[m->sender].pending_smessages.remove(m);
-        processes[m->receiver].pending_rmessages.remove(m);
+        size_t count = processes[m->sender].pending_smessages.remove(m);
+        count += processes[m->receiver].pending_rmessages.remove(m);
         /* Add the message to the completed message list */
-        completed_messages->emplace_back(*m);
+        if (count > 0) {
+            completed_messages->emplace_back(*m);
+        }
         //delete m;
     }
 }
@@ -368,17 +374,16 @@ static MPIMessage * match_isend(uint32_t sender,
     MPIProcessData &p_sender = processes[sender];
     MPIProcessData &p_receiver = processes[receiver];
     for (auto m: p_receiver.pending_rmessages) {
-        if ((m->sender == sender or m->sender == -1) && (m->tag == msg_tag || msg_tag == -1) && !(m->status & status)) {
+        if ((m->sender == sender || m->sender == UINT32_MAX) && (m->tag == msg_tag || msg_tag == UINT32_MAX) && !(m->status & status)) {
             m->status = m->status | status;
             m->sender = sender;
             m->tag = msg_tag;
             m->isend_ptr = isend_req;
-            p_sender.pending_smessages.push_back(m);
             update_message_timestamps(p_sender, m, status, isend_ts, completed_messages);
             return m;
         }
     }
-    MPIMessage * m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
+    MPIMessage * m = new MPIMessage(sender, receiver, msg_tag, msg_length, status);
     p_sender.pending_smessages.push_back(m);
     update_message_timestamps(p_sender, m, status, isend_ts, completed_messages);
     return m;
@@ -396,17 +401,16 @@ static MPIMessage * match_irecv(uint32_t sender,
     MPIProcessData &p_sender = processes[sender];
     MPIProcessData &p_receiver = processes[receiver];
     for (auto m: p_sender.pending_rmessages) {
-        if ((m->receiver == receiver or m->receiver == -1) && (m->tag == msg_tag || msg_tag == -1) && !(m->status & status)) {
+        if ((m->receiver == receiver || m->receiver == UINT32_MAX) && (m->tag == msg_tag || msg_tag == UINT32_MAX) && !(m->status & status)) {
             m->status = m->status | status;
             m->receiver = receiver;
             m->tag = msg_tag;
             m->irecv_ptr = irecv_ptr;
-            p_receiver.pending_rmessages.push_back(m);
             update_message_timestamps(p_receiver, m, status, irecv_ts, completed_messages);
             return m;
         }
     }
-    MPIMessage * m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
+    MPIMessage * m = new MPIMessage(sender, receiver, msg_tag, msg_length, status);
     p_receiver.pending_rmessages.push_back(m);
     update_message_timestamps(p_receiver, m, status, irecv_ts, completed_messages);
     return m;
@@ -425,8 +429,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     pallas_duration_t duration = last_timestamp - first_timestamp;
 
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
-    reader.getNextToken();
-    for (auto t = reader.pollCurToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
+    for (auto t = reader.getNextToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
         if (t.type != pallas::TypeEvent) {
             continue;
         }
@@ -438,12 +441,12 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         auto *cur_reader = reader.current_thread_reader;
         auto lgid = reader.current_thread_reader->archive->id;
         auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
-        static uint progress_counter = 0;
-        if (progress_counter == 0) {
-            std::cout << (static_cast<float>(data.timestamp - first_timestamp) * 100) / duration << "%\r";
-            progress_counter = 1000;
-        }
-        progress_counter --;
+        // static uint progress_counter = 0;
+        // if (progress_counter == 0) {
+        //     std::cout << (static_cast<float>(data.timestamp - first_timestamp) * 100) / duration << "%\r";
+        //     progress_counter = 1000;
+        // }
+        // progress_counter --;
         MPIProcessData &p = processes[lgid];
         byte *cursor = nullptr;
         switch (data.event->record) {
@@ -495,13 +498,16 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 READ(data, cursor, uint64_t, requestID);
                 sender = local_rank_to_global(trace, communicator, sender);
                 auto &lst = p.pending_requests;
-                auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
+                auto r = std::ranges::find_if(lst, [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
                 });
                 if (r != lst.end()) {
                     auto m = match_irecv(sender, lgid,
                                           msgTag, msgLength, data.timestamp, requestID,
                                           status_irecv_occured, completed_messages);
+                    if ((*r)->message != nullptr) {
+                        assert((*r)->message == m);
+                    }
                     (*r)->message = m;
                     update_message_timestamps(p, m, status_rwait_started,
                                               cur_reader->currentState.currentFrame[-1].current_timestamp
@@ -509,13 +515,15 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                                               , completed_messages);
                     update_message_timestamps(p, m, status_rwait_ended, data.timestamp, completed_messages);
                     p.pending_requests.remove(*r);
+                } else {
+                    pallas_error("This should not have happened\n");
                 }
                 break;
             }
             case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE: {
                 READ(data, cursor, uint64_t, requestID);
                 auto &lst = p.pending_requests;
-                auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
+                auto r = std::ranges::find_if(lst, [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
                 });
                 if (r != lst.end() && (*r)->message != nullptr) {
@@ -531,6 +539,9 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                         status_swait_ended,
                         data.timestamp
                         , completed_messages);
+                }
+                else {
+                    pallas_error("This should not have happened\n");
                 }
                 break;
             }
@@ -569,6 +580,13 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         }
     }
     std::cout << "Done !" << std::endl;
+    for (const auto& [k, v]: processes) {
+        std::cout << k << ": "
+        << "{.pending_send=" << v.pending_smessages.size()
+        << ",.pending_recv=" << v.pending_rmessages.size()
+        << ",.pending_req=" << v.pending_requests.size()
+        << "}"<<std::endl;
+    }
     py::capsule free_when_done(completed_messages, [](void *f) {
         auto foo = reinterpret_cast<std::vector<MPIMessageLine> *>(f);
         delete foo;

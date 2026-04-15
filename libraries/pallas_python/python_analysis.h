@@ -23,28 +23,28 @@ struct SequenceStatisticsLine {
 
 struct MPIMessageLine {
     /** Message ID. Simply used as an identifier in the grand scheme of things. */
-    uint32_t id = -1;
+    uint32_t id = UINT32_MAX;
     /** Sender of the message. -1 if matching hasn't been done. */
-    uint32_t sender = -1;
+    uint32_t sender = UINT32_MAX;
     /** Receiver of the message. -1 if matching hasn't been done. */
-    uint32_t receiver = -1;
+    uint32_t receiver = UINT32_MAX;
 
     /** Tag of the message. */
-    uint32_t tag = -1;
+    uint32_t tag = UINT32_MAX;
     /** Message length ( bytes ). */
-    uint64_t msg_length = -1;
+    uint64_t msg_length = UINT64_MAX;
     /** Timestamp of the Send/ISend call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t isend_ts = -1;
+    pallas_timestamp_t isend_ts = PALLAS_TIMESTAMP_INVALID;
     /** Start of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t start_swait_ts = -1;
+    pallas_timestamp_t start_swait_ts = PALLAS_TIMESTAMP_INVALID;
     /** End of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t end_swait_ts = -1;
+    pallas_timestamp_t end_swait_ts = PALLAS_TIMESTAMP_INVALID;
     /** Timestamp of the Recv/IRecv call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t irecv_ts = -1;
+    pallas_timestamp_t irecv_ts = PALLAS_TIMESTAMP_INVALID;
     /** Start of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t start_rwait_ts = -1;
+    pallas_timestamp_t start_rwait_ts = PALLAS_TIMESTAMP_INVALID;
     /** End of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t end_rwait_ts = -1;
+    pallas_timestamp_t end_rwait_ts = PALLAS_TIMESTAMP_INVALID;
 };
 
 /** Returns a communication matrix of all the messages received. */
