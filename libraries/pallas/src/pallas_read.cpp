@@ -220,6 +220,9 @@ LoopOccurence ThreadReader::getLoopOccurence(Token loop_id, size_t occurence_id)
     loopOccurence.duration = getLoopDuration(loop_id);
     return loopOccurence;
 }
+size_t ThreadReader::getCurrentTokenCount(Token t) const {
+    return currentState.currentFrame->tokenCount[t];
+}
 
 AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurence_id) const {
     auto* summary = getEvent(event_id);

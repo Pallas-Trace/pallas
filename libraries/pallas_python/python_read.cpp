@@ -193,21 +193,21 @@ py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_re
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
-                thread_reader.currentState.currentFrame->tokenCount[t]
+                thread_reader.getCurrentTokenCount(t)
                 );
     }
     case pallas::TypeSequence: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
-                thread_reader.currentState.currentFrame->tokenCount[t]
+                thread_reader.getCurrentTokenCount(t)
                 );
     }
     case pallas::TypeLoop: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
-                thread_reader.currentState.currentFrame->tokenCount[t]
+                thread_reader.getCurrentTokenCount(t)
                 );
     }
     default: {

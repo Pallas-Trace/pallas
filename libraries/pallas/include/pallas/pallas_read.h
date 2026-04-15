@@ -203,6 +203,8 @@ typedef struct ThreadReader {
     /** Returns an LoopOccurence for the given Token appearing at the given occurence_id.
      * Timestamp is set to Reader's referential timestamp.*/
     [[nodiscard]] LoopOccurence getLoopOccurence(Token loop_id, size_t occurence_id) const;
+    /** Returns the current token count for given token.*/
+    [[nodiscard]] size_t getCurrentTokenCount(Token t) const;
 
     /** Returns a pointer to the AttributeList for the given occurence of the given Event. */
     [[nodiscard]] AttributeList *getEventAttributeList(Token event_id, size_t occurence_id) const;
