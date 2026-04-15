@@ -91,6 +91,7 @@ from ._core import (
     get_communication_over_time,
     get_message_size_histogram,
     get_sequences_statistics,
+    get_mpi_message_list,
     open_trace,
 )
 
@@ -121,6 +122,7 @@ __all__ = [
     get_communication_over_time,
     get_message_size_histogram,
     get_sequences_statistics,
+    get_mpi_message_list,
     open_trace,
     # Enums
     BUFFER_FLUSH,
