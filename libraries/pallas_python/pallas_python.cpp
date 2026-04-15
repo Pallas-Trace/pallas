@@ -15,7 +15,7 @@ namespace py = pybind11;
 
 py::module pandas;
 
-void setupEnums(const py::module_& m) {
+void setupEnums(const py::module_ &m) {
     py::enum_<pallas::TokenType>(m, "TokenType")
             .value("INVALID", pallas::TypeInvalid)
             .value("EVENT", pallas::TypeEvent)
@@ -93,6 +93,8 @@ void setupEnums(const py::module_& m) {
 
 PYBIND11_MODULE(_core, m) {
     PYBIND11_NUMPY_DTYPE(SequenceStatisticsLine, sequence_id, min, mean, max, nb_occurrences);
+    PYBIND11_NUMPY_DTYPE(MPIMessageLine, id, sender, receiver, tag, msg_length, isend_ts, start_swait_ts, end_swait_ts,
+                         irecv_ts, start_rwait_ts, end_rwait_ts);
     pandas = py::module::import("pandas");
     m.doc() = "Python API for the Pallas library";
 
@@ -102,87 +104,127 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("id", [](pallas::Token t) { return t.id; })
             .def_property_readonly("type", [](pallas::Token t) { return t.type; })
             .def("__repr__", &Token_toString)
-            .def("__hash__", [](pallas::Token& self) { return *reinterpret_cast<uint32_t*>(&self); })
-            .def("__eq__", [](pallas::Token& self, pallas::Token& other) { return self.type == other.type && self.id == other.id; });
+            .def("__hash__", [](pallas::Token &self) { return *reinterpret_cast<uint32_t *>(&self); })
+            .def("__eq__", [](pallas::Token &self, pallas::Token &other) {
+                return self.type == other.type && self.id == other.id;
+            });
 
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
-            .def_property_readonly("size", [](PyLinkedVector self) { return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size; })
-            .def("__getitem__", [](PyLinkedVector self, int i) { return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i); })
-            .def("__iter__", [](const PyLinkedVector self) { return PyLinkedVectorIterator{self.linked_vector, self.linked_duration_vector, 0}; })
+            .def_property_readonly("size", [](PyLinkedVector self) {
+                return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size;
+            })
+            .def("__getitem__", [](PyLinkedVector self, int i) {
+                return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i);
+            })
+            .def("__iter__", [](const PyLinkedVector self) {
+                return PyLinkedVectorIterator{self.linked_vector, self.linked_duration_vector, 0};
+            })
             .def("as_numpy_array", &linked_vector_to_numpy);
 
     py::class_<PyLinkedVectorIterator>(m, "Vector_Iterator", "An iterator over a Pallas custom vector")
-        .def("__next__", [](PyLinkedVectorIterator& self) {
-            if (self.linked_vector) {
-                if (self.index < self.linked_vector->size) {
-                    return self.linked_vector->at(self.index++);
+            .def("__next__", [](PyLinkedVectorIterator &self) {
+                if (self.linked_vector) {
+                    if (self.index < self.linked_vector->size) {
+                        return self.linked_vector->at(self.index++);
+                    }
+                } else {
+                    if (self.index < self.linked_duration_vector->size) {
+                        return self.linked_duration_vector->at(self.index++);
+                    }
                 }
-            } else {
-                if (self.index < self.linked_duration_vector->size) {
-                    return self.linked_duration_vector->at(self.index++);
-                }
-            }
-            throw py::stop_iteration();
-        });
+                throw py::stop_iteration();
+            });
 
     py::class_<PySequence>(m, "Sequence", "A Pallas Sequence, ie a group of tokens.")
-            .def_property_readonly("id", [](const PySequence& self) { return self.self->id; })
-            .def_property_readonly("tokens", [](const PySequence& self) { return self.self->tokens; })
-            .def_property_readonly("content", [](const PySequence& self) { return sequenceGetContent(self); })
-            .def_property_readonly("n_iterations", [](const PySequence& self) { return self.self->durations->size; })
-            .def_property_readonly("timestamps", [](const PySequence& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
-            .def_property_readonly("durations", [](const PySequence& self) { return PyLinkedVector{nullptr, self.self->durations}; })
-            .def_property_readonly("exclusive_durations", [](const PySequence& self) { return PyLinkedVector{nullptr, self.self->exclusive_durations}; })
-            .def_property_readonly("max_duration", [](const PySequence& self) { return self.self->durations->max; })
-            .def_property_readonly("min_duration", [](const PySequence& self) { return self.self->durations->min; })
-            .def_property_readonly("mean_duration", [](const PySequence& self) { return self.self->durations->mean; })
+            .def_property_readonly("id", [](const PySequence &self) { return self.self->id; })
+            .def_property_readonly("tokens", [](const PySequence &self) { return self.self->tokens; })
+            .def_property_readonly("content", [](const PySequence &self) { return sequenceGetContent(self); })
+            .def_property_readonly("n_iterations", [](const PySequence &self) { return self.self->durations->size; })
+            .def_property_readonly("timestamps", [](const PySequence &self) {
+                return PyLinkedVector{self.self->timestamps, nullptr};
+            })
+            .def_property_readonly("durations", [](const PySequence &self) {
+                return PyLinkedVector{nullptr, self.self->durations};
+            })
+            .def_property_readonly("exclusive_durations", [](const PySequence &self) {
+                return PyLinkedVector{nullptr, self.self->exclusive_durations};
+            })
+            .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max; })
+            .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min; })
+            .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean; })
             .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
-            .def("contains", [](const PySequence& self, const PySequence& other) { return doesSequenceContains(self, other.self->id); })
-            .def("contains", [](const PySequence& self, const PyLoop& other) { return doesSequenceContains(self, other.self->self_id); })
-            .def("contains", [](const PySequence& self, const PyEvent& other) { return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id}); })
-            .def("contains", [](const PySequence& self, const pallas::Token& other) { return doesSequenceContains(self, other); })
-            .def("guessName", [](const PySequence& self) { return self.self->guessName(self.thread); })
-            .def("__repr__", [](const PySequence& self) { return "<pallas_python.Sequence " + std::to_string(self.self->id.id) + ">"; });
+            .def("contains", [](const PySequence &self, const PySequence &other) {
+                return doesSequenceContains(self, other.self->id);
+            })
+            .def("contains", [](const PySequence &self, const PyLoop &other) {
+                return doesSequenceContains(self, other.self->self_id);
+            })
+            .def("contains", [](const PySequence &self, const PyEvent &other) {
+                return doesSequenceContains(self, {pallas::TokenType::TypeEvent, other.self->id});
+            })
+            .def("contains", [](const PySequence &self, const pallas::Token &other) {
+                return doesSequenceContains(self, other);
+            })
+            .def("guessName", [](const PySequence &self) { return self.self->guessName(self.thread); })
+            .def("__repr__", [](const PySequence &self) {
+                return "<pallas_python.Sequence " + std::to_string(self.self->id.id) + ">";
+            });
 
     py::class_<PyLoop>(m, "Loop", "A Pallas Loop, ie a repetition of a Sequence token.")
-            .def_property_readonly("id", [](const PyLoop& self) { return self.self->self_id; })
-            .def_property_readonly("sequence", [](const PyLoop& self) { return PySequence{self.thread->getSequence(self.self->repeated_token), self.thread}; })
-            .def_property_readonly("nb_iterations", [](const PyLoop& self) { return self.self->nb_iterations; })
-            .def("__repr__", [](const PyLoop& self) { return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">"; });
+            .def_property_readonly("id", [](const PyLoop &self) { return self.self->self_id; })
+            .def_property_readonly("sequence", [](const PyLoop &self) {
+                return PySequence{self.thread->getSequence(self.self->repeated_token), self.thread};
+            })
+            .def_property_readonly("nb_iterations", [](const PyLoop &self) { return self.self->nb_iterations; })
+            .def("__repr__", [](const PyLoop &self) {
+                return "<pallas_python.Loop " + std::to_string(self.self->self_id.id) + ">";
+            });
 
     py::class_<PyEvent>(m, "Event", "A Pallas Event.")
-            .def_property_readonly("id", [](const PyEvent& self) { return pallas::Token(pallas::TypeEvent, self.self->id); })
-            .def_property_readonly("record", [](const PyEvent& self) { return self.self->data.record; })
-            .def_property_readonly("data", [](const PyEvent& self) { return EventData_get_data(&self.self->data); })
-            .def_property_readonly("nb_occurrences", [](const PyEvent& self) { return self.self->nb_occurrences; })
-            .def_property_readonly("timestamps", [](const PyEvent& self) { return PyLinkedVector{self.self->timestamps, nullptr}; })
-            .def("guessName", [](const PyEvent& self) { return self.thread->getEventString(&self.self->data); })
+            .def_property_readonly("id", [](const PyEvent &self) {
+                return pallas::Token(pallas::TypeEvent, self.self->id);
+            })
+            .def_property_readonly("record", [](const PyEvent &self) { return self.self->data.record; })
+            .def_property_readonly("data", [](const PyEvent &self) { return EventData_get_data(&self.self->data); })
+            .def_property_readonly("nb_occurrences", [](const PyEvent &self) { return self.self->nb_occurrences; })
+            .def_property_readonly("timestamps", [](const PyEvent &self) {
+                return PyLinkedVector{self.self->timestamps, nullptr};
+            })
+            .def("guessName", [](const PyEvent &self) { return self.thread->getEventString(&self.self->data); })
             .def("getAttributes", get_attributes)
-            .def("__repr__", [](const PyEvent& self) { return "<pallas_python.Event " + std::to_string(self.self->id) + ">"; });
+            .def("__repr__", [](const PyEvent &self) {
+                return "<pallas_python.Event " + std::to_string(self.self->id) + ">";
+            });
 
     py::class_<pallas::Thread>(m, "Thread", "A Pallas thread.")
             .def_readonly("id", &pallas::Thread::id)
-            .def_property_readonly("starting_timestamp", [](const pallas::Thread& self) { return self.first_timestamp; })
-            .def_property_readonly("finish_timestamp", [](const pallas::Thread& self) { return (self.first_timestamp + self.sequences[0].durations->at(0)); })
-            .def_property_readonly("events", [](pallas::Thread& self) { return threadGetEvents(self); })
-            .def_property_readonly("sequences", [](pallas::Thread& self) { return threadGetSequences(self); })
-            .def_property_readonly("loops", [](pallas::Thread& self) { return threadGetLoops(self); })
+            .def_property_readonly("starting_timestamp",
+                                   [](const pallas::Thread &self) { return self.first_timestamp; })
+            .def_property_readonly("finish_timestamp", [](const pallas::Thread &self) {
+                return (self.first_timestamp + self.sequences[0].durations->at(0));
+            })
+            .def_property_readonly("events", [](pallas::Thread &self) { return threadGetEvents(self); })
+            .def_property_readonly("sequences", [](pallas::Thread &self) { return threadGetSequences(self); })
+            .def_property_readonly("loops", [](pallas::Thread &self) { return threadGetLoops(self); })
             .def("get_events_from_record", threadGetEventsMatching)
             .def("get_events_from_record", threadGetEventsMatchingList)
-            .def("__repr__", [](const pallas::Thread& self) { return "<pallas_python.Thread " + std::to_string(self.id) + ">"; })
+            .def("__repr__", [](const pallas::Thread &self) {
+                return "<pallas_python.Thread " + std::to_string(self.id) + ">";
+            })
             .def("getSnapshotView", &pallas::Thread::getSnapshotView)
             .def("getSnapshotViewByName", &pallas::Thread::getSnapshotViewByName)
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
-            .def("__iter__", [](const pallas::Thread& self) {
-                return new PyThreadIterator{new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL)};
+            .def("__iter__", [](const pallas::Thread &self) {
+                return new PyThreadIterator{
+                    new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL)
+                };
             })
-            .def("reader", [](const pallas::Thread& self) {
+            .def("reader", [](const pallas::Thread &self) {
                 return new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL);
-            })
-    ;
+            });
 
     py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
-            .def("__next__", [](PyThreadIterator& self) {
+            .def("__next__", [](PyThreadIterator &self) {
                 if (self.inner->moveToNextToken()) {
                     auto t = self.inner->pollCurToken();
                     if (!t.isValid()) {
@@ -194,31 +236,33 @@ PYBIND11_MODULE(_core, m) {
             });
 
     py::class_<PyTraceIterator>(m, "Trace_Iterator", "An iterator over the trace.")
-            .def("__next__", [](PyTraceIterator& self) {
+            .def("__next__", [](PyTraceIterator &self) {
                 if (self.inner->moveToNextToken()) {
                     auto t = self.inner->pollCurToken();
                     if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
-                    return py::make_tuple(self.inner->current_thread_reader->thread_trace, makePyObjectFromToken(t, *self.inner->current_thread_reader));
+                    return py::make_tuple(self.inner->current_thread_reader->thread_trace,
+                                          makePyObjectFromToken(t, *self.inner->current_thread_reader));
                 }
                 throw py::stop_iteration();
             });
 
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
             .def_property_readonly("callstack", &thread_reader_get_callstack)
-            .def("moveToNextToken", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
+            .def("moveToNextToken", [](pallas::ThreadReader &self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
                 self.moveToNextToken(flags);
             })
-            .def("pollCurToken", [](pallas::ThreadReader& self) {
+            .def("pollCurToken", [](pallas::ThreadReader &self) {
                 return makePyObjectFromToken(self.pollCurToken(), self);
             })
-            .def("enterIfStartOfBlock", [](pallas::ThreadReader& self, bool enter_sequence = true, bool enter_loop = true) {
-                int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
-                return self.enterIfStartOfBlock(flags);
-            })
-            .def("exitIfEndOfBlock", [](pallas::ThreadReader& self, bool exit_sequence = true, bool exit_loop = true) {
+            .def("enterIfStartOfBlock",
+                 [](pallas::ThreadReader &self, bool enter_sequence = true, bool enter_loop = true) {
+                     int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
+                     return self.enterIfStartOfBlock(flags);
+                 })
+            .def("exitIfEndOfBlock", [](pallas::ThreadReader &self, bool exit_sequence = true, bool exit_loop = true) {
                 int flags = get_read_flags_from_bools(exit_sequence, exit_loop);
                 return self.exitIfEndOfBlock(flags);
             })
@@ -229,18 +273,22 @@ PYBIND11_MODULE(_core, m) {
             .def_readonly("id", &PyLocationGroup::id)
             .def_readonly("name", &PyLocationGroup::name)
             .def_readonly("parent", &PyLocationGroup::parent)
-            .def("__repr__", [](const PyLocationGroup& self) { return "<pallas_python.LocationGroup " + std::to_string(self.id) + ": '" + self.name + "'>"; });
+            .def("__repr__", [](const PyLocationGroup &self) {
+                return "<pallas_python.LocationGroup " + std::to_string(self.id) + ": '" + self.name + "'>";
+            });
 
     py::class_<PyLocation>(m, "Location", "A Pallas location. Usually means an execution thread.")
             .def_readonly("id", &PyLocation::id)
             .def_readonly("name", &PyLocation::name)
             .def_readonly("parent", &PyLocation::parent)
-            .def("__repr__", [](const PyLocation& self) { return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>"; });
+            .def("__repr__", [](const PyLocation &self) {
+                return "<pallas_python.Location " + std::to_string(self.id) + ": '" + self.name + "'>";
+            });
 
     py::class_<PyRegion>(m, "Region", "A Pallas region.")
             .def_readonly("id", &PyRegion::id)
             .def_readonly("name", &PyRegion::name)
-            .def("__repr__", [](const PyRegion& self) {
+            .def("__repr__", [](const PyRegion &self) {
                 return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
             });
 
@@ -261,15 +309,17 @@ PYBIND11_MODULE(_core, m) {
             .def("get_communication_matrix", get_communication_matrix_timed,
                  "Returns an MPI communication matrix for given trace between the given timestamps.\n"
                  "Doesn't read more than the grammar.\n")
-            .def("get_communication_matrix", [](pallas::GlobalArchive& trace, double_t start, double_t end) {
+            .def("get_communication_matrix", [](pallas::GlobalArchive &trace, double_t start, double_t end) {
                      // Enables autoconvert from double to uint64, in case of linspace
                      return get_communication_matrix_timed(trace, start, end);
                  }, "Returns an MPI communication matrix for given trace between the given timestamps.\n"
                  "Doesn't read more than the grammar.\n")
-            .def("get_message_size_histogram", get_message_size_histogram, py::arg("trace"), py::kw_only(), py::arg("count_data_amount") = false,
+            .def("get_message_size_histogram", get_message_size_histogram, py::arg("trace"), py::kw_only(),
+                 py::arg("count_data_amount") = false,
                  "Returns a histogram of the message sizes sent in this trace.\n"
                  ":param count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
-            .def("get_message_size_histogram", get_message_size_histogram_local, py::arg("archive"), py::kw_only(), py::arg("count_data_amount") = false,
+            .def("get_message_size_histogram", get_message_size_histogram_local, py::arg("archive"), py::kw_only(),
+                 py::arg("count_data_amount") = false,
                  "Returns a histogram of the message sizes sent in this archive.\n"
                  ":param count_data_amount: If true, the histogram doesn't count the number of messages, but the amount of data sent.")
             .def("get_communication_over_time", get_communication_over_time, py::arg("trace"), py::arg("timestamps"),
@@ -277,7 +327,8 @@ PYBIND11_MODULE(_core, m) {
                  "Returns a binned histogram for the given timestamps.\n"
                  ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
                  ":param count_messages: If False, count the number of messages rather than the data amount.")
-            .def("get_communication_over_time", get_communication_over_time_archive, py::arg("archive"), py::arg("timestamps"),
+            .def("get_communication_over_time", get_communication_over_time_archive, py::arg("archive"),
+                 py::arg("timestamps"),
                  py::kw_only(), py::arg("count_messages") = false,
                  "Returns a binned histogram for the given timestamps.\n"
                  ":param timestamps: Bins of timestamps. Beware that the last given timestamp is the end of the last bin.\n"
@@ -298,10 +349,9 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("archives", &Trace_get_archives)
             .def_property_readonly("starting_timestamp", &pallas::GlobalArchive::get_starting_timestamp)
             .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp)
-            .def("__iter__", [](pallas::GlobalArchive& self) {
+            .def("__iter__", [](pallas::GlobalArchive &self) {
                 return new PyTraceIterator{new pallas::MultiThreadReader(self)};
-            })
-    ;
+            });
 }
 
 /* -*-

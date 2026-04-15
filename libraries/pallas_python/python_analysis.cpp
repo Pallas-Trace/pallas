@@ -1,4 +1,7 @@
 #include "python_analysis.h"
+
+#include <iostream>
+
 #include "pallas_python.h"
 #include <regex>
 extern py::module pandas;
@@ -242,32 +245,6 @@ int status_complete
         = (status_isend_occured | status_swait_started | status_swait_ended
            | status_irecv_occured | status_rwait_started | status_rwait_ended);
 
-struct MPIMessageLine {
-    /** Message ID. Simply used as an identifier in the grand scheme of things. */
-    uint32_t id = -1;
-    /** Sender of the message. -1 if matching hasn't been done. */
-    uint32_t sender = -1;
-    /** Receiver of the message. -1 if matching hasn't been done. */
-    uint32_t receiver = -1;
-
-    /** Tag of the message. */
-    uint32_t tag = -1;
-    /** Message length ( bytes ). */
-    uint64_t msg_length = -1;
-    /** Timestamp of the Send/ISend call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t isend_ts = -1;
-    /** Start of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t start_swait_ts = -1;
-    /** End of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t end_swait_ts = -1;
-    /** Timestamp of the Recv/IRecv call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t irecv_ts = -1;
-    /** Start of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t start_rwait_ts = -1;
-    /** End of the Wait call. - 1 if matching hasn't been done.*/
-    pallas_timestamp_t end_rwait_ts = -1;
-};
-
 struct MPIMessage : MPIMessageLine {
     /** MPI_Request passed to MPI_ISend. */
     uint64_t isend_ptr = 0;
@@ -290,9 +267,9 @@ struct MPIMessage : MPIMessageLine {
 enum send_receive { send, recv };
 
 struct MPIMatchedMessage {
-    MPIMessage *message;
+    std::shared_ptr<MPIMessage> message;
     enum send_receive sr; // Is it a send, or a receive ?
-    MPIMatchedMessage(MPIMessage *message, enum send_receive sr)
+    MPIMatchedMessage(const std::shared_ptr<MPIMessage>& message, enum send_receive sr)
         : message(message), sr(sr) {
     }
 };
@@ -304,12 +281,12 @@ struct MpiRequest {
     /** Timestamp of call to MPI_IRecv. */
     pallas_timestamp_t ts = 0;
     /** Message corresponding to that request. */
-    MPIMessage *message = nullptr;
+    std::shared_ptr<MPIMessage> message = nullptr;
 };
 
 struct MPIProcessData {
-    std::list<MPIMessage *> pending_smessages;
-    std::list<MPIMessage *> pending_rmessages;
+    std::list<std::shared_ptr<MPIMessage>> pending_smessages;
+    std::list<std::shared_ptr<MPIMessage>> pending_rmessages;
     std::list<MpiRequest *> pending_requests;
     std::list<MPIMatchedMessage> matched_messages;
 };
@@ -325,7 +302,7 @@ static int local_rank_to_global(pallas::GlobalArchive &trace, uint32_t communica
 static std::map<pallas::LocationGroupId, MPIProcessData> processes;
 
 
-static void update_message_timestamps(MPIProcessData &p, MPIMessage *m, int status,
+static void update_message_timestamps(MPIProcessData &p, std::shared_ptr<MPIMessage>& m, int status,
                                       pallas_timestamp_t ts, std::vector<MPIMessageLine> *completed_messages) {
     if (status & status_isend_occured) {
         m->isend_ts = ts;
@@ -362,7 +339,7 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *m, int stat
         processes[m->receiver].pending_rmessages.remove(m);
         /* Add the message to the completed message list */
         completed_messages->emplace_back(*m);
-        delete m;
+        //delete m;
     }
 }
 
@@ -379,7 +356,7 @@ static void process_leave_mpi_wait(MPIProcessData &p, pallas_timestamp_t ts,
     p.matched_messages.clear();
 }
 
-static MPIMessage *match_isend(uint32_t sender,
+static std::shared_ptr<MPIMessage> match_isend(uint32_t sender,
                                uint32_t receiver,
                                uint32_t msg_tag,
                                uint64_t msg_length,
@@ -390,8 +367,8 @@ static MPIMessage *match_isend(uint32_t sender,
 ) {
     MPIProcessData &p_sender = processes[sender];
     MPIProcessData &p_receiver = processes[receiver];
-    for (auto *m: p_receiver.pending_rmessages) {
-        if ((m->sender == sender or m->sender == -1) && (m->tag == msg_tag || msg_tag == -1) && (!m->status & status)) {
+    for (auto m: p_receiver.pending_rmessages) {
+        if ((m->sender == sender or m->sender == -1) && (m->tag == msg_tag || msg_tag == -1) && !(m->status & status)) {
             m->status = m->status | status;
             m->sender = sender;
             m->tag = msg_tag;
@@ -401,13 +378,13 @@ static MPIMessage *match_isend(uint32_t sender,
             return m;
         }
     }
-    MPIMessage *m = new MPIMessage(sender, receiver, msg_tag, msg_length, status);
+    std::shared_ptr<MPIMessage> m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
     p_sender.pending_smessages.push_back(m);
     update_message_timestamps(p_sender, m, status, isend_ts, completed_messages);
     return m;
 }
 
-static MPIMessage *match_irecv(uint32_t sender,
+static std::shared_ptr<MPIMessage> match_irecv(uint32_t sender,
                                uint32_t receiver,
                                uint32_t msg_tag,
                                uint64_t msg_length,
@@ -418,9 +395,8 @@ static MPIMessage *match_irecv(uint32_t sender,
 ) {
     MPIProcessData &p_sender = processes[sender];
     MPIProcessData &p_receiver = processes[receiver];
-    for (auto *m: p_sender.pending_rmessages) {
-        if ((m->receiver == receiver or m->receiver == -1) && (m->tag == msg_tag || msg_tag == -1) && (
-                !m->status & status)) {
+    for (auto m: p_sender.pending_rmessages) {
+        if ((m->receiver == receiver or m->receiver == -1) && (m->tag == msg_tag || msg_tag == -1) && !(m->status & status)) {
             m->status = m->status | status;
             m->receiver = receiver;
             m->tag = msg_tag;
@@ -430,7 +406,7 @@ static MPIMessage *match_irecv(uint32_t sender,
             return m;
         }
     }
-    MPIMessage *m = new MPIMessage(sender, receiver, msg_tag, msg_length, status);
+    std::shared_ptr<MPIMessage> m(new MPIMessage(sender, receiver, msg_tag, msg_length, status));
     p_receiver.pending_rmessages.push_back(m);
     update_message_timestamps(p_receiver, m, status, irecv_ts, completed_messages);
     return m;
@@ -446,6 +422,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     }
 
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
+    reader.getNextToken();
     for (auto t = reader.pollCurToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
         if (t.type != pallas::TypeEvent) {
             continue;
@@ -453,6 +430,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         auto *cur_reader = reader.current_thread_reader;
         auto lgid = reader.current_thread_reader->archive->id;
         auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
+        std::cout << data.timestamp << "\r";
         MPIProcessData &p = processes[lgid];
         byte *cursor = nullptr;
         switch (data.event->record) {
@@ -466,7 +444,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 READ(data, cursor, uint32_t, msgTag);
                 READ(data, cursor, uint64_t, msgLength);
                 receiver = local_rank_to_global(trace, communicator, receiver);
-                auto *m = match_isend(lgid, receiver,
+                match_isend(lgid, receiver,
                                       msgTag, msgLength, data.timestamp, 0,
                                       status_isend_occured | status_swait_started, completed_messages);
                 break;
@@ -477,7 +455,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 READ(data, cursor, uint32_t, msgTag);
                 READ(data, cursor, uint64_t, msgLength);
                 sender = local_rank_to_global(trace, communicator, sender);
-                auto *m = match_irecv(sender, lgid,
+                match_irecv(sender, lgid,
                                       msgTag, msgLength, data.timestamp, 0,
                                       status_irecv_occured | status_rwait_started, completed_messages);
                 break;
@@ -489,7 +467,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 READ(data, cursor, uint64_t, msgLength);
                 READ(data, cursor, uint64_t, requestID);
                 receiver = local_rank_to_global(trace, communicator, receiver);
-                auto *m = match_isend(lgid, receiver,
+                auto m = match_isend(lgid, receiver,
                                       msgTag, msgLength, data.timestamp, requestID,
                                       status_isend_occured, completed_messages);
                 auto *r = new MpiRequest(requestID, data.timestamp, m);
@@ -508,7 +486,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                     return it->ptr == requestID;
                 });
                 if (r != lst.end()) {
-                    auto *m = match_irecv(sender, lgid,
+                    auto m = match_irecv(sender, lgid,
                                           msgTag, msgLength, data.timestamp, requestID,
                                           status_irecv_occured, completed_messages);
                     (*r)->message = m;
@@ -552,28 +530,22 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
             }
             case pallas::PALLAS_EVENT_LEAVE: {
                 std::string f(cur_reader->thread_trace->getRegionStringFromEvent(data.event));
-                std::transform(f.begin(), f.end(), f.begin(),
-                               [](unsigned char c) { return std::tolower(c); }
-                );
-                // Remove trailing underscore
-                static std::regex pattern("_$");
                 static std::set<std::string> implicit_mpi_wait{
-                    "mpi_send",
-                    "mpi_recv",
-                    "mpi_bsend",
-                    "mpi_ssend",
-                    "mpi_rsend",
-                    "mpi_sendrecv",
-                    "mpi_sendrecv_replace",
-                    "mpi_test",
-                    "mpi_wait",
-                    "mpi_waitany",
-                    "mpi_testany",
-                    "mpi_waitsome",
-                    "mpi_testsome",
-                    "mpi_probe",
+                    "MPI_Send","mpi_send_",
+                    "MPI_Recv","mpi_recv_",
+                    "MPI_Bsend","mpi_bsend_",
+                    "MPI_Ssend","mpi_ssend_",
+                    "MPI_Rsend","mpi_rsend_",
+                    "MPI_Sendrecv","mpi_sendrecv_",
+                    "MPI_Sendrecv_replace","mpi_sendrecv_replace_",
+                    "MPI_Test","mpi_test_",
+                    "MPI_Wait","mpi_wait_",
+                    "MPI_Waitany","mpi_waitany_",
+                    "MPI_Testany","mpi_testany_",
+                    "MPI_Waitsome","mpi_waitsome_",
+                    "MPI_Testsome","mpi_testsome_",
+                    "MPI_Probe","mpi_probe_",
                 };
-                f = std::regex_replace(f, pattern, "");
                 if (implicit_mpi_wait.contains(f)) {
                     process_leave_mpi_wait(p, data.timestamp, completed_messages);
                 }
@@ -583,7 +555,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 break;
         }
     }
-
+    std::cout << "Done !" << std::endl;
     py::capsule free_when_done(completed_messages, [](void *f) {
         auto foo = reinterpret_cast<std::vector<MPIMessageLine> *>(f);
         delete foo;
@@ -596,4 +568,5 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     );
     py::object df = pandas.attr("DataFrame")(numpy_array);
     processes.clear();
+    return df;
 }

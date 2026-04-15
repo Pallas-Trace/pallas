@@ -21,6 +21,32 @@ struct SequenceStatisticsLine {
     uint64_t nb_occurrences;
 };
 
+struct MPIMessageLine {
+    /** Message ID. Simply used as an identifier in the grand scheme of things. */
+    uint32_t id = -1;
+    /** Sender of the message. -1 if matching hasn't been done. */
+    uint32_t sender = -1;
+    /** Receiver of the message. -1 if matching hasn't been done. */
+    uint32_t receiver = -1;
+
+    /** Tag of the message. */
+    uint32_t tag = -1;
+    /** Message length ( bytes ). */
+    uint64_t msg_length = -1;
+    /** Timestamp of the Send/ISend call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t isend_ts = -1;
+    /** Start of the Wait call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t start_swait_ts = -1;
+    /** End of the Wait call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t end_swait_ts = -1;
+    /** Timestamp of the Recv/IRecv call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t irecv_ts = -1;
+    /** Start of the Wait call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t start_rwait_ts = -1;
+    /** End of the Wait call. - 1 if matching hasn't been done.*/
+    pallas_timestamp_t end_rwait_ts = -1;
+};
+
 /** Returns a communication matrix of all the messages received. */
 py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive& trace);
 
