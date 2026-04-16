@@ -103,7 +103,9 @@ void info_event(Thread* t, int index) {
 
   std::cout << std::left << "E" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << t->getEventString(&e->data);
-  std::cout << std::setw(20) << std::right << e->timestamps->size;
+  if (e->timestamps) {
+    std::cout << std::setw(20) << std::right << e->timestamps->size;
+  }
   std::cout << std::endl;
 }
 
@@ -138,6 +140,10 @@ void info_sequence(Thread* t, int index, bool details = false) {
 
   std::cout << std::left << "S" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << sequence_name;
+  if (s.tokens.size() == 0) {
+    std::cout << std::endl;
+    return;
+  }
   std::cout << std::setw(18) << std::right << s.durations->size;
   std::cout << std::setw(18) << std::right << ns2s(s.durations->min == UINT64_MAX ? 0 : s.durations->min);
   std::cout << std::setw(18) << std::right << ns2s(s.durations->max == UINT64_MAX ? 0 : s.durations->max);
@@ -194,6 +200,12 @@ void info_loop_header() {
 void info_loop(Thread* t, int index) {
     Loop* l = &t->loops[index];
     std::string loop_name = l->guessName(t);
+    // TODO:
+    // better handle invalid case display
+    if (l->repeated_token.type == pallas::TypeInvalid) {
+      std::cout << std::endl;
+      return;
+    }
     std::cout << std::left << "L" << std::setw(14) << std::left << index;
     std::cout << std::left << "S" << std::setw(14) << std::left << l->repeated_token.id;
     std::cout << std::setw(35) << std::left << loop_name;
