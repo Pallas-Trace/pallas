@@ -872,6 +872,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     free_data();
 }
 
+// NOTE: leading space
  pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
     _pallas_fread(&min, sizeof(min), 1, file);
