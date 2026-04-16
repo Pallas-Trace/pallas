@@ -256,7 +256,7 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurr
 
 void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const {
     // Let's call the main sequence "main"
-    names[thread_trace->sequences[thread_trace->sequence_root]] = "main";
+    names[&thread_trace->sequences[thread_trace->sequence_root]] = "main";
 
     for (int i = 1; i < thread_trace->nb_sequences; i++) {
         pallas::Sequence* s = &thread_trace->sequences[i];
