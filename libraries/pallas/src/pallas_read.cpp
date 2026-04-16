@@ -321,6 +321,8 @@ Token ThreadReader::pollNextToken(int flags) const {
     if (flags == PALLAS_READ_FLAG_NONE)
         flags = pallas_read_flag;
 
+    // NOTE:
+    // are these the same field, redundancy? 
     int current_frame = currentState.current_frame_index;
     int current_index = currentState.currentFrame->frame_index;
     auto current_iterable_token = currentState.currentFrame->callstack_iterable;
@@ -337,6 +339,8 @@ Token ThreadReader::pollNextToken(int flags) const {
     while (isEndOfBlock(current_index, current_iterable_token)) {
         if (current_frame == 0)
             return Token();
+        // NOTE:
+        // merge logic 
         if (current_iterable_token.type == TypeSequence && flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE) {
             current_frame--;
             current_index = currentState.currentFrame->frame_index;
