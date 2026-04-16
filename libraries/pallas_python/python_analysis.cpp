@@ -296,6 +296,7 @@ struct MpiRequest {
     ~MpiRequest() {
         delete message;
     }
+    MpiRequest(uint64_t ptr, pallas_timestamp_t ts, MPIMessage* msg): ptr(ptr), ts(ts), message(msg) {};
 };
 
 struct MPIProcessData {
