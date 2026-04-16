@@ -855,7 +855,9 @@ Thread::Thread() {
 Thread::~Thread() {
     pallas_log(DebugLevel::Debug, "Deleting Thread %d\n", id);
     for (size_t i = 0; i < nb_allocated_events; i++) {
-        events[i].cleanEvent();
+        if (events[i].data.record != PALLAS_EVENT_MAX_ID) {
+            events[i].cleanEvent();
+        }
     }
     delete[] events;
     delete[] sequences;
@@ -875,12 +877,15 @@ String::~String() {
 }
 
 std::string Sequence::guessName(const pallas::Thread* thread) const {
+    if (this->tokens.size() == 0) {
+        return "invalid";
+    }
     Token t_start = this->tokens[0];
     if (t_start.type == TypeEvent) {
         EventData& data = thread->getEvent(t_start)->data;
         if (data.record == PALLAS_EVENT_ENTER) {
             const char* event_name = thread->getRegionStringFromEvent(&data);
-	    return event_name;
+	          return event_name;
         }
         if (data.record == PALLAS_EVENT_THREAD_TEAM_BEGIN || data.record == PALLAS_EVENT_THREAD_BEGIN) {
             return "thread";
@@ -905,6 +910,9 @@ void _loopGetTokenCountReading(const Loop* loop, const Thread* thread, TokenCoun
 }
 
 std::string Loop::guessName(const Thread* t) const {
+    if (this->repeated_token.type == TypeInvalid) {
+        return "invalid";
+    }
     Sequence* s = t->getSequence(this->repeated_token);
     return s->guessName(t);
 }
