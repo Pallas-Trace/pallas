@@ -328,7 +328,7 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *m, int stat
         m->status |= status_swait_started;
         p.matched_messages.emplace_back(m, send);
         auto &lst = processes[m->sender].pending_smessages;
-        assert(std::ranges::find(lst, m) != lst.end());
+        assert(std::find(lst.begin(), lst.end(), m) != lst.end());
     }
     if (status & status_swait_ended) {
         m->end_swait_ts = ts;
@@ -345,7 +345,7 @@ static void update_message_timestamps(MPIProcessData &p, MPIMessage *m, int stat
 
         p.matched_messages.emplace_back(m, recv);
         auto &lst = processes[m->receiver].pending_rmessages;
-        assert(std::ranges::find(lst, m) != lst.end());
+        assert(std::find(lst.begin(), lst.end(), m) != lst.end());
     }
     if (status & status_rwait_ended) {
         m->end_rwait_ts = ts;
@@ -372,7 +372,7 @@ static void process_leave_mpi_wait(MPIProcessData &p, pallas_timestamp_t ts,
             update_message_timestamps(p, mm.message, status_swait_ended, ts, completed_messages);
         }
     }
-    std::ranges::remove_if(p.matched_messages, [](const MPIMatchedMessage &mm) {
+    std::remove_if(p.matched_messages.begin(), p.matched_messages.end(), [](const MPIMatchedMessage &mm) {
         return mm.message->status == status_complete;
     });
 }
@@ -518,7 +518,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 READ(data, cursor, uint64_t, requestID);
                 sender = local_rank_to_global(trace, communicator, sender);
                 auto &lst = p.pending_requests;
-                auto r = std::ranges::find_if(lst, [requestID](const MpiRequest *it) {
+                auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
                 });
                 if (r != lst.end()) {
@@ -544,7 +544,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
             case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE: {
                 READ(data, cursor, uint64_t, requestID);
                 auto &lst = p.pending_requests;
-                auto r = std::ranges::find_if(lst, [requestID](const MpiRequest *it) {
+                auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
                 });
                 if (r != lst.end() && (*r)->message != nullptr) {
