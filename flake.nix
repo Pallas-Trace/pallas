@@ -2,7 +2,7 @@
   description = "Pallas Development Environment";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
   };
 
   outputs = { self, nixpkgs, ... }: let
@@ -14,11 +14,11 @@
 
       packages = with pkgs; [
         # core
-        gcc 
+        gcc
         git
 
         # build utilities
-        cmake
+        cmakeCurses
         doxygen
         pkg-config
 
