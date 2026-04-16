@@ -574,7 +574,7 @@ int main(int argc, char** argv) {
       next_free_string_ref++;
     }
   }
-  
+
   // loop over RegionRef -> Region map in GlobalArchive Definition
   for (auto const& [region_ref, region]
     : trace->definitions.regions) {
@@ -822,7 +822,7 @@ int main(int argc, char** argv) {
   }
 
   for (auto* thread : threads) {
-    thread->sequence_root = thread_seq_lookup[thread->id][0];
+    thread->sequence_root = eval_token_map(thread_seq_lookup, thread->id, 0);
   }
 
   auto save_name = strdup((
