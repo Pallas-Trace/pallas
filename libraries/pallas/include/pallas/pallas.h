@@ -311,6 +311,7 @@ public:
     [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 
     ~Sequence();
+    Sequence(Sequence&&) = default;
     Sequence& operator=(Sequence&& other);
     Sequence(ParameterHandler& parameter_handler);
     explicit Sequence() {};
