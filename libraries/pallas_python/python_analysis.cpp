@@ -525,7 +525,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                                          msgTag, msgLength, data.timestamp, requestID,
                                          status_irecv_occured, completed_messages);
                     if ((*r)->message != nullptr) {
-                        assert((*r)->message == m);
+                        pallas_assert_equals((*r)->message, m);
                     }
                     (*r)->message = m;
                     update_message_timestamps(p, m, status_rwait_started,
@@ -534,7 +534,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                                               , completed_messages);
                     update_message_timestamps(p, m, status_rwait_ended, data.timestamp, completed_messages);
                     size_t c = p.pending_requests.remove(*r);
-                    assert(c == 1);
+                    pallas_assert_equals(c, 1);
                 } else {
                     pallas_error("This should not have happened\n");
                 }
@@ -560,7 +560,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                         data.timestamp
                         , completed_messages);
                     size_t c = p.pending_requests.remove(*r);
-                    assert(c == 1);
+                    pallas_assert_equals(c, 1);
                 } else {
                     pallas_error("This should not have happened\n");
                 }
