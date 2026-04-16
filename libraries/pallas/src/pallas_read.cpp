@@ -62,9 +62,12 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
 
     // And initialize the callstack
     // ie set the cursor on the first event
+    TokenId sequence_root = thread_trace->sequence_root;
     this->currentState.current_frame_index = 0;
     this->currentState.currentFrame = &currentState.callstack[0];
-    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, 0);
+    // NOTE:
+    // changing `..., 0)` to `..., sequence_root)`
+    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, sequence_root);
     this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
     // Enter main sequence
     enterBlock();
