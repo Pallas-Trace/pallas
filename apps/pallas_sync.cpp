@@ -11,13 +11,8 @@
 #include <iostream>
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
-// #include "pallas/pallas_dbg.h"
-// #include "pallas/pallas_log.h"
-// #include "pallas/pallas_parameter_handler.h"
-// #include "pallas/pallas_read.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_storage.h"
-// #include "pallas/pallas_write.h"
 
 #define DEBUG_LEVEL 0
 #define ENABLE_WRITE
