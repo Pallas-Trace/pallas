@@ -631,8 +631,8 @@ int main(int argc, char** argv) {
         pallas::Event event = t->events[i];
         pallas::EventData data = event.data;
         pallas::Record record = data.record;
-        if (record == pallas::PALLAS_EVENT_ENTER || record == pallas::PALLAS_EVENT_LEAVE) {
 
+        if (record == pallas::PALLAS_EVENT_ENTER || record == pallas::PALLAS_EVENT_LEAVE) {
           pallas::RegionRef ref;
           memcpy(&ref, data.event_data, sizeof(pallas::RegionRef));
           pallas::RegionRef new_ref = region_ref_lookup[ref];
@@ -785,7 +785,7 @@ int main(int argc, char** argv) {
     update_seqs = true;
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    // |     Verify Further Updates Needed    |
+    // |    Verify Further Updates Needed     |
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     std::cout << "Number of sequence swaps performed = " << number_of_swaps << std::endl;
