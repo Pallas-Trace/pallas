@@ -27,5 +27,9 @@ dependencies = ["pandas", "numpy"]
 Homepage = "https://gitlab.inria.fr/pallas/pallas"
 Issues = "https://gitlab.inria.fr/pallas/pallas/issues"
 
-[tool.scikit-build.cmake.define]
-_PIP = "ON"
+[tool.scikit-build]
+cmake.define._PIP = "ON"
+
+#cmake.define.Python3_DYNAMIC = "ON"
+#cmake.build-type = "Debug"
+#install.strip = false
