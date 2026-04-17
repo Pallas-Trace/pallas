@@ -372,7 +372,8 @@ static void process_leave_mpi_wait(MPIProcessData &p, pallas_timestamp_t ts,
             update_message_timestamps(p, mm.message, status_swait_ended, ts, completed_messages);
         }
     }
-    std::remove_if(p.matched_messages.begin(), p.matched_messages.end(), [](const MPIMatchedMessage &mm) {
+    // p.matched_messages.clear();
+    p.matched_messages.remove_if([](const MPIMatchedMessage &mm) {
         return mm.message->status == status_complete;
     });
 }
@@ -396,6 +397,7 @@ static MPIMessage *match_isend(uint32_t sender,
             m->sender = sender;
             m->tag = msg_tag;
             m->isend_ptr = isend_req;
+            p_sender.pending_smessages.push_back(m);
             update_message_timestamps(p_sender, m, status, isend_ts, completed_messages);
             return m;
         }
@@ -425,6 +427,7 @@ static MPIMessage *match_irecv(uint32_t sender,
             m->receiver = receiver;
             m->tag = msg_tag;
             m->irecv_ptr = irecv_req;
+            p_receiver.pending_rmessages.push_back(m);
             update_message_timestamps(p_receiver, m, status, irecv_ts, completed_messages);
             return m;
         }
@@ -537,7 +540,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                     size_t c = p.pending_requests.remove(*r);
                     pallas_assert_equals(c, 1);
                 } else {
-                    pallas_error("This should not have happened\n");
+                    pallas_error("Matching request for IRECV not found!\n");
                 }
                 break;
             }
@@ -547,7 +550,8 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
                 });
-                if (r != lst.end() && (*r)->message != nullptr) {
+                if (r != lst.end()) {
+                    pallas_assert((*r)->message != nullptr);
                     update_message_timestamps(
                         p,
                         (*r)->message,
@@ -563,7 +567,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                     size_t c = p.pending_requests.remove(*r);
                     pallas_assert_equals(c, 1);
                 } else {
-                    pallas_error("This should not have happened\n");
+                    pallas_error("Matching request for ISEND_COMPLETE not found!\n");
                 }
                 break;
             }
