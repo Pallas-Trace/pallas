@@ -113,7 +113,6 @@ int sync_events(std::vector<pallas::Thread*>& threads,
                 uint32_t end_id,
                 thread_token_map& event_map,
                 thread_token_map& event_rev) {
-
   for (auto* t2 : threads) {
     // ignore identical threads
     if (t2->id == t->id) {
@@ -141,10 +140,10 @@ int sync_events(std::vector<pallas::Thread*>& threads,
         }
       }
 
+      // if no match found insert placeholder
       if (!found_match) {
-        // if no match found insert placeholder
-        pallas::Event swap_event = std::move(t2->events[event_id]);
         uint32_t swap_id = t2->nb_events;
+        pallas::Event swap_event = std::move(t2->events[event_id]);
         event_insert(swap_event, t2, swap_id);
         event_override_invalid(t2, event_id);
         map_set(event_map, event_rev, t2->id, event_id, swap_id);
@@ -152,6 +151,160 @@ int sync_events(std::vector<pallas::Thread*>& threads,
     }
   }
   return 0;
+}
+
+bool loop_cmp(pallas::Loop& l1, pallas::Loop& l2) {
+  if (l1.repeated_token.type != l2.repeated_token.type) {
+    return false;
+  }
+  if (l1.repeated_token.id != l2.repeated_token.id) {
+    return false;
+  }
+  if (l1.nb_iterations != l2.nb_iterations) {
+    return false;
+  }
+  return true;
+}
+
+void loop_insert(pallas::Loop& l,
+                 pallas::Thread *t, uint32_t id) {
+  while (id >= t->nb_allocated_loops) {
+    doubleMemorySpaceConstructor(t->loops, t->nb_allocated_loops);
+  }
+  t->loops[id] = std::move(l);
+  if (id >= t->nb_loops) {
+    t->nb_loops++;
+    t->loops[id].self_id.id = id;
+  }
+}
+
+void loop_override_invalid(pallas::Thread *t, uint32_t id) {
+  t->loops[id].repeated_token.type = pallas::TypeInvalid;
+  t->loops[id].repeated_token.id = PALLAS_TOKEN_ID_INVALID;
+  t->loops[id].self_id.id = PALLAS_TOKEN_ID_INVALID;
+  t->loops[id].nb_iterations = 0;
+  t->loops[id].nb_occurrences = 0;
+}
+
+void loop_swap(pallas::Thread *t,
+               uint32_t src_id, uint32_t swap_id) {
+  std::swap(t->loops[src_id], t->loops[swap_id]);
+  t->loops[src_id].self_id.id = src_id;
+  t->loops[swap_id].self_id.id = swap_id;
+}
+
+uint32_t find_matching_loop(pallas::Loop& src_loop,
+                            pallas::Thread *t) {
+  uint32_t t_n_loops = t->nb_loops;
+  for (uint32_t l2_idx = src_loop.self_id.id; l2_idx < t_n_loops; l2_idx++) {
+    pallas::Loop& cand_loop = t->loops[l2_idx];
+    if (loop_cmp(src_loop, cand_loop)) {
+      // std::cout << "found swap match!" << std::endl;
+      return cand_loop.self_id.id;
+    }
+  }
+  // if no match found return src_event id
+  return src_loop.self_id.id;
+}
+
+void update_loop_tokens(std::vector<pallas::Thread*>& threads,
+                        thread_token_map& event_map,
+                        bool update_events,
+                        thread_token_map& seq_map,
+                        bool update_seqs,
+                        thread_token_map& loop_map,
+                        bool update_loops) {
+  for (auto* t : threads) {
+    for (uint32_t loop_id = 0; loop_id < t->nb_loops; loop_id++) {
+      pallas::Loop& loop = t->loops[loop_id];
+
+      if (loop.repeated_token.type == pallas::TypeInvalid) {
+        continue;
+      }
+
+      auto& token = loop.repeated_token;
+      if (token.type == 1 && update_events) {
+        token.id = map_eval(event_map, t->id, token.id);
+      }
+      if (token.type == 2 && update_seqs) {
+        token.id = map_eval(seq_map, t->id, token.id);
+      }
+      if (token.type == 3 && update_loops) {
+        token.id = map_eval(loop_map, t->id, token.id);
+      }
+    }
+  }
+}
+
+int sync_loops(std::vector<pallas::Thread*>& threads,
+               pallas::Thread *t,
+               uint32_t start_id,
+               uint32_t end_id,
+               thread_token_map& loop_map,
+               thread_token_map& loop_rev) {
+  int number_of_swaps = 0;
+  for (auto* t2 : threads) {
+    // ignore identical threads
+    if (t2->id == t->id) {
+      continue;
+    }
+
+    for (uint32_t loop_id = start_id; loop_id < end_id; loop_id++) {
+      // make sure t2 has enough allocated loops
+      if (t2->nb_allocated_loops <= loop_id) {
+        doubleMemorySpaceConstructor(t2->loops, t2->nb_allocated_loops);
+      }
+      pallas::Loop& src_loop = t->loops[loop_id];
+      pallas::Loop& cand_loop = t2->loops[loop_id];
+      bool found_match = false;
+
+      // check if src invalid
+      if (src_loop.repeated_token.type == pallas::TypeInvalid) {
+        continue;
+      }
+
+      // check if cand already invalid
+      if (cand_loop.repeated_token.type == pallas::TypeInvalid) {
+        if (t2->nb_loops <= loop_id) {
+          t2->nb_loops = loop_id + 1;
+          map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
+        }
+        continue;
+      }
+
+      // check if already synchronized
+      if (loop_cmp(src_loop, cand_loop)) {
+        found_match = true;
+        map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
+
+      // try to find other match somewhere
+      } else {
+        uint32_t match_id = find_matching_loop(src_loop, t2);
+        if (match_id != loop_id) {
+          loop_swap(t2, loop_id, match_id);
+          found_match = true;
+          map_swap(loop_map, loop_rev, t2->id, loop_id, match_id);
+          number_of_swaps++;
+        }
+      }
+
+      // if no match found insert placeholder
+      if (!found_match) {
+        uint32_t swap_id = t2->nb_loops;
+        pallas::Loop swap_loop = std::move(t2->loops[loop_id]);
+
+        loop_insert(swap_loop, t2, swap_id);
+        loop_override_invalid(t2, loop_id);
+
+        uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
+        map_set(loop_map, loop_rev, t2->id, prev_owner, swap_id);
+        map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
+
+        number_of_swaps++;
+      }
+    }
+  }
+  return number_of_swaps;
 }
 
 bool seq_cmp(pallas::Sequence& seq1, pallas::Sequence& seq2) {
@@ -210,16 +363,21 @@ uint32_t find_matching_seq(pallas::Sequence& src_seq, pallas::Thread *t) {
   return src_seq.id.id;
 }
 
-void update_sequence_tokens(std::vector<pallas::Thread*> threads,
-                            thread_token_map event_map,
+void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
+                            thread_token_map& event_map,
                             bool update_events,
-                            thread_token_map seq_map,
+                            thread_token_map& seq_map,
                             bool update_seqs,
-                            thread_token_map loop_map,
+                            thread_token_map& loop_map,
                             bool update_loops) {
   for (auto* t : threads) {
     for (uint32_t seq_id = 0; seq_id < t->nb_sequences; seq_id++) {
       pallas::Sequence& seq = t->sequences[seq_id];
+
+      if (seq.id.id == PALLAS_TOKEN_ID_INVALID || seq.tokens.size() == 0) {
+        continue;
+      }
+
       for (auto& token : seq.tokens) {
         if (token.type == 1 && update_events) {
           token.id = map_eval(event_map, t->id, token.id);
@@ -237,13 +395,13 @@ void update_sequence_tokens(std::vector<pallas::Thread*> threads,
   }
 }
 
-int sync_sequences(std::vector<pallas::Thread*> threads,
-                  pallas::Thread *t,
-                  uint32_t start_id,
-                  uint32_t end_id,
-                  thread_token_map& seq_map) {
+int sync_sequences(std::vector<pallas::Thread*>& threads,
+                   pallas::Thread *t,
+                   uint32_t start_id,
+                   uint32_t end_id,
+                   thread_token_map& seq_map,
+                   thread_token_map& seq_rev) {
   int number_of_swaps = 0;
-
   for (auto* t2 : threads) {
     // ignore identical threads
     if (t2->id == t->id) {
@@ -269,7 +427,7 @@ int sync_sequences(std::vector<pallas::Thread*> threads,
       if (cand_seq.id.id == PALLAS_TOKEN_ID_INVALID) {
         if (t2->nb_sequences <= seq_id) {
           t2->nb_sequences = seq_id + 1;
-          seq_map[t2->id][seq_id] = seq_id;
+          map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
         }
         continue;
       }
@@ -277,7 +435,7 @@ int sync_sequences(std::vector<pallas::Thread*> threads,
       // check if already synchronized
       if (seq_cmp(src_seq, cand_seq)) {
         found_match = true;
-        seq_map[t2->id][seq_id] = seq_id;
+        map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
 
       // try to find other match somewhere
       } else {
@@ -285,8 +443,7 @@ int sync_sequences(std::vector<pallas::Thread*> threads,
         if (match_id != seq_id) {
           seq_swap(t2, seq_id, match_id);
           found_match = true;
-          seq_map[t2->id][seq_id] = match_id;
-          seq_map[t2->id][match_id] = seq_id;
+          map_swap(seq_map, seq_rev, t2->id, seq_id, match_id);
           number_of_swaps++;
         }
       }
@@ -298,158 +455,15 @@ int sync_sequences(std::vector<pallas::Thread*> threads,
         if (disp_seq.id.id != PALLAS_TOKEN_ID_INVALID && disp_seq.tokens.size() > 0) {
           seq_insert(disp_seq, t2, swap_id);
           seq_override_invalid(t2, seq_id);
-          seq_map[t2->id][seq_id] = swap_id;
+
+          uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
+          map_set(seq_map, seq_rev, t2->id, prev_owner, swap_id);
+          map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
+
           number_of_swaps++;
         } else {
           seq_override_invalid(t2, seq_id);
-          seq_map[t2->id][seq_id] = seq_id;
         }
-      }
-    }
-  }
-  return number_of_swaps;
-}
-
-bool loop_cmp(pallas::Loop &l1, pallas::Loop& l2) {
-  if (l1.repeated_token.type != l2.repeated_token.type) {
-    return false;
-  }
-  if (l1.repeated_token.id != l2.repeated_token.id) {
-    return false;
-  }
-  if (l1.nb_iterations != l2.nb_iterations) {
-    return false;
-  }
-  return true;
-}
-
-void loop_insert(pallas::Loop &l, 
-                 pallas::Thread *t, uint32_t id) {
-  while (id >= t->nb_allocated_loops) {
-    doubleMemorySpaceConstructor(t->loops, t->nb_allocated_loops);
-  }
-  t->loops[id] = std::move(l);
-  if (id >= t->nb_loops) {
-    t->nb_loops++;
-    t->loops[id].self_id.id = id;
-  }
-}
-
-void loop_override_invalid(pallas::Thread *t, uint32_t id) {
-  t->loops[id].repeated_token.type = pallas::TypeInvalid;
-  t->loops[id].repeated_token.id = PALLAS_TOKEN_ID_INVALID;
-  t->loops[id].self_id.id = PALLAS_TOKEN_ID_INVALID;
-  t->loops[id].nb_iterations = 0;
-  t->loops[id].nb_occurrences = 0;
-}
-
-void loop_swap(pallas::Thread *t,
-               uint32_t src_id, uint32_t swap_id) {
-  std::swap(t->loops[src_id], t->loops[swap_id]);
-  t->loops[src_id].self_id.id = src_id;
-  t->loops[swap_id].self_id.id = swap_id;
-}
-
-uint32_t find_matching_loop(pallas::Loop &src_loop,
-                            pallas::Thread *t) {
-  uint32_t t_n_loops = t->nb_loops;
-  for (uint32_t l2_idx = src_loop.self_id.id; l2_idx < t_n_loops; l2_idx++) {
-    pallas::Loop& cand_loop = t->loops[l2_idx];
-    if (loop_cmp(src_loop, cand_loop)) {
-      // std::cout << "found swap match!" << std::endl;
-      return cand_loop.self_id.id;
-    }
-  }
-  // if no match found return src_event id
-  return src_loop.self_id.id;
-}
-
-void update_loop_tokens(std::vector<pallas::Thread*> threads,
-                        thread_token_map event_map,
-                        bool update_events,
-                        thread_token_map seq_map,
-                        bool update_seqs,
-                        thread_token_map loop_map,
-                        bool update_loops) {
-  for (auto* t : threads) {
-    for (uint32_t loop_id = 0; loop_id < t->nb_loops; loop_id++) {
-      pallas::Loop& loop = t->loops[loop_id];
-
-      auto& token = loop.repeated_token;
-      if (token.type == 1 && update_events) {
-        token.id = map_eval(event_map, t->id, token.id);
-      }
-      if (token.type == 2 && update_seqs) {
-        token.id = map_eval(seq_map, t->id, token.id);
-      }
-      if (token.type == 3 && update_loops) {
-        token.id = map_eval(loop_map, t->id, token.id);
-      }
-    }
-  }
-}
-
-int sync_loops(std::vector<pallas::Thread*> threads,
-              pallas::Thread *t,
-              uint32_t start_id,
-              uint32_t end_id,
-              thread_token_map& loop_map) {
-  int number_of_swaps = 0;
-
-  for (auto* t2 : threads) {
-    // ignore identical threads
-    if (t2->id == t->id) {
-      continue;
-    }
-
-    for (uint32_t loop_id = start_id; loop_id < end_id; loop_id++) {
-      // make sure t2 has enough allocated loops
-      if (t2->nb_allocated_loops <= loop_id) {
-        doubleMemorySpaceConstructor(t2->loops, t2->nb_allocated_loops);
-      }
-      pallas::Loop& src_loop = t->loops[loop_id];
-      pallas::Loop& cand_loop = t2->loops[loop_id];
-      bool found_match = false;
-
-      // check if src invalid
-      if (src_loop.repeated_token.type == pallas::TypeInvalid) {
-        continue;
-      }
-
-      // check if cand already invalid
-      if (cand_loop.repeated_token.type == pallas::TypeInvalid) {
-        if (t2->nb_loops <= loop_id) {
-          t2->nb_loops = loop_id + 1;
-          loop_map[t2->id][loop_id] = loop_id;
-        }
-        continue;
-      }
-
-      // check if already synchronized
-      if (loop_cmp(src_loop, cand_loop)) {
-        found_match = true;
-        loop_map[t2->id][loop_id] = loop_id;
-
-      // try to find other match somewhere
-      } else {
-        uint32_t match_id = find_matching_loop(src_loop, t2);
-        if (match_id != loop_id) {
-          loop_swap(t2, loop_id, match_id);
-          found_match = true;
-          loop_map[t2->id][loop_id] = match_id;
-          loop_map[t2->id][match_id] = loop_id;
-          number_of_swaps++;
-        }
-      }
-
-      if (!found_match) {
-        // if no match found insert placeholder
-        pallas::Loop swap_loop = std::move(t2->loops[loop_id]);
-        uint32_t swap_id = t2->nb_loops;
-        loop_insert(swap_loop, t2, swap_id);
-        loop_override_invalid(t2, loop_id);
-        loop_map[t2->id][loop_id] = swap_id;
-        number_of_swaps++;
       }
     }
   }
@@ -457,8 +471,8 @@ int sync_loops(std::vector<pallas::Thread*> threads,
 }
 
 void save_thread_copy(pallas::GlobalArchive *trace,
-                      std::vector<pallas::Archive*> archives,
-                      std::vector<pallas::Thread*> threads,
+                      std::vector<pallas::Archive*>& archives,
+                      std::vector<pallas::Thread*>& threads,
                       char *save_dir_name) {
   for (auto* t : threads) {
     t->store(save_dir_name, trace->parameter_handler, true);
@@ -675,7 +689,6 @@ int main(int argc, char** argv) {
     }
 
     sync_events(threads, t, n_events_verified, thread_n_events, thread_event_map, thread_event_rev);
-
     // track updated event index
     n_events_verified = thread_n_events;
   }
@@ -691,8 +704,11 @@ int main(int argc, char** argv) {
   // |   Synchronize Sequences and Loops    |
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  thread_token_map thread_seq_lookup;
-  thread_token_map thread_loop_lookup;
+  thread_token_map thread_loop_map;
+  thread_token_map thread_loop_rev;
+
+  thread_token_map thread_seq_map;
+  thread_token_map thread_seq_rev;
 
   bool update_events = true;
   bool update_seqs   = false;
@@ -701,7 +717,6 @@ int main(int argc, char** argv) {
   int nb_cycles = 0;
 
   while (true) {
-
     std::cout << ">>Starting update loop #" << nb_cycles << std::endl;
 
     int number_of_swaps = 0;
@@ -713,8 +728,8 @@ int main(int argc, char** argv) {
     update_loop_tokens(
       threads,
       thread_event_map, update_events,
-      thread_seq_lookup, update_seqs,
-      thread_loop_lookup, update_loops
+      thread_seq_map, update_seqs,
+      thread_loop_map, update_loops
     );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -725,21 +740,21 @@ int main(int argc, char** argv) {
 
     for (auto* t : threads) {
       uint32_t thread_n_loops = t->nb_loops;
-
       if (thread_n_loops <= n_loops_verified) {
         continue;
       }
+      // else: -> thread has loops that need to be synchronized
 
-      for (uint32_t loop_id = n_loops_verified; loop_id < thread_n_loops; loop_id++) {
-        // TODO: check necessity of this condition
-        if (t->loops[loop_id].repeated_token.type == pallas::TypeInvalid) {
-          continue;
+      // initialize loop_map to identity if not already set
+      for (auto* t_init : threads) {
+        for (uint32_t loop_id = n_loops_verified; loop_id < t_init->nb_loops; loop_id++) {
+          if (thread_loop_map[t_init->id].count(loop_id) == 0) {
+            map_set(thread_loop_map, thread_loop_rev, t_init->id, loop_id, loop_id);
+          }
         }
-        thread_loop_lookup[t->id][loop_id] = loop_id;
       }
 
-      number_of_swaps += sync_loops(threads, t, n_loops_verified, thread_n_loops, thread_loop_lookup);
-
+      number_of_swaps += sync_loops(threads, t, n_loops_verified, thread_n_loops, thread_loop_map, thread_loop_rev);
       n_loops_verified = thread_n_loops;
     }
 
@@ -752,8 +767,8 @@ int main(int argc, char** argv) {
     update_sequence_tokens(
       threads,
       thread_event_map, update_events,
-      thread_seq_lookup, update_seqs,
-      thread_loop_lookup, update_loops
+      thread_seq_map, update_seqs,
+      thread_loop_map, update_loops
     );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -764,21 +779,21 @@ int main(int argc, char** argv) {
 
     for (auto* t : threads) {
       uint32_t thread_n_seqs = t->nb_sequences;
-
       if (thread_n_seqs <= n_seqs_verified) {
         continue;
       }
+      // else: -> thread has sequences that need to be synchronized
 
-      for (uint32_t seq_id = n_seqs_verified; seq_id < thread_n_seqs; seq_id++) {
-        // TODO: check necessity of this condition
-        if (t->sequences[seq_id].id.id == PALLAS_TOKEN_ID_INVALID) {
-          continue;
+      // initialize seq_map to identity if not already set
+      for (auto* t_init : threads) {
+        for (uint32_t seq_id = n_seqs_verified; seq_id < t_init->nb_sequences; seq_id++) {
+          if (thread_seq_map[t_init->id].count(seq_id) == 0) {
+            map_set(thread_seq_map, thread_seq_rev, t_init->id, seq_id, seq_id);
+          }
         }
-        thread_seq_lookup[t->id][seq_id] = seq_id;
       }
 
-      number_of_swaps += sync_sequences(threads, t, n_seqs_verified, thread_n_seqs, thread_seq_lookup);
-
+      number_of_swaps += sync_sequences(threads, t, n_seqs_verified, thread_n_seqs, thread_seq_map, thread_seq_rev);
       n_seqs_verified = thread_n_seqs;
     }
 
@@ -798,7 +813,7 @@ int main(int argc, char** argv) {
   }
 
   for (auto* thread : threads) {
-    thread->sequence_root = map_eval(thread_seq_lookup, thread->id, 0);
+    thread->sequence_root = map_eval(thread_seq_map, thread->id, 0);
   }
 
   auto save_name = strdup((
