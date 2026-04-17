@@ -660,15 +660,18 @@ int main(int argc, char** argv) {
 
   for (auto* t : threads) {
     uint32_t thread_n_events = t->nb_events;
-
     if (thread_n_events <= n_events_verified) {
       continue;
     }
+    // else: -> thread has events that need to be synchronized
 
-    // thread has events that need to be synchronized
-    for (uint32_t event_id = n_events_verified; event_id < thread_n_events; event_id++) {
-      assert(t->events[event_id].data.record != pallas::PALLAS_EVENT_MAX_ID);
-      map_set(thread_event_map, thread_event_rev, t->id, event_id, event_id);
+    // initialize event_map to identity if not already set
+    for (auto* t_init : threads) {
+      for (uint32_t event_id = n_events_verified; event_id < t_init->nb_events; event_id++) {
+        if (thread_event_map[t_init->id].count(event_id) == 0) {
+          map_set(thread_event_map, thread_event_rev, t_init->id, event_id, event_id);
+        }
+      }
     }
 
     sync_events(threads, t, n_events_verified, thread_n_events, thread_event_map, thread_event_rev);
@@ -692,8 +695,8 @@ int main(int argc, char** argv) {
   thread_token_map thread_loop_lookup;
 
   bool update_events = true;
-  bool update_seqs = false;
-  bool update_loops = false;
+  bool update_seqs   = false;
+  bool update_loops  = false;
 
   int nb_cycles = 0;
 
@@ -707,10 +710,12 @@ int main(int argc, char** argv) {
     // |       Update Loop Definitions        |
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    update_loop_tokens(threads,
-                       thread_event_map, update_events,
-                       thread_seq_lookup, update_seqs,
-                       thread_loop_lookup, update_loops);
+    update_loop_tokens(
+      threads,
+      thread_event_map, update_events,
+      thread_seq_lookup, update_seqs,
+      thread_loop_lookup, update_loops
+    );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // |      Synchronize Updated Loops       |
@@ -744,10 +749,12 @@ int main(int argc, char** argv) {
     // |     Update Sequence Definitions      |
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    update_sequence_tokens(threads,
-                           thread_event_map, update_events,
-                           thread_seq_lookup, update_seqs,
-                           thread_loop_lookup, update_loops);
+    update_sequence_tokens(
+      threads,
+      thread_event_map, update_events,
+      thread_seq_lookup, update_seqs,
+      thread_loop_lookup, update_loops
+    );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // |    Synchronize Updated Sequences     |
