@@ -25,7 +25,21 @@
 typedef std::map<uint32_t, uint32_t> token_map;
 typedef std::map<uint32_t, token_map> thread_token_map;
 
-uint32_t eval_token_map(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
+void map_set(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t from, uint32_t to) {
+  fwd[thread_id][from] = to;
+  rev[thread_id][to] = from;
+}
+
+void map_swap(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t pos1, uint32_t pos2) {
+  uint32_t owner1 = rev[thread_id].count(pos1) ? rev[thread_id][pos1] : pos1;
+  uint32_t owner2 = rev[thread_id].count(pos2) ? rev[thread_id][pos2] : pos2;
+  fwd[thread_id][owner1] = pos2;
+  fwd[thread_id][owner2] = pos1;
+  rev[thread_id][pos2] = owner1;
+  rev[thread_id][pos1] = owner2;
+}
+
+uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
   auto thread_it = map.find(thread_id);
   if (thread_it == map.end()) return in_id;
 
@@ -97,7 +111,8 @@ int sync_events(std::vector<pallas::Thread*>& threads,
                 pallas::Thread *t,
                 uint32_t start_id,
                 uint32_t end_id,
-                thread_token_map& event_map) {
+                thread_token_map& event_map,
+                thread_token_map& event_rev) {
 
   for (auto* t2 : threads) {
     // ignore identical threads
@@ -114,7 +129,7 @@ int sync_events(std::vector<pallas::Thread*>& threads,
       // check if already synchronized
       if (event_cmp(src_event,cand_event)) {
         found_match = true;
-        event_map[t2->id][event_id] = event_id;
+        map_set(event_map, event_rev, t2->id, event_id, event_id);
 
       // try to find other match somewhere
       } else {
@@ -122,8 +137,7 @@ int sync_events(std::vector<pallas::Thread*>& threads,
         if (match_id != event_id) {
           event_swap(t2, event_id, match_id);
           found_match = true;
-          event_map[t2->id][event_id] = match_id;
-          event_map[t2->id][match_id] = event_id;
+          map_swap(event_map, event_rev, t2->id, event_id, match_id);
         }
       }
 
@@ -133,7 +147,7 @@ int sync_events(std::vector<pallas::Thread*>& threads,
         uint32_t swap_id = t2->nb_events;
         event_insert(swap_event, t2, swap_id);
         event_override_invalid(t2, event_id);
-        event_map[t2->id][event_id] = swap_id;
+        map_set(event_map, event_rev, t2->id, event_id, swap_id);
       }
     }
   }
@@ -208,13 +222,13 @@ void update_sequence_tokens(std::vector<pallas::Thread*> threads,
       pallas::Sequence& seq = t->sequences[seq_id];
       for (auto& token : seq.tokens) {
         if (token.type == 1 && update_events) {
-          token.id = eval_token_map(event_map, t->id, token.id);
+          token.id = map_eval(event_map, t->id, token.id);
         }
         if (token.type == 2 && update_seqs) {
-          token.id = eval_token_map(seq_map, t->id, token.id);
+          token.id = map_eval(seq_map, t->id, token.id);
         }
         if (token.type == 3 && update_loops) {
-          token.id = eval_token_map(loop_map, t->id, token.id);
+          token.id = map_eval(loop_map, t->id, token.id);
         }
       }
       seq.hash = pallas::hash32(reinterpret_cast<const byte*>(seq.tokens.data()),
@@ -363,13 +377,13 @@ void update_loop_tokens(std::vector<pallas::Thread*> threads,
 
       auto& token = loop.repeated_token;
       if (token.type == 1 && update_events) {
-        token.id = eval_token_map(event_map, t->id, token.id);
+        token.id = map_eval(event_map, t->id, token.id);
       }
       if (token.type == 2 && update_seqs) {
-        token.id = eval_token_map(seq_map, t->id, token.id);
+        token.id = map_eval(seq_map, t->id, token.id);
       }
       if (token.type == 3 && update_loops) {
-        token.id = eval_token_map(loop_map, t->id, token.id);
+        token.id = map_eval(loop_map, t->id, token.id);
       }
     }
   }
@@ -441,7 +455,6 @@ int sync_loops(std::vector<pallas::Thread*> threads,
   }
   return number_of_swaps;
 }
-
 
 void save_thread_copy(pallas::GlobalArchive *trace,
                       std::vector<pallas::Archive*> archives,
@@ -640,7 +653,8 @@ int main(int argc, char** argv) {
   // |         Synchronize Events           |
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  thread_token_map thread_event_lookup;
+  thread_token_map thread_event_map;
+  thread_token_map thread_event_rev;
 
   uint32_t n_events_verified = 0;
 
@@ -654,10 +668,10 @@ int main(int argc, char** argv) {
     // thread has events that need to be synchronized
     for (uint32_t event_id = n_events_verified; event_id < thread_n_events; event_id++) {
       assert(t->events[event_id].data.record != pallas::PALLAS_EVENT_MAX_ID);
-      thread_event_lookup[t->id][event_id] = event_id;
+      map_set(thread_event_map, thread_event_rev, t->id, event_id, event_id);
     }
 
-    sync_events(threads, t, n_events_verified, thread_n_events, thread_event_lookup);
+    sync_events(threads, t, n_events_verified, thread_n_events, thread_event_map, thread_event_rev);
 
     // track updated event index
     n_events_verified = thread_n_events;
@@ -694,7 +708,7 @@ int main(int argc, char** argv) {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     update_loop_tokens(threads,
-                       thread_event_lookup, update_events,
+                       thread_event_map, update_events,
                        thread_seq_lookup, update_seqs,
                        thread_loop_lookup, update_loops);
 
@@ -731,7 +745,7 @@ int main(int argc, char** argv) {
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     update_sequence_tokens(threads,
-                           thread_event_lookup, update_events,
+                           thread_event_map, update_events,
                            thread_seq_lookup, update_seqs,
                            thread_loop_lookup, update_loops);
 
@@ -777,7 +791,7 @@ int main(int argc, char** argv) {
   }
 
   for (auto* thread : threads) {
-    thread->sequence_root = eval_token_map(thread_seq_lookup, thread->id, 0);
+    thread->sequence_root = map_eval(thread_seq_lookup, thread->id, 0);
   }
 
   auto save_name = strdup((
