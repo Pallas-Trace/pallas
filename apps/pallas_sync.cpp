@@ -770,10 +770,8 @@ int main(int argc, char** argv) {
 
     for (auto* t2 : threads) {
       if (t2->id == t->id) continue;
-      // walk back from nb_events-1 to find last real event
       uint32_t new_nb = t2->nb_events;
-      while (new_nb > 0 &&
-            t2->events[new_nb - 1].data.record == pallas::PALLAS_EVENT_MAX_ID) {
+      while (new_nb > n_events_verified && t2->events[new_nb - 1].data.record == pallas::PALLAS_EVENT_MAX_ID) {
         new_nb--;
       }
       t2->nb_events = new_nb;
