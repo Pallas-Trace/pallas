@@ -206,6 +206,9 @@ typedef struct ThreadReader {
     /** Returns the current token count for given token.*/
     [[nodiscard]] size_t getCurrentTokenCount(Token t) const;
 
+    /** Returns the current timestamp. */
+    [[nodiscard]] pallas_timestamp_t getCurrentTimestamp() const;
+
     /** Returns a pointer to the AttributeList for the given occurence of the given Event. */
     [[nodiscard]] AttributeList *getEventAttributeList(Token event_id, size_t occurence_id) const;
 
@@ -275,7 +278,7 @@ typedef struct ThreadReader {
 typedef struct MultiThreadReader {
     size_t n_threads;
     ThreadReader *readers;
-    ThreadReader *current_thread_reader;
+    ThreadReader *current_reader;
     #ifdef __cplusplus
     MultiThreadReader(std::vector<Thread *> threads);
 
@@ -284,7 +287,11 @@ typedef struct MultiThreadReader {
     ~MultiThreadReader();
 
     /** Gets the current Token. */
-    [[nodiscard]] const Token &pollCurToken() const;
+    [[nodiscard]] Token pollCurToken() const;
+
+    /** Updates the internal state to update current_reader to the earlier one. */
+
+    bool updateMinReader();
 
     /** Updates the internal state, returns true if internal state was actually changed */
     bool moveToNextToken();

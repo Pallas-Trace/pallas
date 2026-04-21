@@ -451,7 +451,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     pallas_duration_t duration = last_timestamp - first_timestamp;
 
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
-    for (auto t = reader.getNextToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
+    for (auto t = reader.pollCurToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
         if (t.type != pallas::TypeEvent) {
             continue;
         }
@@ -460,8 +460,8 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
             delete completed_messages;
             throw py::error_already_set();
         }
-        auto *cur_reader = reader.current_thread_reader;
-        auto lgid = reader.current_thread_reader->archive->id;
+        auto *cur_reader = reader.current_reader;
+        auto lgid = reader.current_reader->archive->id;
         auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
         // static uint progress_counter = 0;
         // if (progress_counter == 0) {
