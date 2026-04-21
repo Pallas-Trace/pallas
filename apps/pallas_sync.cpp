@@ -142,10 +142,7 @@ int sync_events(std::vector<pallas::Thread*>& threads,
         pallas::Event swap_event = std::move(t2->events[event_id]);
         event_insert(swap_event, t2, swap_id);
         event_override_invalid(t2, event_id);
-
-        uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
-        map_set(event_map, event_rev, t2->id, prev_owner, swap_id);
-        map_set(event_map, event_rev, t2->id, event_id, event_id);
+        map_set(event_map, event_rev, t2->id, event_id, swap_id);
       }
     }
   }
