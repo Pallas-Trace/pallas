@@ -115,10 +115,11 @@ int sync_events(std::vector<pallas::Thread*>& threads,
     }
 
     for (uint32_t event_id = start_id; event_id < end_id; event_id++) {
-      assert(t->events[event_id].data.record != pallas::PALLAS_EVENT_MAX_ID);
       pallas::Event& src_event  = t->events[event_id];
       pallas::Event& cand_event = t2->events[event_id];
       bool found_match = false;
+
+      assert(src_event.data.record != pallas::PALLAS_EVENT_MAX_ID);
 
       // check if already synchronized
       if (event_cmp(src_event,cand_event)) {
@@ -136,12 +137,15 @@ int sync_events(std::vector<pallas::Thread*>& threads,
       }
 
       // if no match found insert placeholder
-      if (!found_match) {
+      if (!found_match && cand_event.data.record != pallas::PALLAS_EVENT_MAX_ID) {
         uint32_t swap_id = t2->nb_events;
         pallas::Event swap_event = std::move(t2->events[event_id]);
         event_insert(swap_event, t2, swap_id);
         event_override_invalid(t2, event_id);
-        map_set(event_map, event_rev, t2->id, event_id, swap_id);
+
+        uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
+        map_set(event_map, event_rev, t2->id, prev_owner, swap_id);
+        map_set(event_map, event_rev, t2->id, event_id, event_id);
       }
     }
   }
@@ -337,6 +341,7 @@ void seq_override_invalid(pallas::Thread *t, uint32_t id) {
   t->sequences[id].hash = 0;
   t->sequences[id].tokens.clear();
   // NOTE: check SequenceType field
+  //
 }
 
 void seq_swap(pallas::Thread *t, uint32_t src_id, uint32_t swap_id) {
@@ -673,6 +678,17 @@ int main(int argc, char** argv) {
       continue;
     }
     // else: -> thread has events that need to be synchronized
+
+    // pre-fill other threads with invalids to match nb_events
+    for (auto* t2 : threads) {
+      if (t2->id == t->id) continue;
+      for (uint32_t event_id = t2->nb_events; event_id < thread_n_events; event_id++) {
+        while (event_id >= t2->nb_allocated_events)
+          doubleMemorySpaceConstructor(t2->events, t2->nb_allocated_events);
+        event_override_invalid(t2, event_id);
+        t2->nb_events = event_id + 1;
+      }
+    }
 
     // initialize event_map to identity if not already set
     for (auto* t_init : threads) {
