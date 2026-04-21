@@ -117,11 +117,25 @@ void LinkedDurationVector::update_statistics() {
     mean += val;
 }
 
+void LinkedDurationVector::final_update_mean() {
+    mean /= size;
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
+    last->final_update_mean();
+}
+
+
 void LinkedDurationVector::SubArray::update_statistics() {
     auto& val = at(size - 1 + starting_index);
         max = std::max(max, val);
         min = std::min(min, val);
         mean += val;
+}
+
+void LinkedDurationVector::SubArray::final_update_mean() {
+    mean /= size;
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
 }
 
 uint64_t* LinkedDurationVector::add(uint64_t val) {
@@ -149,6 +163,7 @@ SAME_FOR_BOTH_VECTORS(void, load_all_data() {
     auto* v = first;
     while (v) {
         load_data(v);
+        loaded_subarrays.insert(v);
         v = v->next;
     }
 })
@@ -180,7 +195,7 @@ uint64_t& LinkedVector::operator[](size_t pos) {
         while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
             auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
             parameter_handler.subvector_queue.pop_front();
-            delete temp->array;
+            delete[] temp->array;
             temp->array = nullptr;
             parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
         }
@@ -199,11 +214,12 @@ uint64_t& LinkedDurationVector::operator[](size_t pos) {
           while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
               auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
               parameter_handler.subvector_queue.pop_front();
-              delete temp->array;
+              delete[] temp->array;
               temp->array = nullptr;
               parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
           }
           load_data(correct_sub);
+          loaded_subarrays.insert(correct_sub);
       }
       return (*correct_sub)[pos];
 }
@@ -323,7 +339,7 @@ void LinkedVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
-        delete sub->array;
+        delete[] sub->array;
         sub->array = nullptr;
         parameter_handler.loaded_durations_size -= sub->size;
     }
@@ -338,7 +354,7 @@ void LinkedDurationVector::free_data() {
         if (it != dq.end()) {
             dq.erase(it);
         }
-        delete sub->array;
+        delete[] sub->array;
         sub->array = nullptr;
         parameter_handler.loaded_durations_size -= sub->size;
     }
@@ -347,6 +363,18 @@ void LinkedDurationVector::free_data() {
 LinkedVector::~LinkedVector() {
     free_data();
     if (is_contiguous) {
+        // All the subvectors were allocated using a single big calloc
+#ifdef DEBUG
+        auto* temp = first;
+        auto& dq = parameter_handler.subvector_queue;
+        for (int i = 0; i < n_sub_array; i ++, temp++) {
+            // Check we've correctly cleared it
+            // And cleared it from the queue
+            pallas_assert(temp->array == nullptr);
+            auto it = std::find(dq.begin(), dq.end(), temp);
+            pallas_assert(it == dq.end());
+        }
+#endif
         free(first);
     } else {
         auto * sub = first;
@@ -361,6 +389,18 @@ LinkedVector::~LinkedVector() {
 LinkedDurationVector::~LinkedDurationVector() {
     free_data();
     if (is_contiguous) {
+        // All the subvectors were allocated using a single big calloc
+#ifdef DEBUG
+        auto* temp = first;
+        auto& dq = parameter_handler.subvector_queue;
+        for (int i = 0; i < n_sub_array; i ++, temp++) {
+            // Check we've correctly cleared it
+            // And cleared it from the queue
+            pallas_assert_equals(temp->array, nullptr);
+            auto it = std::find(dq.begin(), dq.end(), temp);
+            pallas_assert(it == dq.end());
+        }
+#endif
         free(first);
     } else {
         auto * sub = first;
@@ -396,22 +436,44 @@ SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
 
 std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<double>();
-    auto* current = first;
+    auto *current = first;
     double sum = 0;
+    // While loop to go through all the SubVectors.
+    // Legend:
+    //   - : Time spent in current vector but NOT in the window
+    //   # : Time spent in current vector AND in the window
+    // We store in output the ratio of # / ( - + # )
+    // i.e. the ratio of time spent in window over duration of current vector
     while (current != nullptr) {
         if (current->last_value < start) {
+            // first_value ... last_value ... [ start ... end ]
+            // --------------------------
+            // Completely outside of the range
             output.push_back(0.);
         } else if (end < current->first_value) {
-            // We're after the boundaries, we can stop searching.
+            // [ start ... end ] .. first_value ... last_value
+            //                      --------------------------
+            // We're past the boundaries, we can stop searching.
             break;
         } else if (start <= current->first_value && current->last_value <= end) {
+            // [ start ... first_value ... last_value ... end ]
+            //             ##########################
             // Completely inside the bounds
             output.push_back(1.0);
-        } else if (current->first_value < start && start <= current->last_value) {
-            // Starting bounds
-            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value) );
+        } else if (current->first_value < start && end < current->last_value) {
+            // first_value ... [ start ... end ] ... last_value
+            // ----------------#################---------------
+            // We have to compute the ratio of the two intervals to "guess" the weight of this vector in the total
+            output.push_back(static_cast<double>(end - start) / (current->last_value - current->first_value));
+        } else if (current->first_value < start && current->last_value < end) {
+            // first_value ... [ start ... last_value ... end ]
+            // ----------------######################
+            // Same thing except the window ends in the current vector
+            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value));
         } else if (current->first_value <= end && end < current->last_value) {
-            // Ending bounds
+            // [ start ... first_value ... end ] ... last_value
+            //             #####################---------------
+            // Same thing except the window starts in the current vector and isn't entirely contained in it.
             output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
         } else {
             pallas_error("This is not supposed to happen !\n");
@@ -420,20 +482,29 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
         sum += output.back();
         current = current->next;
     }
-    // Don't normalise if it's too small
-    if (sum > 1.0) {
-        for (auto& i : output) {
-            i /= sum;
-        }
-    }
+    // Then we need to normalize the weight vector
+    // UPDATE: We don't actually need to normalize the weight vector
+    //
+    // For example, a vector formatted like this:
+    //          start                   end
+    //          |                         |
+    // A: [......##][########][#######][##......]
+    // B:   [....############]
+    // A would have a non-normalized weight of [ .25, 1, 1, .25 ] -> [ .1, .4, .4, 0.1 ]
+    // B would have a non-normalized weight of [ .75 ] and that's that
+    // if (sum > 1.0) {
+    //     for (auto &i: output) {
+    //         i /= sum;
+    //     }
+    // }
     return output;
 }
 
-pallas_duration_t LinkedDurationVector::weightedMean(std::vector<double>& weights) {
+pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights) {
     double sum = 0;
     auto* current = first;
     for (auto w: weights) {
-        sum += w * current->mean;
+        sum += w * current->mean * current->size;
         current = current->next;
     }
     return sum;

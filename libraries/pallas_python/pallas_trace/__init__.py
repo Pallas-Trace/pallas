@@ -1,31 +1,4 @@
 from ._core import (
-    __doc__,
-
-    # Objects
-    Archive,
-    Event,
-    Location,
-    LocationGroup,
-    Loop,
-    Sequence,
-    Thread,
-    ThreadReader,
-    Thread_Iterator,
-    Token,
-    TokenType,
-    Trace,
-    Vector,
-    Record,
-    Region,
-
-    # Functions
-    get_ABI,
-    open_trace,
-    get_communication_matrix,
-    get_message_size_histogram,
-    get_communication_over_time,
-    get_sequences_statistics,
-
     # Enums
     BUFFER_FLUSH,
     COMM_CREATE,
@@ -77,6 +50,8 @@ from ._core import (
     PROGRAM_BEGIN,
     PROGRAM_END,
     SEQUENCE,
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
     THREAD_ACQUIRE_LOCK,
     THREAD_BEGIN,
     THREAD_CREATE,
@@ -90,11 +65,38 @@ from ._core import (
     THREAD_TEAM_BEGIN,
     THREAD_TEAM_END,
     THREAD_WAIT,
+    # Objects
+    Archive,
+    Event,
+    Location,
+    LocationGroup,
+    Loop,
+    Record,
+    Region,
+    Sequence,
+    SequenceType,
+    Thread,
+    Thread_Iterator,
+    ThreadReader,
+    Token,
+    TokenType,
+    Trace,
+    Trace_Iterator,
+    Vector,
+    Vector_Iterator,
+    __doc__,
+    # Functions
+    get_ABI,
+    get_communication_matrix,
+    get_communication_over_time,
+    get_message_size_histogram,
+    get_sequences_statistics,
+    get_mpi_message_list,
+    open_trace,
 )
 
 __all__ = [
     __doc__,
-
     # Objects
     Archive,
     Event,
@@ -102,20 +104,26 @@ __all__ = [
     LocationGroup,
     Loop,
     Sequence,
+    SequenceType,
     Thread,
     ThreadReader,
     Thread_Iterator,
     Token,
     TokenType,
     Trace,
+    Trace_Iterator,
     Vector,
+    Vector_Iterator,
     Record,
     Region,
-
     # Functions
     get_ABI,
+    get_communication_matrix,
+    get_communication_over_time,
+    get_message_size_histogram,
+    get_sequences_statistics,
+    get_mpi_message_list,
     open_trace,
-
     # Enums
     BUFFER_FLUSH,
     COMM_CREATE,
@@ -167,6 +175,8 @@ __all__ = [
     PROGRAM_BEGIN,
     PROGRAM_END,
     SEQUENCE,
+    SEQUENCE_BLOCK,
+    SEQUENCE_LOOP,
     THREAD_ACQUIRE_LOCK,
     THREAD_BEGIN,
     THREAD_CREATE,

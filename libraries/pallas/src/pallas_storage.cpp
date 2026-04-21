@@ -845,12 +845,15 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
     if (size == 0)
         return;
-    final_update_mean();
+    if (parameter_handler->does_stats_need_compute) {
+        final_update_mean();
+    }
     // Write the statistics to the vectorFile
     _pallas_fwrite(&min, sizeof(min), 1, vectorFile);
     _pallas_fwrite(&max, sizeof(max), 1, vectorFile);
     _pallas_fwrite(&mean, sizeof(mean), 1, vectorFile);
-
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
     // Then write the statistics for all the sub_arrays.
     auto* sub_array = first;
     while (sub_array) {
@@ -861,6 +864,8 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
         _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
+        pallas_assert_inferior_equal(sub_array->mean, sub_array->max);
+        pallas_assert_inferior_equal(sub_array->min, sub_array->mean);
         _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, vectorFile);
         sub_array = sub_array->next;
     }
@@ -872,6 +877,20 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     _pallas_fread(&min, sizeof(min), 1, file);
     _pallas_fread(&max, sizeof(max), 1, file);
     _pallas_fread(&mean, sizeof(mean), 1, file);
+    if (max < mean) {
+        static bool show_warning = true;
+        // This means that the trace was made before the fix of 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82
+        // And this isn't the mean, but the sum
+        // Hence:
+        if (show_warning) {
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+            show_warning = false;
+        }
+        mean /= size;
+        // TODO: We should eventually retire this piece of code
+    }
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
     _pallas_fread(&offset, sizeof(offset), 1, file);
     allocated = 0;
     this->previous = previous;
@@ -1645,12 +1664,15 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
 
   file.read(&archive->id, sizeof(pallas::LocationGroupId), 1);
   file.read(&archive->nb_threads, sizeof(int), 1);
-  delete[] archive->threads;
   archive->threads = new pallas::Thread*[archive->nb_threads]();
   archive->nb_allocated_threads = archive->nb_threads;
   readDefinitions(archive->definitions, file, abi_version);
   readLocationGroups(archive->location_groups, file, abi_version);
   readLocations(archive->locations, file, abi_version);
+    for (auto& l: locations) {
+        if (l.parent == archive->id)
+            archive->locations.emplace_back(l);
+    }
   readMetadata(archive->metadata, file, abi_version);
   file.close();
 
@@ -1712,13 +1734,13 @@ pallas::Thread* pallas::Archive::getThreadAt(size_t index) {
 }
 
 void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
-    pallas_log(DebugLevel::Debug, "{%p}.freeThread(%d)\n",this, thread_id);
-  for (int i = 0; i < nb_threads; i++) {
-    if (threads[i] && threads[i]->id == thread_id) {
-      delete threads[i];
-      threads[i] = nullptr;
+    pallas_log(DebugLevel::Debug, "{%p}.freeThread(%d)\n", this, thread_id);
+    for (int i = 0; i < nb_threads; i++) {
+        if (threads[i] && threads[i]->id == thread_id) {
+            delete threads[i];
+            threads[i] = nullptr;
+        }
     }
-  }
 };
 
 void pallas::Archive::freeThreadAt(size_t i) {
@@ -1751,6 +1773,7 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     auto* trace = new pallas::GlobalArchive(dir_name.c_str(), trace_name.c_str());
     trace->abi_version = abi_version;
     trace->parameter_handler = new pallas::ParameterHandler(file.file);
+    trace->parameter_handler->does_stats_need_compute = false;
     pallas_log(pallas::DebugLevel::Debug, "Reading GlobalArchive {.dir_name='%s', .trace='%s'}\n", trace->dir_name, trace->trace_name);
 
     readDefinitions(trace->definitions, file, abi_version);
@@ -1766,14 +1789,6 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
         trace->archive_list = nullptr;
 
     file.close();
-
-    for (auto& locationGroup : trace->location_groups) {
-        auto* archive = trace->getArchive(locationGroup.id);
-        std::copy_if(trace->locations.begin(), trace->locations.end(), std::back_inserter(archive->locations),
-                     [locationGroup](pallas::Location l) { return l.parent == locationGroup.id; });
-    }
-    trace->locations.clear();
-    // This weird bit of code with the location is just to make sure that they stay local
     return trace;
 }
 

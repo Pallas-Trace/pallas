@@ -96,8 +96,9 @@ class LinkedVector {
      */
     void reset_offsets();
 
-    /*** Given a starting and an ending timestamp, returns an array containing the weights for the proportional time spent in each sub-vector.
-     * TODO This description is terrible.
+    /**
+     * Given a starting and an ending timestamp, returns an array containing the ratio, for each subvector,
+     * of the time spent between those two timestamps over the total duration of the subvector.
      */
     std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
 
@@ -295,7 +296,7 @@ class LinkedDurationVector {
     /**
      * Returns the weighted mean over the subvectors.
      */
-    pallas_duration_t weightedMean(std::vector<double>& weights);
+    pallas_duration_t weightedSum(std::vector<double>& weights);
 
     /**
      * Resets the offsets of all the subvectors.
@@ -334,15 +335,13 @@ class LinkedDurationVector {
         size_t offset = 0;
 
         /**
-         * Updates the min/max/mean, taking into account all the items from 0 to size-1.
-         *
-         * This is because we assume the last element isn't a duration, but a timestamp.
+         * Updates the min/max/mean.
          */
         void update_statistics();
 
        public:
         /** Replace the sum (being stored in the mean) by the actual mean. */
-        void final_update_mean() { mean /= size; }
+        void final_update_mean();
         /** Max element stored in the array. */
         uint64_t min = UINT64_MAX;
 
@@ -429,7 +428,7 @@ class LinkedDurationVector {
      */
     void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
-    void final_update_mean() { mean /= size; }
+    void final_update_mean();
  /** Returns the sum of the durations between [start, end[. */
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
 

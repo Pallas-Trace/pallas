@@ -499,28 +499,25 @@ void ThreadWriter::recordExitFunction() {
     EventData* last_event = &thread->getEvent(last_token)->data;
 
     if (first_token.type != TypeEvent) {
-        pallas_warn("Unexpected Leave event in sequence starting with non-Event: %s/%s\n",
+        pallas_error("Unexpected Leave event in sequence starting with non-Event: %s/%s\n",
             thread->getTokenString(first_token).c_str(),
             thread->getEventString(last_event).c_str());
-        return;
     }
 
     EventData* first_event = &thread->getEvent(first_token)->data;
 
     enum Record expected_record = getMatchingRecord(first_event->record);
     if (expected_record == PALLAS_EVENT_MAX_ID) {
-        pallas_warn("Unexpected Leave event in sequence starting with non-Enter event: %s/%s\n",
+        pallas_error("Unexpected Leave event in sequence starting with non-Enter event: %s/%s\n",
             thread->getEventString(first_event).c_str(),
             thread->getEventString(last_event).c_str()
             );
-        return;
     }
 
     if (last_event->record != expected_record) {
-        pallas_warn("Unexpected Leave event in sequence starting with non-matching Enter event: %s/%s\n",
+        pallas_error("Unexpected Leave event in sequence starting with non-matching Enter event: %s/%s\n",
         thread->getEventString(first_event).c_str(),
         thread->getEventString(last_event).c_str());
-        return;
     }
 
     auto& sequence = getOrCreateSequenceFromArray(curTokenSeq.data(), curTokenSeq.size());

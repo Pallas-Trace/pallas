@@ -20,7 +20,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # CMakeFind repository
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake_modules)
 # C++ standard
-set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 20)
 
 # Look for libraries
 
@@ -30,11 +30,16 @@ option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
 option(ENABLE_MPI_TEST "MPI tests" ON)
-option(INSTALL_PYTHON "Install the Python library instead" OFF)
+option(_PIP "Used internally, use pip install ." OFF)
+option(Python3_DYNAMIC "Link the Pallas library dynamically instead of statically." OFF)
 
-if(INSTALL_PYTHON)
-  set(ENABLE_OTF2 OFF)
-  set(ENABLE_MPI_TEST OFF)
+if(_PIP)
+    if(NOT ${SKBUILD_PROJECT_VERSION} STREQUAL ${PROJECT_VERSION})
+        message ( FATAL_ERROR "Python library version is different from CMake library version: ${SKBUILD_PROJECT_VERSION} != ${PROJECT_VERSION}")
+    endif()
+    set(ENABLE_OTF2 OFF)
+    set(BUILD_DOC OFF)
+    set(ENABLE_MPI_TEST OFF)
 endif()
 
 # Get the current working branch
@@ -70,7 +75,7 @@ if (NOT unordered_dense_FOUND)
                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     RESULT_VARIABLE GIT_SUBMOD_RESULT)
             if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-              message(FATAL_ERROR "${GIT_EXECUTABLE} submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+                message(FATAL_ERROR "${GIT_EXECUTABLE} submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
             endif()
         endif()
     endif()
@@ -174,23 +179,27 @@ set(INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 set(INSTALL_PKGCONFIG_DIR "${INSTALL_LIBDIR}/pkgconfig")
 
 # Subdirectory
-add_subdirectory(libraries/pallas)
-if (ENABLE_OTF2)
-    add_subdirectory(libraries/otf2)
-endif ()
-if (INSTALL_PYTHON)
+if (NOT _PIP OR NOT Python3_DYNAMIC)
+    add_subdirectory(libraries/pallas)
+endif()
+if (_PIP)
     add_subdirectory(libraries/pallas_python)
-else()
-  add_subdirectory(apps)
-  add_subdirectory(test)
-  include(PrintOpts)
+endif()
+if(NOT _PIP)
 
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pallas.pc.in
+    if (ENABLE_OTF2)
+        add_subdirectory(libraries/otf2)
+    endif ()
+    add_subdirectory(apps)
+    add_subdirectory(test)
+    include(PrintOpts)
+
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pallas.pc.in
           ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc)
-  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc DESTINATION "${INSTALL_PKGCONFIG_DIR}")
-  if (NOT unordered_dense_FOUND)
-      install(
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pallas.pc DESTINATION "${INSTALL_PKGCONFIG_DIR}")
+    if (NOT unordered_dense_FOUND)
+        install(
               DIRECTORY ${PROJECT_SOURCE_DIR}/extern/unordered_dense/include/ankerl
               DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-  endif()
+    endif()
 endif()

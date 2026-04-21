@@ -167,6 +167,8 @@ class ParameterHandler {
     size_t max_memory_durations = sizeof(size_t) * 1024 * 1024;
     /** Least recently loaded queue for the durations and timestamps subvectors. */
     std::deque<void*> subvector_queue;
+    /** Does the stats of the vectors need to be computed ?. */
+    bool does_stats_need_compute = true;
 
    public:
     /** Getter for #maxLoopLength. Error if you're not supposed to have a maximum loop length.

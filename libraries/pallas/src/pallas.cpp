@@ -17,6 +17,8 @@ unsigned int pallas_mpi_rank = 0;
 
 namespace pallas {
 
+const Token INVALID_TOKEN = Token();
+
 Token::Token(TokenType type, uint32_t id) {
     this->type = type;
     this->id = id;
@@ -480,28 +482,28 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "OMP_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "OMP_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_ACQUIRE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "THREAD_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "THREAD_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "OMP_RELEASE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "OMP_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
         pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
         // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
-        return "THREAD_RELEASE_LOCK(lockID=" + std::to_string(lockID) + "";
+        return "THREAD_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_TASK_CREATE: {
         uint64_t taskID;
@@ -673,39 +675,56 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
 
 
-std::map<Token, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
+std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    pallas_duration_t interval_duration = end - start;
     auto filter = std::vector<Token>();
     for (size_t i = 0; i < nb_sequences; i++) {
-        auto& s = sequences[i];
+        auto &s = sequences[i];
         if (s.type == SEQUENCE_BLOCK) {
             filter.emplace_back(s.id);
         }
     }
-    auto output = std::map<Token, pallas_duration_t>();
-    for (Token& t : filter) {
-        auto* s = getSequence(t);
+
+    auto output = std::map<std::tuple<Token, std::string>, pallas_duration_t>();
+    for (Token &t: filter) {
+        auto *s = getSequence(t);
         if (s->type != SEQUENCE_BLOCK)
             continue;
-        output[t] = 0;
         // s.durations.min here because we don't want to load anything.
         if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min < start) {
             continue;
         }
+        if (s->timestamps->size == 1) {
+            // Special treatment for edge case
+            // We know the timestamp is in the interval
+            // So we compute it ourselves
+            pallas_duration_t duration = s->exclusive_durations->min;
+            pallas_timestamp_t t_start = s->timestamps->front();
+            pallas_timestamp_t t_end = duration + t_start;
+            if (end < t_end) {
+                output[std::tuple(t, s->guessName(this))] = end - t_start;
+            } else {
+                output[std::tuple(t, s->guessName(this))] = duration;
+            }
+            continue;
+        }
         std::vector weights = s->timestamps->getWeights(start, end);
-        pallas_duration_t mean = s->exclusive_durations->weightedMean(weights);
-        output[t] = mean;
+        pallas_duration_t sum = s->exclusive_durations->weightedSum(weights);
+        output[std::tuple(t, s->guessName(this))] = sum;
     }
+
     return output;
 }
 
-std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
-    auto output = std::map<Token, pallas_duration_t>();
+std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    // This code is the exact same as Thread::getSnapshotViewByName
+    // Any modifications / fix to this should also be done to the former.
+    auto output = std::map<std::tuple<Token, std::string>, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i++) {
-        auto& s = sequences[i];
-        Token id = s.id;
+        auto &s = sequences[i];
         if (s.type != SEQUENCE_BLOCK)
             continue;
-        output[id] = 0;
+
         if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
             continue;
         }
@@ -720,10 +739,11 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
         }
         pallas_assert_inferior_equal(s.timestamps->at(end_index), end);
 #endif
+        std::tuple<Token, std::string> sequence_token_name = std::tuple<Token, std::string>(s.id, s.guessName(this));
         // Both of these indexes may be bordering the start/end timestamps
         // We only call computeDurationBetween for whole durations.
         if (start_index + 1 < end_index) {
-            output[id] = s.exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+            output[sequence_token_name] = s.exclusive_durations->computeDurationBetween(start_index + 1, end_index);
         }
         // Then we need to compute the pro-ratio of the starting and the end events
         // First we compute the capped duration, like in the following diagram
@@ -742,13 +762,13 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
         if (start < start_event_end && start_event_start < end) {
             if (start <= start_event_start && start_event_end <= end) {
                 // Trivial case where it's entirely contained in [start, end]
-                output[id] += s.exclusive_durations->at(start_index);
+                output[sequence_token_name] += s.exclusive_durations->at(start_index);
             } else {
                 pallas_duration_t capped_duration = pallas_get_duration(
                     std::max(start, start_event_start),
                     std::min(start_event_end, end)
-                    );
-                output[id] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
+                );
+                output[sequence_token_name] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
             }
         }
         // Ending event
@@ -760,13 +780,93 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t st
             if (start < end_event_end && end_event_start < end) {
                 if (start <= end_event_start && end_event_end <= end) {
                     // Trivial case where it's entirely contained in [start, end]
-                    output[id] += s.exclusive_durations->at(end_index);
+                    output[sequence_token_name] += s.exclusive_durations->at(end_index);
                 } else {
                     pallas_duration_t capped_duration = pallas_get_duration(
                         std::max(start, end_event_start),
                         std::min(end_event_end, end)
                     );
-                    output[id] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
+                    output[sequence_token_name] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
+                }
+            }
+        }
+    }
+    return output;
+}
+
+std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    // This code is the exact same as Thread::getSnapshotView
+    // Any modifications / fix to this should also be done to the former.
+    auto output = std::map<std::string, pallas_duration_t>();
+    for (size_t i = 1; i < nb_sequences; i++) {
+        auto &s = sequences[i];
+        if (s.type != SEQUENCE_BLOCK)
+            continue;
+
+        if (end < s.timestamps->front() || s.timestamps->back() + s.durations->back() < start) {
+            continue;
+        }
+        std::string sequence_name = s.guessName(this);
+        size_t start_index = s.timestamps->getFirstOccurrenceBefore(start);
+        size_t end_index = s.timestamps->getFirstOccurrenceBefore(end);
+#ifdef DEBUG
+        if (s.timestamps->front() <= start) {
+            pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
+            if (start_index + 1 < s.timestamps->size) {
+                pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
+            }
+        }
+        pallas_assert_inferior_equal(s.timestamps->at(end_index), end);
+#endif
+        // Both of these indexes may be bordering the start/end timestamps
+        // We only call computeDurationBetween for whole durations.
+        if (start_index + 1 < end_index) {
+            output[sequence_name] = s.exclusive_durations->computeDurationBetween(start_index + 1, end_index);
+        }
+        // Then we need to compute the pro-ratio of the starting and the end events
+        // First we compute the capped duration, like in the following diagram
+        //                 start                    end
+        //   event_start    |           event_end    |
+        //       [          |               ]        |
+        //       [##########|###############]        | duration ( 25 ticks )
+        //       [#####     |        ##  ###]        | exclusive_duration ( 10 ticks = 40% of duration )
+        //       [          |###############]        | capped_duration ( 15 ticks )
+        //       [          |###        # ##]        | exclusive_duration * capped_duration / duration = 6 ticks
+        // Starting event:
+        pallas_timestamp_t start_event_start = s.timestamps->at(start_index);
+        pallas_duration_t start_event_duration = s.durations->at(start_index);
+        pallas_timestamp_t start_event_end = start_event_start + start_event_duration;
+        // Check if the starting event is actually in the bounds
+        if (start < start_event_end && start_event_start < end) {
+            if (start <= start_event_start && start_event_end <= end) {
+                // Trivial case where it's entirely contained in [start, end]
+                output[sequence_name] += s.exclusive_durations->at(start_index);
+            } else {
+                pallas_duration_t capped_duration = pallas_get_duration(
+                    std::max(start, start_event_start),
+                    std::min(start_event_end, end)
+                );
+                output[sequence_name] += (s.exclusive_durations->at(start_index) * capped_duration) /
+                        start_event_duration;
+            }
+        }
+        // Ending event
+        if (end_index != start_index) {
+            // Don't count it twice
+            pallas_timestamp_t end_event_start = s.timestamps->at(end_index);
+            pallas_duration_t end_event_duration = s.durations->at(end_index);
+            pallas_timestamp_t end_event_end = end_event_start + end_event_duration;
+            if (start < end_event_end && end_event_start < end) {
+                if (start <= end_event_start && end_event_end <= end) {
+                    // Trivial case where it's entirely contained in [start, end]
+                    output[sequence_name] += s.exclusive_durations->at(end_index);
+                } else {
+                    pallas_duration_t capped_duration = pallas_get_duration(
+                        std::max(start, end_event_start),
+                        std::min(end_event_end, end)
+                    );
+                    output[sequence_name] += (s.exclusive_durations->at(end_index) * capped_duration) /
+                            end_event_duration;
                 }
             }
         }
@@ -821,7 +921,7 @@ std::string Sequence::guessName(const pallas::Thread* thread) const {
         EventData& data = thread->getEvent(t_start)->data;
         if (data.record == PALLAS_EVENT_ENTER) {
             const char* event_name = thread->getRegionStringFromEvent(&data);
-            return event_name;
+	    return event_name;
         }
         if (data.record == PALLAS_EVENT_THREAD_TEAM_BEGIN || data.record == PALLAS_EVENT_THREAD_BEGIN) {
             return "thread";

@@ -11,11 +11,11 @@ configure_file(
         @ONLY
 )
 
-if (INSTALL_PYTHON)
-  add_library(pallas STATIC)
-  set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
+if (_PIP AND NOT Python3_DYNAMIC)
+    add_library(pallas STATIC)
+    set_property(TARGET pallas PROPERTY POSITION_INDEPENDENT_CODE ON)
 else()
-  add_library(pallas SHARED)
+    add_library(pallas SHARED)
 endif()
 
 set(PALLAS_HEADERS
@@ -34,7 +34,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_linked_vector.h
         include/pallas/utils/pallas_storage.h
         include/pallas/utils/pallas_timestamp.h
-	      include/pallas/utils/pallas_parameter_handler.h
+       include/pallas/utils/pallas_parameter_handler.h
 )
 
 target_sources(pallas
@@ -81,15 +81,13 @@ set_property(TARGET pallas
         PROPERTY PRIVATE_HEADER ${PALLAS_UTILS_HEADERS}
 )
 
-
-
-
 target_compile_options(pallas
         PUBLIC
         -D_GNU_SOURCE
         PRIVATE
         -Wall -Wextra ${WARNINGS}
 )
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     target_compile_options(pallas PRIVATE -Wno-nontrivial-memcall)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -119,9 +117,9 @@ if (DOXYGEN_FOUND AND BUILD_DOC)
 
     # note the option ALL which allows to build the docs together with the application
     doxygen_add_docs(pallas_doc ALL
-			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-			COMMENT "Generating API documentation with Doxygen"
-			CONFIG_FILE ${DOXYGEN_OUT})
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+   COMMENT "Generating API documentation with Doxygen"
+   CONFIG_FILE ${DOXYGEN_OUT})
 
     install(DIRECTORY "${DOXYGEN_OUTPUT_DIRECTORY}" TYPE DOC)
 else ()
@@ -130,12 +128,12 @@ else ()
     endif ()
 endif ()
 
-if (NOT INSTALL_PYTHON)
-  install(TARGETS pallas EXPORT PALLASLibTargets
+if (NOT _PIP)
+    install(TARGETS pallas EXPORT PALLASLibTargets
           LIBRARY DESTINATION ${INSTALL_LIBDIR}
           PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
           PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
   )
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
 endif()
 
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)

@@ -387,7 +387,9 @@ typedef struct Archive {
     [[nodiscard]] Thread* getThread(ThreadId);
     [[nodiscard]] Thread* getThreadAt(size_t index);
     const char* getName();
+    /* Frees the memory of the thread and sets its pointer to nullptr. */
     void freeThread(ThreadId);
+    /* Frees the memory of the thread and sets its pointer to nullptr. */
     void freeThreadAt(size_t);
 
     /**
