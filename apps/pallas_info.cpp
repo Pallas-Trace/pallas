@@ -262,7 +262,8 @@ void info_definitions(Definition& definitions) {
   if (!definitions.groups.empty()) {
     printf("\tGroups {.nb_groups: %zu } :\n", definitions.groups.size());
     for (auto& [groupRef, group] : definitions.groups) {
-      printf("\t\t%d: '%s' [", group.group_ref, definitions.getString(group.name)->str);
+        auto name = definitions.getString(group.name);
+      printf("\t\t%d: '%s' [", group.group_ref, (name) ? name->str : "INVALID");
       for (uint32_t i = 0; i < group.numberOfMembers; i++) {
         printf("%s%u", i > 0 ? ", " : "", group.members[i]);
       }
@@ -273,7 +274,8 @@ void info_definitions(Definition& definitions) {
   if (!definitions.comms.empty()) {
     printf("\tComms {.nb_comms: %zu } :\n", definitions.comms.size());
     for (auto& [commRef, comm] : definitions.comms) {
-      printf("\t\t%d: '%s' (group, %d, parent: %d) \n", comm.comm_ref, definitions.getString(comm.name)->str, comm.group, comm.parent);
+        auto name = definitions.getString(comm.name);
+      printf("\t\t%d: '%s' (group, %d, parent: %d) \n", comm.comm_ref, (name) ? name->str : "INVALID", comm.group, comm.parent);
     }
   }
 }
