@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <algorithm>
+#include <unordered_set>
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/utils/pallas_hash.h"
@@ -482,6 +484,72 @@ void save_thread_copy(pallas::GlobalArchive *trace,
   trace->store(save_dir_name, trace->parameter_handler);
 }
 
+void verify_event_sync(std::vector<pallas::Thread*>& threads, uint32_t max_event_id) {
+  bool all_ok = true;
+
+  for (uint32_t event_id = 0; event_id < max_event_id; event_id++) {
+    pallas::Event* reference = nullptr;
+    pallas::Thread* reference_thread = nullptr;
+    bool slot_has_valid = false;
+
+    for (auto* t : threads) {
+      if (event_id >= t->nb_events) continue;
+
+      pallas::Event& e = t->events[event_id];
+      bool is_invalid = (e.data.record == pallas::PALLAS_EVENT_MAX_ID);
+
+      if (!is_invalid) {
+        slot_has_valid = true;
+        if (reference == nullptr) {
+          reference = &e;
+          reference_thread = t;
+        } else {
+          if (!event_cmp(*reference, e)) {
+            fprintf(stderr,
+              "[VERIFY] MISMATCH at event_id=%u: "
+              "thread %u (record=%u) != thread %u (record=%u)\n",
+              event_id,
+              reference_thread->id, reference->data.record,
+              t->id, e.data.record);
+            all_ok = false;
+          }
+        }
+      }
+    }
+
+    if (!slot_has_valid) {
+      bool any_thread_covers = false;
+      for (auto* t : threads) {
+        if (event_id < t->nb_events) { any_thread_covers = true; break; }
+      }
+      if (any_thread_covers) {
+        fprintf(stderr,
+          "[VERIFY] ALL-INVALID slot at event_id=%u "
+          "(every thread covering this id has an invalid)\n",
+          event_id);
+        all_ok = false;
+      }
+    }
+  }
+
+  for (auto* t : threads) {
+    for (uint32_t event_id = 0; event_id < t->nb_events; event_id++) {
+      pallas::Event& e = t->events[event_id];
+      bool is_invalid = (e.data.record == pallas::PALLAS_EVENT_MAX_ID);
+      if (!is_invalid && e.id != event_id) {
+        fprintf(stderr,
+          "[VERIFY] ID FIELD MISMATCH: thread %u events[%u].id = %u (expected %u)\n",
+          t->id, event_id, e.id, event_id);
+        all_ok = false;
+      }
+    }
+  }
+
+  if (all_ok)
+    fprintf(stderr, "[VERIFY] event sync OK — %u ids checked across %zu threads\n",
+            max_event_id, threads.size());
+}
+
 int main(int argc, char** argv) {
 
   std::map<uint32_t, pallas::String> synced_strings;
@@ -709,6 +777,37 @@ int main(int argc, char** argv) {
         new_nb--;
       }
       t2->nb_events = new_nb;
+    }
+  }
+
+  uint32_t max_id = 0;
+  for (auto* t : threads) {
+    if (t->nb_events > max_id) {
+      max_id = t->nb_events;
+    }
+    verify_event_sync(threads, max_id);
+  }
+
+  uint32_t expected_nb = threads[0]->nb_events;
+  for (auto* t : threads) {
+    assert(t->nb_events == expected_nb && "nb_events mismatch after sync");
+  }
+
+  for (auto* t : threads) {
+    for (uint32_t i = t->nb_events; i < t->nb_allocated_events; i++) {
+      assert(t->events[i].data.record == pallas::PALLAS_EVENT_MAX_ID &&
+            "real event stranded beyond nb_events");
+    }
+  }
+
+  for (auto* t : threads) {
+    std::unordered_set<uint32_t> seen_targets;
+    for (auto& [src, dst] : thread_event_map[t->id]) {
+      if (dst >= t->nb_events) continue; // skip stale dangling entries
+      if (seen_targets.count(dst)) {
+        fprintf(stderr, "[VERIFY] duplicate map target %u in thread %u\n", dst, t->id);
+      }
+      seen_targets.insert(dst);
     }
   }
 
