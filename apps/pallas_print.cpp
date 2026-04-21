@@ -323,6 +323,12 @@ void printTrace(pallas::GlobalArchive& trace) {
     std::cout << std::endl;
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
 
+    if (csv || flamegraph) {
+        DOFOR(i, reader.n_threads) {
+            threads_data[&reader.readers[i]] = {};
+        }
+    }
+
     if (csv_bulk) {
         printCSVBulk(reader.readers, reader.n_threads);
         return;
