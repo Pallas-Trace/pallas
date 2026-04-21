@@ -8,10 +8,6 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#if __cplusplus >= 202002L && (__GNUC__ >= 13 || __clang__ >= 14 || _MSC_VER >= 1929)
-#include <format>
-#define HAS_FORMAT
-#endif
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -77,13 +73,9 @@ void* worker(void* arg) {
     ThreadId threadID = newThread();
     auto& archive = *static_cast<Archive*>(arg);
 
-#ifdef HAS_FORMAT
-  StringRef threadNameRef = registerString(std::format("thread_{}", threadID));
-#else
     std::ostringstream os;
     os << "thread_" << threadID;
     StringRef threadNameRef = registerString(*archive.global_archive, os.str());
-#endif
     archive.defineLocation(threadID, threadNameRef, processID);
     archive.add_metadata("ThreadTest", "42");
 
