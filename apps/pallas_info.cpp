@@ -91,7 +91,7 @@ void info_event_header() {
   std::cout << std::left << "#";
   std::cout << std::setw(14) << std::left << "Event_id";
   std::cout << std::setw(35) << std::left << "Event_name";
-  std::cout << std::setw(20) << std::right << "Nb_occurence";
+  std::cout << std::setw(20) << std::right << "Nb_occurrence";
   std::cout << std::setw(20) << std::right << "Min_duration(ns)";
   std::cout << std::setw(20) << std::right << "Max_duration(ns)";
   std::cout << std::setw(20) << std::right << "Mean_duration(ns)";
@@ -111,7 +111,7 @@ void info_sequence_header() {
   std::cout << std::left << "#";
   std::cout << std::setw(14) << std::left << "Sequence_id";
   std::cout << std::setw(35) << std::left << "Sequence_name";
-  std::cout << std::setw(18) << std::right << "Nb_occurence";
+  std::cout << std::setw(18) << std::right << "Nb_occurrence";
   std::cout << std::setw(18) << std::right << "Min_duration(s)";
   std::cout << std::setw(18) << std::right << "Max_duration(s)";
   std::cout << std::setw(18) << std::right << "Mean_duration(s)";

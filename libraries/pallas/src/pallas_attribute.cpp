@@ -255,7 +255,7 @@ void Thread::printAttributeList(const AttributeList* attribute_list) const {
   printf(" }");
 }
 
-void Thread::printEventAttribute(const struct EventOccurence* e) const {
+void Thread::printEventAttribute(const struct EventOccurrence* e) const {
   printAttributeList(e->attributes);
 }
 }  // namespace pallas
@@ -313,7 +313,7 @@ void pallas_print_attribute_value(pallas::Thread* thread, pallas::AttributeData*
   thread->printAttributeValue(attr, type);
 };
 
-void pallas_print_event_attributes(pallas::Thread* thread, pallas::EventOccurence* e) {
+void pallas_print_event_attributes(pallas::Thread* thread, pallas::EventOccurrence* e) {
   thread->printEventAttribute(e);
 };
 

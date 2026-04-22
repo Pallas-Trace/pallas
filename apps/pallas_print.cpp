@@ -50,7 +50,7 @@ static void _print_duration_header() {
 }
 
 /* Print one event */
-static void printEvent(const pallas::Thread* thread, const pallas::Token token, const pallas::EventOccurence e) {
+static void printEvent(const pallas::Thread* thread, const pallas::Token token, const pallas::EventOccurrence e) {
   _print_timestamp(e.timestamp);
 
   if (!per_thread)
@@ -81,7 +81,7 @@ struct thread_data {
 
 void printFlame(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
 		pallas::ThreadReader* min_reader,
-		pallas::EventOccurence& e) {
+		pallas::EventOccurrence& e) {
 
   // This lambda prints the callstack in the flamegraph format
   auto  _print_callstack = [&]() {
@@ -137,7 +137,7 @@ void printFlame(std::map<pallas::ThreadReader*, struct thread_data> &threads_dat
 
 void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
 	      pallas::ThreadReader* min_reader,
-	      pallas::EventOccurence& e) {
+	      pallas::EventOccurrence& e) {
 
   // This lambda prints the callstack in the flamegraph format
   auto  _print_callstack = [&]() {
@@ -240,12 +240,12 @@ void printCSVBulk(pallas::ThreadReader* readers, size_t n) {
       pallas_duration_t duration = s->durations->at(0);
       pallas_timestamp_t ts = s->timestamps->at(0);
 
-      for(int occurence_id = 0; occurence_id < s->durations->size; occurence_id++) {
+      for(int occurrence_id = 0; occurrence_id < s->durations->size; occurrence_id++) {
         if(s->type != pallas::SEQUENCE_BLOCK) {
           continue;
         }
-        pallas_duration_t duration = s->durations->at(occurence_id);
-        pallas_timestamp_t ts = s->timestamps->at(occurence_id);
+        pallas_duration_t duration = s->durations->at(occurrence_id);
+        pallas_timestamp_t ts = s->timestamps->at(occurrence_id);
 
         if (first_line) {
             std::cout << "Thread,Function,Start,Finish,Duration\n";
@@ -272,7 +272,7 @@ void printThread(pallas::Thread *thread) {
          current_token != pallas::INVALID_TOKEN;
          current_token = reader.getNextToken()) {
         if (current_token.type == pallas::TypeEvent) {
-            auto event = reader.getEventOccurence(current_token,reader.getCurrentTokenCount(current_token));
+            auto event = reader.getEventOccurrence(current_token,reader.getCurrentTokenCount(current_token));
             pallas_assert_inferior_equal(last_timestamp, event.timestamp);
             pallas_assert_equals(event.timestamp, reader.currentState.currentFrame->current_timestamp);
             last_timestamp = event.timestamp;
@@ -338,13 +338,13 @@ void printTrace(pallas::GlobalArchive& trace) {
         auto cur_reader = reader.current_reader;
         if (token.type == pallas::TypeEvent) {
             if (flamegraph) {
-                auto e = cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token));
+                auto e = cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token));
                 printFlame(threads_data, cur_reader, e);
             } else if (csv) {
-                auto e = cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token));
+                auto e = cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token));
                 printCSV(threads_data, cur_reader, e);
             } else {
-                printEvent(cur_reader->thread_trace, token, cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token)));
+                printEvent(cur_reader->thread_trace, token, cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token)));
             }
         }
     }
@@ -368,7 +368,7 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
       } else {
         current_indent += "┬";
       }
-//      current_indent += ((t.type == pallas::TypeSequence && e->sequence_occurence.sequence->isFunctionSequence(thread))
+//      current_indent += ((t.type == pallas::TypeSequence && e->sequence_occurrence.sequence->isFunctionSequence(thread))
 //                         || (isInLoop && !explore_loop_sequences)) ? "─" : "┬";
     } else {
       current_indent += "─";
@@ -385,13 +385,13 @@ void printThreadStructure(pallas::ThreadReader& tr) {
         std::cout << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
                   << tr.thread_trace->getTokenString(current_token) << "";
         if (current_token.type == pallas::TypeEvent) {
-            auto occ = tr.getEventOccurence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            auto occ = tr.getEventOccurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
             pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
             pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
             last_timestamp = occ.timestamp;
             printEvent(tr.thread_trace, current_token, occ);
         } else if (current_token.type == pallas::TypeSequence) {
-            auto occ = tr.getSequenceOccurence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            auto occ = tr.getSequenceOccurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
             pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
             pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
             last_timestamp = occ.timestamp;

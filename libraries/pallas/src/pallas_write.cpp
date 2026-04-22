@@ -122,8 +122,8 @@ void ThreadWriter::storeTimestamp(Event* es, pallas_timestamp_t ts) {
     last_timestamp = ts;
 }
 
-void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::AttributeList* attribute_list, const size_t occurence_index) {
-    attribute_list->index = occurence_index;
+void ThreadWriter::storeAttributeList(pallas::Event* es, struct pallas::AttributeList* attribute_list, const size_t occurrence_index) {
+    attribute_list->index = occurrence_index;
     if (es->attribute_pos + attribute_list->struct_size >= es->attribute_buffer_size) {
         if (es->attribute_buffer_size == 0) {
             pallas_log(DebugLevel::Debug, "Allocating attribute memory for event %u\n", es->id);

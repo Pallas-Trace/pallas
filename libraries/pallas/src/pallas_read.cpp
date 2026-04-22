@@ -129,13 +129,13 @@ Event* ThreadReader::getEvent(Token event) const {
     }
     pallas_error("Given event (%d) was invalid\n", event.id);
 }
-pallas_timestamp_t ThreadReader::getEventTimestamp(Token event, int occurence_id) const {
+pallas_timestamp_t ThreadReader::getEventTimestamp(Token event, int occurrence_id) const {
     pallas_assert(event.type == TypeEvent);
     auto summary = getEvent(event);
-    if (0 <= occurence_id && occurence_id < summary->nb_occurrences) {
-        return summary->timestamps->at(occurence_id);
+    if (0 <= occurrence_id && occurrence_id < summary->nb_occurrences) {
+        return summary->timestamps->at(occurrence_id);
     }
-    pallas_error("Given occurence_id (%d) was invalid for event %d\n", occurence_id, event.id);
+    pallas_error("Given occurrence_id (%d) was invalid for event %d\n", occurrence_id, event.id);
 }
 bool ThreadReader::isEndOfSequence(int current_index, Token sequence_id) const {
     if (sequence_id.type == TypeSequence) {
@@ -195,41 +195,41 @@ pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
     return sequence->timestamps->at(offset + nIterations - 1) - sequence->timestamps->at(offset) + sequence->durations->at(offset + nIterations - 1);
 }
 
-EventOccurence ThreadReader::getEventOccurence(Token event_id, size_t occurence_id) const {
-    auto eventOccurence = EventOccurence();
+EventOccurrence ThreadReader::getEventOccurrence(Token event_id, size_t occurrence_id) const {
+    auto eventOccurrence = EventOccurrence();
     auto* es = getEvent(event_id);
-    eventOccurence.event = &thread_trace->getEvent(event_id)->data;
+    eventOccurrence.event = &thread_trace->getEvent(event_id)->data;
 
-    eventOccurence.timestamp = es->timestamps->at(occurence_id);
-    eventOccurence.attributes = getEventAttributeList(event_id, occurence_id);
-    return eventOccurence;
+    eventOccurrence.timestamp = es->timestamps->at(occurrence_id);
+    eventOccurrence.attributes = getEventAttributeList(event_id, occurrence_id);
+    return eventOccurrence;
 }
 
-SequenceOccurence ThreadReader::getSequenceOccurence(Token sequence_id, size_t occurence_id) const {
-    auto sequenceOccurence = SequenceOccurence();
-    sequenceOccurence.sequence = thread_trace->getSequence(sequence_id);
+SequenceOccurrence ThreadReader::getSequenceOccurrence(Token sequence_id, size_t occurrence_id) const {
+    auto sequenceOccurrence = SequenceOccurrence();
+    sequenceOccurrence.sequence = thread_trace->getSequence(sequence_id);
 
-    sequenceOccurence.timestamp = sequenceOccurence.sequence->timestamps->at(occurence_id);
-    sequenceOccurence.duration = sequenceOccurence.sequence->durations->at(occurence_id);
-    sequenceOccurence.full_sequence = nullptr;
+    sequenceOccurrence.timestamp = sequenceOccurrence.sequence->timestamps->at(occurrence_id);
+    sequenceOccurrence.duration = sequenceOccurrence.sequence->durations->at(occurrence_id);
+    sequenceOccurrence.full_sequence = nullptr;
 
-    return sequenceOccurence;
+    return sequenceOccurrence;
 };
 
-LoopOccurence ThreadReader::getLoopOccurence(Token loop_id, size_t occurence_id) const {
-    auto loopOccurence = LoopOccurence();
-    loopOccurence.loop = thread_trace->getLoop(loop_id);
-    loopOccurence.nb_iterations = loopOccurence.loop->nb_iterations;
-    loopOccurence.full_loop = nullptr;
-    loopOccurence.timestamp = currentState.currentFrame->current_timestamp;
-    loopOccurence.duration = getLoopDuration(loop_id);
-    return loopOccurence;
+LoopOccurrence ThreadReader::getLoopOccurrence(Token loop_id, size_t occurrence_id) const {
+    auto loopOccurrence = LoopOccurrence();
+    loopOccurrence.loop = thread_trace->getLoop(loop_id);
+    loopOccurrence.nb_iterations = loopOccurrence.loop->nb_iterations;
+    loopOccurrence.full_loop = nullptr;
+    loopOccurrence.timestamp = currentState.currentFrame->current_timestamp;
+    loopOccurrence.duration = getLoopDuration(loop_id);
+    return loopOccurrence;
 }
 size_t ThreadReader::getCurrentTokenCount(Token t) const {
     return currentState.currentFrame->tokenCount[t];
 }
 
-AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurence_id) const {
+AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurrence_id) const {
     auto* summary = getEvent(event_id);
     if (summary->attribute_buffer == nullptr)
         return nullptr;
@@ -237,15 +237,15 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occure
     if (summary->attribute_pos < summary->attribute_buffer_size) {
         auto* l = (AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
 
-        while (l->index < occurence_id) { /* move to the next attribute until we reach the needed index */
+        while (l->index < occurrence_id) { /* move to the next attribute until we reach the needed index */
             summary->attribute_pos += l->struct_size;
             l = (AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
         }
-        if (l->index == occurence_id) {
+        if (l->index == occurrence_id) {
             return l;
         }
-        if (l->index > occurence_id) {
-            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurence_id, l->index);
+        if (l->index > occurrence_id) {
+            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence_id, l->index);
         }
     }
     return nullptr;
@@ -762,8 +762,8 @@ void pallasPrintCallstack(ThreadReader* thread_reader) {
 Event* pallasGetEvent(ThreadReader* thread_reader, Token event) {
     return thread_reader->getEvent(event);
 }
-pallas_timestamp_t pallasGetEventTimestamp(ThreadReader* thread_reader, Token event, int occurence_id) {
-    return thread_reader->getEventTimestamp(event, occurence_id);
+pallas_timestamp_t pallasGetEventTimestamp(ThreadReader* thread_reader, Token event, int occurrence_id) {
+    return thread_reader->getEventTimestamp(event, occurrence_id);
 }
 bool pallasIsEndOfSequence(ThreadReader* thread_reader, int current_index, Token sequence_id) {
     return thread_reader->isEndOfSequence(current_index, sequence_id);
@@ -777,17 +777,17 @@ bool pallasIsEndOfCurrentBlock(ThreadReader* thread_reader) {
 bool pallasIsEndOfTrace(ThreadReader* thread_reader) {
     return thread_reader->isEndOfTrace();
 }
-EventOccurence pallasGetEventOccurence(ThreadReader* thread_reader, Token event_id, size_t occurence_id) {
-    return thread_reader->getEventOccurence(event_id, occurence_id);
+EventOccurrence pallasGetEventOccurrence(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
+    return thread_reader->getEventOccurrence(event_id, occurrence_id);
 }
-SequenceOccurence pallasGetSequenceOccurence(ThreadReader* thread_reader, Token sequence_id, size_t occurence_id) {
-    return thread_reader->getSequenceOccurence(sequence_id, occurence_id);
+SequenceOccurrence pallasGetSequenceOccurrence(ThreadReader* thread_reader, Token sequence_id, size_t occurrence_id) {
+    return thread_reader->getSequenceOccurrence(sequence_id, occurrence_id);
 }
-LoopOccurence pallasGetLoopOccurence(ThreadReader* thread_reader, Token loop_id, size_t occurence_id) {
-    return thread_reader->getLoopOccurence(loop_id, occurence_id);
+LoopOccurrence pallasGetLoopOccurrence(ThreadReader* thread_reader, Token loop_id, size_t occurrence_id) {
+    return thread_reader->getLoopOccurrence(loop_id, occurrence_id);
 }
-AttributeList* pallasGetEventAttributeList(ThreadReader* thread_reader, Token event_id, size_t occurence_id) {
-    return thread_reader->getEventAttributeList(event_id, occurence_id);
+AttributeList* pallasGetEventAttributeList(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
+    return thread_reader->getEventAttributeList(event_id, occurrence_id);
 }
 Token pallasPollCurToken(ThreadReader* thread_reader) {
     return thread_reader->pollCurToken();
@@ -835,17 +835,17 @@ void pallasLoadCheckpoint(ThreadReader* thread_reader, Cursor* checkpoint) {
     thread_reader->loadCheckpoint(checkpoint);
 }
 
-TokenOccurence::~TokenOccurence() {
-    if (token == nullptr || occurence == nullptr) {
+TokenOccurrence::~TokenOccurrence() {
+    if (token == nullptr || occurrence == nullptr) {
         return;
     }
     if (token->type == TypeLoop) {
-        auto& loopOccurence = occurence->loop_occurence;
-        if (loopOccurence.full_loop) {
-            delete[] loopOccurence.full_loop;
+        auto& loopOccurrence = occurrence->loop_occurrence;
+        if (loopOccurrence.full_loop) {
+            delete[] loopOccurrence.full_loop;
         }
     }
-    delete occurence;
+    delete occurrence;
 }
 
 } /* namespace pallas */

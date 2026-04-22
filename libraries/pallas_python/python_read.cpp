@@ -266,7 +266,7 @@ int get_read_flags_from_bools(bool enter_sequence, bool enter_loop) {
 }
 
 
-py::dict get_attributes(PyEvent &event, size_t occurence) {
+py::dict get_attributes(PyEvent &event, size_t occurrence) {
     py::dict result;
     pallas::Archive *archive = event.thread->archive;
     auto *summary = event.self;
@@ -274,14 +274,14 @@ py::dict get_attributes(PyEvent &event, size_t occurence) {
     if (event.self->attribute_buffer == nullptr) return result;
     if (summary->attribute_pos < summary->attribute_buffer_size) {
         attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
-        while (attribute_list->index < occurence) { /* move to the next attribute until we reach the needed index */
+        while (attribute_list->index < occurrence) { /* move to the next attribute until we reach the needed index */
             summary->attribute_pos += attribute_list->struct_size;
             if (summary->attribute_pos >= summary->attribute_buffer_size)
                 return result;
             attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
         }
-        if (attribute_list->index > occurence) {
-            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurence, attribute_list->index);
+        if (attribute_list->index > occurrence) {
+            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence, attribute_list->index);
         }
     } else {
         return result;

@@ -462,7 +462,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         }
         auto *cur_reader = reader.current_reader;
         auto lgid = reader.current_reader->archive->id;
-        auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
+        auto data = cur_reader->getEventOccurrence(t, cur_reader->getCurrentTokenCount(t));
         // static uint progress_counter = 0;
         // if (progress_counter == 0) {
         //     float percent = (static_cast<float>(data.timestamp - first_timestamp) * 100) / (float) duration;

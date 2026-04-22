@@ -554,14 +554,14 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
         // Skip exploration if we're in a Sequence or a Loop we have no interest in.
         if (current_token.type == TypeSequence) {
-            auto current_sequence = reader.getSequenceOccurence(current_token, current_count);
+            auto current_sequence = reader.getSequenceOccurrence(current_token, current_count);
             if (current_sequence.timestamp + current_sequence.duration < start) {
                 current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
             }
         }
         if (current_token.type == TypeLoop) {
-            auto current_loop = reader.getLoopOccurence(current_token, current_count);
+            auto current_loop = reader.getLoopOccurrence(current_token, current_count);
             if (current_loop.timestamp + current_loop.duration < start) {
                 current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
@@ -617,7 +617,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         }
 
         // Since we're at an Event, we know current_iterable is a Sequence (Loop have to contain Sequence Tokens)
-        auto bottom_sequence = reader.getSequenceOccurence(
+        auto bottom_sequence = reader.getSequenceOccurrence(
             reader.getCurIterable(),
             (reader.currentState.currentFrame - 1)->tokenCount[reader.getCurIterable()]
             )

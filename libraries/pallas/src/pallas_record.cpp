@@ -46,7 +46,7 @@ namespace pallas {
   byte* cursor = nullptr;						\
   auto token = thread_reader->pollCurToken();				\
   pallas_assert (token.type == pallas::TypeEvent);			\
-  const pallas::EventOccurence e = thread_reader->getEventOccurence(token, thread_reader->currentState.currentFrame->tokenCount[token]); \
+  const pallas::EventOccurrence e = thread_reader->getEventOccurrence(token, thread_reader->currentState.currentFrame->tokenCount[token]); \
   pallas::Record event_type = e.event->record;				\
   pallas_assert(event_type == expected_event_type);
 
@@ -55,7 +55,7 @@ namespace pallas {
 			   pallas_timestamp_t* time) {
     auto token = thread_reader->pollCurToken();
     pallas_assert (token.type == pallas::TypeEvent);
-    const pallas::EventOccurence e = thread_reader->getEventOccurence(token, thread_reader->currentState.currentFrame->tokenCount[token]);
+    const pallas::EventOccurrence e = thread_reader->getEventOccurrence(token, thread_reader->currentState.currentFrame->tokenCount[token]);
 
     if(attribute_list)  *attribute_list = NULL; 	// TODO : add support for attribute_lists
     if(time)             *time = e.timestamp;

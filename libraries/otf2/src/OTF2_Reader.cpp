@@ -183,7 +183,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader* reader, OTF2_GlobalEvtRe
 
   auto token = thread_reader->pollCurToken();
   if (token.type == pallas::TypeEvent) {
-    const pallas::EventOccurence e = thread_reader->getEventOccurence(token, thread_reader->currentState.currentFrame->tokenCount[token]);
+    const pallas::EventOccurrence e = thread_reader->getEventOccurrence(token, thread_reader->currentState.currentFrame->tokenCount[token]);
 
     pallas::Record event_type = e.event->record;
     switch(event_type) {
