@@ -757,8 +757,10 @@ int main(int argc, char** argv) {
 
     // initialize event_map to identity if not already set
     for (auto* t_init : threads) {
-      for (uint32_t event_id = n_events_verified; event_id < t_init->nb_events; event_id++) {
-        if (thread_event_map[t_init->id].count(event_id) == 0) {
+      for (uint32_t event_id = n_events_verified; event_id < thread_n_events; event_id++) {
+        if (thread_event_map[t_init->id].count(event_id) == 0 &&
+            event_id < t_init->nb_events &&
+            t_init->events[event_id].data.record != pallas::PALLAS_EVENT_MAX_ID) {
           map_set(thread_event_map, thread_event_rev, t_init->id, event_id, event_id);
         }
       }
