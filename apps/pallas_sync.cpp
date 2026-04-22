@@ -278,17 +278,10 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      // check if cand already invalid
-      if (cand_loop.repeated_token.type == pallas::TypeInvalid) {
-        if (t2->nb_loops <= loop_id) {
-          t2->nb_loops = loop_id + 1;
-          map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
-        }
-        continue;
-      }
+      bool cand_is_invalid = (cand_loop.repeated_token.type == pallas::TypeInvalid);
 
       // check if already synchronized
-      if (loop_cmp(src_loop, cand_loop)) {
+      if (!cand_is_invalid && loop_cmp(src_loop, cand_loop)) {
         found_match = true;
         map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
 
@@ -305,17 +298,22 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match) {
-        uint32_t swap_id = t2->nb_loops;
-        pallas::Loop swap_loop = std::move(t2->loops[loop_id]);
+        if (!cand_is_invalid) {
+          uint32_t swap_id = t2->nb_loops;
+          pallas::Loop disp_loop = std::move(t2->loops[loop_id]);
+          loop_insert(disp_loop, t2, swap_id);
+          loop_override_invalid(t2, loop_id);
 
-        loop_insert(swap_loop, t2, swap_id);
-        loop_override_invalid(t2, loop_id);
+          uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
+          map_set(loop_map, loop_rev, t2->id, prev_owner, swap_id);
+          loop_rev[t2->id].erase(loop_id);
 
-        uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
-        map_set(loop_map, loop_rev, t2->id, prev_owner, swap_id);
-        map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
-
-        number_of_swaps++;
+          number_of_swaps++;
+        } else {
+          if (t2->nb_loops <= loop_id) {
+            t2->nb_loops = loop_id + 1;
+          }
+        }
       }
     }
   }
@@ -439,17 +437,10 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      // check if cand aleady invalid
-      if (cand_seq.id.id == PALLAS_TOKEN_ID_INVALID) {
-        if (t2->nb_sequences <= seq_id) {
-          t2->nb_sequences = seq_id + 1;
-          map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
-        }
-        continue;
-      }
+      bool cand_is_invalid = (cand_seq.id.id == PALLAS_TOKEN_ID_INVALID || cand_seq.tokens.size() == 0);
 
       // check if already synchronized
-      if (seq_cmp(src_seq, cand_seq)) {
+      if (!cand_is_invalid && seq_cmp(src_seq, cand_seq)) {
         found_match = true;
         map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
 
@@ -466,19 +457,21 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match) {
-        uint32_t swap_id = t2->nb_sequences;
-        pallas::Sequence disp_seq = std::move(t2->sequences[seq_id]);
-        if (disp_seq.id.id != PALLAS_TOKEN_ID_INVALID && disp_seq.tokens.size() > 0) {
+        if (!cand_is_invalid) {
+          uint32_t swap_id = t2->nb_sequences;
+          pallas::Sequence disp_seq = std::move(t2->sequences[seq_id]);
           seq_insert(disp_seq, t2, swap_id);
           seq_override_invalid(t2, seq_id);
 
           uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
           map_set(seq_map, seq_rev, t2->id, prev_owner, swap_id);
-          map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
+          seq_rev[t2->id].erase(seq_id);
 
           number_of_swaps++;
         } else {
-          seq_override_invalid(t2, seq_id);
+          if (t2->nb_sequences <= seq_id) {
+            t2->nb_sequences = seq_id + 1;
+          }
         }
       }
     }
@@ -850,6 +843,20 @@ int main(int argc, char** argv) {
   bool update_seqs   = false;
   bool update_loops  = false;
 
+  // initialize loop_map and seq_map to identity for original tokens
+  for (auto* t : threads) {
+    for (uint32_t i = 0; i < t->nb_loops; i++) {
+      if (t->loops[i].repeated_token.type != pallas::TypeInvalid) {
+        map_set(thread_loop_map, thread_loop_rev, t->id, i, i);
+      }
+    }
+    for (uint32_t i = 0; i < t->nb_sequences; i++) {
+      if (t->sequences[i].id.id != PALLAS_TOKEN_ID_INVALID && t->sequences[i].tokens.size() > 0) {
+        map_set(thread_seq_map, thread_seq_rev, t->id, i, i);
+      }
+    }
+  }
+
   int nb_cycles = 0;
 
   while (true) {
@@ -881,17 +888,19 @@ int main(int argc, char** argv) {
       }
       // else: -> thread has loops that need to be synchronized
 
-      // initialize loop_map to identity if not already set
-      for (auto* t_init : threads) {
-        for (uint32_t loop_id = n_loops_verified; loop_id < t_init->nb_loops; loop_id++) {
-          if (thread_loop_map[t_init->id].count(loop_id) == 0) {
-            map_set(thread_loop_map, thread_loop_rev, t_init->id, loop_id, loop_id);
-          }
-        }
-      }
-
       number_of_swaps += sync_loops(threads, t, n_loops_verified, thread_n_loops, thread_loop_map, thread_loop_rev);
       n_loops_verified = thread_n_loops;
+
+      // compact extra danging invalids
+      for (auto* t2 : threads) {
+        if (t2->id == t->id) continue;
+        uint32_t new_nb = t2->nb_loops;
+        while (new_nb > n_loops_verified &&
+          t2->loops[new_nb - 1].repeated_token.type == pallas::TypeInvalid) {
+          new_nb--;
+        }
+        t2->nb_loops = new_nb;
+      }
     }
 
     update_loops = true;
@@ -920,17 +929,20 @@ int main(int argc, char** argv) {
       }
       // else: -> thread has sequences that need to be synchronized
 
-      // initialize seq_map to identity if not already set
-      for (auto* t_init : threads) {
-        for (uint32_t seq_id = n_seqs_verified; seq_id < t_init->nb_sequences; seq_id++) {
-          if (thread_seq_map[t_init->id].count(seq_id) == 0) {
-            map_set(thread_seq_map, thread_seq_rev, t_init->id, seq_id, seq_id);
-          }
-        }
-      }
-
       number_of_swaps += sync_sequences(threads, t, n_seqs_verified, thread_n_seqs, thread_seq_map, thread_seq_rev);
       n_seqs_verified = thread_n_seqs;
+
+      // compact extra danging invalids
+      for (auto* t2 : threads) {
+        if (t2->id == t->id) continue;
+        uint32_t new_nb = t2->nb_sequences;
+        while (new_nb > n_seqs_verified &&
+               (t2->sequences[new_nb - 1].id.id == PALLAS_TOKEN_ID_INVALID ||
+                t2->sequences[new_nb - 1].tokens.size() == 0)) {
+          new_nb--;
+        }
+        t2->nb_sequences = new_nb;
+      }
     }
 
     update_seqs = true;
