@@ -125,6 +125,26 @@ int main(int argc, char **argv __attribute__((unused))) {
     pallas_assert_always(secondLoop.nb_iterations == NUM_LOOPS);
     pallas_assert_always(secondLoop.nb_occurrences == 1);
 
+
+    // Here, we'll check that we can create a second loop that looks just like the first one
+    // And that it'll get labeled correctly as the first one
+    pallas_log(DebugLevel::Normal, "\tAdding a dummy event\n");
+    pallas_record_generic(&thread_writer, nullptr, get_timestamp(), MAX_EVENT);
+
+    pallas_log(DebugLevel::Normal, "\tRe-creating L0\n");
+    for (int loop_number = 0; loop_number < firstLoop.nb_iterations; loop_number ++) {
+        pallas_log(DebugLevel::Normal, "\t\tLoop %d\n", loop_number);
+        for (int eid = 0; eid < MAX_EVENT; eid++) {
+            pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+        }
+    }
+
+    pallas_assert_equals_always(thread_writer.cur_depth, 0);
+    pallas_assert_equals_always(thread_writer.sequence_stack[0].size(), 5); // L0 E L1 E L0
+    pallas_assert_equals_always(firstLoop.nb_iterations, 3);
+    pallas_assert_always(firstLoop.nb_occurrences == 2);
+
+
     thread_writer.threadClose();
     archive.store(thread_writer.parameter_handler);
     trace.store(thread_writer.parameter_handler);
