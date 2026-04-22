@@ -119,17 +119,9 @@ add_test(NAME print_pattern_benchmark COMMAND pallas_print ${PATTERN_TRACE_NAME}
 add_test(NAME print_pattern_benchmark_structure COMMAND pallas_print -S ${PATTERN_TRACE_NAME})
 add_test(NAME print_pattern_benchmark_thread COMMAND pallas_print -T ${PATTERN_TRACE_NAME})
 
-add_test (benchmark_checks bash
-        "${CMAKE_CURRENT_SOURCE_DIR}/write_benchmark.sh"
-        "${CMAKE_BINARY_DIR}" ${TRACE_NAME} -n ${N_ITER} -t ${N_THREADS})
-
-set_tests_properties(info_benchmark print_benchmark_thread print_benchmark print_benchmark_structure edit_benchmark test_snapshot PROPERTIES
-        REQUIRED_FILES ${TRACE_NAME}
-        DEPENDS write_benchmark
-)
-set_tests_properties(benchmark_checks PROPERTIES
-        REQUIRED_FILES ${TRACE_NAME}
-        DEPENDS "write_benchmark;info_benchmark;print_benchmark;print_benchmark_structure;print_benchmark_thread;edit_benchmark;test_snapshot"
+set_tests_properties(info_pattern_benchmark print_pattern_benchmark print_pattern_benchmark_structure print_pattern_benchmark_thread PROPERTIES
+        REQUIRED_FILES ${PATTERN_TRACE_NAME}
+        DEPENDS write_pattern_benchmark
 )
 
 
