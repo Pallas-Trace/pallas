@@ -225,8 +225,12 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
             .def("__next__", [](PyThreadIterator &self) {
-                if (self.inner->moveToNextToken()) {
-                    auto t = self.inner->pollCurToken();
+                bool out = self.inner->moveToNextToken();
+                pallas::Token t;
+                while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
+                    out = self.inner->moveToNextToken();
+                }
+                if (out) {
                     if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
@@ -237,8 +241,12 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyTraceIterator>(m, "Trace_Iterator", "An iterator over the trace.")
             .def("__next__", [](PyTraceIterator &self) {
-                if (self.inner->moveToNextToken()) {
-                    auto t = self.inner->pollCurToken();
+                bool out = self.inner->moveToNextToken();
+                pallas::Token t;
+                while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
+                    out = self.inner->moveToNextToken();
+                }
+                if (out) {
                     if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
