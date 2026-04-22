@@ -334,7 +334,7 @@ std::string Thread::getEventString(EventData *e) const {
     case PALLAS_EVENT_LEAVE: {
         RegionRef region_ref;
         pallas_read_leave(e, nullptr, &region_ref);
-        return "Enter " + std::to_string(region_ref) + " (" + getRegionStringFromEvent(e) + ")";
+        return "Leave " + std::to_string(region_ref) + " (" + getRegionStringFromEvent(e) + ")";
     }
     case PALLAS_EVENT_THREAD_BEGIN:
         return "THREAD_BEGIN()";
