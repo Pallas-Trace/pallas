@@ -140,7 +140,6 @@ int sync_events(std::vector<pallas::Thread*>& threads,
       // check if already synchronized
       if (event_cmp(src_event,cand_event)) {
         found_match = true;
-        map_set(event_map, event_rev, t2->id, event_id, event_id);
 
       // try to find other match somewhere
       } else {
@@ -283,7 +282,6 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
       // check if already synchronized
       if (!cand_is_invalid && loop_cmp(src_loop, cand_loop)) {
         found_match = true;
-        map_set(loop_map, loop_rev, t2->id, loop_id, loop_id);
 
       // try to find other match somewhere
       } else {
@@ -442,7 +440,6 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
       // check if already synchronized
       if (!cand_is_invalid && seq_cmp(src_seq, cand_seq)) {
         found_match = true;
-        map_set(seq_map, seq_rev, t2->id, seq_id, seq_id);
 
       // try to find other match somewhere
       } else {
