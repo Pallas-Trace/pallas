@@ -623,8 +623,9 @@ int main(int argc, char** argv) {
       auto& s = synced_strings[next_free_string_ref];
       s.string_ref = next_free_string_ref;
       s.length = string.length;
-      s.str = (char*) std::calloc(sizeof(char), s.length);
-      std::strncpy(s.str, string.str, s.length);
+      s.str = (char*) std::calloc(sizeof(char), s.length + 1);
+      std::memcpy(s.str, string.str, s.length);
+      s.str[s.length] = '\0';
 
       // record new StringRef and increment id
       string_ref_lookup[string_ref] = (uint32_t) next_free_string_ref;
