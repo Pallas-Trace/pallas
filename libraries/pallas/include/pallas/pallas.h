@@ -140,6 +140,7 @@ enum EventType {
  * Enumeration of the different events that are recorded by Pallas
  */
 enum Record {
+    // FIXME 0th value should be INVALID.
     PALLAS_EVENT_BUFFER_FLUSH = 0, /**< Signals that the internal buffer was flushed at the given time. */
     PALLAS_EVENT_MEASUREMENT_ON_OFF = 1, /**< Signals where the measurement system turned measurement on or off. */
     PALLAS_EVENT_ENTER = 2, /**< Indicates that the program enters a code region. */
