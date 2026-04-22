@@ -681,7 +681,7 @@ typedef struct Thread {
     [[nodiscard]] std::string getTokenArrayString(const Token* array, size_t start_index, size_t len) const;
 
     /** Returns a string describing that Event. */
-    [[nodiscard]] std::string getEventString(EventData* e) const;
+    [[nodiscard]] std::string getEventString(EventData *e) const;
 
     [[nodiscard]] std::map<Token, pallas_duration_t> getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const;
 
@@ -722,7 +722,7 @@ typedef struct Thread {
     void printRegion(RegionRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
-    [[nodiscard]] const char* getRegionStringFromEvent(pallas::EventData* e) const;
+    [[nodiscard]] const char* getRegionStringFromEvent(EventData *e) const;
 
     /** Prints the value of the attribute.*/
     void printAttributeValue(const struct AttributeData *attr, pallas_type_t type) const;
