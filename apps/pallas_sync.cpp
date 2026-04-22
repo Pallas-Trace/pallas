@@ -27,13 +27,27 @@ void map_set(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, u
   rev[thread_id][to] = from;
 }
 
-void map_swap(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t pos1, uint32_t pos2) {
-  uint32_t owner1 = rev[thread_id].count(pos1) ? rev[thread_id][pos1] : pos1;
-  uint32_t owner2 = rev[thread_id].count(pos2) ? rev[thread_id][pos2] : pos2;
-  fwd[thread_id][owner1] = pos2;
-  fwd[thread_id][owner2] = pos1;
-  rev[thread_id][pos2] = owner1;
-  rev[thread_id][pos1] = owner2;
+void map_swap(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t id1, uint32_t id2) {
+  bool count1 = rev[thread_id].count(id1);
+  bool count2 = rev[thread_id].count(id2);
+  uint32_t owner1 = count1 ? rev[thread_id][id1] : id1;
+  uint32_t owner2 = count2 ? rev[thread_id][id2] : id2;
+
+  if (count1) {
+    fwd[thread_id][owner1] = id2;
+    rev[thread_id][id2] = owner1;
+  }
+  else {
+    rev[thread_id].erase(id2);
+  }
+
+  if (count2) {
+    fwd[thread_id][owner2] = id1;
+    rev[thread_id][id1] = owner2;
+  }
+  else {
+    rev[thread_id].erase(id1);
+  }
 }
 
 uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
@@ -144,7 +158,10 @@ int sync_events(std::vector<pallas::Thread*>& threads,
         pallas::Event swap_event = std::move(t2->events[event_id]);
         event_insert(swap_event, t2, swap_id);
         event_override_invalid(t2, event_id);
-        map_set(event_map, event_rev, t2->id, event_id, swap_id);
+
+        uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
+        map_set(event_map, event_rev, t2->id, prev_owner, swap_id);
+        event_rev[t2->id].erase(event_id);
       }
     }
   }
@@ -737,6 +754,15 @@ int main(int argc, char** argv) {
 
   uint32_t n_events_verified = 0;
 
+  // initialize event_map to identity for original events
+  for (auto* t : threads) {
+    for (uint32_t i = 0; i < t->nb_events; i++) {
+      if (t->events[i].data.record != pallas::PALLAS_EVENT_MAX_ID) {
+        map_set(thread_event_map, thread_event_rev, t->id, i, i);
+      }
+    }
+  }
+
   for (auto* t : threads) {
     uint32_t thread_n_events = t->nb_events;
     if (thread_n_events <= n_events_verified) {
@@ -755,21 +781,11 @@ int main(int argc, char** argv) {
       }
     }
 
-    // initialize event_map to identity if not already set
-    for (auto* t_init : threads) {
-      for (uint32_t event_id = n_events_verified; event_id < thread_n_events; event_id++) {
-        if (thread_event_map[t_init->id].count(event_id) == 0 &&
-            event_id < t_init->nb_events &&
-            t_init->events[event_id].data.record != pallas::PALLAS_EVENT_MAX_ID) {
-          map_set(thread_event_map, thread_event_rev, t_init->id, event_id, event_id);
-        }
-      }
-    }
-
     sync_events(threads, t, n_events_verified, thread_n_events, thread_event_map, thread_event_rev);
     // track updated event index
     n_events_verified = thread_n_events;
 
+    // compact extra danging invalids
     for (auto* t2 : threads) {
       if (t2->id == t->id) continue;
       uint32_t new_nb = t2->nb_events;
