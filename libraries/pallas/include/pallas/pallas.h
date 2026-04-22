@@ -140,8 +140,7 @@ enum EventType {
  * Enumeration of the different events that are recorded by Pallas
  */
 enum Record {
-    // FIXME 0th value should be INVALID.
-    PALLAS_EVENT_BUFFER_FLUSH = 0, /**< Signals that the internal buffer was flushed at the given time. */
+    PALLAS_EVENT_INVALID = 0,
     PALLAS_EVENT_MEASUREMENT_ON_OFF = 1, /**< Signals where the measurement system turned measurement on or off. */
     PALLAS_EVENT_ENTER = 2, /**< Indicates that the program enters a code region. */
     PALLAS_EVENT_LEAVE = 3, /**< Indicates that the program leaves a code region. */
@@ -201,6 +200,7 @@ enum Record {
     PALLAS_EVENT_COMM_CREATE = 56, /**< Denotes the creation of a communicator.*/
     PALLAS_EVENT_COMM_DESTROY = 57, /**< Marks the communicator for destruction at the end of the enclosing MpiCollectiveBegin and MpiCollectiveEnd event pair. */
     PALLAS_EVENT_GENERIC = 58, /**< Event record identifier for any other event. */
+    PALLAS_EVENT_BUFFER_FLUSH = 59, /**< Signals that the internal buffer was flushed at the given time. */
 
     PALLAS_EVENT_MAX_ID /**< Max Event Record ID */
 };
