@@ -102,4 +102,4 @@ std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self);
 
 int get_read_flags_from_bools(bool enter_sequence, bool enter_loop);
 
-py::dict get_attributes(PyEvent &event, size_t occurence);
+py::dict get_attributes(PyEvent &event, size_t occurrence);

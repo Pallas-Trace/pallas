@@ -30,59 +30,59 @@ namespace pallas {
 #define PALLAS_READ_FLAG_UNROLL_ALL (PALLAS_READ_FLAG_UNROLL_SEQUENCE|PALLAS_READ_FLAG_UNROLL_LOOP)
 
 
-/** Represents one occurence of an Event. */
-typedef struct EventOccurence {
+/** Represents one occurrence of an Event. */
+typedef struct EventOccurrence {
   struct EventData* event;          /**< Pointer to the Event.*/
-  pallas_timestamp_t timestamp; /**< Timestamp for that occurence.*/
-  AttributeList* attributes;    /**< Attributes for that occurence.*/
-} EventOccurence;
+  pallas_timestamp_t timestamp; /**< Timestamp for that occurrence.*/
+  AttributeList* attributes;    /**< Attributes for that occurrence.*/
+} EventOccurrence;
 
 /**
- * Represents one occurence of a Sequence.
+ * Represents one occurrence of a Sequence.
  */
-typedef struct SequenceOccurence {
+typedef struct SequenceOccurrence {
   struct Sequence* sequence;            /**< Pointer to the Sequence.*/
-  pallas_timestamp_t timestamp;         /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;           /**< Duration of that occurence.*/
-  struct TokenOccurence* full_sequence; /** Array of the occurrences in this sequence. */
+  pallas_timestamp_t timestamp;         /**< Timestamp for that occurrence.*/
+  pallas_duration_t duration;           /**< Duration of that occurrence.*/
+  struct TokenOccurrence* full_sequence; /** Array of the occurrences in this sequence. */
   struct Cursor *checkpoint;
-} SequenceOccurence;
+} SequenceOccurrence;
 
 /**
- * Represents one occurence of a Loop.
+ * Represents one occurrence of a Loop.
  */
-typedef struct LoopOccurence {
+typedef struct LoopOccurrence {
   struct Loop* loop;                     /**< Pointer to the Loop.*/
-  unsigned int nb_iterations;            /**< Number of iterations for that occurence.*/
-  pallas_timestamp_t timestamp;          /**< Timestamp for that occurence.*/
-  pallas_duration_t duration;            /**< Duration for that occurence.*/
-  struct SequenceOccurence* full_loop;   /**< Array of the Sequences in this loop.*/
-  struct SequenceOccurence loop_summary; /**< False SequenceOccurence that represents a summary of all the
+  unsigned int nb_iterations;            /**< Number of iterations for that occurrence.*/
+  pallas_timestamp_t timestamp;          /**< Timestamp for that occurrence.*/
+  pallas_duration_t duration;            /**< Duration for that occurrence.*/
+  struct SequenceOccurrence* full_loop;   /**< Array of the Sequences in this loop.*/
+  struct SequenceOccurrence loop_summary; /**< False SequenceOccurrence that represents a summary of all the
                                           * occurrences in full_loop. */
-} LoopOccurence;
+} LoopOccurrence;
 
 /**
  * Represents any kind of Occurrence.
  */
-typedef union Occurence {
-  struct LoopOccurence loop_occurence;         /**< Occurence for a Loop.*/
-  struct SequenceOccurence sequence_occurence; /**< Occurence for a Sequence.*/
-  struct EventOccurence event_occurence;       /**< Occurence for an Event.*/
-} Occurence;
+typedef union Occurrence {
+  struct LoopOccurrence loop_occurrence;         /**< Occurrence for a Loop.*/
+  struct SequenceOccurrence sequence_occurrence; /**< Occurrence for a Sequence.*/
+  struct EventOccurrence event_occurrence;       /**< Occurrence for an Event.*/
+} Occurrence;
 
 /**
- * Tuple containing a Token and its corresponding Occurence.
+ * Tuple containing a Token and its corresponding Occurrence.
  */
-typedef struct TokenOccurence {
-  /** Token for the occurence. */
+typedef struct TokenOccurrence {
+  /** Token for the occurrence. */
   const Token* token;
-  /** Occurence corresponding to the Token. */
-  Occurence* occurence;
+  /** Occurrence corresponding to the Token. */
+  Occurrence* occurrence;
 
 #ifdef __cplusplus
-  ~TokenOccurence();
+  ~TokenOccurrence();
 #endif
-} TokenOccurence;
+} TokenOccurrence;
 
 typedef struct CallstackFrame {
   /** The current timestamp. */
@@ -171,7 +171,7 @@ typedef struct ThreadReader {
     [[nodiscard]] Event *getEvent(Token event) const;
 
     /** Returns the timestamp of the given event occurring at the given index. */
-    [[nodiscard]] pallas_timestamp_t getEventTimestamp(Token event, int occurence_id) const;
+    [[nodiscard]] pallas_timestamp_t getEventTimestamp(Token event, int occurrence_id) const;
 
     /** Returns whether the given sequence still has more Tokens after the given current_index. */
     [[nodiscard]] bool isEndOfSequence(int current_index, Token sequence_id) const;
@@ -191,26 +191,26 @@ typedef struct ThreadReader {
     /** Returns the duration of the given Loop. */
     [[nodiscard]] pallas_duration_t getLoopDuration(Token loop_id) const;
 
-    /** Returns an EventOccurence for the given Token appearing at the given occurence_id.
+    /** Returns an EventOccurrence for the given Token appearing at the given occurrence_id.
      * Timestamp is set to Reader's referential timestamp.*/
-    [[nodiscard]] EventOccurence getEventOccurence(Token event_id, size_t occurence_id) const;
+    [[nodiscard]] EventOccurrence getEventOccurrence(Token event_id, size_t occurrence_id) const;
 
-    /** Returns an SequenceOccurence for the given Token appearing at the given occurence_id.
+    /** Returns an SequenceOccurrence for the given Token appearing at the given occurrence_id.
      * Timestamp is set to Reader's referential timestamp.*/
-    [[nodiscard]] SequenceOccurence getSequenceOccurence(Token sequence_id,
-                                                         size_t occurence_id) const;
+    [[nodiscard]] SequenceOccurrence getSequenceOccurrence(Token sequence_id,
+                                                         size_t occurrence_id) const;
 
-    /** Returns an LoopOccurence for the given Token appearing at the given occurence_id.
+    /** Returns an LoopOccurrence for the given Token appearing at the given occurrence_id.
      * Timestamp is set to Reader's referential timestamp.*/
-    [[nodiscard]] LoopOccurence getLoopOccurence(Token loop_id, size_t occurence_id) const;
+    [[nodiscard]] LoopOccurrence getLoopOccurrence(Token loop_id, size_t occurrence_id) const;
     /** Returns the current token count for given token.*/
     [[nodiscard]] size_t getCurrentTokenCount(Token t) const;
 
     /** Returns the current timestamp. */
     [[nodiscard]] pallas_timestamp_t getCurrentTimestamp() const;
 
-    /** Returns a pointer to the AttributeList for the given occurence of the given Event. */
-    [[nodiscard]] AttributeList *getEventAttributeList(Token event_id, size_t occurence_id) const;
+    /** Returns a pointer to the AttributeList for the given occurrence of the given Event. */
+    [[nodiscard]] AttributeList *getEventAttributeList(Token event_id, size_t occurrence_id) const;
 
     /** Returns a map that assigns names to sequences */
     void guessSequencesNames(std::map<pallas::Sequence *, std::string> &names) const;
@@ -322,7 +322,7 @@ void pallasPrintCallstack(ThreadReader *thread_reader);
 /** Returns the Event from the given token. */
 Event* pallasGetEvent(ThreadReader *thread_reader, Token event);
 /** Returns the timestamp of the given event occurring at the given index. */
-pallas_timestamp_t pallasGetEventTimestamp(ThreadReader *thread_reader, Token event, int occurence_id);
+pallas_timestamp_t pallasGetEventTimestamp(ThreadReader *thread_reader, Token event, int occurrence_id);
 /** Returns whether the given sequence still has more Tokens after the given current_index. */
 bool pallasIsEndOfSequence(ThreadReader *thread_reader, int current_index, Token sequence_id);
 /** Returns whether the given loop still has more Tokens after the given current_index. */
@@ -336,21 +336,21 @@ bool pallasIsEndOfTrace(ThreadReader *thread_reader);
 /** Returns the duration of the given Loop. */
 pallas_duration_t pallasGetLoopDuration(ThreadReader *thread_reader, Token loop_id);
 
-/** Returns an EventOccurence for the given Token appearing at the given occurence_id.
+/** Returns an EventOccurrence for the given Token appearing at the given occurrence_id.
  * Timestamp is set to Reader's referential timestamp.*/
-EventOccurence pallasGetEventOccurence(ThreadReader *thread_reader, Token event_id, size_t occurence_id);
-/** Returns an SequenceOccurence for the given Token appearing at the given occurence_id.
+EventOccurrence pallasGetEventOccurrence(ThreadReader *thread_reader, Token event_id, size_t occurrence_id);
+/** Returns an SequenceOccurrence for the given Token appearing at the given occurrence_id.
  * Timestamp is set to Reader's referential timestamp.*/
-SequenceOccurence pallasGetSequenceOccurence(ThreadReader *thread_reader,
+SequenceOccurrence pallasGetSequenceOccurrence(ThreadReader *thread_reader,
                                              Token sequence_id,
-                                             size_t occurence_id,
+                                             size_t occurrence_id,
                                              bool create_checkpoint);
-/** Returns an LoopOccurence for the given Token appearing at the given occurence_id.
+/** Returns an LoopOccurrence for the given Token appearing at the given occurrence_id.
  * Timestamp is set to Reader's referential timestamp.*/
-LoopOccurence pallasGetLoopOccurence(ThreadReader *thread_reader, Token loop_id, size_t occurence_id);
+LoopOccurrence pallasGetLoopOccurrence(ThreadReader *thread_reader, Token loop_id, size_t occurrence_id);
 
-/** Returns a pointer to the AttributeList for the given occurence of the given Event. */
-AttributeList* pallasGetEventAttributeList(ThreadReader *thread_reader, Token event_id, size_t occurence_id);
+/** Returns a pointer to the AttributeList for the given occurrence of the given Event. */
+AttributeList* pallasGetEventAttributeList(ThreadReader *thread_reader, Token event_id, size_t occurrence_id);
 
 //******************* EXPLORATION FUNCTIONS ********************
 

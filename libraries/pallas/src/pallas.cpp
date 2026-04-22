@@ -303,55 +303,38 @@ void Thread::printSequence(pallas::Token token) const {
     printTokenVector(sequence->tokens);
 }
 
-const char* Thread::getRegionStringFromEvent(pallas::EventData* e) const {
-    const Region* region = NULL;
-    byte* cursor = nullptr;
+const char* Thread::getRegionStringFromEvent(EventData *e) const {
+    const Region* region = nullptr;
+    RegionRef region_ref;
+    const byte* cursor = nullptr;
     switch (e->record) {
     case PALLAS_EVENT_ENTER: {
-        RegionRef region_ref;
-        pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        region = archive->getRegion(region_ref);
+        pallas_read_enter(e, nullptr, &region_ref);
         break;
     }
     case PALLAS_EVENT_LEAVE: {
-        RegionRef region_ref;
-        pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        region = archive->getRegion(region_ref);
+        pallas_read_leave(e, nullptr, &region_ref);
         break;
     }
     default:
-        region = NULL;
+        return "INVALID_EVENT";
     }
+    region = archive->getRegion(region_ref);
 
-    return region ? archive->getString(region->string_ref)->str : "INVALID";
+    return region ? archive->getString(region->string_ref)->str : "INVALID_REGION";
 }
 
-std::string Thread::getEventString(EventData* e) const {
-    byte* cursor = nullptr;
+std::string Thread::getEventString(EventData *e) const {
     switch (e->record) {
     case PALLAS_EVENT_ENTER: {
         RegionRef region_ref;
-        pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        const Region* region = archive->getRegion(region_ref);
-        if (! region) {
-            return "Enter " + std::to_string(region_ref) + " (INVALID)";
-        }
-        if (auto region_str = archive->getString(region->string_ref)) {
-            return "Enter " + std::to_string(region_ref) + " (" + region_str->str + ")";
-        }
-        return "Enter " + std::to_string(region_ref);
+        pallas_read_enter(e, nullptr, &region_ref);
+        return "Enter " + std::to_string(region_ref) + " (" + getRegionStringFromEvent(e) + ")";
     }
     case PALLAS_EVENT_LEAVE: {
         RegionRef region_ref;
-        pallas_event_pop_data(e, &region_ref, sizeof(region_ref), &cursor);
-        const Region* region = archive->getRegion(region_ref);
-        if (! region) {
-            return "Leave " + std::to_string(region_ref) + " (INVALID)";
-        }
-        if (auto region_str = archive->getString(region->string_ref)) {
-            return "Leave " + std::to_string(region_ref) + " (" + region_str->str + ")";
-        }
-        return "Leave " + std::to_string(region_ref);
+        pallas_read_leave(e, nullptr, &region_ref);
+        return "Leave " + std::to_string(region_ref) + " (" + getRegionStringFromEvent(e) + ")";
     }
     case PALLAS_EVENT_THREAD_BEGIN:
         return "THREAD_BEGIN()";
@@ -363,7 +346,7 @@ std::string Thread::getEventString(EventData* e) const {
         return "THREAD_TEAM_END()";
     case PALLAS_EVENT_THREAD_FORK: {
         uint32_t numberOfRequestedThreads;
-        pallas_event_pop_data(e, &numberOfRequestedThreads, sizeof(numberOfRequestedThreads), &cursor);
+        pallas_read_thread_fork(e, nullptr, &numberOfRequestedThreads);
         return "THREAD_FORK(nThreads= " + std::to_string(numberOfRequestedThreads) + ")";
     }
     case PALLAS_EVENT_THREAD_JOIN:
@@ -374,11 +357,7 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t communicator;
         uint32_t msgTag;
         uint64_t msgLength;
-
-        pallas_event_pop_data(e, &receiver, sizeof(receiver), &cursor);
-        pallas_event_pop_data(e, &communicator, sizeof(communicator), &cursor);
-        pallas_event_pop_data(e, &msgTag, sizeof(msgTag), &cursor);
-        pallas_event_pop_data(e, &msgLength, sizeof(msgLength), &cursor);
+        pallas_read_mpi_send(e, nullptr, &receiver, &communicator, &msgTag, &msgLength);
         return "MPI_SEND("
                "dest=" + std::to_string(receiver) +
                ", comm=" + std::to_string(communicator) +
@@ -392,11 +371,8 @@ std::string Thread::getEventString(EventData* e) const {
         uint64_t msgLength;
         uint64_t requestID;
 
-        pallas_event_pop_data(e, &receiver, sizeof(receiver), &cursor);
-        pallas_event_pop_data(e, &communicator, sizeof(communicator), &cursor);
-        pallas_event_pop_data(e, &msgTag, sizeof(msgTag), &cursor);
-        pallas_event_pop_data(e, &msgLength, sizeof(msgLength), &cursor);
-        pallas_event_pop_data(e, &requestID, sizeof(requestID), &cursor);
+        pallas_read_mpi_isend(e, nullptr, &receiver, &communicator, &msgTag, &msgLength, &requestID);
+
         return "MPI_ISEND("
                "dest=" + std::to_string(receiver) +
                ", comm=" + std::to_string(communicator) +
@@ -406,12 +382,12 @@ std::string Thread::getEventString(EventData* e) const {
     }
     case PALLAS_EVENT_MPI_ISEND_COMPLETE: {
         uint64_t requestID;
-        pallas_event_pop_data(e, &requestID, sizeof(requestID), &cursor);
+        pallas_read_mpi_isend_complete(e, nullptr, &requestID);
         return "MPI_ISEND_COMPLETE(req=" + std::to_string(requestID) + ")";
     }
     case PALLAS_EVENT_MPI_IRECV_REQUEST: {
         uint64_t requestID;
-        pallas_event_pop_data(e, &requestID, sizeof(requestID), &cursor);
+        pallas_read_mpi_irecv_request(e, nullptr, &requestID);
         return "MPI_IRECV_REQUEST(req=" + std::to_string(requestID) + ")";
     }
     case PALLAS_EVENT_MPI_RECV: {
@@ -419,11 +395,7 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t communicator;
         uint32_t msgTag;
         uint64_t msgLength;
-
-        pallas_event_pop_data(e, &sender, sizeof(sender), &cursor);
-        pallas_event_pop_data(e, &communicator, sizeof(communicator), &cursor);
-        pallas_event_pop_data(e, &msgTag, sizeof(msgTag), &cursor);
-        pallas_event_pop_data(e, &msgLength, sizeof(msgLength), &cursor);
+        pallas_read_mpi_recv(e, nullptr, &sender, &communicator, &msgTag, &msgLength);
         return "MPI_RECV("
                "src=" + std::to_string(sender) +
                ", comm=" + std::to_string(communicator) +
@@ -436,11 +408,7 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t msgTag;
         uint64_t msgLength;
         uint64_t requestID;
-        pallas_event_pop_data(e, &sender, sizeof(sender), &cursor);
-        pallas_event_pop_data(e, &communicator, sizeof(communicator), &cursor);
-        pallas_event_pop_data(e, &msgTag, sizeof(msgTag), &cursor);
-        pallas_event_pop_data(e, &msgLength, sizeof(msgLength), &cursor);
-        pallas_event_pop_data(e, &requestID, sizeof(requestID), &cursor);
+        pallas_read_mpi_irecv(e, nullptr, &sender, &communicator, &msgTag, &msgLength, &requestID);
         return "MPI_IRECV("
                "src=" + std::to_string(sender) +
                ", comm=" + std::to_string(communicator) +
@@ -457,13 +425,7 @@ std::string Thread::getEventString(EventData* e) const {
         uint32_t root;
         uint64_t sizeSent;
         uint64_t sizeReceived;
-
-        pallas_event_pop_data(e, &collectiveOp, sizeof(collectiveOp), &cursor);
-        pallas_event_pop_data(e, &communicator, sizeof(communicator), &cursor);
-        pallas_event_pop_data(e, &root, sizeof(root), &cursor);
-        pallas_event_pop_data(e, &sizeSent, sizeof(sizeSent), &cursor);
-        pallas_event_pop_data(e, &sizeReceived, sizeof(sizeReceived), &cursor);
-
+        pallas_read_mpi_collective_end(e, nullptr, &collectiveOp, &communicator, &root, &sizeSent, &sizeReceived);
         return "MPI_COLLECTIVE_END(op=" + std::to_string(collectiveOp) +
                ", comm=" + std::to_string(communicator) +
                ", root=" + std::to_string(root) +
@@ -472,7 +434,7 @@ std::string Thread::getEventString(EventData* e) const {
     }
     case PALLAS_EVENT_OMP_FORK: {
         uint32_t numberOfRequestedThreads;
-        pallas_event_pop_data(e, &numberOfRequestedThreads, sizeof(numberOfRequestedThreads), &cursor);
+        pallas_read_omp_fork(e, nullptr, &numberOfRequestedThreads);
         return "OMP_FORK(nThreads=" + std::to_string(numberOfRequestedThreads) + ")";
     }
     case PALLAS_EVENT_OMP_JOIN:
@@ -480,44 +442,40 @@ std::string Thread::getEventString(EventData* e) const {
     case PALLAS_EVENT_OMP_ACQUIRE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
-        pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
-        // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
+        pallas_read_omp_acquire_lock(e, nullptr, &lockID, &acquisitionOrder);
         return "OMP_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_ACQUIRE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
-        pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
-        // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
+        pallas_read_thread_acquire_lock(e, nullptr, &lockID, &acquisitionOrder);
         return "THREAD_ACQUIRE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
-        pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
-        // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
+        pallas_read_omp_release_lock(e, nullptr, &lockID, &acquisitionOrder);
         return "OMP_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_THREAD_RELEASE_LOCK: {
         uint32_t lockID;
         uint32_t acquisitionOrder;
-        pallas_event_pop_data(e, &lockID, sizeof(lockID), &cursor);
-        // pallas_event_pop_data(e, &acquisitionOrder, sizeof(acquisitionOrder&), cursor);
+        pallas_read_thread_release_lock(e, nullptr, &lockID, &acquisitionOrder);
         return "THREAD_RELEASE_LOCK(lockID=" + std::to_string(lockID) + ")";
     }
     case PALLAS_EVENT_OMP_TASK_CREATE: {
         uint64_t taskID;
-        pallas_event_pop_data(e, &taskID, sizeof(taskID), &cursor);
+        pallas_read_omp_task_create(e, nullptr, &taskID);
         return "OMP_TASK_CREATE(taskID=" + std::to_string(taskID) + ")";
     }
     case PALLAS_EVENT_OMP_TASK_SWITCH: {
         uint64_t taskID;
-        pallas_event_pop_data(e, &taskID, sizeof(taskID), &cursor);
+        pallas_read_omp_task_switch(e, nullptr, &taskID);
         return "OMP_TASK_SWITCH(taskID=" + std::to_string(taskID) + ")";
     }
     case PALLAS_EVENT_OMP_TASK_COMPLETE: {
         uint64_t taskID;
-        pallas_event_pop_data(e, &taskID, sizeof(taskID), &cursor);
+        pallas_read_omp_task_complete(e, nullptr, &taskID);
         return "OMP_TASK_COMPLETE(taskID=" + std::to_string(taskID) + ")";
     }
     case PALLAS_EVENT_THREAD_TASK_CREATE: {
@@ -531,7 +489,7 @@ std::string Thread::getEventString(EventData* e) const {
     }
     case PALLAS_EVENT_GENERIC: {
         StringRef eventNameRef;
-        pallas_event_pop_data(e, &eventNameRef, sizeof(eventNameRef), &cursor);
+        pallas_read_generic(e, nullptr, &eventNameRef);
         auto eventName = archive->getString(eventNameRef);
         return eventName->str;
     }
@@ -554,14 +512,14 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
         // Skip exploration if we're in a Sequence or a Loop we have no interest in.
         if (current_token.type == TypeSequence) {
-            auto current_sequence = reader.getSequenceOccurence(current_token, current_count);
+            auto current_sequence = reader.getSequenceOccurrence(current_token, current_count);
             if (current_sequence.timestamp + current_sequence.duration < start) {
                 current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
             }
         }
         if (current_token.type == TypeLoop) {
-            auto current_loop = reader.getLoopOccurence(current_token, current_count);
+            auto current_loop = reader.getLoopOccurrence(current_token, current_count);
             if (current_loop.timestamp + current_loop.duration < start) {
                 current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
@@ -617,7 +575,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         }
 
         // Since we're at an Event, we know current_iterable is a Sequence (Loop have to contain Sequence Tokens)
-        auto bottom_sequence = reader.getSequenceOccurence(
+        auto bottom_sequence = reader.getSequenceOccurrence(
             reader.getCurIterable(),
             (reader.currentState.currentFrame - 1)->tokenCount[reader.getCurIterable()]
             )

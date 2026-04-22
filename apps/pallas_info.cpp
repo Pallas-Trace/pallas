@@ -91,7 +91,7 @@ void info_event_header() {
   std::cout << std::left << "#";
   std::cout << std::setw(14) << std::left << "Event_id";
   std::cout << std::setw(35) << std::left << "Event_name";
-  std::cout << std::setw(20) << std::right << "Nb_occurence";
+  std::cout << std::setw(20) << std::right << "Nb_occurrence";
   std::cout << std::setw(20) << std::right << "Min_duration(ns)";
   std::cout << std::setw(20) << std::right << "Max_duration(ns)";
   std::cout << std::setw(20) << std::right << "Mean_duration(ns)";
@@ -111,7 +111,7 @@ void info_sequence_header() {
   std::cout << std::left << "#";
   std::cout << std::setw(14) << std::left << "Sequence_id";
   std::cout << std::setw(35) << std::left << "Sequence_name";
-  std::cout << std::setw(18) << std::right << "Nb_occurence";
+  std::cout << std::setw(18) << std::right << "Nb_occurrence";
   std::cout << std::setw(18) << std::right << "Min_duration(s)";
   std::cout << std::setw(18) << std::right << "Max_duration(s)";
   std::cout << std::setw(18) << std::right << "Mean_duration(s)";
@@ -134,10 +134,6 @@ float contention_score(Thread* t, Sequence& s) {
 void info_sequence(Thread* t, int index, bool details = false) {
   Sequence& s = t->sequences[index];
 
-  if (details) {
-    info_sequence_header();
-  }
-
   std::string sequence_name = s.guessName(t);
 
   std::cout << std::left << "S" << std::setw(14) << std::left << index;
@@ -156,17 +152,17 @@ void info_sequence(Thread* t, int index, bool details = false) {
 
   if (details) {
     if (cmd & show_sequence_content) {
-      std::cout << std::endl << "------------------- Sequence" << s.id.id << " contains:" << std::endl;
+      std::cout << "------------------- Sequence " << s.id.id << " contains:" << std::endl;
       for (auto token : s.tokens) {
         std::cout << "\t" << std::left << getTokenString(t, token) << std::endl;
       }
         // TODO show exclusive durations
-      std::cout << "------------------- End of sequence" << s.id.id << std::endl;
+      std::cout << "------------------- End of Sequence " << s.id.id << std::endl;
       std::cout << std::endl;
     }
 
     if (cmd & show_sequence_durations) {
-      std::cout << std::endl << "------------------- Sequence" << s.id.id << " duration:" << std::endl;
+      std::cout << std::endl << "------------------- Sequence " << s.id.id << " duration:" << std::endl;
       for (int i = 0; i < s.durations->size; i++) {
         uint64_t duration = s.durations->at(i);
         std::cout << "\t" << duration << std::endl;
@@ -190,10 +186,8 @@ void info_loop_header() {
     std::cout << std::setw(14) << std::left << "Loop_id";
     std::cout << std::setw(14) << std::left << "Sequence_id";
     std::cout << std::setw(35) << std::left << "Loop_name";
-    std::cout << std::setw(18) << std::right << "Nb_occurence";
-    std::cout << std::setw(18) << std::right << "Min_nb_iterations";
-    std::cout << std::setw(18) << std::right << "Max_nb_iterations";
-    std::cout << std::setw(18) << std::right << "Mean_nb_iterations";
+    std::cout << std::setw(18) << std::right << "Nb_iterations";
+    std::cout << std::setw(18) << std::right << "Nb_occurrence";
     std::cout << std::endl;
 }
 
@@ -204,6 +198,7 @@ void info_loop(Thread* t, int index) {
     std::cout << std::left << "S" << std::setw(14) << std::left << l->repeated_token.id;
     std::cout << std::setw(35) << std::left << loop_name;
     std::cout << std::setw(18) << std::right << l->nb_iterations;
+    std::cout << std::setw(18) << std::right << l->nb_occurrences;
     std::cout << std::endl;
 }
 
@@ -236,6 +231,7 @@ void info_thread(Thread* t) {
   }
 
   if ((cmd & show_sequence_content) || (cmd & show_sequence_durations)) {
+    printf("\n");
     info_sequence_header();
     for (unsigned i = 0; i < t->nb_sequences; i++) {
       info_sequence(t, i, true);

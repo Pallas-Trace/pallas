@@ -1048,6 +1048,9 @@ static void readEventData(pallas::EventData& event,
                             const pallas::ParameterHandler& parameter_handler,
                             uint8_t abi_version) {
     eventFile.read(&event.record, sizeof(event.record), 1);
+    if (abi_version <= 18 && event.record == 0) {
+        event.record = pallas::PALLAS_EVENT_BUFFER_FLUSH;
+    }
     eventFile.read(&event.event_size, sizeof(event.event_size), 1);
     auto size = event.event_size - offsetof(pallas::EventData, event_data);
     eventFile.read(event.event_data, size, 1);
@@ -1171,15 +1174,19 @@ static void storeLoop(pallas::Loop& loop, const File& loopFile) {
   }
   loopFile.write(&loop.repeated_token, sizeof(loop.repeated_token), 1);
   loopFile.write(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
+    loopFile.write(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
 }
 
 static void readLoop(pallas::Loop& loop, const File& loopFile, uint8_t abi_version) {
   loopFile.read(&loop.repeated_token, sizeof(loop.repeated_token), 1);
   loopFile.read(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
-  if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
-    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u\n",
-               loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id, loop.nb_iterations);
-  }
+    if (abi_version <= 18) {
+        loop.nb_occurrences = - 1;
+    } else {
+        loopFile.read(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
+    }
+    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u, .nb_occurrences: %lu}\n",
+               loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id, loop.nb_iterations, loop.nb_occurrences);
 }
 
 static void storeString(pallas::Definition& definitions, File& file) {

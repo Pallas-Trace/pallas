@@ -17,116 +17,142 @@ using namespace pallas;
 
 static pallas_timestamp_t ts = 0;
 static pallas_timestamp_t step = 1;
+
 static pallas_timestamp_t get_timestamp() {
-  ts += step;
-  return ts;
+    ts += step;
+    return ts;
 }
 
 static inline std::string dummyTraceName = "find_loop_trace";
 
-int main(int argc, char** argv __attribute__((unused))) {
-  if (argc < 2) {
-    pallas_error("Not enough arguments ! 2 argument required.\n");
-  }
-  if (argc > 3) {
-    pallas_error("Too many arguments ! 3 argument required.\n");
-  }
-  int MAX_EVENT = std::stoi(argv[1]);
-  int NUM_LOOPS = std::stoi(argv[2]);
+int main(int argc, char **argv __attribute__((unused))) {
+    if (argc < 2) {
+        pallas_error("Not enough arguments ! 2 argument required.\n");
+    }
+    if (argc > 3) {
+        pallas_error("Too many arguments ! 3 argument required.\n");
+    }
+    int MAX_EVENT = std::stoi(argv[1]);
+    int NUM_LOOPS = std::stoi(argv[2]);
 
-  pallas_log(DebugLevel::Normal, "Starting test:\n");
+    pallas_log(DebugLevel::Normal, "Starting test:\n");
 
-  /* Make a dummy archive and a dummy thread writer. */
-  GlobalArchive trace(dummyTraceName.c_str(), dummyTraceName.c_str());
-  Archive archive(trace, 0);
-  ThreadWriter thread_writer(archive, 0);
+    /* Make a dummy archive and a dummy thread writer. */
+    GlobalArchive trace(dummyTraceName.c_str(), dummyTraceName.c_str());
+    Archive archive(trace, 0);
+    ThreadWriter thread_writer(archive, 0);
     archive.defineLocation(0, 0, 0);
 
-  /* Start recording some events.*/
+    /* Start recording some events.*/
 
-  pallas_log(DebugLevel::Normal, "\tLoading definitions and logging E0 ... E%d\n", MAX_EVENT-1);
-  for (int eid = 0; eid < MAX_EVENT; eid++) {
+    pallas_log(DebugLevel::Normal, "\tLoading definitions and logging E0 ... E%d\n", MAX_EVENT-1);
+    for (int eid = 0; eid < MAX_EVENT; eid++) {
 #ifdef HAS_FORMAT
-    archive.addString(eid, std::format("dummyEvent{}", eid).c_str());
+        archive.addString(eid, std::format("dummyEvent{}", eid).c_str());
 #else
-    trace.addString(eid, "dummyEvent");
+        trace.addString(eid, "dummyEvent");
 #endif
-    pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
-  }
-  /* Check they've been correctly registered. */
-  pallas_assert_always(thread_writer.cur_depth == 0);
-  pallas_assert_always(thread_writer.sequence_stack[0].size() == (unsigned int)MAX_EVENT);
-  for (int eid = 0; eid < MAX_EVENT; eid++) {
-    pallas_assert_always(thread_writer.sequence_stack[0][eid].type == TypeEvent);
-    pallas_assert_always(thread_writer.sequence_stack[0][eid].id == eid);
-  }
-
-  pallas_log(DebugLevel::Normal, "\tCreating our first loop\n");
-  /* Start recording some more events. This should make a first loop. */
-  for (int eid = 0; eid < MAX_EVENT; eid++) {
-      pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
-  }
-
-  /* This should have been recognized as a loop, so now there should be some changes. */
-  pallas_assert_always(thread_writer.cur_depth == 0);
-  pallas_assert_always(thread_writer.sequence_stack[0].size() == 1);
-  pallas_assert_always(thread_writer.sequence_stack[0][0].type == TypeLoop);
-  /* Check that the loop is correct */
-  auto& firstLoop = thread_writer.thread->loops[0];
-  pallas_assert_always(firstLoop.nb_iterations == 2);
-
-  /* Check that the sequence inside that loop is correct */
-  struct Sequence* s = thread_writer.thread->getSequence(firstLoop.repeated_token);
-
-  pallas_assert_always(s->size() == (unsigned int)MAX_EVENT);
-
-  for (int eid = 0; eid < MAX_EVENT; eid++) {
-    pallas_assert_always(s->tokens[eid].type == TypeEvent);
-    pallas_assert_always(s->tokens[eid].id == eid);
-  }
-
-  pallas_log(DebugLevel::Normal, "\tIncrementing L0 to 3 iterations\n");
-  /* Start recording even more events. The first loop happens 3 times now.*/
-  for (int eid = 0; eid < MAX_EVENT; eid++) {
-      pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
-  }
-  pallas_assert_always(thread_writer.cur_depth == 0);
-  pallas_assert_always(thread_writer.sequence_stack[0].size() == 1);
-  pallas_assert_always(firstLoop.nb_iterations == 3);
-
-
-  pallas_log(DebugLevel::Normal, "\tAdding a dummy event\n");
-  /* Now start recording one more event and then loop again. */
-#ifdef HAS_FORMAT
-  archive.addString(MAX_EVENT, std::format("dummyEvent{}", MAX_EVENT).c_str());
-#else
-  trace.addString(MAX_EVENT, "dummyEvent");
-#endif
-  pallas_record_generic(&thread_writer, nullptr, get_timestamp(), MAX_EVENT);
-
-
-  pallas_log(DebugLevel::Normal, "\tRunning the same loop with different iterations\n");
-  DOFOR(loop_number, NUM_LOOPS) {
-    pallas_log(DebugLevel::Normal, "\t\tLoop %d\n", loop_number);
-    DOFOR(eid, MAX_EVENT) {
-      pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+        pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
     }
-  }
-  pallas_assert_equals_always(thread_writer.cur_depth, 0);
-  pallas_assert_equals_always(thread_writer.sequence_stack[0].size(), 3); // L0 E L1
-  pallas_assert_equals_always(firstLoop.nb_iterations, 3);
+    /* Check they've been correctly registered. */
+    pallas_assert_always(thread_writer.cur_depth == 0);
+    pallas_assert_always(thread_writer.sequence_stack[0].size() == (unsigned int)MAX_EVENT);
+    for (int eid = 0; eid < MAX_EVENT; eid++) {
+        pallas_assert_always(thread_writer.sequence_stack[0][eid].type == TypeEvent);
+        pallas_assert_always(thread_writer.sequence_stack[0][eid].id == eid);
+    }
 
-  auto& secondLoop = thread_writer.thread->loops[1];
-  pallas_assert_always(secondLoop.nb_iterations == NUM_LOOPS);
+    pallas_log(DebugLevel::Normal, "\tCreating our first loop\n");
+    /* Start recording some more events. This should make a first loop. */
+    for (int eid = 0; eid < MAX_EVENT; eid++) {
+        pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+    }
 
-  thread_writer.threadClose();
+    /* This should have been recognized as a loop, so now there should be some changes. */
+    pallas_assert_always(thread_writer.cur_depth == 0);
+    pallas_assert_always(thread_writer.sequence_stack[0].size() == 1);
+    pallas_assert_always(thread_writer.sequence_stack[0][0].type == TypeLoop);
+    /* Check that the loop is correct */
+    auto &firstLoop = thread_writer.thread->loops[0];
+    pallas_assert_always(firstLoop.nb_iterations == 2);
+    pallas_assert_always(firstLoop.nb_occurrences == 1);
+
+
+    /* Check that the sequence inside that loop is correct */
+    struct Sequence *s = thread_writer.thread->getSequence(firstLoop.repeated_token);
+
+    pallas_assert_always(s->size() == (unsigned int)MAX_EVENT);
+
+    for (int eid = 0; eid < MAX_EVENT; eid++) {
+        pallas_assert_always(s->tokens[eid].type == TypeEvent);
+        pallas_assert_always(s->tokens[eid].id == eid);
+    }
+
+    pallas_log(DebugLevel::Normal, "\tIncrementing L0 to 3 iterations\n");
+    /* Start recording even more events. The first loop happens 3 times now.*/
+    for (int eid = 0; eid < MAX_EVENT; eid++) {
+        pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+    }
+    pallas_assert_always(thread_writer.cur_depth == 0);
+    pallas_assert_always(thread_writer.sequence_stack[0].size() == 1);
+    pallas_assert_always(firstLoop.nb_iterations == 3);
+    pallas_assert_always(firstLoop.nb_occurrences == 1);
+
+
+    pallas_log(DebugLevel::Normal, "\tAdding a dummy event\n");
+    /* Now start recording one more event and then loop again. */
+#ifdef HAS_FORMAT
+    archive.addString(MAX_EVENT, std::format("dummyEvent{}", MAX_EVENT).c_str());
+#else
+    trace.addString(MAX_EVENT, "dummyEvent");
+#endif
+    pallas_record_generic(&thread_writer, nullptr, get_timestamp(), MAX_EVENT);
+
+
+    pallas_log(DebugLevel::Normal, "\tRunning the same loop with different iterations\n");
+    DOFOR(loop_number, NUM_LOOPS) {
+        pallas_log(DebugLevel::Normal, "\t\tLoop %d\n", loop_number);
+        DOFOR(eid, MAX_EVENT) {
+            pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+        }
+    }
+    pallas_assert_equals_always(thread_writer.cur_depth, 0);
+    pallas_assert_equals_always(thread_writer.sequence_stack[0].size(), 3); // L0 E L1
+    pallas_assert_equals_always(firstLoop.nb_iterations, 3);
+    pallas_assert_always(firstLoop.nb_occurrences == 1);
+
+    auto &secondLoop = thread_writer.thread->loops[1];
+    pallas_assert_always(secondLoop.nb_iterations == NUM_LOOPS);
+    pallas_assert_always(secondLoop.nb_occurrences == 1);
+
+
+    // Here, we'll check that we can create a second loop that looks just like the first one
+    // And that it'll get labeled correctly as the first one
+    pallas_log(DebugLevel::Normal, "\tAdding a dummy event\n");
+    pallas_record_generic(&thread_writer, nullptr, get_timestamp(), MAX_EVENT);
+
+    pallas_log(DebugLevel::Normal, "\tRe-creating L0\n");
+    for (int loop_number = 0; loop_number < firstLoop.nb_iterations; loop_number ++) {
+        pallas_log(DebugLevel::Normal, "\t\tLoop %d\n", loop_number);
+        for (int eid = 0; eid < MAX_EVENT; eid++) {
+            pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
+        }
+    }
+
+    pallas_assert_equals_always(thread_writer.cur_depth, 0);
+    pallas_assert_equals_always(thread_writer.sequence_stack[0].size(), 5); // L0 E L1 E L0
+    pallas_assert_equals_always(firstLoop.nb_iterations, 3);
+    pallas_assert_always(firstLoop.nb_occurrences == 2);
+
+
+    thread_writer.threadClose();
     archive.store(thread_writer.parameter_handler);
-  trace.store(thread_writer.parameter_handler);
-  // TODO Find a way for the test to clean this trace
-  //      Because somehow the following does not remove the folder
-  //      Only is content
-  //      std::filesystem::remove_all(dummyTraceName);
-  return 0;
+    trace.store(thread_writer.parameter_handler);
+    // TODO Find a way for the test to clean this trace
+    //      Because somehow the following does not remove the folder
+    //      Only is content
+    //      std::filesystem::remove_all(dummyTraceName);
+    return 0;
 }
 
 /* -*-

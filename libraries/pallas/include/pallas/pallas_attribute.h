@@ -375,7 +375,7 @@ extern void pallas_print_attribute_value(PALLAS(Thread) * thread,
                                          PALLAS(AttributeData) * attr,
                                          PALLAS(pallas_type_t) type);
 
-// extern void pallas_print_event_attributes(PALLAS(Thread) * thread, struct PALLAS(EventOccurence) * e);
+// extern void pallas_print_event_attributes(PALLAS(Thread) * thread, struct PALLAS(EventOccurrence) * e);
 
 extern void pallas_print_attribute_list(PALLAS(Thread) * thread, PALLAS(AttributeList) * l);
 

@@ -91,7 +91,7 @@ typedef struct ThreadWriter {
     /** Stores the timestamp in the given Event. */
     void storeTimestamp(Event* es, pallas_timestamp_t ts);
     /** Stores the attribute list in the given Event. */
-    void storeAttributeList(Event* es, AttributeList* attribute_list, size_t occurence_index);
+    void storeAttributeList(Event* es, AttributeList* attribute_list, size_t occurrence_index);
     /** Stores t in the current sequence's stack, and i in the current sequence's index stack, then tries to find a Loop.*/
     void storeToken(Token t, size_t i);
     /** Move up the callstack and create a new Sequence. */
@@ -120,7 +120,7 @@ typedef struct ThreadWriter {
     [[nodiscard]] TokenId getEventId(EventData* e);
     [[nodiscard]] ThreadWriter(Archive& archive, ThreadId thread_id);
     void threadClose();
-    /** Creates the new Event and stores it. Returns the occurence index of that new Event. */
+    /** Creates the new Event and stores it. Returns the occurrence index of that new Event. */
     size_t storeEvent(enum EventType event_type, TokenId event_id, pallas_timestamp_t ts, struct AttributeList* attribute_list);
     ~ThreadWriter();
 #endif

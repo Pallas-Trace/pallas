@@ -306,10 +306,6 @@ struct MPIProcessData {
     std::list<MPIMatchedMessage> matched_messages;
 };
 
-#define READ(event_occurrence, cursor, type, name)                              \
-    type name;                                                                  \
-    pallas_event_pop_data(event_occurrence.event, &name, sizeof(type), &cursor);
-
 static int local_rank_to_global(pallas::GlobalArchive &trace, uint32_t communicator, uint32_t local_rank) {
     return local_rank;
 }
@@ -462,7 +458,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         }
         auto *cur_reader = reader.current_reader;
         auto lgid = reader.current_reader->archive->id;
-        auto data = cur_reader->getEventOccurence(t, cur_reader->getCurrentTokenCount(t));
+        auto data = cur_reader->getEventOccurrence(t, cur_reader->getCurrentTokenCount(t));
         // static uint progress_counter = 0;
         // if (progress_counter == 0) {
         //     float percent = (static_cast<float>(data.timestamp - first_timestamp) * 100) / (float) duration;
@@ -471,17 +467,21 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         // }
         // progress_counter --;
         MPIProcessData &p = processes[lgid];
-        byte *cursor = nullptr;
         switch (data.event->record) {
             case pallas::PALLAS_EVENT_MPI_SEND: {
                 // An MpiSend record indicates that an MPI send operation was initiated
                 // (MPI_SEND). It keeps the necessary information for this event: receiver of
                 // the message, communicator, and the message tag. You can optionally add
                 // further information like the message length (size of the send buffer).
-                READ(data, cursor, uint32_t, receiver);
-                READ(data, cursor, uint32_t, communicator);
-                READ(data, cursor, uint32_t, msgTag);
-                READ(data, cursor, uint64_t, msgLength);
+                uint32_t receiver;
+                uint32_t communicator;
+                uint32_t msgTag;
+                uint64_t msgLength;
+                pallas::pallas_read_mpi_send(data.event, nullptr,
+                                     &receiver,
+                                     &communicator,
+                                     &msgTag,
+                                     &msgLength);
                 receiver = local_rank_to_global(trace, communicator, receiver);
                 match_isend(lgid, receiver,
                             msgTag, msgLength, data.timestamp, 0,
@@ -489,10 +489,15 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 break;
             }
             case pallas::PALLAS_EVENT_MPI_RECV: {
-                READ(data, cursor, uint32_t, sender);
-                READ(data, cursor, uint32_t, communicator);
-                READ(data, cursor, uint32_t, msgTag);
-                READ(data, cursor, uint64_t, msgLength);
+                uint32_t sender;
+                uint32_t communicator;
+                uint32_t msgTag;
+                uint64_t msgLength;
+                pallas::pallas_read_mpi_recv(data.event, nullptr,
+                                     &sender,
+                                     &communicator,
+                                     &msgTag,
+                                     &msgLength);
                 sender = local_rank_to_global(trace, communicator, sender);
                 match_irecv(sender, lgid,
                             msgTag, msgLength, data.timestamp, 0,
@@ -500,11 +505,17 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 break;
             }
             case pallas::PALLAS_EVENT_MPI_ISEND: {
-                READ(data, cursor, uint32_t, receiver);
-                READ(data, cursor, uint32_t, communicator);
-                READ(data, cursor, uint32_t, msgTag);
-                READ(data, cursor, uint64_t, msgLength);
-                READ(data, cursor, uint64_t, requestID);
+                uint32_t receiver;
+                uint32_t communicator;
+                uint32_t msgTag;
+                uint64_t msgLength;
+                uint64_t requestID;
+                pallas::pallas_read_mpi_isend(data.event, nullptr,
+                                      &receiver,
+                                      &communicator,
+                                      &msgTag,
+                                      &msgLength,
+                                      &requestID);
                 receiver = local_rank_to_global(trace, communicator, receiver);
                 auto m = match_isend(lgid, receiver,
                                      msgTag, msgLength, data.timestamp, requestID,
@@ -514,11 +525,17 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 break;
             }
             case pallas::PALLAS_EVENT_MPI_IRECV: {
-                READ(data, cursor, uint32_t, sender);
-                READ(data, cursor, uint32_t, communicator);
-                READ(data, cursor, uint32_t, msgTag);
-                READ(data, cursor, uint64_t, msgLength);
-                READ(data, cursor, uint64_t, requestID);
+                uint32_t sender;
+                uint32_t communicator;
+                uint32_t msgTag;
+                uint64_t msgLength;
+                uint64_t requestID;
+                pallas::pallas_read_mpi_irecv(data.event, nullptr,
+                                      &sender,
+                                      &communicator,
+                                      &msgTag,
+                                      &msgLength,
+                                      &requestID);
                 sender = local_rank_to_global(trace, communicator, sender);
                 auto &lst = p.pending_requests;
                 auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
@@ -545,7 +562,9 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
                 break;
             }
             case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE: {
-                READ(data, cursor, uint64_t, requestID);
+                uint64_t requestID;
+                pallas::pallas_read_mpi_isend_complete(data.event, nullptr,
+                                               &requestID);
                 auto &lst = p.pending_requests;
                 auto r = std::find_if(lst.begin(), lst.end(), [requestID](const MpiRequest *it) {
                     return it->ptr == requestID;
@@ -573,7 +592,9 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
             }
 
             case pallas::PALLAS_EVENT_MPI_IRECV_REQUEST: {
-                READ(data, cursor, uint64_t, requestID);
+                uint64_t requestID;
+                pallas::pallas_read_mpi_irecv_request(data.event, nullptr,
+                                              &requestID);
                 auto *r = new MpiRequest(requestID, data.timestamp, nullptr);
                 p.pending_requests.push_back(r);
                 break;
