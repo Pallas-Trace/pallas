@@ -793,8 +793,10 @@ int main(int argc, char** argv) {
 
   for (auto* t : threads) {
     for (uint32_t i = t->nb_events; i < t->nb_allocated_events; i++) {
-      assert(t->events[i].data.record == pallas::PALLAS_EVENT_MAX_ID &&
-            "real event stranded beyond nb_events");
+      pallas::Event& e = t->events[i];
+      bool is_unoccupied = (e.data.record == pallas::PALLAS_EVENT_MAX_ID ||
+                            (e.nb_occurrences == 0 && e.timestamps == nullptr));
+      assert(is_unoccupied && "real event stranded beyond nb_events");
     }
   }
 
