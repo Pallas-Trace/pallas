@@ -713,6 +713,9 @@ int main(int argc, char** argv) {
     for (auto& loc : a->locations) {
       loc.name = string_ref_lookup[loc.name];
       auto* t = a->getThread(loc.id);
+
+      std::cout << "Thread " << loc.id << " loops[0] immediately: " << t->loops[0].nb_occurrences << std::endl;
+
       thread_id_lookup[loc.id] = threads.size();
       threads.push_back(t);
 
@@ -731,6 +734,8 @@ int main(int argc, char** argv) {
       }
     }
   }
+
+  std::cout << "Thread 0 loops[0] AFTER loading all: " << threads[0]->loops[0].nb_occurrences << std::endl;
 
   #if 0
   save_thread_copy(trace, archives, threads,
