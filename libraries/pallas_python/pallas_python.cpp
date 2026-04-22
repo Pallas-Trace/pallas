@@ -242,8 +242,8 @@ PYBIND11_MODULE(_core, m) {
                     if (!t.isValid()) {
                         throw py::stop_iteration();
                     }
-                    return py::make_tuple(self.inner->current_thread_reader->thread_trace,
-                                          makePyObjectFromToken(t, *self.inner->current_thread_reader));
+                    return py::make_tuple(self.inner->current_reader->thread_trace,
+                                          makePyObjectFromToken(t, *self.inner->current_reader));
                 }
                 throw py::stop_iteration();
             });
