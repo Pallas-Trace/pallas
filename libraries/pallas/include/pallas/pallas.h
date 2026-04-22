@@ -263,7 +263,7 @@ enum SequenceType {
 typedef struct Sequence {
     /** ID of that sequence. */
     Token id CXX({Token()});
-    /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas/01-presentation?id=grammar). */
+    /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas?id=performance-data ). */
     enum SequenceType type CXX({SEQUENCE_BLOCK});
     /** Vector of the durations of each sequence. */
     LinkedDurationVector* durations CXX({nullptr});

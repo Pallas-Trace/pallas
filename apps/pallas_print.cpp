@@ -225,9 +225,10 @@ void printCSV(std::map<pallas::ThreadReader*, struct thread_data> &threads_data,
  *
  * Moreover, the timestamps are not sorted
  */
-void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
+void printCSVBulk(pallas::ThreadReader* readers, size_t n) {
   static bool first_line = true;
-  for (auto & reader : readers) {
+  for (size_t i = 0; i < n; i ++) {
+    auto& reader = readers[i];
     std::map<pallas::Sequence*, std::string> sequence_names;
     reader.guessSequencesNames(sequence_names);
 
@@ -258,7 +259,7 @@ void printCSVBulk(std::vector<pallas::ThreadReader> readers) {
   }
 }
 
-void printThread(pallas::Thread* thread) {
+void printThread(pallas::Thread *thread) {
     size_t last_timestamp = 0;
     if (thread_to_print >= 0 && thread->id != thread_to_print) {
         return;
@@ -267,16 +268,16 @@ void printThread(pallas::Thread* thread) {
     _print_timestamp_header();
     _print_duration_header();
     std::cout << std::endl;
-    auto current_token = reader.pollCurToken();
-    while (current_token.isValid()) {
+    for (auto current_token = reader.pollCurToken();
+         current_token != pallas::INVALID_TOKEN;
+         current_token = reader.getNextToken()) {
         if (current_token.type == pallas::TypeEvent) {
-            auto event = reader.getEventOccurence(current_token, reader.currentState.currentFrame->tokenCount[current_token]);
+            auto event = reader.getEventOccurence(current_token,reader.getCurrentTokenCount(current_token));
             pallas_assert_inferior_equal(last_timestamp, event.timestamp);
             pallas_assert_equals(event.timestamp, reader.currentState.currentFrame->current_timestamp);
             last_timestamp = event.timestamp;
             printEvent(reader.thread_trace, current_token, event);
         }
-        current_token = reader.getNextToken();
     }
 }
 
@@ -317,51 +318,34 @@ void printTrace(pallas::GlobalArchive& trace) {
     }
     std::map<pallas::ThreadReader*, struct thread_data> threads_data;
 
-    auto readers = std::vector<pallas::ThreadReader>();
-    auto thread_list = trace.getThreadList();
-    for (auto* thread : thread_list) {
-        if (thread == nullptr)
-            continue;
-        if (!(thread_to_print < 0 || thread->id == thread_to_print))
-            continue;
-        readers.emplace_back(thread->archive, thread->id, PALLAS_READ_FLAG_UNROLL_ALL);
-        threads_data[&readers.back()] = {};
-    }
-
     _print_timestamp_header();
     _print_duration_header();
     std::cout << std::endl;
+    pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
+
+    if (csv || flamegraph) {
+        DOFOR(i, reader.n_threads) {
+            threads_data[&reader.readers[i]] = {};
+        }
+    }
 
     if (csv_bulk) {
-        printCSVBulk(readers);
+        printCSVBulk(reader.readers, reader.n_threads);
         return;
     }
 
-    while (!isReadingOver(readers)) {
-        pallas::ThreadReader* min_reader = &readers[0];
-        pallas_timestamp_t min_timestamp = std::numeric_limits<unsigned long>::max();
-        for (auto& reader : readers) {
-            if (!reader.isEndOfTrace() && reader.currentState.currentFrame->current_timestamp < min_timestamp) {
-                min_reader = &reader;
-                min_timestamp = reader.currentState.currentFrame->current_timestamp;
-            }
-        }
-
-        auto token = min_reader->pollCurToken();
+    for (auto token = reader.pollCurToken(); token != pallas::INVALID_TOKEN; token = reader.getNextToken()) {
+        auto cur_reader = reader.current_reader;
         if (token.type == pallas::TypeEvent) {
             if (flamegraph) {
-                auto e = min_reader->getEventOccurence(token, min_reader->currentState.currentFrame->tokenCount[token]);
-                printFlame(threads_data, min_reader, e);
+                auto e = cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token));
+                printFlame(threads_data, cur_reader, e);
             } else if (csv) {
-                auto e = min_reader->getEventOccurence(token, min_reader->currentState.currentFrame->tokenCount[token]);
-                printCSV(threads_data, min_reader, e);
+                auto e = cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token));
+                printCSV(threads_data, cur_reader, e);
             } else {
-                printEvent(min_reader->thread_trace, token, min_reader->getEventOccurence(token, min_reader->currentState.currentFrame->tokenCount[token]));
+                printEvent(cur_reader->thread_trace, token, cur_reader->getEventOccurence(token, cur_reader->getCurrentTokenCount(token)));
             }
-        }
-
-        if (!min_reader->getNextToken().isValid()) {
-            pallas_assert(min_reader->isEndOfTrace());
         }
     }
 }
