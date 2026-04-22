@@ -580,18 +580,6 @@ int main(int argc, char** argv) {
   trace_name = argv[1];
   pallas::GlobalArchive* trace = pallas_open_trace(trace_name);
 
-  for (auto& lg : trace->location_groups) {
-    lg.name = string_ref_lookup[lg.name];
-    auto* a = trace->getArchive(lg.id);
-    for (auto& loc : a->locations) {
-      loc.name = string_ref_lookup[loc.name];
-      auto* t = a->getThread(loc.id);
-
-      std::cout << "Thread " << loc.id << " loops[0] immediately: " << t->loops[0].nb_occurrences << std::endl;
-    }
-  }
-
-
   auto base_dir_name = strdup((
       std::string(trace->dir_name)
   ).c_str());
@@ -725,9 +713,6 @@ int main(int argc, char** argv) {
     for (auto& loc : a->locations) {
       loc.name = string_ref_lookup[loc.name];
       auto* t = a->getThread(loc.id);
-
-      std::cout << "Thread " << loc.id << " loops[0] immediately: " << t->loops[0].nb_occurrences << std::endl;
-
       thread_id_lookup[loc.id] = threads.size();
       threads.push_back(t);
 
@@ -746,8 +731,6 @@ int main(int argc, char** argv) {
       }
     }
   }
-
-  std::cout << "Thread 0 loops[0] AFTER loading all: " << threads[0]->loops[0].nb_occurrences << std::endl;
 
   #if 0
   save_thread_copy(trace, archives, threads,
