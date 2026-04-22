@@ -44,7 +44,7 @@ build:intel-oneapi:
   tags: ['linux', 'large_more_disk']
   stage: build
   only:
-    - main
+    - none
   variables:
     CC: "icx"
     CXX: "icpx"
