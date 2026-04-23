@@ -53,15 +53,8 @@ void map_swap(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, 
 uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
   auto thread_it = map.find(thread_id);
   if (thread_it == map.end()) return in_id;
-
-  uint32_t out_id = in_id;
-  auto& token_map = thread_it->second;
-  uint32_t current = in_id;
-  while (true) {
-    auto it = token_map.find(current);
-    if (it == token_map.end() || it->second == current) return current;
-    current = it->second;
-  }
+  auto it = thread_it->second.find(in_id);
+  return (it != thread_it->second.end()) ? it->second : in_id;
 }
 
 bool event_cmp(pallas::Event& e1, pallas::Event& e2) {
