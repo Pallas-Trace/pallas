@@ -1072,8 +1072,10 @@ static void storeEvent(pallas::Event& event,
         uint32_t zero_attr = 0;
         eventFile.write(&zero_attr, sizeof(zero_attr), 1);
         if (STORE_TIMESTAMPS) {
-            pallas::LinkedVector dummy_vec(const_cast<pallas::ParameterHandler&>(*parameter_handler));
-            dummy_vec.write_to_file(eventFile.file, durationFile.file, parameter_handler);
+            size_t zero_size = 0;
+            size_t one_sub_array = 1;
+            _pallas_fwrite(&zero_size, sizeof(zero_size), 1, eventFile.file);
+            _pallas_fwrite(&one_sub_array, sizeof(one_sub_array), 1, eventFile.file);
         }
         return;
     }
