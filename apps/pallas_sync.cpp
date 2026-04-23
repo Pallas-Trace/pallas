@@ -346,14 +346,15 @@ void seq_insert(pallas::Sequence& seq, pallas::Thread *t, uint32_t id) {
 }
 
 void seq_override_invalid(pallas::Thread *t, uint32_t id) {
+  // NOTE: consider re-init sequence
+  // i.e. t->sequences[id] = pallas::Sequence{};
   t->sequences[id].id = pallas::Token();
   t->sequences[id].durations = NULL;
   t->sequences[id].exclusive_durations = NULL;
   t->sequences[id].timestamps = NULL;
   t->sequences[id].hash = 0;
   t->sequences[id].tokens.clear();
-  // NOTE: check SequenceType field
-  //
+  t->sequences[id].type = pallas::SEQUENCE_BLOCK;
 }
 
 void seq_swap(pallas::Thread *t, uint32_t src_id, uint32_t swap_id) {
@@ -431,11 +432,11 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
 
       // check if src invalid
       // NOTE: possibly update handling?
-      if (src_seq.id.id == PALLAS_TOKEN_ID_INVALID || src_seq.tokens.size() == 0) {
+      if (src_seq.id.type == pallas::TypeInvalid) {
         continue;
       }
 
-      bool cand_is_invalid = (cand_seq.id.id == PALLAS_TOKEN_ID_INVALID || cand_seq.tokens.size() == 0);
+      bool cand_is_invalid = (cand_seq.id.type == pallas::TypeInvalid);
 
       // check if already synchronized
       if (!cand_is_invalid && seq_cmp(src_seq, cand_seq)) {
@@ -886,6 +887,17 @@ int main(int argc, char** argv) {
       }
       // else: -> thread has loops that need to be synchronized
 
+      // pre-fill other threads with invalids to match nb_loops
+      for (auto* t2 : threads) {
+        if (t2->id == t->id) continue;
+        for (uint32_t loop_id = t2->nb_loops; loop_id < thread_n_loops; loop_id++) {
+          while (loop_id >= t2->nb_allocated_loops)
+            doubleMemorySpaceConstructor(t2->loops, t2->nb_allocated_loops);
+          loop_override_invalid(t2, loop_id);
+          t2->nb_loops = loop_id + 1;
+        }
+      }
+
       number_of_swaps += sync_loops(threads, t, n_loops_verified, thread_n_loops, thread_loop_map, thread_loop_rev);
       n_loops_verified = thread_n_loops;
 
@@ -894,7 +906,7 @@ int main(int argc, char** argv) {
         if (t2->id == t->id) continue;
         uint32_t new_nb = t2->nb_loops;
         while (new_nb > n_loops_verified &&
-          t2->loops[new_nb - 1].repeated_token.type == pallas::TypeInvalid) {
+               t2->loops[new_nb - 1].repeated_token.type == pallas::TypeInvalid) {
           new_nb--;
         }
         t2->nb_loops = new_nb;
@@ -927,6 +939,17 @@ int main(int argc, char** argv) {
       }
       // else: -> thread has sequences that need to be synchronized
 
+      // pre-fill other threads with invalids to match nb_sequences
+      for (auto* t2 : threads) {
+        if (t2->id == t->id) continue;
+        for (uint32_t seq_id = t2->nb_sequences; seq_id < thread_n_seqs; seq_id++) {
+          while (seq_id >= t2->nb_allocated_sequences)
+            doubleMemorySpaceConstructor(t2->sequences, t2->nb_allocated_sequences);
+          seq_override_invalid(t2, seq_id);
+          t2->nb_sequences = seq_id + 1;
+        }
+      }
+
       number_of_swaps += sync_sequences(threads, t, n_seqs_verified, thread_n_seqs, thread_seq_map, thread_seq_rev);
       n_seqs_verified = thread_n_seqs;
 
@@ -935,8 +958,7 @@ int main(int argc, char** argv) {
         if (t2->id == t->id) continue;
         uint32_t new_nb = t2->nb_sequences;
         while (new_nb > n_seqs_verified &&
-               (t2->sequences[new_nb - 1].id.id == PALLAS_TOKEN_ID_INVALID ||
-                t2->sequences[new_nb - 1].tokens.size() == 0)) {
+               t2->sequences[new_nb - 1].id.type == pallas::TypeInvalid) {
           new_nb--;
         }
         t2->nb_sequences = new_nb;
