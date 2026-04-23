@@ -195,6 +195,7 @@ void loop_insert(pallas::Loop& l,
 void loop_override_invalid(pallas::Thread *t, uint32_t id) {
   t->loops[id].repeated_token.type = pallas::TypeInvalid;
   t->loops[id].repeated_token.id = PALLAS_TOKEN_ID_INVALID;
+  t->loops[id].self_id.type = pallas::TypeInvalid;
   t->loops[id].self_id.id = PALLAS_TOKEN_ID_INVALID;
   t->loops[id].nb_iterations = 0;
   t->loops[id].nb_occurrences = 0;
@@ -232,18 +233,18 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
     for (uint32_t loop_id = 0; loop_id < t->nb_loops; loop_id++) {
       pallas::Loop& loop = t->loops[loop_id];
 
-      if (loop.repeated_token.type == pallas::TypeInvalid) {
+      if (loop.self_id.type == pallas::TypeInvalid) {
         continue;
       }
 
       auto& token = loop.repeated_token;
-      if (token.type == 1 && update_events) {
+      if (token.type == pallas::TypeEvent && update_events) {
         token.id = map_eval(event_map, t->id, token.id);
       }
-      if (token.type == 2 && update_seqs) {
+      if (token.type == pallas::TypeSequence && update_seqs) {
         token.id = map_eval(seq_map, t->id, token.id);
       }
-      if (token.type == 3 && update_loops) {
+      if (token.type == pallas::TypeLoop && update_loops) {
         token.id = map_eval(loop_map, t->id, token.id);
       }
     }
@@ -273,11 +274,11 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
       bool found_match = false;
 
       // check if src invalid
-      if (src_loop.repeated_token.type == pallas::TypeInvalid) {
+      if (src_loop.self_id.type == pallas::TypeInvalid) {
         continue;
       }
 
-      bool cand_is_invalid = (cand_loop.repeated_token.type == pallas::TypeInvalid);
+      bool cand_is_invalid = (cand_loop.self_id.type == pallas::TypeInvalid);
 
       // check if already synchronized
       if (!cand_is_invalid && loop_cmp(src_loop, cand_loop)) {
@@ -387,18 +388,18 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
     for (uint32_t seq_id = 0; seq_id < t->nb_sequences; seq_id++) {
       pallas::Sequence& seq = t->sequences[seq_id];
 
-      if (seq.id.id == PALLAS_TOKEN_ID_INVALID || seq.tokens.size() == 0) {
+      if (seq.id.type == pallas::TypeInvalid) {
         continue;
       }
 
       for (auto& token : seq.tokens) {
-        if (token.type == 1 && update_events) {
+        if (token.type == pallas::TypeEvent && update_events) {
           token.id = map_eval(event_map, t->id, token.id);
         }
-        if (token.type == 2 && update_seqs) {
+        if (token.type == pallas::TypeSequence && update_seqs) {
           token.id = map_eval(seq_map, t->id, token.id);
         }
-        if (token.type == 3 && update_loops) {
+        if (token.type == pallas::TypeLoop && update_loops) {
           token.id = map_eval(loop_map, t->id, token.id);
         }
       }
@@ -845,12 +846,12 @@ int main(int argc, char** argv) {
   // initialize loop_map and seq_map to identity for original tokens
   for (auto* t : threads) {
     for (uint32_t i = 0; i < t->nb_loops; i++) {
-      if (t->loops[i].repeated_token.type != pallas::TypeInvalid) {
+      if (t->loops[i].self_id.type != pallas::TypeInvalid) {
         map_set(thread_loop_map, thread_loop_rev, t->id, i, i);
       }
     }
     for (uint32_t i = 0; i < t->nb_sequences; i++) {
-      if (t->sequences[i].id.id != PALLAS_TOKEN_ID_INVALID && t->sequences[i].tokens.size() > 0) {
+      if (t->sequences[i].id.type != pallas::TypeInvalid) {
         map_set(thread_seq_map, thread_seq_rev, t->id, i, i);
       }
     }
@@ -906,7 +907,7 @@ int main(int argc, char** argv) {
         if (t2->id == t->id) continue;
         uint32_t new_nb = t2->nb_loops;
         while (new_nb > n_loops_verified &&
-               t2->loops[new_nb - 1].repeated_token.type == pallas::TypeInvalid) {
+               t2->loops[new_nb - 1].self_id.type == pallas::TypeInvalid) {
           new_nb--;
         }
         t2->nb_loops = new_nb;
