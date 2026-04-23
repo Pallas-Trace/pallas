@@ -1065,18 +1065,15 @@ static void storeEvent(pallas::Event& event,
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
 
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
-        eventFile.write(&event.data.record, sizeof(event.data.record), 1);
-        uint8_t min_size = offsetof(pallas::EventData, event_data);
-        eventFile.write(&min_size, sizeof(min_size), 1);
-
+        pallas::EventData dummy_data;
+        dummy_data.record = pallas::PALLAS_EVENT_MAX_ID;
+        dummy_data.event_size = offsetof(pallas::EventData, event_data); // Just the header, no payload
+        storeEventData(dummy_data, eventFile, *parameter_handler);
         uint32_t zero_attr = 0;
         eventFile.write(&zero_attr, sizeof(zero_attr), 1);
-
         if (STORE_TIMESTAMPS) {
-            size_t zero_size = 0;
-            eventFile.write(&zero_size, sizeof(zero_size), 1);
-            size_t n_sub_array = 1;
-            eventFile.write(&n_sub_array, sizeof(n_sub_array), 1);
+            pallas::LinkedVector dummy_vec(const_cast<pallas::ParameterHandler&>(*parameter_handler));
+            dummy_vec.write_to_file(eventFile.file, durationFile.file, parameter_handler);
         }
         return;
     }
