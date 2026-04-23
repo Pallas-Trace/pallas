@@ -1074,8 +1074,8 @@ static void storeEvent(pallas::Event& event,
         if (STORE_TIMESTAMPS) {
             size_t zero_size = 0;
             size_t one_sub_array = 1;
-            _pallas_fwrite(&zero_size, sizeof(zero_size), 1, eventFile.file);
-            _pallas_fwrite(&one_sub_array, sizeof(one_sub_array), 1, eventFile.file);
+            eventFile.write(&zero_size, sizeof(zero_size), 1);
+            eventFile.write(&one_sub_array, sizeof(one_sub_array), 1);
         }
         return;
     }
