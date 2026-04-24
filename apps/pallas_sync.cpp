@@ -22,6 +22,10 @@
 typedef std::map<uint32_t, uint32_t> token_map;
 typedef std::map<uint32_t, token_map> thread_token_map;
 
+typedef std::map<uint32_t, pallas::Token> token_lookup;
+typedef std::map<uint32_t, std::vector<pallas::Token>> token_vector_lookup;
+
+
 void map_set(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t from, uint32_t to) {
   fwd[thread_id][from] = to;
   rev[thread_id][to] = from;
@@ -55,6 +59,13 @@ uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
   if (thread_it == map.end()) return in_id;
   auto it = thread_it->second.find(in_id);
   return (it != thread_it->second.end()) ? it->second : in_id;
+}
+
+uint32_t current_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
+  auto t_it = rev.find(thread_id);
+  if (t_it == rev.end()) return current_id;
+  auto id_it = t_it->second.find(current_id);
+  return (id_it != t_it->second.end()) ? id_it->second : current_id;
 }
 
 bool event_cmp(pallas::Event& e1, pallas::Event& e2) {
@@ -201,13 +212,13 @@ void loop_swap(pallas::Thread *t,
   t->loops[swap_id].self_id.id = swap_id;
 }
 
-uint32_t find_matching_loop(pallas::Loop& src_loop,
-                            pallas::Thread *t) {
-  uint32_t t_n_loops = t->nb_loops;
-  for (uint32_t l2_idx = src_loop.self_id.id; l2_idx < t_n_loops; l2_idx++) {
+uint32_t find_matching_loop(pallas::Loop& src_loop, pallas::Thread *t) {
+  for (uint32_t l2_idx = src_loop.self_id.id; l2_idx < t->nb_loops; l2_idx++) {
     pallas::Loop& cand_loop = t->loops[l2_idx];
+    if (cand_loop.self_id.type == pallas::TypeInvalid) {
+      continue;
+    }
     if (loop_cmp(src_loop, cand_loop)) {
-      // std::cout << "found swap match!" << std::endl;
       return cand_loop.self_id.id;
     }
   }
@@ -221,7 +232,9 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
                         thread_token_map& seq_map,
                         bool update_seqs,
                         thread_token_map& loop_map,
-                        bool update_loops) {
+                        bool update_loops,
+                        thread_token_map& loop_rev,
+                        const std::map<uint32_t, token_lookup>& loop_base_tokens) {
   for (auto* t : threads) {
     for (uint32_t loop_id = 0; loop_id < t->nb_loops; loop_id++) {
       pallas::Loop& loop = t->loops[loop_id];
@@ -230,7 +243,8 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      auto& token = loop.repeated_token;
+      uint32_t owner = current_owner(loop_rev, t->id, loop_id);
+      pallas::Token token = loop_base_tokens.at(t->id).at(owner);
       if (token.type == pallas::TypeEvent && update_events) {
         token.id = map_eval(event_map, t->id, token.id);
       }
@@ -240,6 +254,8 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
       if (token.type == pallas::TypeLoop && update_loops) {
         token.id = map_eval(loop_map, t->id, token.id);
       }
+
+      loop.repeated_token = token;
     }
   }
 }
@@ -320,7 +336,10 @@ bool seq_cmp(pallas::Sequence& seq1, pallas::Sequence& seq2) {
   if (seq1.tokens.size() != seq2.tokens.size()) {
     return false;
   }
-  for (int i = 0; i < seq1.tokens.size(); i++) {
+  for (size_t i = 0; i < seq1.tokens.size(); i++) {
+    if (seq1.tokens[i].type != seq2.tokens[i].type) {
+      return false;
+    }
     if (seq1.tokens[i].id != seq2.tokens[i].id) {
       return false;
     }
@@ -358,11 +377,12 @@ void seq_swap(pallas::Thread *t, uint32_t src_id, uint32_t swap_id) {
 }
 
 uint32_t find_matching_seq(pallas::Sequence& src_seq, pallas::Thread *t) {
-  uint32_t t_n_seqs = t->nb_sequences;
-  for (uint32_t s2_idx = src_seq.id.id; s2_idx < t_n_seqs; s2_idx++) {
+  for (uint32_t s2_idx = src_seq.id.id; s2_idx < t->nb_sequences; s2_idx++) {
     pallas::Sequence& cand_seq = t->sequences[s2_idx];
+    if (cand_seq.id.type == pallas::TypeInvalid) {
+      continue;
+    }
     if (seq_cmp(src_seq, cand_seq)) {
-      // std::cout << "found swap match!" << std::endl;
       return cand_seq.id.id;
     }
   }
@@ -376,7 +396,9 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
                             thread_token_map& seq_map,
                             bool update_seqs,
                             thread_token_map& loop_map,
-                            bool update_loops) {
+                            bool update_loops,
+                            thread_token_map& seq_rev,
+                            const std::map<uint32_t, token_vector_lookup>& seq_base_tokens) {
   for (auto* t : threads) {
     for (uint32_t seq_id = 0; seq_id < t->nb_sequences; seq_id++) {
       pallas::Sequence& seq = t->sequences[seq_id];
@@ -385,7 +407,15 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      for (auto& token : seq.tokens) {
+      uint32_t owner = current_owner(seq_rev, t->id, seq_id);
+      const auto& base_tokens = seq_base_tokens.at(t->id).at(owner);
+
+      seq.tokens.clear();
+      seq.tokens.reserve(base_tokens.size());
+
+      for (const auto& base_token : base_tokens) {
+        pallas::Token token = base_token;
+
         if (token.type == pallas::TypeEvent && update_events) {
           token.id = map_eval(event_map, t->id, token.id);
         }
@@ -395,6 +425,8 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
         if (token.type == pallas::TypeLoop && update_loops) {
           token.id = map_eval(loop_map, t->id, token.id);
         }
+
+        seq.tokens.push_back(token);
       }
       seq.hash = pallas::hash32(reinterpret_cast<const byte*>(seq.tokens.data()),
                                   seq.tokens.size() * sizeof(pallas::Token), SEED);
@@ -826,6 +858,23 @@ int main(int argc, char** argv) {
   // |   Synchronize Sequences and Loops    |
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
+  std::map<uint32_t, token_lookup> loop_base_tokens;        // thread_id -> original_loop_id -> base repeated_token
+  std::map<uint32_t, token_vector_lookup> seq_base_tokens;  // thread_id -> original_seq_id  -> base tokens
+
+  for (auto* t : threads) {
+    for (uint32_t i = 0; i < t->nb_loops; i++) {
+      if (t->loops[i].self_id.type != pallas::TypeInvalid) {
+        loop_base_tokens[t->id][i] = t->loops[i].repeated_token;
+      }
+    }
+    for (uint32_t i = 0; i < t->nb_sequences; i++) {
+      if (t->sequences[i].id.type != pallas::TypeInvalid) {
+        seq_base_tokens[t->id][i] = t->sequences[i].tokens;
+      }
+    }
+  }
+
   thread_token_map thread_loop_map;
   thread_token_map thread_loop_rev;
 
@@ -865,7 +914,8 @@ int main(int argc, char** argv) {
       threads,
       thread_event_map, update_events,
       thread_seq_map, update_seqs,
-      thread_loop_map, update_loops
+      thread_loop_map, update_loops,
+      thread_loop_rev, loop_base_tokens
     );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -917,7 +967,8 @@ int main(int argc, char** argv) {
       threads,
       thread_event_map, update_events,
       thread_seq_map, update_seqs,
-      thread_loop_map, update_loops
+      thread_loop_map, update_loops,
+      thread_seq_rev, seq_base_tokens
     );
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
