@@ -61,7 +61,7 @@ uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
   return (it != thread_it->second.end()) ? it->second : in_id;
 }
 
-uint32_t current_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
+uint32_t amp_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
   auto t_it = rev.find(thread_id);
   if (t_it == rev.end()) return current_id;
   auto id_it = t_it->second.find(current_id);
@@ -243,7 +243,7 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      uint32_t owner = current_owner(loop_rev, t->id, loop_id);
+      uint32_t owner = amp_owner(loop_rev, t->id, loop_id);
       pallas::Token token = loop_base_tokens.at(t->id).at(owner);
       if (token.type == pallas::TypeEvent && update_events) {
         token.id = map_eval(event_map, t->id, token.id);
@@ -407,7 +407,7 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
         continue;
       }
 
-      uint32_t owner = current_owner(seq_rev, t->id, seq_id);
+      uint32_t owner = amp_owner(seq_rev, t->id, seq_id);
       const auto& base_tokens = seq_base_tokens.at(t->id).at(owner);
 
       seq.tokens.clear();
@@ -1027,6 +1027,34 @@ int main(int argc, char** argv) {
 
   for (auto* thread : threads) {
     thread->sequence_root = map_eval(thread_seq_map, thread->id, 0);
+  }
+
+  for (auto* t : threads) {
+    std::cout << "\n[thread " << t->id << "] root=" << t->sequence_root
+              << " nb_seq=" << t->nb_sequences
+              << " nb_loops=" << t->nb_loops
+              << " nb_events=" << t->nb_events << "\n";
+
+    auto& root = t->sequences[t->sequence_root];
+    std::cout << "root size=" << root.tokens.size() << "\n";
+
+    for (size_t i = 0; i < std::min<size_t>(root.tokens.size(), 40); i++) {
+      auto tok = root.tokens[i];
+      std::cout << "  [" << i << "] type=" << tok.type << " id=" << tok.id << "\n";
+    }
+
+    if (root.tokens.size() % 2 == 0) {
+      bool halves_equal = true;
+      size_t n = root.tokens.size() / 2;
+      for (size_t i = 0; i < n; i++) {
+        if (root.tokens[i].type != root.tokens[i + n].type ||
+            root.tokens[i].id   != root.tokens[i + n].id) {
+          halves_equal = false;
+          break;
+        }
+      }
+      std::cout << "root duplicated halves? " << halves_equal << "\n";
+    }
   }
 
   auto save_name = strdup((
