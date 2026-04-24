@@ -25,6 +25,39 @@ typedef std::map<uint32_t, token_map> thread_token_map;
 typedef std::map<uint32_t, pallas::Token> token_lookup;
 typedef std::map<uint32_t, std::vector<pallas::Token>> token_vector_lookup;
 
+using CountMap = std::map<uint32_t, size_t>;
+
+static void count_from_token(pallas::Thread* t, pallas::Token tok, CountMap& counts);
+
+static void count_from_sequence(pallas::Thread* t, uint32_t sid, CountMap& counts) {
+  auto& s = t->sequences[sid];
+  for (auto tok : s.tokens) {
+    count_from_token(t, tok, counts);
+  }
+}
+
+static void count_from_loop(pallas::Thread* t, uint32_t lid, CountMap& counts) {
+  auto& l = t->loops[lid];
+  for (size_t i = 0; i < l.nb_iterations; i++) {
+    count_from_token(t, l.repeated_token, counts);
+  }
+}
+
+static void count_from_token(pallas::Thread* t, pallas::Token tok, CountMap& counts) {
+  switch (tok.type) {
+    case pallas::TypeEvent:
+      counts[tok.id]++;
+      break;
+    case pallas::TypeSequence:
+      count_from_sequence(t, tok.id, counts);
+      break;
+    case pallas::TypeLoop:
+      count_from_loop(t, tok.id, counts);
+      break;
+    default:
+      break;
+  }
+}
 
 void map_set(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t from, uint32_t to) {
   fwd[thread_id][from] = to;
@@ -1056,6 +1089,11 @@ int main(int argc, char** argv) {
       std::cout << "root duplicated halves? " << halves_equal << "\n";
     }
   }
+
+  CountMap counts;
+  count_from_sequence(threads[0], threads[0]->sequence_root, counts);
+  std::cout << "event 0 count = " << counts[0] << "\n";
+  std::cout << "event 1 count = " << counts[1] << "\n";
 
   auto save_name = strdup((
     std::string(base_dir_name) + "_fin"
