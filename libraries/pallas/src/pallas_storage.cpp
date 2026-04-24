@@ -1039,22 +1039,31 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
   }
 }
 static void storeEventData(pallas::EventData& event,
-                             const File& eventFile,
-                             const pallas::ParameterHandler& parameter_handler) {
-    eventFile.write(&event, event.event_size, 1);
+                           const File& eventFile,
+                           const pallas::ParameterHandler& parameter_handler) {
+    eventFile.write(&event.record, sizeof(event.record), 1);
+    eventFile.write(&event.event_size, sizeof(event.event_size), 1);
+    size_t payload_size = event.event_size - offsetof(pallas::EventData, event_data);
+    if (payload_size > 0) {
+        eventFile.write(event.event_data, payload_size, 1);
+    }
 }
 
 static void readEventData(pallas::EventData& event,
-                            const File& eventFile,
-                            const pallas::ParameterHandler& parameter_handler,
-                            uint8_t abi_version) {
+                          const File& eventFile,
+                          const pallas::ParameterHandler& parameter_handler,
+                          uint8_t abi_version) {
     eventFile.read(&event.record, sizeof(event.record), 1);
     if (abi_version <= 18 && event.record == 0) {
         event.record = pallas::PALLAS_EVENT_BUFFER_FLUSH;
     }
     eventFile.read(&event.event_size, sizeof(event.event_size), 1);
+    std::memset(event.event_data, 0, sizeof(event.event_data));
     auto size = event.event_size - offsetof(pallas::EventData, event_data);
-    eventFile.read(event.event_data, size, 1);
+    size_t payload_size = event.event_size - offsetof(pallas::EventData, event_data);
+    if (payload_size > 0) {
+        eventFile.read(event.event_data, payload_size, 1);
+    }
 };
 
 static void storeEvent(pallas::Event& event,
@@ -1065,12 +1074,14 @@ static void storeEvent(pallas::Event& event,
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
 
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
-        pallas::EventData dummy_data;
-        dummy_data.record = pallas::PALLAS_EVENT_MAX_ID;
-        dummy_data.event_size = offsetof(pallas::EventData, event_data); // Just the header, no payload
-        storeEventData(dummy_data, eventFile, *parameter_handler);
-        uint32_t zero_attr = 0;
-        eventFile.write(&zero_attr, sizeof(zero_attr), 1);
+        pallas::EventData dummy{};
+        dummy.record = pallas::PALLAS_EVENT_MAX_ID;
+        dummy.event_size = offsetof(pallas::EventData, event_data); // Just the header, no payload
+        storeEventData(dummy, eventFile, *parameter_handler);
+
+        size_t serialized_attr_size = 0;
+        eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+
         if (STORE_TIMESTAMPS) {
             size_t zero_size = 0;
             size_t one_sub_array = 1;
@@ -1083,10 +1094,11 @@ static void storeEvent(pallas::Event& event,
     pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
 
     storeEventData(event.data, eventFile, *parameter_handler);
-    eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
-    if (event.attribute_pos > 0) {
-        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", event.attribute_pos);
-        eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
+    size_t serialized_attr_size = event.attribute_pos;
+    eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+    if (serialized_attr_size > 0) {
+        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", serialized_attr_size);
+        eventFile.write(event.attribute_buffer, sizeof(byte), serialized_attr_size);
     }
     if (STORE_TIMESTAMPS) {
         if (load_thread) {
@@ -1105,24 +1117,30 @@ static void readEvent(pallas::Event& event,
                                    uint8_t abi_version) {
     readEventData(event.data, eventFile, parameter_handler, abi_version);
 
-    eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
-    event.attribute_pos = 0;
+    size_t serialized_attr_size = 0;
+    eventFile.read(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+
     event.attribute_buffer = nullptr;
-    if (event.attribute_buffer_size > 0) {
-        event.attribute_buffer = new byte[event.attribute_buffer_size];
-        eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
+    event.attribute_buffer_size = serialized_attr_size;
+    event.attribute_pos = serialized_attr_size;
+
+    if (serialized_attr_size > 0) {
+        event.attribute_buffer = new byte[serialized_attr_size];
+        eventFile.read(event.attribute_buffer, sizeof(byte), serialized_attr_size);
     }
 
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
-        size_t size = 0;
-        eventFile.read(&size, sizeof(size), 1);
-        if (abi_version >= 18) {
-            size_t n_sub_array = 0;
-            eventFile.read(&n_sub_array, sizeof(n_sub_array), 1);
+        if (STORE_TIMESTAMPS) {
+            size_t size = 0;
+            eventFile.read(&size, sizeof(size), 1);
+            if (abi_version >= 18) {
+                size_t n_sub_array = 0;
+                eventFile.read(&n_sub_array, sizeof(n_sub_array), 1);
+            }
         }
         event.timestamps = nullptr;
         event.nb_occurrences = 0;
-        pallas_log(pallas::DebugLevel::Debug, "\\tLoaded invalid event %d\\n", event.id);
+        pallas_log(pallas::DebugLevel::Debug, "\tLoaded invalid event %d\n", event.id);
         return;
     }
 
