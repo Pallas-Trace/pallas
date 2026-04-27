@@ -14,7 +14,7 @@ RUN apt install -y python3 python3-pip python3.11-venv python3-jinja2 python3-si
 
 # Clone Pallas
 RUN git clone  https://gitlab.inria.fr/pallas/pallas.git
-RUN cd pallas && git checkout a102ce417b3da820c077a1a220f06d9276208358
+RUN cd pallas && git pull && git checkout 33f36eccd2df0572c417cc57da11236db25bb8d3
 # Build and install Pallas
 RUN mkdir -p pallas/build && cd pallas/build && \
     cmake .. \
@@ -29,7 +29,7 @@ RUN cd pallas && pip install . --break-system-packages
 
 # Clone EZTrace
 RUN git clone -b dev https://gitlab.com/eztrace/eztrace.git
-RUN cd eztrace && git checkout c81976b3d78bea014b4aef05ef04a2b3c38c483d
+RUN cd eztrace && git pull && git checkout 9ad51986257715be11fd273b2bf247db93e47264
 # Build and install EZTrace
 RUN mkdir eztrace/build && cd eztrace/build &&  \
   cmake .. \
