@@ -106,20 +106,25 @@ target_link_libraries(pallas
 )
 target_link_directories(pallas PRIVATE ${ZSTD_LIBRARY_DIRS})
 if (DOXYGEN_FOUND AND BUILD_DOC)
-    # set input and output files
-    set(DOXYGEN_IN ${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in)
-    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
-
-    # request to configure the file
-    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-
     set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doc")
+    set(DOXYGEN_EXTRACT_PRIVATE YES)
+    set(DOXYGEN_EXTRACT_PRIV_VIRTUAL YES)
+    set(DOXYGEN_EXTRACT_ALL YES)
+    set(DOXYGEN_EXTRACT_PACKAGE YES)
+    set(DOXYGEN_HTML_COLORSTYLE LIGHT)
+    set(DOXYGEN_GENERATE_LATEX NO)
+    set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
+
+    set(DOXYGEN_STRIP_FROM_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_CURRENT_BINARY_DIR})
 
     # note the option ALL which allows to build the docs together with the application
     doxygen_add_docs(pallas_doc ALL
-   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-   COMMENT "Generating API documentation with Doxygen"
-   CONFIG_FILE ${DOXYGEN_OUT})
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            COMMENT "Generating API documentation with Doxygen"
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/include/pallas/
+            ${CMAKE_CURRENT_BINARY_DIR}/include/pallas/
+    )
 
     install(DIRECTORY "${DOXYGEN_OUTPUT_DIRECTORY}" TYPE DOC)
 else ()
