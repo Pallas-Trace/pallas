@@ -115,6 +115,10 @@ if (DOXYGEN_FOUND AND BUILD_DOC)
     set(DOXYGEN_GENERATE_LATEX NO)
     set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
 
+    set(DOXYGEN_ENABLE_PREPROCESSING YES)
+#    set(DOXYGEN_MACRO_EXPANSION YES)
+    set(DOXYGEN_PREDEFINED "__cplusplus")
+
     set(DOXYGEN_STRIP_FROM_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_CURRENT_BINARY_DIR})
 
     # note the option ALL which allows to build the docs together with the application
