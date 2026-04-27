@@ -219,7 +219,7 @@ private:
      * Classic destructor. Calls free_data().
      */
     ~LinkedVector();
-    /* Returns an array of size #size containing a copy of the values in this vector.*/
+    /** Returns an array of size #size containing a copy of the values in this vector.*/
     [[nodiscard]] uint64_t* as_flat_array();
 };
 
@@ -433,7 +433,7 @@ class LinkedDurationVector {
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
 
     ~LinkedDurationVector();
-    /* Returns an array of size #size containing a copy of the values in this vector.*/
+    /** Returns an array of size #size containing a copy of the values in this vector.*/
     [[nodiscard]] uint64_t* as_flat_array();
 
     /** Max element stored in the vector. */
