@@ -20,7 +20,7 @@ _The Pallas cat is just like our trace format: it looks big, but it's actually j
 New to Pallas? Start here:
 
 1. **🏃‍♂️ Quick Start Guide**: [Get running in 5 minutes](01-quick-start.md)
-2. **🔧 Tracing with EZTrace**: [Using EZTrace/Pallas](02-pallas/index.md)
+2. **🔧 Tracing with EZTrace**: [Using EZTrace/Pallas](02-pallas.md)
 3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
 4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
 
