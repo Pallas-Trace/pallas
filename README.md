@@ -1,6 +1,6 @@
 # Pallas
 [![BSD-3 License](https://img.shields.io/badge/License-BSD3-yellow.svg)](https://opensource.org/license/bsd-3-clause)
-![Dev Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/dev/pipeline.svg)
+![Main Pipeline](https://gitlab.inria.fr/pallas/pallas/badges/main/pipeline.svg)
 ![Maintained Badge](https://img.shields.io/badge/Maintained%3F-Yes-<colour>.svg)
 [![HAL Badge](https://img.shields.io/badge/HAL-04970114-white.svg)](https://inria.hal.science/hal-04970114/)
 ## Documentation
