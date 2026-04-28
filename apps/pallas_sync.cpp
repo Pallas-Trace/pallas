@@ -548,6 +548,7 @@ void save_thread_copy(pallas::GlobalArchive *trace,
     a->store(save_dir_name, trace->parameter_handler);
   }
 
+  trace->locations.clear();
   trace->store(save_dir_name, trace->parameter_handler);
 }
 
