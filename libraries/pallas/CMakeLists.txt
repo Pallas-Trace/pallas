@@ -114,10 +114,19 @@ if (DOXYGEN_FOUND AND BUILD_DOC)
     set(DOXYGEN_HTML_COLORSTYLE LIGHT)
     set(DOXYGEN_GENERATE_LATEX NO)
     set(DOXYGEN_JAVADOC_AUTOBRIEF YES)
+    set(DOXYGEN_RECURSIVE YES)
 
     set(DOXYGEN_ENABLE_PREPROCESSING YES)
+    set(DOXYGEN_MACRO_EXPANSION YES)
+    set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
 #    set(DOXYGEN_MACRO_EXPANSION YES)
-    set(DOXYGEN_PREDEFINED "__cplusplus")
+
+    set(DOXYGEN_PREDEFINED "CXX(x)=x" \\\n
+            "C_CXX(x,y)=y" \\\n
+            "DEFINE_Vector(type, name)=std::vector<type> name { std::vector<type>() }" \\\n
+            "DEFINE_TokenCountMap(name)=TokenCountMap name" \\\n
+            "PALLAS(x)=pallas::x" \\\n
+            "__cplusplus")
 
     set(DOXYGEN_STRIP_FROM_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -125,9 +134,10 @@ if (DOXYGEN_FOUND AND BUILD_DOC)
     doxygen_add_docs(pallas_doc ALL
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
             COMMENT "Generating API documentation with Doxygen"
-            ${CMAKE_CURRENT_SOURCE_DIR}/src
             ${CMAKE_CURRENT_SOURCE_DIR}/include/pallas/
+            ${CMAKE_CURRENT_SOURCE_DIR}/include/pallas/utils
             ${CMAKE_CURRENT_BINARY_DIR}/include/pallas/
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
     install(DIRECTORY "${DOXYGEN_OUTPUT_DIRECTORY}" TYPE DOC)

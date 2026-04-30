@@ -62,9 +62,8 @@ typedef struct ThreadWriter {
     void findLoop();
     /** Tries to find and replace the last n tokens in the grammar sequence. */
     void findSequence(size_t n);
-    /** Creates a Loop in the trace, and returns a pointer to it.
-     * Does not change the current array of tokens.
-     * @sequence_id ID of the sequence being repeated.
+    /** Creates a Loop from a repeating sequence, and returns a pointer to it.
+     * Does not change the current array of tokens. Loop is initialized at 2.
      * */
     [[nodiscard]] Loop* createLoop(Token sequence_id);
     /** Increments the counter of loop by 1. */

@@ -249,7 +249,7 @@ enum AttributeType {
 #define NB_ATTRIBUTE_MAX 128
 #define ATTRIBUTE_MAX_BUFFER_SIZE (sizeof(PALLAS(AttributeList)))
 #define ATTRIBUTE_HEADER_SIZE (sizeof(uint16_t) + sizeof(PALLAS(AttributeRef)))
-
+/** Data container for an attribute. */
 typedef struct AttributeData {
   uint16_t struct_size;
   AttributeRef ref;
@@ -257,6 +257,7 @@ typedef struct AttributeData {
 } __attribute__((packed)) AttributeData;
 
 #define ATTRIBUTE_LIST_HEADER_SIZE (sizeof(int) + sizeof(uint16_t) + sizeof(uint8_t))
+/** Array of attributes. */
 typedef struct AttributeList {
   int index;
   uint16_t struct_size;

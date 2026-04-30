@@ -26,7 +26,7 @@
 /** A macro to help naming conventions in C/C++. First argument is only kept in C, second is only kept in C++. */
 #define C_CXX(c_name, cxx_name) C(c_name) CXX(cxx_name)
 /** Adds pallas:: in front of the variables in C++. */
-#define PALLAS(something) CXX(pallas::) something
+#define PALLAS(something) CXX(pallas::)something
 
 #ifdef __cplusplus
 #include <pthread.h>
@@ -64,8 +64,10 @@ extern void pallas_debug_level_init(void);
 extern void pallas_debug_level_set(enum PALLAS(DebugLevel) lvl);
 /** Returns the DebugLevel. */
 extern enum PALLAS(DebugLevel) pallas_debug_level_get(void);
-CXX(
-};)
+
+#ifdef __cplusplus
+};
+#endif
 
 /* -*-
    mode: c;

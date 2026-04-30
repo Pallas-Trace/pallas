@@ -84,11 +84,12 @@ typedef struct TokenOccurrence {
 #endif
 } TokenOccurrence;
 
+/** Represents a frame in the callstack of the trace. */
 typedef struct CallstackFrame {
   /** The current timestamp. */
   pallas_timestamp_t current_timestamp;
 
-  /** Stack containing the sequences/loops being read. */
+  /** Current iterable in this frame. */
   Token callstack_iterable;
 
   /** Stack containing the index in the sequence or the loop iteration. */
@@ -97,20 +98,21 @@ typedef struct CallstackFrame {
 
   DEFINE_TokenCountMap(tokenCount);
 #ifdef __cplusplus
-  /** Creates a cursor of the given reader.
-   * @param reader Reader whose state of reading we want to take a screenshot. */
+  /** Creates an empty CallstackFrame. */
   CallstackFrame();
   ~CallstackFrame();
 #endif
 } CallstackFrame;
 
+/** A Cursor represents a state of the trace being read. It stores information about the callstacks, mostly. */
 typedef struct Cursor {
-  /** Current frame = index of the event/loop being read in the callstacks.
-   * You can view this as the "depth" of the callstack. */
+  /** Index of currentFrame in callstack. */
   int current_frame_index;
 
+    /** Pointer to the current CallstackFrame in callstack. */
   CallstackFrame *currentFrame;
 
+    /** Callstack. */
   CallstackFrame callstack[MAX_CALLSTACK_DEPTH];
 #ifdef __cplusplus
   explicit Cursor(const Cursor& other);
@@ -120,7 +122,7 @@ typedef struct Cursor {
 } Cursor;
 
 /**
- * Reads one thread from a Pallas trace. "Owns" the memory for the thread.
+ * Reads one thread from a Pallas trace. Owns the memory for the thread.
  */
 typedef struct ThreadReader {
     /** Archive being read by this reader. */
@@ -128,6 +130,7 @@ typedef struct ThreadReader {
     /** Thread being read. */
     struct Thread *thread_trace;
 
+    /** Current state, as represented by a Cursor. */
     Cursor currentState;
 
     /**
@@ -138,13 +141,13 @@ typedef struct ThreadReader {
     /**
      * Make a new ThreadReader from an Archive and a threadId.
      * @param archive Archive to read.
-     * @param threadId Id of the thread to read.
+     * @param threadId ID of the thread to read.
      * @param pallas_read_flag Default flag when reading
      */
     ThreadReader(Archive *archive, ThreadId threadId, int pallas_read_flag);
 
     /**
-     * This is just for convenience and should not be used as is
+     * This is just for convenience and should not be used as is.
      * Using an empty ThreadReader can and **will** segfault
      */
     ThreadReader() = default;
@@ -275,11 +278,16 @@ typedef struct ThreadReader {
 #endif
 } ThreadReader;
 
+/** Similar to the ThreadReader but iterates over many threads at the same time. */
 typedef struct MultiThreadReader {
+    /** Number of threads being read.*/
     size_t n_threads;
+    /** Array of ThreadReader. */
     ThreadReader *readers;
+    /** Current ThreadReader, ie whose ThreadReader::current_timestamp is the lowest. */
     ThreadReader *current_reader;
     #ifdef __cplusplus
+    /** Create a MultiThreadReader from a vector of Threads.*/
     MultiThreadReader(std::vector<Thread *> threads);
 
     /** Used to get a multi-thread reader of every thread in a trace */
