@@ -201,7 +201,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("starting_timestamp",
                                    [](const pallas::Thread &self) { return self.first_timestamp; })
             .def_property_readonly("finish_timestamp", [](const pallas::Thread &self) {
-                return (self.first_timestamp + self.sequences[0].durations->at(0));
+                return (self.first_timestamp + self.sequences[self.sequence_id_map[self.sequence_root]].durations->at(0));
             })
             .def_property_readonly("events", [](pallas::Thread &self) { return threadGetEvents(self); })
             .def_property_readonly("sequences", [](pallas::Thread &self) { return threadGetSequences(self); })

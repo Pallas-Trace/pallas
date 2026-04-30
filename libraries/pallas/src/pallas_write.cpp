@@ -660,7 +660,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     // We need to initialize the main Sequence (Sequence 0)
     auto& mainSequence = thread->sequences[thread->sequence_id_map[thread->sequence_root]];
-    mainSequence.id = PALLAS_SEQUENCE_ID(thread->sequence_root);
+    mainSequence.id = PALLAS_SEQUENCE_ID(thread->sequence_id_map[thread->sequence_root]);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;
