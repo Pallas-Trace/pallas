@@ -122,6 +122,7 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
   return TimestampStorage::Invalid;
 }
 
+/** Simple class to handle the parsing of the configuration file. */
 class ConfigFile {
   std::map<std::string, std::string> config;
 
