@@ -289,7 +289,12 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
       pallas::Loop& loop = t->loops[phys_id];
 
       uint32_t owner = map_owner(loop_rev, t->id, logi_id);
+      auto thread_it = loop_base_tokens.find(t->id);
+      if (thread_it == loop_base_tokens.end()) continue;
+      auto owner_it = thread_it->second.find(owner);
+      if (owner_it == thread_it->second.end()) continue;
       pallas::Token token = loop_base_tokens.at(t->id).at(owner);
+
       if (token.type == pallas::TypeEvent && update_events) {
         token.id = map_eval(event_map, t->id, token.id);
       }
@@ -443,6 +448,10 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
       pallas::Sequence& seq = t->sequences[phys_id];
 
       uint32_t owner = map_owner(seq_rev, t->id, logi_id);
+      auto thread_it = seq_base_tokens.find(t->id);
+      if (thread_it == seq_base_tokens.end()) continue;
+      auto owner_it = thread_it->second.find(owner);
+      if (owner_it == thread_it->second.end()) continue;
       const auto& base_tokens = seq_base_tokens.at(t->id).at(owner);
 
       seq.tokens.clear();
