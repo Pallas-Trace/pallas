@@ -94,11 +94,22 @@ uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
   return (it != thread_it->second.end()) ? it->second : in_id;
 }
 
-uint32_t amp_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
+uint32_t map_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
   auto t_it = rev.find(thread_id);
   if (t_it == rev.end()) return current_id;
   auto id_it = t_it->second.find(current_id);
   return (id_it != t_it->second.end()) ? id_it->second : current_id;
+}
+
+uint32_t get_event_phys_id(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->event_id_map.size()) return PALLAS_INDEX_INVALID;
+  return t->event_id_map[logi_id];
+}
+
+void event_ensure_map_size(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->event_id_map.size()) {
+    t->event_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+  }
 }
 
 bool event_cmp(pallas::Event& e1, pallas::Event& e2) {
@@ -112,47 +123,36 @@ bool event_cmp(pallas::Event& e1, pallas::Event& e2) {
   return true;
 }
 
-void event_insert(pallas::Event& e, pallas::Thread *t, uint32_t id) {
-  while (id >= t->nb_allocated_events) {
-    doubleMemorySpaceConstructor(t->events, t->nb_allocated_events);
-  }
-  t->events[id] = std::move(e);
-  if (id >= t->nb_events) {
-    t->nb_events++;
-    t->events[id].id = id;
+void event_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) {
+  event_ensure_map_size(t, src_logi_id);
+  event_ensure_map_size(t, swap_logi_id);
+
+  uint32_t src_phys_id = t->event_id_map[src_logi_id];
+  uint32_t swap_phys_id = t->event_id_map[swap_logi_id];
+  
+  std::swap(t->event_id_map[src_logi_id], t->event_id_map[swap_logi_id]);
+
+  if (src_phys_id != PALLAS_INDEX_INVALID) {
+        t->events[src_phys_id].id = swap_logi_id;
+    }
+  if (swap_phys_id != PALLAS_INDEX_INVALID) {
+      t->events[swap_phys_id].id = src_logi_id;
   }
 }
 
-void event_override_invalid(pallas::Thread *t, uint32_t id) {
-  t->events[id].id = PALLAS_TOKEN_ID_INVALID;
-  t->events[id].data = pallas::EventData {
-    pallas::PALLAS_EVENT_MAX_ID,
-    0,
-    {}
-  };
-  t->events[id].timestamps = NULL;
-  t->events[id].nb_occurrences = 0;
-  t->events[id].attribute_buffer = NULL;
-  t->events[id].attribute_buffer_size = 0;
-  t->events[id].attribute_pos = 0;
-}
-
-void event_swap(pallas::Thread *t, uint32_t src_id, uint32_t swap_id) {
-  std::swap(t->events[src_id], t->events[swap_id]);
-  t->events[src_id].id = src_id;
-  t->events[swap_id].id = swap_id;
+void event_unmap(pallas::Thread* t, uint32_t logi_id) {
+  event_ensure_map_size(t, logi_id);
+  t->event_id_map[logi_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_event(pallas::Event& src_event, pallas::Thread *t) {
-  uint32_t t_n_events = t->nb_events;
-  for (uint32_t e2_idx = src_event.id; e2_idx < t_n_events; e2_idx++) {
-    pallas::Event& cand_event = t->events[e2_idx];
-    if (event_cmp(src_event, cand_event)) {
-      return cand_event.id;
+  for (uint32_t logi_id = 0; logi_id < t->event_id_map.size(); logi_id++) {
+    uint32_t phys_id = t->event_id_map[logi_id];
+    if (phys_id != PALLAS_INDEX_INVALID && event_cmp(src_event, t->events[phys_id])) {
+      return logi_id;
     }
   }
-  // if no match found return src_event id
-  return src_event.id;
+  return PALLAS_INDEX_INVALID;
 }
 
 int sync_events(std::vector<pallas::Thread*>& threads,
@@ -167,21 +167,26 @@ int sync_events(std::vector<pallas::Thread*>& threads,
       continue;
     }
 
+    if (t2->event_id_map.size() < end_id) {
+      t2->event_id_map.resize(end_id, PALLAS_INDEX_INVALID);
+    }
+
     for (uint32_t event_id = start_id; event_id < end_id; event_id++) {
-      pallas::Event& src_event  = t->events[event_id];
-      pallas::Event& cand_event = t2->events[event_id];
+      uint32_t src_phys_id = get_event_phys_id(t, event_id);
+      assert(src_phys_id != PALLAS_INDEX_INVALID);
+      pallas::Event& src_event  = t->events[src_phys_id];
+
+      uint32_t cand_phys_id = get_event_phys_id(t2, event_id);
       bool found_match = false;
 
-      assert(src_event.data.record != pallas::PALLAS_EVENT_MAX_ID);
-
       // check if already synchronized
-      if (event_cmp(src_event,cand_event)) {
+      if (cand_phys_id != PALLAS_INDEX_INVALID && event_cmp(src_event, t2->events[cand_phys_id])) {
         found_match = true;
 
       // try to find other match somewhere
       } else {
         uint32_t match_id = find_matching_event(src_event, t2);
-        if (match_id != event_id) {
+        if (match_id != PALLAS_INDEX_INVALID) {
           event_swap(t2, event_id, match_id);
           found_match = true;
           map_swap(event_map, event_rev, t2->id, event_id, match_id);
@@ -189,19 +194,26 @@ int sync_events(std::vector<pallas::Thread*>& threads,
       }
 
       // if no match found insert placeholder
-      if (!found_match && cand_event.data.record != pallas::PALLAS_EVENT_MAX_ID) {
-        uint32_t swap_id = t2->nb_events;
-        pallas::Event swap_event = std::move(t2->events[event_id]);
-        event_insert(swap_event, t2, swap_id);
-        event_override_invalid(t2, event_id);
-
+      if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
         uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
-        map_set(event_map, event_rev, t2->id, prev_owner, swap_id);
+        event_unmap(t2, event_id);
+        map_set(event_map, event_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
         event_rev[t2->id].erase(event_id);
       }
     }
   }
   return 0;
+}
+
+static uint32_t get_loop_phys_id(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->loop_id_map.size()) return PALLAS_INDEX_INVALID;
+  return t->loop_id_map[logi_id];
+}
+
+static void loop_ensure_map_size(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->loop_id_map.size()) {
+    t->loop_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+  }
 }
 
 bool loop_cmp(pallas::Loop& l1, pallas::Loop& l2) {
@@ -217,46 +229,35 @@ bool loop_cmp(pallas::Loop& l1, pallas::Loop& l2) {
   return true;
 }
 
-void loop_insert(pallas::Loop& l,
-                 pallas::Thread *t, uint32_t id) {
-  while (id >= t->nb_allocated_loops) {
-    doubleMemorySpaceConstructor(t->loops, t->nb_allocated_loops);
+void loop_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) {
+  loop_ensure_map_size(t, src_logi_id);
+  loop_ensure_map_size(t, swap_logi_id);
+
+  uint32_t src_phys_id = t->loop_id_map[src_logi_id];
+  uint32_t swap_phys_id = t->loop_id_map[swap_logi_id];
+
+  std::swap(t->loop_id_map[src_logi_id], t->loop_id_map[swap_logi_id]);
+
+  if (src_phys_id != PALLAS_INDEX_INVALID) {
+    t->loops[src_phys_id].self_id = PALLAS_LOOP_ID(swap_logi_id);
   }
-  t->loops[id] = std::move(l);
-  if (id >= t->nb_loops) {
-    t->nb_loops++;
-    t->loops[id].self_id.id = id;
+  if (swap_phys_id != PALLAS_INDEX_INVALID) {
+    t->loops[swap_phys_id].self_id = PALLAS_LOOP_ID(src_logi_id);
   }
 }
 
-void loop_override_invalid(pallas::Thread *t, uint32_t id) {
-  t->loops[id].repeated_token.type = pallas::TypeInvalid;
-  t->loops[id].repeated_token.id = PALLAS_TOKEN_ID_INVALID;
-  t->loops[id].self_id.type = pallas::TypeInvalid;
-  t->loops[id].self_id.id = PALLAS_TOKEN_ID_INVALID;
-  t->loops[id].nb_iterations = 0;
-  t->loops[id].nb_occurrences = 0;
-}
-
-void loop_swap(pallas::Thread *t,
-               uint32_t src_id, uint32_t swap_id) {
-  std::swap(t->loops[src_id], t->loops[swap_id]);
-  t->loops[src_id].self_id.id = src_id;
-  t->loops[swap_id].self_id.id = swap_id;
+void loop_unmap(pallas::Thread* t, uint32_t logi_id) {
+  loop_ensure_map_size(t, logi_id);
+  t->loop_id_map[logi_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_loop(pallas::Loop& src_loop, pallas::Thread *t) {
-  for (uint32_t l2_idx = src_loop.self_id.id; l2_idx < t->nb_loops; l2_idx++) {
-    pallas::Loop& cand_loop = t->loops[l2_idx];
-    if (cand_loop.self_id.type == pallas::TypeInvalid) {
-      continue;
-    }
-    if (loop_cmp(src_loop, cand_loop)) {
-      return cand_loop.self_id.id;
-    }
+  for (uint32_t logi_id = 0; logi_id < t->loop_id_map.size(); logi_id++) {
+    uint32_t phys_id = t->loop_id_map[logi_id];
+    if (phys_id != PALLAS_INDEX_INVALID && loop_cmp(src_loop, t->loops[phys_id]))
+      return logi_id;
   }
-  // if no match found return src_event id
-  return src_loop.self_id.id;
+  return PALLAS_INDEX_INVALID;
 }
 
 void update_loop_tokens(std::vector<pallas::Thread*>& threads,
@@ -269,14 +270,14 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
                         thread_token_map& loop_rev,
                         const std::map<uint32_t, token_lookup>& loop_base_tokens) {
   for (auto* t : threads) {
-    for (uint32_t loop_id = 0; loop_id < t->nb_loops; loop_id++) {
-      pallas::Loop& loop = t->loops[loop_id];
-
-      if (loop.self_id.type == pallas::TypeInvalid) {
+    for (uint32_t logi_id = 0; logi_id < t->loop_id_map.size(); logi_id++) {
+      uint32_t phys_id = t->loop_id_map[logi_id];
+      if (phys_id == PALLAS_INDEX_INVALID) {
         continue;
       }
+      pallas::Loop& loop = t->loops[phys_id];
 
-      uint32_t owner = amp_owner(loop_rev, t->id, loop_id);
+      uint32_t owner = map_owner(loop_rev, t->id, logi_id);
       pallas::Token token = loop_base_tokens.at(t->id).at(owner);
       if (token.type == pallas::TypeEvent && update_events) {
         token.id = map_eval(event_map, t->id, token.id);
@@ -307,29 +308,24 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
     }
 
     for (uint32_t loop_id = start_id; loop_id < end_id; loop_id++) {
-      // make sure t2 has enough allocated loops
-      if (t2->nb_allocated_loops <= loop_id) {
-        doubleMemorySpaceConstructor(t2->loops, t2->nb_allocated_loops);
-      }
-      pallas::Loop& src_loop = t->loops[loop_id];
-      pallas::Loop& cand_loop = t2->loops[loop_id];
-      bool found_match = false;
-
+      uint32_t src_phys_id = get_loop_phys_id(t, loop_id);
       // check if src invalid
-      if (src_loop.self_id.type == pallas::TypeInvalid) {
+      if (src_phys_id == PALLAS_INDEX_INVALID) {
         continue;
       }
+      pallas::Loop& src_loop = t->loops[src_phys_id];
 
-      bool cand_is_invalid = (cand_loop.self_id.type == pallas::TypeInvalid);
+      uint32_t cand_phys_id = get_loop_phys_id(t2, loop_id);
+      bool found_match = false;
 
       // check if already synchronized
-      if (!cand_is_invalid && loop_cmp(src_loop, cand_loop)) {
+      if (cand_phys_id != PALLAS_INDEX_INVALID && loop_cmp(src_loop, t2->loops[cand_phys_id])) {
         found_match = true;
 
       // try to find other match somewhere
       } else {
         uint32_t match_id = find_matching_loop(src_loop, t2);
-        if (match_id != loop_id) {
+        if (match_id != PALLAS_INDEX_INVALID) {
           loop_swap(t2, loop_id, match_id);
           found_match = true;
           map_swap(loop_map, loop_rev, t2->id, loop_id, match_id);
@@ -338,27 +334,27 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
       }
 
       // if no match found insert placeholder
-      if (!found_match) {
-        if (!cand_is_invalid) {
-          uint32_t swap_id = t2->nb_loops;
-          pallas::Loop disp_loop = std::move(t2->loops[loop_id]);
-          loop_insert(disp_loop, t2, swap_id);
-          loop_override_invalid(t2, loop_id);
-
-          uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
-          map_set(loop_map, loop_rev, t2->id, prev_owner, swap_id);
-          loop_rev[t2->id].erase(loop_id);
-
-          number_of_swaps++;
-        } else {
-          if (t2->nb_loops <= loop_id) {
-            t2->nb_loops = loop_id + 1;
-          }
-        }
+      if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
+        uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
+        loop_unmap(t2, loop_id);
+        map_set(loop_map, loop_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
+        loop_rev[t2->id].erase(loop_id);
+        number_of_swaps++;
       }
     }
   }
   return number_of_swaps;
+}
+
+static uint32_t get_seq_phys_id(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->sequence_id_map.size()) return PALLAS_INDEX_INVALID;
+  return t->sequence_id_map[logi_id];
+}
+
+static void seq_ensure_map_size(pallas::Thread* t, uint32_t logi_id) {
+  if (logi_id >= t->sequence_id_map.size()) {
+    t->sequence_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+  }
 }
 
 bool seq_cmp(pallas::Sequence& seq1, pallas::Sequence& seq2) {
@@ -380,47 +376,36 @@ bool seq_cmp(pallas::Sequence& seq1, pallas::Sequence& seq2) {
   return true;
 }
 
-void seq_insert(pallas::Sequence& seq, pallas::Thread *t, uint32_t id) {
-  while (id >= t->nb_allocated_sequences) {
-    doubleMemorySpaceConstructor(t->sequences, t->nb_allocated_sequences);
+void seq_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) {
+  seq_ensure_map_size(t, src_logi_id);
+  seq_ensure_map_size(t, swap_logi_id);
+
+  uint32_t src_phys_id = get_seq_phys_id(t, src_logi_id);
+  uint32_t swap_phys_id = get_seq_phys_id(t, swap_logi_id);
+
+  std::swap(t->sequence_id_map[src_logi_id], t->sequence_id_map[swap_logi_id]);
+
+  if (src_phys_id != PALLAS_INDEX_INVALID) {
+    t->sequences[src_phys_id].id = PALLAS_SEQUENCE_ID(swap_logi_id);
   }
-  t->sequences[id] = std::move(seq);
-  if (id >= t->nb_sequences) {
-    t->nb_sequences++;
-    t->sequences[id].id.id = id;
+  if (swap_phys_id != PALLAS_INDEX_INVALID) {
+    t->sequences[swap_phys_id].id = PALLAS_SEQUENCE_ID(src_logi_id);
   }
 }
 
-void seq_override_invalid(pallas::Thread *t, uint32_t id) {
-  // NOTE: consider re-init sequence
-  // i.e. t->sequences[id] = pallas::Sequence{};
-  t->sequences[id].id = pallas::Token();
-  t->sequences[id].durations = NULL;
-  t->sequences[id].exclusive_durations = NULL;
-  t->sequences[id].timestamps = NULL;
-  t->sequences[id].hash = 0;
-  t->sequences[id].tokens.clear();
-  t->sequences[id].type = pallas::SEQUENCE_BLOCK;
-}
-
-void seq_swap(pallas::Thread *t, uint32_t src_id, uint32_t swap_id) {
-  std::swap(t->sequences[src_id], t->sequences[swap_id]);
-  t->sequences[src_id].id.id = src_id;
-  t->sequences[swap_id].id.id = swap_id;
+void seq_unmap(pallas::Thread* t, uint32_t logical_id) {
+  seq_ensure_map_size(t, logical_id);
+  t->sequence_id_map[logical_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_seq(pallas::Sequence& src_seq, pallas::Thread *t) {
-  for (uint32_t s2_idx = src_seq.id.id; s2_idx < t->nb_sequences; s2_idx++) {
-    pallas::Sequence& cand_seq = t->sequences[s2_idx];
-    if (cand_seq.id.type == pallas::TypeInvalid) {
-      continue;
-    }
-    if (seq_cmp(src_seq, cand_seq)) {
-      return cand_seq.id.id;
+  for (uint32_t logi_id = 0; logi_id < t->sequence_id_map.size(); logi_id++) {
+    uint32_t phys_id = t->sequence_id_map[logi_id];
+    if (phys_id != PALLAS_INDEX_INVALID && seq_cmp(src_seq, t->sequences[phys_id])) {
+      return logi_id;
     }
   }
-  // if no match found return src_event id
-  return src_seq.id.id;
+  return PALLAS_INDEX_INVALID;
 }
 
 void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
@@ -433,14 +418,14 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
                             thread_token_map& seq_rev,
                             const std::map<uint32_t, token_vector_lookup>& seq_base_tokens) {
   for (auto* t : threads) {
-    for (uint32_t seq_id = 0; seq_id < t->nb_sequences; seq_id++) {
-      pallas::Sequence& seq = t->sequences[seq_id];
-
-      if (seq.id.type == pallas::TypeInvalid) {
+    for (uint32_t logi_id = 0; logi_id < t->sequence_id_map.size(); logi_id++) {
+      uint32_t phys_id = t->sequence_id_map[logi_id];
+      if (phys_id == PALLAS_INDEX_INVALID) {
         continue;
       }
+      pallas::Sequence& seq = t->sequences[phys_id];
 
-      uint32_t owner = amp_owner(seq_rev, t->id, seq_id);
+      uint32_t owner = map_owner(seq_rev, t->id, logi_id);
       const auto& base_tokens = seq_base_tokens.at(t->id).at(owner);
 
       seq.tokens.clear();
@@ -481,30 +466,24 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
     }
 
     for (uint32_t seq_id = start_id; seq_id < end_id; seq_id++) {
-      // make sure t2 has enough allocated sequences
-      if (t2->nb_allocated_sequences <= seq_id) {
-          doubleMemorySpaceConstructor(t2->sequences, t2->nb_allocated_sequences);
-      }
-      pallas::Sequence& src_seq = t->sequences[seq_id];
-      pallas::Sequence& cand_seq = t2->sequences[seq_id];
-      bool found_match = false;
-
+      uint32_t src_phys_id = get_seq_phys_id(t, seq_id);
       // check if src invalid
-      // NOTE: possibly update handling?
-      if (src_seq.id.type == pallas::TypeInvalid) {
+      if (src_phys_id == PALLAS_INDEX_INVALID) {
         continue;
       }
+      pallas::Sequence& src_seq = t->sequences[src_phys_id];
 
-      bool cand_is_invalid = (cand_seq.id.type == pallas::TypeInvalid);
+      uint32_t cand_phys_id = get_seq_phys_id(t2, seq_id);
+      bool found_match = false;
 
       // check if already synchronized
-      if (!cand_is_invalid && seq_cmp(src_seq, cand_seq)) {
+      if (cand_phys_id != PALLAS_INDEX_INVALID && seq_cmp(src_seq, t2->sequences[cand_phys_id])) {
         found_match = true;
 
       // try to find other match somewhere
       } else {
         uint32_t match_id = find_matching_seq(src_seq, t2);
-        if (match_id != seq_id) {
+        if (match_id != PALLAS_INDEX_INVALID) {
           seq_swap(t2, seq_id, match_id);
           found_match = true;
           map_swap(seq_map, seq_rev, t2->id, seq_id, match_id);
@@ -513,23 +492,12 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
       }
 
       // if no match found insert placeholder
-      if (!found_match) {
-        if (!cand_is_invalid) {
-          uint32_t swap_id = t2->nb_sequences;
-          pallas::Sequence disp_seq = std::move(t2->sequences[seq_id]);
-          seq_insert(disp_seq, t2, swap_id);
-          seq_override_invalid(t2, seq_id);
-
-          uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
-          map_set(seq_map, seq_rev, t2->id, prev_owner, swap_id);
-          seq_rev[t2->id].erase(seq_id);
-
-          number_of_swaps++;
-        } else {
-          if (t2->nb_sequences <= seq_id) {
-            t2->nb_sequences = seq_id + 1;
-          }
-        }
+      if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
+        uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
+        seq_unmap(t2, seq_id);
+        map_set(seq_map, seq_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
+        seq_rev[t2->id].erase(seq_id);
+        number_of_swaps++;
       }
     }
   }
@@ -808,15 +776,15 @@ int main(int argc, char** argv) {
 
   // initialize event_map to identity for original events
   for (auto* t : threads) {
-    for (uint32_t i = 0; i < t->nb_events; i++) {
-      if (t->events[i].data.record != pallas::PALLAS_EVENT_MAX_ID) {
+    for (uint32_t i = 0; i < t->event_id_map.size(); i++) {
+      if (t->event_id_map[i] != PALLAS_INDEX_INVALID) {
         map_set(thread_event_map, thread_event_rev, t->id, i, i);
       }
     }
   }
 
   for (auto* t : threads) {
-    uint32_t thread_n_events = t->nb_events;
+    uint32_t thread_n_events = t->event_id_map.size();
     if (thread_n_events <= n_events_verified) {
       continue;
     }
@@ -825,11 +793,8 @@ int main(int argc, char** argv) {
     // pre-fill other threads with invalids to match nb_events
     for (auto* t2 : threads) {
       if (t2->id == t->id) continue;
-      for (uint32_t event_id = t2->nb_events; event_id < thread_n_events; event_id++) {
-        while (event_id >= t2->nb_allocated_events)
-          doubleMemorySpaceConstructor(t2->events, t2->nb_allocated_events);
-        event_override_invalid(t2, event_id);
-        t2->nb_events = event_id + 1;
+      if (t2->event_id_map.size() < thread_n_events) {
+        t2->event_id_map.resize(thread_n_events, PALLAS_INDEX_INVALID);
       }
     }
 
@@ -840,11 +805,9 @@ int main(int argc, char** argv) {
     // compact extra danging invalids
     for (auto* t2 : threads) {
       if (t2->id == t->id) continue;
-      uint32_t new_nb = t2->nb_events;
-      while (new_nb > n_events_verified && t2->events[new_nb - 1].data.record == pallas::PALLAS_EVENT_MAX_ID) {
-        new_nb--;
+      while (t2->event_id_map.size() > n_events_verified && t2->event_id_map.back() == PALLAS_INDEX_INVALID) {
+        t2->event_id_map.pop_back();
       }
-      t2->nb_events = new_nb;
     }
   }
 
@@ -897,14 +860,16 @@ int main(int argc, char** argv) {
   std::map<uint32_t, token_vector_lookup> seq_base_tokens;  // thread_id -> original_seq_id  -> base tokens
 
   for (auto* t : threads) {
-    for (uint32_t i = 0; i < t->nb_loops; i++) {
-      if (t->loops[i].self_id.type != pallas::TypeInvalid) {
-        loop_base_tokens[t->id][i] = t->loops[i].repeated_token;
+    for (uint32_t i = 0; i < t->loop_id_map.size(); i++) {
+      uint32_t phys_id = t->loop_id_map[i];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        loop_base_tokens[t->id][i] = t->loops[phys_id].repeated_token;
       }
     }
-    for (uint32_t i = 0; i < t->nb_sequences; i++) {
-      if (t->sequences[i].id.type != pallas::TypeInvalid) {
-        seq_base_tokens[t->id][i] = t->sequences[i].tokens;
+    for (uint32_t i = 0; i < t->sequence_id_map.size(); i++) {
+      uint32_t phys_id = t->sequence_id_map[i];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        seq_base_tokens[t->id][i] = t->sequences[phys_id].tokens;
       }
     }
   }
@@ -921,13 +886,13 @@ int main(int argc, char** argv) {
 
   // initialize loop_map and seq_map to identity for original tokens
   for (auto* t : threads) {
-    for (uint32_t i = 0; i < t->nb_loops; i++) {
-      if (t->loops[i].self_id.type != pallas::TypeInvalid) {
+    for (uint32_t i = 0; i < t->loop_id_map.size(); i++) {
+      if (t->loop_id_map[i] != PALLAS_INDEX_INVALID) {
         map_set(thread_loop_map, thread_loop_rev, t->id, i, i);
       }
     }
-    for (uint32_t i = 0; i < t->nb_sequences; i++) {
-      if (t->sequences[i].id.type != pallas::TypeInvalid) {
+    for (uint32_t i = 0; i < t->sequence_id_map.size(); i++) {
+      if (t->sequence_id_map[i] != PALLAS_INDEX_INVALID) {
         map_set(thread_seq_map, thread_seq_rev, t->id, i, i);
       }
     }
@@ -959,7 +924,7 @@ int main(int argc, char** argv) {
     uint32_t n_loops_verified = 0;
 
     for (auto* t : threads) {
-      uint32_t thread_n_loops = t->nb_loops;
+      uint32_t thread_n_loops = t->loop_id_map.size();
       if (thread_n_loops <= n_loops_verified) {
         continue;
       }
@@ -968,11 +933,8 @@ int main(int argc, char** argv) {
       // pre-fill other threads with invalids to match nb_loops
       for (auto* t2 : threads) {
         if (t2->id == t->id) continue;
-        for (uint32_t loop_id = t2->nb_loops; loop_id < thread_n_loops; loop_id++) {
-          while (loop_id >= t2->nb_allocated_loops)
-            doubleMemorySpaceConstructor(t2->loops, t2->nb_allocated_loops);
-          loop_override_invalid(t2, loop_id);
-          t2->nb_loops = loop_id + 1;
+        if (t2->loop_id_map.size() < thread_n_loops) {
+          t2->loop_id_map.resize(thread_n_loops, PALLAS_INDEX_INVALID);
         }
       }
 
@@ -982,12 +944,9 @@ int main(int argc, char** argv) {
       // compact extra danging invalids
       for (auto* t2 : threads) {
         if (t2->id == t->id) continue;
-        uint32_t new_nb = t2->nb_loops;
-        while (new_nb > n_loops_verified &&
-               t2->loops[new_nb - 1].self_id.type == pallas::TypeInvalid) {
-          new_nb--;
+        while (t2->loop_id_map.size() > n_loops_verified && t2->loop_id_map.back() == PALLAS_INDEX_INVALID) {
+          t2->loop_id_map.pop_back();
         }
-        t2->nb_loops = new_nb;
       }
     }
 
@@ -1012,7 +971,7 @@ int main(int argc, char** argv) {
     uint32_t n_seqs_verified = 0;
 
     for (auto* t : threads) {
-      uint32_t thread_n_seqs = t->nb_sequences;
+      uint32_t thread_n_seqs = t->sequence_id_map.size();
       if (thread_n_seqs <= n_seqs_verified) {
         continue;
       }
@@ -1021,11 +980,8 @@ int main(int argc, char** argv) {
       // pre-fill other threads with invalids to match nb_sequences
       for (auto* t2 : threads) {
         if (t2->id == t->id) continue;
-        for (uint32_t seq_id = t2->nb_sequences; seq_id < thread_n_seqs; seq_id++) {
-          while (seq_id >= t2->nb_allocated_sequences)
-            doubleMemorySpaceConstructor(t2->sequences, t2->nb_allocated_sequences);
-          seq_override_invalid(t2, seq_id);
-          t2->nb_sequences = seq_id + 1;
+        if (t2->sequence_id_map.size() < thread_n_seqs) {
+          t2->sequence_id_map.resize(thread_n_seqs, PALLAS_INDEX_INVALID);
         }
       }
 
@@ -1035,12 +991,9 @@ int main(int argc, char** argv) {
       // compact extra danging invalids
       for (auto* t2 : threads) {
         if (t2->id == t->id) continue;
-        uint32_t new_nb = t2->nb_sequences;
-        while (new_nb > n_seqs_verified &&
-               t2->sequences[new_nb - 1].id.type == pallas::TypeInvalid) {
-          new_nb--;
+        while (t2->sequence_id_map.size() > n_seqs_verified && t2->sequence_id_map.back() == PALLAS_INDEX_INVALID) {
+          t2->sequence_id_map.pop_back();
         }
-        t2->nb_sequences = new_nb;
       }
     }
 
@@ -1062,39 +1015,6 @@ int main(int argc, char** argv) {
   for (auto* thread : threads) {
     thread->sequence_root = map_eval(thread_seq_map, thread->id, 0);
   }
-
-  for (auto* t : threads) {
-    std::cout << "\n[thread " << t->id << "] root=" << t->sequence_root
-              << " nb_seq=" << t->nb_sequences
-              << " nb_loops=" << t->nb_loops
-              << " nb_events=" << t->nb_events << "\n";
-
-    auto& root = t->sequences[t->sequence_root];
-    std::cout << "root size=" << root.tokens.size() << "\n";
-
-    for (size_t i = 0; i < std::min<size_t>(root.tokens.size(), 40); i++) {
-      auto tok = root.tokens[i];
-      std::cout << "  [" << i << "] type=" << tok.type << " id=" << tok.id << "\n";
-    }
-
-    if (root.tokens.size() % 2 == 0) {
-      bool halves_equal = true;
-      size_t n = root.tokens.size() / 2;
-      for (size_t i = 0; i < n; i++) {
-        if (root.tokens[i].type != root.tokens[i + n].type ||
-            root.tokens[i].id   != root.tokens[i + n].id) {
-          halves_equal = false;
-          break;
-        }
-      }
-      std::cout << "root duplicated halves? " << halves_equal << "\n";
-    }
-  }
-
-  CountMap counts;
-  count_from_sequence(threads[0], threads[0]->sequence_root, counts);
-  std::cout << "event 0 count = " << counts[0] << "\n";
-  std::cout << "event 1 count = " << counts[1] << "\n";
 
   auto save_name = strdup((
     std::string(base_dir_name) + "_fin"

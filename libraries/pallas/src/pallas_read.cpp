@@ -127,9 +127,7 @@ void ThreadReader::printCallstack() const {
 }
 Event* ThreadReader::getEvent(Token event) const {
     pallas_assert(event.type == TypeEvent);
-    if (event.id < thread_trace->nb_events) {
-        return &thread_trace->events[event.id];
-    }
+    return thread_trace->getEvent(event);
     pallas_error("Given event (%d) was invalid\n", event.id);
 }
 pallas_timestamp_t ThreadReader::getEventTimestamp(Token event, int occurrence_id) const {
@@ -256,7 +254,7 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurr
 
 void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const {
     // Let's call the main sequence "main"
-    names[&thread_trace->sequences[thread_trace->sequence_root]] = "main";
+    names[&thread_trace->sequences[thread_trace->sequence_id_map[thread_trace->sequence_root]]] = "main";
 
     for (int i = 1; i < thread_trace->nb_sequences; i++) {
         pallas::Sequence* s = &thread_trace->sequences[i];

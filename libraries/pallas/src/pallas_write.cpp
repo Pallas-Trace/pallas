@@ -53,7 +53,8 @@ static Token getLastEvent(Token t, const Thread* thread) {
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
-        return thread->sequences[token_array->id];
+        uint32_t phys_id = thread->sequence_id_map[token_array->id];
+        return thread->sequences[phys_id];
     }
     // First match it in the thread
     uint32_t hash = hash32_Token(token_array, array_len, SEED);
@@ -74,9 +75,15 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         }
     }
 
-    const auto index = thread->nb_sequences++;
-    const auto sid = PALLAS_SEQUENCE_ID(index);
-    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%lu\n", index);
+    uint32_t phys_id = thread->nb_sequences++;
+    uint32_t logi_id = phys_id;
+    if (logi_id >= thread->sequence_id_map.size()) {
+        thread->sequence_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->sequence_id_map[logi_id] = phys_id;
+    const auto sid = PALLAS_SEQUENCE_ID(logi_id);
+
+    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%lu\n", logi_id);
 
     Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
@@ -84,7 +91,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     auto& sequencesWithSameHash = thread->hashToSequence[hash];
     s->hash = hash;
     s->id = sid;
-    sequencesWithSameHash.push_back(index);
+    sequencesWithSameHash.push_back(logi_id);
     if (s->tokens[0].type != TypeEvent || thread->getEvent(s->tokens[0])->data.record != PALLAS_EVENT_ENTER) {
         s->type = SEQUENCE_LOOP;
     }
@@ -103,14 +110,22 @@ Loop* ThreadWriter::createLoop(Token sequence_id) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of loops for thread writer %p's thread trace, cur=%lu\n", this, thread->nb_allocated_loops);
         doubleMemorySpaceConstructor(thread->loops, thread->nb_allocated_loops);
     }
-    size_t index = thread->nb_loops++;
-    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%lu containing S%d\n", index, sequence_id.id);
 
-    Loop& l = thread->loops[index];
+    uint32_t phys_id = thread->nb_loops++;
+    uint32_t logi_id = phys_id;
+
+    if (logi_id >= thread->loop_id_map.size()) {
+        thread->loop_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->loop_id_map[logi_id] = phys_id;
+
+    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%lu containing S%d\n", logi_id, sequence_id.id);
+
+    Loop& l = thread->loops[phys_id];
     l.nb_iterations = 1;
     l.nb_occurrences = 1;
     l.repeated_token = sequence_id;
-    l.self_id = PALLAS_LOOP_ID(index);
+    l.self_id = PALLAS_LOOP_ID(logi_id);
     return &l;
 }
 
@@ -167,16 +182,19 @@ Loop* ThreadWriter::unsquashLoop(Loop* loop) {
 }
 
 Loop* ThreadWriter::squashLoop(Loop* loop) {
-    for (size_t i = 0; i < loop->self_id.id; i++) {
-        auto& otherLoop = thread->loops[i];
+    for (size_t logi_id = 0; logi_id < thread->loop_id_map.size(); logi_id++) {
+        uint32_t phys_id = thread->loop_id_map[logi_id];
+        if (phys_id == PALLAS_INDEX_INVALID || logi_id == loop->self_id.id) {
+            continue;
+        }
+
+        auto& otherLoop = thread->loops[phys_id];
         if (otherLoop.repeated_token == loop->repeated_token && otherLoop.nb_iterations == loop->nb_iterations) {
             otherLoop.nb_occurrences ++;
-            // Reinitialize the old loop
-            if (loop->self_id.id == thread->nb_loops - 1) {
-                thread->nb_loops--;
-            } else {
-                pallas_warn("Could not delete L%d after squashing\n", loop->self_id.id);
-            }
+            thread->loop_id_map[loop->self_id.id] = PALLAS_INDEX_INVALID;
+
+            // NOTE: removed physical compaction for now, recheck later
+
             pallas_log(DebugLevel::Debug, "squashLoop: L%d => L%d\n", loop->self_id.id, otherLoop.self_id.id);
             loop->repeated_token = Token();
             loop->self_id = Token();
@@ -368,7 +386,8 @@ void ThreadWriter::findSequence(size_t n) {
             auto& sequencesWithSameHash = thread->hashToSequence[hash];
             if (!sequencesWithSameHash.empty()) {
                 for (const auto sid : sequencesWithSameHash) {
-                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid].tokens.data(), thread->sequences[sid].size())) {
+                    uint32_t phys_id = thread->sequence_id_map[sid];
+                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[phys_id].tokens.data(), thread->sequences[phys_id].size())) {
                         found_sequence_id = sid;
                         break;
                     }
@@ -556,7 +575,7 @@ size_t ThreadWriter::storeEvent(enum EventType event_type, TokenId event_id, pal
 
     Token token = Token(TypeEvent, event_id);
 
-    Event* es = &thread->events[event_id];
+    Event* es = &thread->events[thread->event_id_map[event_id]];
     size_t occurrence_index = es->nb_occurrences++;
     pallas_log(DebugLevel::Debug, "storeEvent: %s @ %lu\n", thread->getTokenString(token).c_str(), ts);
     storeTimestamp(es, ts);
@@ -577,7 +596,7 @@ void ThreadWriter::threadClose() {
         recordExitFunction();
     }
     // Then we need to store the main sequence
-    auto& mainSequence = thread->sequences[thread->sequence_root];
+    auto& mainSequence = thread->sequences[thread->sequence_id_map[thread->sequence_root]];
     mainSequence.tokens = sequence_stack[0];
     pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
@@ -640,7 +659,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     index_stack = new std::vector<size_t>[max_depth];
 
     // We need to initialize the main Sequence (Sequence 0)
-    auto& mainSequence = thread->sequences[thread->sequence_root];
+    auto& mainSequence = thread->sequences[thread->sequence_id_map[thread->sequence_root]];
     mainSequence.id = PALLAS_SEQUENCE_ID(thread->sequence_root);
     thread->nb_sequences = 1;
 
@@ -662,7 +681,8 @@ TokenId ThreadWriter::getEventId(EventData* e) {
             pallas_log(DebugLevel::Debug, "Found more than one event with the same hash: %lu\n", eventWithSameHash.size());
         }
         for (const auto eid : eventWithSameHash) {
-            if (memcmp(e, &thread->events[eid].data, e->event_size) == 0) {
+            uint32_t phys_id = thread->event_id_map[eid];
+            if (memcmp(e, &thread->events[phys_id].data, e->event_size) == 0) {
                 pallas_log(DebugLevel::Debug, "getEventId: \t found with id=%u\n", eid);
                 return eid;
             }
@@ -674,16 +694,23 @@ TokenId ThreadWriter::getEventId(EventData* e) {
         doubleMemorySpaceConstructor(thread->events, thread->nb_allocated_events);
     }
 
-    TokenId index = thread->nb_events++;
-    pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
+    TokenId logi_id = thread->nb_events;
+    uint32_t phys_id = thread->nb_events++;
 
-    auto* new_event = new (&thread->events[index]) Event(index, *e);
+    if (logi_id >= thread->event_id_map.size()) {
+        thread->event_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->event_id_map[logi_id] = phys_id;
+
+    pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", logi_id);
+
+    auto* new_event = new (&thread->events[phys_id]) Event(logi_id, *e);
     new_event->timestamps = new LinkedVector(*parameter_handler);
 
     // In-place initialisation
-    thread->hashToEvent[hash].push_back(index);
+    thread->hashToEvent[hash].push_back(logi_id);
 
-    return index;
+    return logi_id;
 }
 
 std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(const Sequence& sequence, size_t offset) const {

@@ -76,6 +76,8 @@ enum TokenType { TypeInvalid = 0, TypeEvent = 1, TypeSequence = 2, TypeLoop = 3 
  */
 #define PALLAS_TOKEN_ID_INVALID 0x3fffffff
 
+#define PALLAS_INDEX_INVALID UINT32_MAX
+
 /**
  * Definition of the type for a token ID
  */
@@ -614,6 +616,8 @@ typedef struct Thread {
     size_t nb_allocated_events;
     /** Number of pallas::Event in #events. */
     size_t nb_events;
+    /** */
+    std::vector<uint32_t> event_id_map;
 
     /** Array of pallas::Sequence recorded in this Thread. */
     Sequence* sequences;
@@ -621,6 +625,8 @@ typedef struct Thread {
     size_t nb_allocated_sequences;
     /** Number of pallas::Sequence  in #sequences. */
     size_t nb_sequences;
+    /** */
+    std::vector<uint32_t> sequence_id_map;
 
     /** Id/Index of the entry point sequence of this Thread. */
     TokenId sequence_root;
@@ -645,6 +651,8 @@ typedef struct Thread {
     size_t nb_allocated_loops;
     /** Number of pallas::Loop in #loops. */
     size_t nb_loops;
+    /** */
+    std::vector<uint32_t> loop_id_map;
 #ifdef __cplusplus
     /** Loads all the timestamps for all the Events and Sequences. */
     void loadTimestamps();
@@ -777,6 +785,10 @@ typedef struct Thread {
     Thread(const Thread &) = delete;
 
     void operator=(const Thread &) = delete;
+
+    Thread(Thread&&) = default;
+
+    Thread& operator=(Thread&&) = default;
 
     ~Thread();
 #endif

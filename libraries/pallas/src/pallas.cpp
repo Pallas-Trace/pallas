@@ -151,8 +151,11 @@ Event* Thread::getEvent(Token token) const {
         pallas_error("Trying to getEvent of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
 #endif
-    pallas_assert(token.id < this->nb_events);
-    return &this->events[token.id];
+    pallas_assert(token.id < this->event_id_map.size());
+    uint32_t phys_id = this->event_id_map[token.id];
+    pallas_assert(phys_id != PALLAS_INDEX_INVALID);
+    pallas_assert(phys_id < this->nb_events);
+    return &this->events[phys_id];
 }
 
 Sequence* Thread::getSequence(Token token) const {
@@ -161,8 +164,11 @@ Sequence* Thread::getSequence(Token token) const {
         pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
 #endif
-    pallas_assert(token.id < this->nb_sequences);
-    return &sequences[token.id];
+    pallas_assert(token.id < this->sequence_id_map.size());
+    uint32_t phys_id = this->sequence_id_map[token.id];
+    pallas_assert(phys_id != PALLAS_INDEX_INVALID);
+    pallas_assert(phys_id < this->nb_sequences);
+    return &sequences[phys_id];
 }
 
 /**
@@ -185,7 +191,8 @@ Token Thread::matchSequenceIdFromArray(Token* array, size_t array_size, uint32_t
             pallas_log(DebugLevel::Debug, "Found more than one sequence with the same hash\n");
         }
         for (const auto sid : sequencesWithSameHash->second) {
-            if (_pallas_arrays_equal(array, array_size, sequences[sid].tokens.data(), sequences[sid].size())) {
+            uint32_t phys_id = sequence_id_map[sid];
+            if (_pallas_arrays_equal(array, array_size, sequences[phys_id].tokens.data(), sequences[phys_id].size())) {
                 pallas_log(DebugLevel::Debug, "matchSequenceIdFromArray: \t found with id=%u\n", sid);
                 return PALLAS_SEQUENCE_ID(sid);
             }
@@ -198,8 +205,11 @@ Loop* Thread::getLoop(Token token) const {
     if (token.type != TypeLoop) {
         pallas_error("Trying to getLoop of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
-    pallas_assert(token.id < this->nb_loops);
-    auto* l = &this->loops[token.id];
+    pallas_assert(token.id < this->loop_id_map.size());
+    uint32_t phys_id = this->loop_id_map[token.id];
+    pallas_assert(phys_id != PALLAS_INDEX_INVALID);
+    pallas_assert(phys_id < this->nb_loops);
+    auto* l = &this->loops[phys_id];
     pallas_assert(l->repeated_token.isValid());
     pallas_assert(l->self_id.isValid());
     return l;
@@ -247,7 +257,8 @@ std::string Thread::getTokenString(Token token) const {
 }
 
 pallas_duration_t Thread::getDuration() const {
-  return sequences[sequence_root].durations->at(0);
+  uint32_t phys_id = sequence_id_map[sequence_root];
+  return sequences[phys_id].durations->at(0);
 }
 
 pallas_duration_t get_duration(PALLAS(Thread)* t) {
@@ -855,9 +866,7 @@ Thread::Thread() {
 Thread::~Thread() {
     pallas_log(DebugLevel::Debug, "Deleting Thread %d\n", id);
     for (size_t i = 0; i < nb_allocated_events; i++) {
-        if (events[i].data.record != PALLAS_EVENT_MAX_ID) {
-            events[i].cleanEvent();
-        }
+        events[i].cleanEvent();
     }
     delete[] events;
     delete[] sequences;
