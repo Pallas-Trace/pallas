@@ -14,6 +14,7 @@
 #pragma once
 
 #include <pthread.h>
+#include <cstdint>
 
 #include "pallas_config.h"
 
@@ -617,7 +618,7 @@ typedef struct Thread {
     /** Number of pallas::Event in #events. */
     size_t nb_events;
     /** */
-    std::vector<uint32_t> event_id_map;
+    DEFINE_Vector(uint32_t, event_id_map);
 
     /** Array of pallas::Sequence recorded in this Thread. */
     Sequence* sequences;
@@ -626,7 +627,7 @@ typedef struct Thread {
     /** Number of pallas::Sequence  in #sequences. */
     size_t nb_sequences;
     /** */
-    std::vector<uint32_t> sequence_id_map;
+    DEFINE_Vector(uint32_t, sequence_id_map);
 
     /** Id/Index of the entry point sequence of this Thread. */
     TokenId sequence_root;
@@ -652,7 +653,7 @@ typedef struct Thread {
     /** Number of pallas::Loop in #loops. */
     size_t nb_loops;
     /** */
-    std::vector<uint32_t> loop_id_map;
+    DEFINE_Vector(uint32_t, loop_id_map);
 #ifdef __cplusplus
     /** Loads all the timestamps for all the Events and Sequences. */
     void loadTimestamps();
