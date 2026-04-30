@@ -14,7 +14,6 @@
 #pragma once
 
 #include <pthread.h>
-#include <cstdint>
 
 #include "pallas_config.h"
 
@@ -24,11 +23,13 @@
 #include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
+#include <cstdint>
 #include <cstring>
 #include <map>
 #include <ankerl/unordered_dense.h>
 
 #else
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #endif
