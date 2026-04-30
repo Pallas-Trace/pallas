@@ -212,7 +212,7 @@ struct custom_hash_unique_object_representation {
 
     [[nodiscard]] auto operator()(Token const& f) const noexcept -> uint64_t;
 };
-/*************************** Sequences **********************/
+
 /**
  * A Map for counting Tokens.
  *
@@ -252,7 +252,7 @@ struct TokenCountMap : ankerl::unordered_dense::map<Token, size_t, custom_hash_u
 /** Defines a C++ vector. In C, defines a char[] of size sizeof(std::vector). */
 #define DEFINE_Vector(type, name) C_CXX(byte, std::vector<type>) name C_CXX([VECTOR_SIZE], { std::vector<type>() })
 
-
+/** Type of that sequence. Block is a function, Loop is a repetition of tokens.*/
 enum SequenceType {
     SEQUENCE_BLOCK,
     SEQUENCE_LOOP,
@@ -428,7 +428,9 @@ typedef struct String {
     char* str;
     /** Length of #str.*/
     int length;
-    CXX(~String();)
+#ifdef __cplusplus
+    ~String();
+#endif
 } String;
 
 /** Reference for a pallas::Region */
@@ -482,9 +484,9 @@ enum GroupType {
     /** List of locations which participated in the paradigm specified by the group definition.*/
     GROUP_TYPE_COMM_LOCATIONS = 4,
     /** A sub-group of the corresponding group definition with type
-     *  @eref{GROUP_TYPE_COMM_LOCATIONS} and the same paradigm.
+     *  GROUP_TYPE_COMM_LOCATIONS and the same paradigm.
      *  The sub-group is formed by listing the indexes of the
-     *  @eref{GROUP_TYPE_COMM_LOCATIONS} group.
+     *  GROUP_TYPE_COMM_LOCATIONS group.
      */
     GROUP_TYPE_COMM_GROUP     = 5,
     /** Special group type to efficiently handle self-like communicators
@@ -571,7 +573,9 @@ typedef struct Group {
     uint32_t numberOfMembers;
     /** Array of member id. */
     uint32_t* members;
-    CXX(~Group();)
+#ifdef __cplusplus
+    ~Group();
+#endif
 } Group;
 
 /** Reference for a pallas::Comm */
@@ -774,8 +778,8 @@ typedef struct Thread {
 #endif
 } Thread;
 
-CXX(};) /* namespace pallas */
 #ifdef __cplusplus
+}; /* namespace pallas */
 extern "C" {
 #endif
 /*************************** C Functions **********************/
