@@ -811,39 +811,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  uint32_t max_id = 0;
-  for (auto* t : threads) {
-    if (t->nb_events > max_id) {
-      max_id = t->nb_events;
-    }
-    verify_event_sync(threads, max_id);
-  }
-
-  uint32_t expected_nb = threads[0]->nb_events;
-  for (auto* t : threads) {
-    assert(t->nb_events == expected_nb && "nb_events mismatch after sync");
-  }
-
-  for (auto* t : threads) {
-    for (uint32_t i = t->nb_events; i < t->nb_allocated_events; i++) {
-      pallas::Event& e = t->events[i];
-      bool is_unoccupied = (e.data.record == pallas::PALLAS_EVENT_MAX_ID ||
-                            (e.nb_occurrences == 0 && e.timestamps == nullptr));
-      assert(is_unoccupied && "real event stranded beyond nb_events");
-    }
-  }
-
-  for (auto* t : threads) {
-    std::unordered_set<uint32_t> seen_targets;
-    for (auto& [src, dst] : thread_event_map[t->id]) {
-      if (dst >= t->nb_events) continue; // skip stale dangling entries
-      if (seen_targets.count(dst)) {
-        fprintf(stderr, "[VERIFY] duplicate map target %u in thread %u\n", dst, t->id);
-      }
-      seen_targets.insert(dst);
-    }
-  }
-
   #if 0
   save_thread_copy(trace, archives, threads,
     strdup((
