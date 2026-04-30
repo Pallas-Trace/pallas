@@ -618,7 +618,7 @@ typedef struct Thread {
     size_t nb_allocated_events;
     /** Number of pallas::Event in #events. */
     size_t nb_events;
-    /** */
+    /** Logical to Physical indirection map for Events */
     DEFINE_Vector(uint32_t, event_id_map);
 
     /** Array of pallas::Sequence recorded in this Thread. */

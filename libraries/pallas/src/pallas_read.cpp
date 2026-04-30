@@ -62,7 +62,7 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
 
     // And initialize the callstack
     // ie set the cursor on the first event
-    TokenId sequence_root = thread_trace->sequence_root;
+    TokenId sequence_root = thread_trace->sequence_id_map[thread_trace->sequence_root];
     this->currentState.current_frame_index = 0;
     this->currentState.currentFrame = &currentState.callstack[0];
     // NOTE:
