@@ -140,13 +140,18 @@ void event_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) 
   }
 }
 
-void event_unmap(pallas::Thread* t, uint32_t logi_id) {
-  event_ensure_map_size(t, logi_id);
+void event_displace(pallas::Thread* t, uint32_t logi_id) {
+  uint32_t phys_id = get_event_phys_id(t, logi_id);
+  if (phys_id == PALLAS_INDEX_INVALID) return;
+  uint32_t new_logi_id = t->event_id_map.size();
+  event_ensure_map_size(t, new_logi_id);
+  t->event_id_map[new_logi_id] = phys_id;
+  t->events[phys_id].id = new_logi_id;
   t->event_id_map[logi_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_event(pallas::Event& src_event, pallas::Thread *t) {
-  for (uint32_t logi_id = 0; logi_id < t->event_id_map.size(); logi_id++) {
+  for (uint32_t logi_id = src_event.id; logi_id < t->event_id_map.size(); logi_id++) {
     uint32_t phys_id = t->event_id_map[logi_id];
     if (phys_id != PALLAS_INDEX_INVALID && event_cmp(src_event, t->events[phys_id])) {
       return logi_id;
@@ -195,9 +200,10 @@ int sync_events(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
+        event_displace(t2, event_id);
         uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
-        event_unmap(t2, event_id);
-        map_set(event_map, event_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
+        uint32_t new_logi_id = t2->event_id_map.size();
+        map_set(event_map, event_rev, t2->id, prev_owner, new_logi_id);
         event_rev[t2->id].erase(event_id);
       }
     }
@@ -246,13 +252,18 @@ void loop_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) {
   }
 }
 
-void loop_unmap(pallas::Thread* t, uint32_t logi_id) {
-  loop_ensure_map_size(t, logi_id);
+void loop_displace(pallas::Thread* t, uint32_t logi_id) {
+  uint32_t phys_id = get_loop_phys_id(t, logi_id);
+  if (phys_id == PALLAS_INDEX_INVALID) return;
+  uint32_t new_logi_id = t->loop_id_map.size();
+  loop_ensure_map_size(t, new_logi_id);
+  t->loop_id_map[new_logi_id] = phys_id;
+  t->loops[phys_id].self_id = PALLAS_LOOP_ID(new_logi_id);
   t->loop_id_map[logi_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_loop(pallas::Loop& src_loop, pallas::Thread *t) {
-  for (uint32_t logi_id = 0; logi_id < t->loop_id_map.size(); logi_id++) {
+  for (uint32_t logi_id = src_loop.self_id.id; logi_id < t->loop_id_map.size(); logi_id++) {
     uint32_t phys_id = t->loop_id_map[logi_id];
     if (phys_id != PALLAS_INDEX_INVALID && loop_cmp(src_loop, t->loops[phys_id]))
       return logi_id;
@@ -335,9 +346,10 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
+        loop_displace(t2, loop_id);
         uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
-        loop_unmap(t2, loop_id);
-        map_set(loop_map, loop_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
+        uint32_t new_logi_id = t2->loop_id_map.size();
+        map_set(loop_map, loop_rev, t2->id, prev_owner, new_logi_id);
         loop_rev[t2->id].erase(loop_id);
         number_of_swaps++;
       }
@@ -393,13 +405,18 @@ void seq_swap(pallas::Thread *t, uint32_t src_logi_id, uint32_t swap_logi_id) {
   }
 }
 
-void seq_unmap(pallas::Thread* t, uint32_t logical_id) {
-  seq_ensure_map_size(t, logical_id);
-  t->sequence_id_map[logical_id] = PALLAS_INDEX_INVALID;
+void seq_displace(pallas::Thread* t, uint32_t logi_id) {
+    uint32_t phys_id = get_seq_phys_id(t, logi_id);
+    if (phys_id == PALLAS_INDEX_INVALID) return;
+    uint32_t new_logi_id = t->sequence_id_map.size();
+    seq_ensure_map_size(t, new_logi_id);
+    t->sequence_id_map[new_logi_id] = phys_id;
+    t->sequences[phys_id].id = PALLAS_SEQUENCE_ID(new_logi_id);
+    t->sequence_id_map[logi_id] = PALLAS_INDEX_INVALID;
 }
 
 uint32_t find_matching_seq(pallas::Sequence& src_seq, pallas::Thread *t) {
-  for (uint32_t logi_id = 0; logi_id < t->sequence_id_map.size(); logi_id++) {
+  for (uint32_t logi_id = src_seq.id.id; logi_id < t->sequence_id_map.size(); logi_id++) {
     uint32_t phys_id = t->sequence_id_map[logi_id];
     if (phys_id != PALLAS_INDEX_INVALID && seq_cmp(src_seq, t->sequences[phys_id])) {
       return logi_id;
@@ -493,9 +510,10 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
+        seq_displace(t2, seq_id);
         uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
-        seq_unmap(t2, seq_id);
-        map_set(seq_map, seq_rev, t2->id, prev_owner, PALLAS_INDEX_INVALID);
+        uint32_t new_logi_id = t2->sequence_id_map.size();
+        map_set(seq_map, seq_rev, t2->id, prev_owner, new_logi_id);
         seq_rev[t2->id].erase(seq_id);
         number_of_swaps++;
       }
