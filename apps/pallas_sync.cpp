@@ -484,9 +484,9 @@ int sync_sequences(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
-        seq_displace(t2, seq_id);
         uint32_t prev_owner = seq_rev[t2->id].count(seq_id) ? seq_rev[t2->id][seq_id] : seq_id;
         uint32_t new_logi_id = t2->sequence_id_map.size();
+        seq_displace(t2, seq_id);
         map_set(seq_map, seq_rev, t2->id, prev_owner, new_logi_id);
         seq_rev[t2->id].erase(seq_id);
         number_of_swaps++;
