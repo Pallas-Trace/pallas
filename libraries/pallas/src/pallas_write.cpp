@@ -645,6 +645,8 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
         thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
         thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
     }
+    thread->sequence_id_map.resize(1);
+    thread->sequence_id_map[thread->sequence_root] = 0;
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
     thread->hashToEvent = std::unordered_map<uint32_t, std::vector<TokenId>>();
