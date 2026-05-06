@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <algorithm>
-#include <unordered_set>
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
 #include "pallas/utils/pallas_hash.h"
@@ -24,40 +23,6 @@ typedef std::map<uint32_t, token_map> thread_token_map;
 
 typedef std::map<uint32_t, pallas::Token> token_lookup;
 typedef std::map<uint32_t, std::vector<pallas::Token>> token_vector_lookup;
-
-using CountMap = std::map<uint32_t, size_t>;
-
-static void count_from_token(pallas::Thread* t, pallas::Token tok, CountMap& counts);
-
-static void count_from_sequence(pallas::Thread* t, uint32_t sid, CountMap& counts) {
-  auto& s = t->sequences[sid];
-  for (auto tok : s.tokens) {
-    count_from_token(t, tok, counts);
-  }
-}
-
-static void count_from_loop(pallas::Thread* t, uint32_t lid, CountMap& counts) {
-  auto& l = t->loops[lid];
-  for (size_t i = 0; i < l.nb_iterations; i++) {
-    count_from_token(t, l.repeated_token, counts);
-  }
-}
-
-static void count_from_token(pallas::Thread* t, pallas::Token tok, CountMap& counts) {
-  switch (tok.type) {
-    case pallas::TypeEvent:
-      counts[tok.id]++;
-      break;
-    case pallas::TypeSequence:
-      count_from_sequence(t, tok.id, counts);
-      break;
-    case pallas::TypeLoop:
-      count_from_loop(t, tok.id, counts);
-      break;
-    default:
-      break;
-  }
-}
 
 void map_set(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, uint32_t from, uint32_t to) {
   fwd[thread_id][from] = to;
@@ -547,72 +512,6 @@ void save_thread_copy(pallas::GlobalArchive *trace,
   trace->store(save_dir_name, trace->parameter_handler);
 }
 
-void verify_event_sync(std::vector<pallas::Thread*>& threads, uint32_t max_event_id) {
-  bool all_ok = true;
-
-  for (uint32_t event_id = 0; event_id < max_event_id; event_id++) {
-    pallas::Event* reference = nullptr;
-    pallas::Thread* reference_thread = nullptr;
-    bool slot_has_valid = false;
-
-    for (auto* t : threads) {
-      if (event_id >= t->nb_events) continue;
-
-      pallas::Event& e = t->events[event_id];
-      bool is_invalid = (e.data.record == pallas::PALLAS_EVENT_MAX_ID);
-
-      if (!is_invalid) {
-        slot_has_valid = true;
-        if (reference == nullptr) {
-          reference = &e;
-          reference_thread = t;
-        } else {
-          if (!event_cmp(*reference, e)) {
-            fprintf(stderr,
-              "[VERIFY] MISMATCH at event_id=%u: "
-              "thread %u (record=%u) != thread %u (record=%u)\n",
-              event_id,
-              reference_thread->id, reference->data.record,
-              t->id, e.data.record);
-            all_ok = false;
-          }
-        }
-      }
-    }
-
-    if (!slot_has_valid) {
-      bool any_thread_covers = false;
-      for (auto* t : threads) {
-        if (event_id < t->nb_events) { any_thread_covers = true; break; }
-      }
-      if (any_thread_covers) {
-        fprintf(stderr,
-          "[VERIFY] ALL-INVALID slot at event_id=%u "
-          "(every thread covering this id has an invalid)\n",
-          event_id);
-        all_ok = false;
-      }
-    }
-  }
-
-  for (auto* t : threads) {
-    for (uint32_t event_id = 0; event_id < t->nb_events; event_id++) {
-      pallas::Event& e = t->events[event_id];
-      bool is_invalid = (e.data.record == pallas::PALLAS_EVENT_MAX_ID);
-      if (!is_invalid && e.id != event_id) {
-        fprintf(stderr,
-          "[VERIFY] ID FIELD MISMATCH: thread %u events[%u].id = %u (expected %u)\n",
-          t->id, event_id, e.id, event_id);
-        all_ok = false;
-      }
-    }
-  }
-
-  if (all_ok)
-    fprintf(stderr, "[VERIFY] event sync OK — %u ids checked across %zu threads\n",
-            max_event_id, threads.size());
-}
-
 int main(int argc, char** argv) {
 
   std::map<uint32_t, pallas::String> synced_strings;
@@ -648,7 +547,7 @@ int main(int argc, char** argv) {
   auto temp_trace_name = strdup((
     std::string(temp_dir_name) + "/" + std::string(trace->trace_name)
   ).c_str());
-  
+
   std::cout << "Pallas: Trace File Opened" << std::endl;
 
   // loop over StringRef -> String map in GlobalArchive Definition
@@ -676,7 +575,7 @@ int main(int argc, char** argv) {
       auto& s = synced_strings[next_free_string_ref];
       s.string_ref = next_free_string_ref;
       s.length = string.length;
-      s.str = (char*) std::calloc(sizeof(char), s.length + 1);
+      s.str = (char*) std::calloc(s.length + 1, sizeof(char));
       std::memcpy(s.str, string.str, s.length);
       s.str[s.length] = '\0';
 
@@ -785,13 +684,6 @@ int main(int argc, char** argv) {
     }
   }
 
-  #if 0
-  save_thread_copy(trace, archives, threads,
-    strdup((
-      std::string(base_dir_name) + "_dev1"
-  ).c_str()));
-  #endif
-
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // |         Synchronize Events           |
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -838,17 +730,9 @@ int main(int argc, char** argv) {
     }
   }
 
-  #if 0
-  save_thread_copy(trace, archives, threads,
-    strdup((
-      std::string(base_dir_name) + "_dev2"
-  ).c_str()));
-  #endif
-
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // |   Synchronize Sequences and Loops    |
   // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
   std::map<uint32_t, token_lookup> loop_base_tokens;        // thread_id -> original_loop_id -> base repeated_token
   std::map<uint32_t, token_vector_lookup> seq_base_tokens;  // thread_id -> original_seq_id  -> base tokens
