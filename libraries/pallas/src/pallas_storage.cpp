@@ -1259,7 +1259,7 @@ static void readLoop(pallas::Loop& loop, const File& loopFile, uint8_t abi_versi
     } else {
         loopFile.read(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
     }
-    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u, .nb_occurrences: %lu}\n",
+    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u, .nb_occurrences: %" PRIu64 "}\n",
                loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id, loop.nb_iterations, loop.nb_occurrences);
 
     if (loop.repeated_token.type == pallas::TypeInvalid) {

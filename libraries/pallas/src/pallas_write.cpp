@@ -577,7 +577,7 @@ size_t ThreadWriter::storeEvent(enum EventType event_type, TokenId event_id, pal
 
     Event* es = &thread->events[thread->event_id_map[event_id]];
     size_t occurrence_index = es->nb_occurrences++;
-    pallas_log(DebugLevel::Debug, "storeEvent: %s @ %lu\n", thread->getTokenString(token).c_str(), ts);
+    pallas_log(DebugLevel::Debug, "storeEvent: %s @ %" PRIu64 "\n", thread->getTokenString(token).c_str(), ts);
     storeTimestamp(es, ts);
     storeToken(token, occurrence_index);
 

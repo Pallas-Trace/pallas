@@ -90,7 +90,7 @@ target_compile_options(pallas
 )
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    target_compile_options(pallas PRIVATE -Wno-nontrivial-memcall)
+    target_compile_options(pallas PRIVATE -Wno-nontrivial-memaccess)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(pallas PRIVATE -Wno-class-memaccess)
 endif()
