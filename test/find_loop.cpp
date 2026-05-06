@@ -121,7 +121,9 @@ int main(int argc, char **argv __attribute__((unused))) {
     pallas_assert_equals_always(firstLoop.nb_iterations, 3);
     pallas_assert_always(firstLoop.nb_occurrences == 1);
 
-    auto &secondLoop = thread_writer.thread->loops[1];
+    Token secondLoopToken = thread_writer.sequence_stack[0][2];
+    pallas_assert_always(secondLoopToken.type == TypeLoop);
+    auto &secondLoop = *thread_writer.thread->getLoop(secondLoopToken);
     pallas_assert_always(secondLoop.nb_iterations == NUM_LOOPS);
     pallas_assert_always(secondLoop.nb_occurrences == 1);
 
