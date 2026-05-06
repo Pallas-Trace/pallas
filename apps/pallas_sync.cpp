@@ -165,9 +165,9 @@ int sync_events(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
-        event_displace(t2, event_id);
         uint32_t prev_owner = event_rev[t2->id].count(event_id) ? event_rev[t2->id][event_id] : event_id;
         uint32_t new_logi_id = t2->event_id_map.size();
+        event_displace(t2, event_id);
         map_set(event_map, event_rev, t2->id, prev_owner, new_logi_id);
         event_rev[t2->id].erase(event_id);
       }
@@ -316,9 +316,9 @@ int sync_loops(std::vector<pallas::Thread*>& threads,
 
       // if no match found insert placeholder
       if (!found_match && cand_phys_id != PALLAS_INDEX_INVALID) {
-        loop_displace(t2, loop_id);
         uint32_t prev_owner = loop_rev[t2->id].count(loop_id) ? loop_rev[t2->id][loop_id] : loop_id;
         uint32_t new_logi_id = t2->loop_id_map.size();
+        loop_displace(t2, loop_id);
         map_set(loop_map, loop_rev, t2->id, prev_owner, new_logi_id);
         loop_rev[t2->id].erase(loop_id);
         number_of_swaps++;
