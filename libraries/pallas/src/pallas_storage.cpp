@@ -436,7 +436,7 @@ inline static size_t _pallas_histogram_compress(const uint64_t* src, size_t n, b
       // This MUST be <= MAX_BIT
       if (toWrite > MAX_BIT) {
         pallas_warn("Trying to write %lu values using %d byte at most\n", n, N_BYTES);
-        pallas_warn("%llu <= value <= %llu. Problematic value is @%lu:%lu > %d", min, max, i, toWrite, MAX_BIT);
+        pallas_warn("%" PRIu64 " <= value <= %" PRIu64 ". Problematic value is @%lu:%lu > %d", min, max, i, toWrite, MAX_BIT);
         pallas_error();
       }
       memcpy(&dest[i * N_BYTES], &toWrite, N_BYTES);

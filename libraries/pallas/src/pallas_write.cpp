@@ -83,7 +83,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     thread->sequence_id_map[logi_id] = phys_id;
     const auto sid = PALLAS_SEQUENCE_ID(logi_id);
 
-    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%lu\n", logi_id);
+    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%" PRIu32 "\n", logi_id);
 
     Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
@@ -119,7 +119,7 @@ Loop* ThreadWriter::createLoop(Token sequence_id) {
     }
     thread->loop_id_map[logi_id] = phys_id;
 
-    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%lu containing S%d\n", logi_id, sequence_id.id);
+    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%" PRIu32 " containing S%d\n", logi_id, sequence_id.id);
 
     Loop& l = thread->loops[phys_id];
     l.nb_iterations = 1;
@@ -545,11 +545,11 @@ void ThreadWriter::recordExitFunction() {
     const auto  [computed_duration, computed_exclusive_duration] = getLastSequenceDuration(sequence, 0);
 #ifdef DEBUG
     const pallas_duration_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
-    pallas_log(DebugLevel::Debug, "Computed duration = %llu\nSequence duration = %llu\n", computed_duration, sequence_duration);
+    pallas_log(DebugLevel::Debug, "Computed duration = %" PRIu64 "\nSequence duration = %" PRIu64 "\n", computed_duration, sequence_duration);
     pallas_assert(computed_duration == sequence_duration);
 #endif
 
-    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%lu\n", thread->getTokenString(sequence.id).c_str(), sequence_start_timestamp[cur_depth]);
+    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%" PRIu64 "\n", thread->getTokenString(sequence.id).c_str(), sequence_start_timestamp[cur_depth]);
     sequence.timestamps->add(sequence_start_timestamp[cur_depth]);
     sequence.exclusive_durations->add(computed_exclusive_duration);
     sequence.durations->add(computed_duration);
