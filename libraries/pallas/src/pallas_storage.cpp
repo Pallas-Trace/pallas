@@ -1542,6 +1542,13 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   }
   eventDurationFile.close();
 
+  // write event indirection map
+  size_t event_map_size = th->event_id_map.size();
+  threadFile.write(&event_map_size, sizeof(size_t), 1);
+  if (event_map_size > 0) {
+    threadFile.write(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
+  }
+
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(path, th);
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
@@ -1550,24 +1557,18 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   }
   sequenceDurationFile.close();
 
-  for (int i = 0; i < th->nb_loops; i++) {
-    storeLoop(th->loops[i], threadFile);
-  }
-
-  size_t event_map_size = th->event_id_map.size();
-  threadFile.write(&event_map_size, sizeof(size_t), 1);
-  if (event_map_size > 0) {
-    threadFile.write(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
-  }
-
-  // Write sequence indirection map
+  // write sequence indirection map
   size_t seq_map_size = th->sequence_id_map.size();
   threadFile.write(&seq_map_size, sizeof(size_t), 1);
   if (seq_map_size > 0) {
     threadFile.write(th->sequence_id_map.data(), sizeof(uint32_t), seq_map_size);
   }
 
-  // Write loop indirection map
+  for (int i = 0; i < th->nb_loops; i++) {
+    storeLoop(th->loops[i], threadFile);
+  }
+
+  // write loop indirection map
   size_t loop_map_size = th->loop_id_map.size();
   threadFile.write(&loop_map_size, sizeof(size_t), 1);
   if (loop_map_size > 0) {
@@ -1614,7 +1615,11 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   th->nb_allocated_loops = th->nb_loops;
   th->loops = new pallas::Loop[th->nb_allocated_loops];
 
-  threadFile.read(&th->sequence_root, sizeof(th->sequence_root), 1);
+  if (abi_version >= 20) {
+    threadFile.read(&th->sequence_root, sizeof(th->sequence_root), 1);
+  } else {
+    th->sequence_root = 0;
+  }
 
   threadFile.read(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
@@ -1628,6 +1633,28 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
     readEvent(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler, abi_version);
   }
 
+  // read events with indirection map if supported
+  if (abi_version >= 20) {
+    size_t event_map_size;
+    threadFile.read(&event_map_size, sizeof(size_t), 1);
+    th->event_id_map.resize(event_map_size);
+    if (event_map_size > 0) {
+      threadFile.read(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
+    }
+    for (size_t logi_id = 0; logi_id < th->event_id_map.size(); logi_id++) {
+      uint32_t phys_id = th->event_id_map[logi_id];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        th->events[phys_id].id = logi_id;
+      }
+    }
+  } else {
+    th->event_id_map.resize(th->nb_events);
+    for (size_t i = 0; i < th->nb_events; i++) {
+      th->events[i].id = i;
+      th->event_id_map[i] = i;
+    }
+  }
+
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu sequences\n", th->nb_sequences);
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(global_archive->dir_name, th);
   if (fileMap.find(sequenceDurationFilename) == fileMap.end()) {
@@ -1638,49 +1665,41 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
     readSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler, abi_version);
   }
 
-  pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);
-  for (size_t i = 0; i < th->nb_loops; i++) {
-    th->loops[i].self_id = PALLAS_LOOP_ID(i);
-    readLoop(th->loops[i], threadFile, abi_version);
-  }
-
-  auto current_pos = ftell(threadFile.file);
-  fseek(threadFile.file, 0, SEEK_END);
-  auto file_end = ftell(threadFile.file);
-  fseek(threadFile.file, current_pos, SEEK_SET);
-  bool id_maps_present = (file_end > current_pos);
-
-  if (id_maps_present) {
-    size_t event_map_size;
-    threadFile.read(&event_map_size, sizeof(size_t), 1);
-    th->event_id_map.resize(event_map_size);
-    if (event_map_size > 0) {
-      threadFile.read(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
-    }
+  // read sequences with indirection map if supported
+  if (abi_version >= 20) {
     size_t seq_map_size;
     threadFile.read(&seq_map_size, sizeof(size_t), 1);
     th->sequence_id_map.resize(seq_map_size);
     if (seq_map_size > 0) {
       threadFile.read(th->sequence_id_map.data(), sizeof(uint32_t), seq_map_size);
     }
-    size_t loop_map_size;
-    threadFile.read(&loop_map_size, sizeof(size_t), 1);
-    th->loop_id_map.resize(loop_map_size);
-    if (loop_map_size > 0) {
-      threadFile.read(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
-    }
-
-    for (size_t logi_id = 0; logi_id < th->event_id_map.size(); logi_id++) {
-      uint32_t phys_id = th->event_id_map[logi_id];
-      if (phys_id != PALLAS_INDEX_INVALID) {
-        th->events[phys_id].id = logi_id;
-      }
-    }
     for (size_t logi_id = 0; logi_id < th->sequence_id_map.size(); logi_id++) {
       uint32_t phys_id = th->sequence_id_map[logi_id];
       if (phys_id != PALLAS_INDEX_INVALID) {
         th->sequences[phys_id].id = PALLAS_SEQUENCE_ID(logi_id);
       }
+    }
+  } else {
+    th->sequence_id_map.resize(th->nb_sequences);
+    for (size_t i = 0; i < th->nb_sequences; i++) {
+      th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
+      th->sequence_id_map[i] = i;
+    }
+  }
+
+  pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);
+  for (size_t i = 0; i < th->nb_loops; i++) {
+    th->loops[i].self_id = PALLAS_LOOP_ID(i);
+    readLoop(th->loops[i], threadFile, abi_version);
+  }
+
+  // read loops with indirection map if supported
+  if (abi_version >= 20) {
+    size_t loop_map_size;
+    threadFile.read(&loop_map_size, sizeof(size_t), 1);
+    th->loop_id_map.resize(loop_map_size);
+    if (loop_map_size > 0) {
+      threadFile.read(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
     }
     for (size_t logi_id = 0; logi_id < th->loop_id_map.size(); logi_id++) {
       uint32_t phys_id = th->loop_id_map[logi_id];
@@ -1689,25 +1708,12 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
       }
     }
   } else {
-    th->event_id_map.resize(th->nb_events);
-    for (size_t i = 0; i < th->nb_events; i++) {
-      th->events[i].id = i;
-      th->event_id_map[i] = i;
-    }
-
-    th->sequence_id_map.resize(th->nb_sequences);
-    for (size_t i = 0; i < th->nb_sequences; i++) {
-      th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
-      th->sequence_id_map[i] = i;
-    }
-
     th->loop_id_map.resize(th->nb_loops);
     for (size_t i = 0; i < th->nb_loops; i++) {
       th->loops[i].self_id = PALLAS_LOOP_ID(i);
       th->loop_id_map[i] = i;
     }
   }
-
 
   threadFile.close();
 
