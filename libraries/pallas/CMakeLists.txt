@@ -86,7 +86,6 @@ target_compile_options(pallas
         -D_GNU_SOURCE
         PRIVATE
         -Wall -Wextra ${WARNINGS}
-        -g -O0
 )
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
