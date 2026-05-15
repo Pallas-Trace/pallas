@@ -1,5 +1,4 @@
 ---
-DisableFormat: true
 Language: Cpp
 BasedOnStyle: Chromium
 TabWidth: 4
