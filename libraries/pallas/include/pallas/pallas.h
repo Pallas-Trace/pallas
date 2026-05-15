@@ -618,7 +618,7 @@ typedef struct Thread {
     size_t nb_allocated_events;
     /** Number of pallas::Event in #events. */
     size_t nb_events;
-    /** Logical to Physical indirection map for Events */
+    /** Logical to physical indirection map for Events */
     DEFINE_Vector(uint32_t, event_id_map);
 
     /** Array of pallas::Sequence recorded in this Thread. */
@@ -627,7 +627,7 @@ typedef struct Thread {
     size_t nb_allocated_sequences;
     /** Number of pallas::Sequence  in #sequences. */
     size_t nb_sequences;
-    /** */
+    /** Logical to physical indirection map for Sequences */
     DEFINE_Vector(uint32_t, sequence_id_map);
 
     /** Id/Index of the entry point sequence of this Thread. */
@@ -653,7 +653,7 @@ typedef struct Thread {
     size_t nb_allocated_loops;
     /** Number of pallas::Loop in #loops. */
     size_t nb_loops;
-    /** */
+    /** Logical to physical indirection map for Loops */
     DEFINE_Vector(uint32_t, loop_id_map);
 #ifdef __cplusplus
     /** Loads all the timestamps for all the Events and Sequences. */
