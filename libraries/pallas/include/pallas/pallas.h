@@ -43,7 +43,6 @@ typedef C_CXX(uint8_t, std::byte) byte;
 namespace pallas {
 #endif
 
-/*************************** Tokens **********************/
 
 /**
  * A trace is composed of basic units called tokens.
@@ -130,7 +129,6 @@ extern const Token INVALID_TOKEN;
 /** Creates a Token for a Loop. */
 #define PALLAS_LOOP_ID(i) PALLAS(Token)(PALLAS(TypeLoop), i)
 
-/*************************** Events **********************/
 /**
  * Enumeration of event types
  */
@@ -322,7 +320,6 @@ public:
 #endif
 } Sequence;
 
-/*************************** Loop **********************/
 
 /**
  * Structure to store a Loop in PALLAS format.
@@ -800,7 +797,6 @@ typedef struct Thread {
 }; /* namespace pallas */
 extern "C" {
 #endif
-/*************************** C Functions **********************/
 /** Allocates a new thread */
 extern PALLAS(Thread)* pallas_thread_new(void);
 

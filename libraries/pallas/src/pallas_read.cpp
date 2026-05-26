@@ -60,14 +60,18 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
         this->thread_trace->printSequence(Token(TypeSequence, 0));
     }
 
-    // And initialize the callstack
-    // ie set the cursor on the first event
-    this->currentState.current_frame_index = 0;
-    this->currentState.currentFrame = &currentState.callstack[0];
-    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, thread_trace->sequence_root);
-    this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
-    // Enter main sequence
-    enterBlock();
+    if (this->thread_trace->getSequence(Token(TypeSequence, 0))->size() != 0) {
+         // And initialize the callstack
+        // ie set the cursor on the first event
+        this->currentState.current_frame_index = 0;
+        this->currentState.currentFrame = &currentState.callstack[0];
+        this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, thread_trace->sequence_root);
+        this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
+        // Enter main sequence
+        enterBlock();
+    else {
+        pallas_warn("Thread %s is empty\n", this->thread_trace->getName());
+    }
 }
 
 const Token& ThreadReader::getFrameInCallstack(int frame_number) const {
@@ -317,7 +321,7 @@ Token ThreadReader::pollNextToken(int flags) const {
         flags = pallas_read_flag;
 
     // NOTE:
-    // are these the same field, redundancy? 
+    // are these the same field, redundancy?
     int current_frame = currentState.current_frame_index;
     int current_index = currentState.currentFrame->frame_index;
     auto current_iterable_token = currentState.currentFrame->callstack_iterable;
@@ -335,7 +339,7 @@ Token ThreadReader::pollNextToken(int flags) const {
         if (current_frame == 0)
             return Token();
         // NOTE:
-        // merge logic 
+        // merge logic
         if (current_iterable_token.type == TypeSequence && flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE) {
             current_frame--;
             current_index = currentState.currentFrame->frame_index;
