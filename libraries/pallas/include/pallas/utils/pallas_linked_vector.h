@@ -15,9 +15,8 @@
 #ifdef __cplusplus
 #include <cstdint>
 #include <cstring>
-#include <vector>
 #include <set>
-
+#include <vector>
 
 #include "pallas_parameter_handler.h"
 /** Default size for creating Vectors and SubVectors.*/
@@ -30,8 +29,9 @@ namespace pallas {
  */
 enum class SubArrayEncoding : uint8_t {
     None = 0,
-    Delta2Encoding = 1,
-    LossyGenerator = 2,
+    Delta2Enc = 1,
+    Delta2EncVint = 2,
+    LossyGenerator = 3,
 };
 
 /**
@@ -112,7 +112,7 @@ class LinkedVector {
      */
     std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
 
-private:
+   private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
 
@@ -131,6 +131,10 @@ private:
 
         /** Subarray encoding used during the storage time */
         SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
+
+        /** Encoded size : Will be calculated during the sub_array->write_to_file */
+
+        size_t enc_size = 0;
 
         /** Array of elements. Currently only used on uint64_t */
         uint64_t* array = nullptr;
@@ -331,10 +335,14 @@ class LinkedDurationVector {
 
         /** Number of elements this vector has allocated. */
         size_t allocated = DEFAULT_VECTOR_SIZE;
-      
+
         /** Subarray Encoding Mechanism used */
 
         SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
+
+        /** Encoded size : Will be calculated during the sub_array->write_to_file */
+        
+        size_t enc_size = 0;
 
         /** Array of elements. Currently only used on uint64_t */
         uint64_t* array = nullptr;
@@ -401,7 +409,7 @@ class LinkedDurationVector {
          * Writes the content of this array to the file at the current offset.
          * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
          * Then, sets up the "offset" field accordingly.
-        *  @param file File where the data is stored.
+         *  @param file File where the data is stored.
          * @param parameter_handler Handler for the storage parameters.
          */
         void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
@@ -446,7 +454,7 @@ class LinkedDurationVector {
     void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
     void final_update_mean();
- /** Returns the sum of the durations between [start, end[. */
+    /** Returns the sum of the durations between [start, end[. */
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
 
     ~LinkedDurationVector();

@@ -752,7 +752,35 @@ static inline int64_t zigzag_decode(uint64_t x) {
     return static_cast<int64_t>((x >> 1) ^ static_cast<uint64_t>(-static_cast<int64_t>(x & 1)));
 }
 
-void encode_timestamp_delta2(uint64_t* array, size_t size) {
+static inline void write_varint(uint64_t x, uint8_t*& out) {
+    while (x >= 0x80) {
+        *out++ = static_cast<uint8_t>((x & 0x7f) | 0x80);
+        x >>= 7;
+    }
+    *out++ = static_cast<uint8_t>(x);
+}
+
+static inline uint64_t read_varint(const uint8_t*& p, const uint8_t* end) {
+    uint64_t result = 0;
+    int shift = 0;
+    while (p < end) {
+        uint8_t byte = *p++;
+        result |= static_cast<uint64_t>(byte & 0x7f) << shift;
+
+        if ((byte & 0x80) == 0) {
+            return result;
+        }
+
+        shift += 7;
+        if (shift >= 64) {
+            throw std::runtime_error("varint too long");
+        }
+    }
+    throw std::runtime_error("truncated varint");
+}
+
+static void encode_timestamp_delta2(uint64_t* array, size_t size, size_t& enc_size) {
+    enc_size = size;
     if (size <= 1)
         return;
 
@@ -767,7 +795,8 @@ void encode_timestamp_delta2(uint64_t* array, size_t size) {
     array[1] = array[1] - array[0];  // First Delta value is positive and not zigzag encoded
 }
 
-void encode_duration_delta2(uint64_t* array, size_t size) {
+static void encode_duration_delta2(uint64_t* array, size_t size, size_t& enc_size) {
+    enc_size = size;
     if (size <= 1)
         return;
 
@@ -784,48 +813,155 @@ void encode_duration_delta2(uint64_t* array, size_t size) {
     array[1] = zigzag_encode(first_delta);
 }
 
+static uint64_t* encode_timestamp_delta2_varint_words( const uint64_t* src, size_t size, size_t& enc_size) {
+    if (size == 0) {
+        enc_size = 0;
+        return nullptr;
+    }
+
+    // Worst case: uint64_t varint takes 10 bytes.
+    const size_t max_bytes = 10 * size;
+    const size_t max_words = (max_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+
+    auto* packed = new uint64_t[max_words];  // not zero-initialized
+    auto* begin = reinterpret_cast<uint8_t*>(packed);
+    auto* out = begin;
+
+    // base timestamp
+    write_varint(src[0], out);
+
+    if (size >= 2) {
+        uint64_t prev_delta = src[1] - src[0];
+        write_varint(prev_delta, out);
+
+        for (size_t i = 2; i < size; ++i) {
+            uint64_t cur_delta = src[i] - src[i - 1];
+
+            int64_t ddelta =
+                static_cast<int64_t>(cur_delta) -
+                static_cast<int64_t>(prev_delta);
+
+            write_varint(zigzag_encode(ddelta), out);
+            prev_delta = cur_delta;
+        }
+    }
+
+    const size_t used_bytes = static_cast<size_t>(out - begin);
+    enc_size = (used_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+
+    // zero the padding bytes in the final uint64_t word.
+    const size_t padded_bytes = enc_size * sizeof(uint64_t);
+    if (padded_bytes > used_bytes) {
+        std::memset(begin + used_bytes, 0, padded_bytes - used_bytes);
+    }
+
+    return packed;
+}
+
+static uint64_t* encode_duration_delta2_varint_words( const uint64_t* src, size_t size, size_t& enc_size) {
+    if (size == 0) {
+        enc_size = 0;
+        return nullptr;
+    }
+
+    // Worst case: uint64_t varint takes 10 bytes.
+    const size_t max_bytes = 10 * size;
+    const size_t max_words = (max_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+
+    auto* packed = new uint64_t[max_words];  // not zero-initialized
+    auto* begin = reinterpret_cast<uint8_t*>(packed);
+    auto* out = begin;
+
+    // base duration
+    write_varint(src[0], out);
+
+    if (size >= 2) {
+        int64_t prev_delta = static_cast<int64_t>(src[1]) - static_cast<int64_t>(src[0]);
+        write_varint(zigzag_encode(prev_delta), out);
+
+        for (size_t i = 2; i < size; ++i) {
+            int64_t cur_delta = static_cast<int64_t>(src[i]) - static_cast<int64_t>(src[i - 1]);
+
+            int64_t ddelta = cur_delta - prev_delta;
+
+            write_varint(zigzag_encode(ddelta), out);
+            prev_delta = cur_delta;
+        }
+    }
+
+    const size_t used_bytes = static_cast<size_t>(out - begin);
+    enc_size = (used_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+
+    // zero the padding bytes in the final uint64_t word.
+    const size_t padded_bytes = enc_size * sizeof(uint64_t);
+    if (padded_bytes > used_bytes) {
+        std::memset(begin + used_bytes, 0, padded_bytes - used_bytes);
+    }
+
+    return packed;
+}
+
 void pallas::LinkedVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
     first_value = array[0];
     last_value = array[size - 1];
     offset = ftell(file);
 
     switch (sub_arr_encoding) {
-    case pallas::SubArrayEncoding::None:
-        break;
-    case pallas::SubArrayEncoding::Delta2Encoding:
-        encode_timestamp_delta2(array, size);
-        break;
-    case pallas::SubArrayEncoding::LossyGenerator:
-        pallas_error("Not yet implemented\n");
-        break;
-    default:
-        pallas_error("Invalid encoding\n");
-        break;
+        case pallas::SubArrayEncoding::None:
+            enc_size = size;
+            _pallas_compress_write(array, enc_size, file, parameter_handler);
+            break;
+        case pallas::SubArrayEncoding::Delta2Enc:
+            encode_timestamp_delta2(array, size, enc_size);
+            _pallas_compress_write(array, enc_size, file, parameter_handler); 
+            break;
+        case pallas::SubArrayEncoding::Delta2EncVint: {
+            uint64_t * encoded_array = encode_timestamp_delta2_varint_words(array, size, enc_size);
+            _pallas_compress_write(encoded_array, enc_size, file, parameter_handler);
+            delete[] encoded_array;
+            break;
+        }
+        case pallas::SubArrayEncoding::LossyGenerator:
+            pallas_error("Not yet implemented\n");
+            break;
+        default:
+            pallas_error("Invalid encoding\n");
+            break;
     }
 
-    _pallas_compress_write(array, size, file, parameter_handler);
     delete[] array;
     array = nullptr;
+    
 }
 
 void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
     offset = ftell(file);
 
     switch (sub_arr_encoding) {
-    case pallas::SubArrayEncoding::None:
-        break;
-    case pallas::SubArrayEncoding::Delta2Encoding:
-        encode_duration_delta2(array, size);
-        break;
-    case pallas::SubArrayEncoding::LossyGenerator:
-        pallas_error("Not yet implemented\n");
-        break;
-    default:
-        pallas_error("Invalid encoding\n");
-        break;
+        case pallas::SubArrayEncoding::None: {
+            enc_size = size;
+            _pallas_compress_write(array, size, file, parameter_handler);
+            break;
+        }
+        case pallas::SubArrayEncoding::Delta2Enc: {
+            encode_duration_delta2(array, size, enc_size);
+            _pallas_compress_write(array, enc_size, file, parameter_handler);
+            break;
+        }
+        case pallas::SubArrayEncoding::Delta2EncVint: {
+            uint64_t * encoded_array = encode_duration_delta2_varint_words(array, size, enc_size);
+            _pallas_compress_write(encoded_array, enc_size, file, parameter_handler);
+            delete[] encoded_array;
+            break;
+        }
+        case pallas::SubArrayEncoding::LossyGenerator:
+            pallas_error("Not yet implemented\n");
+            break;
+        default:
+            pallas_error("Invalid encoding\n");
+            break;
     }
 
-    _pallas_compress_write(array, size, file, parameter_handler);
     delete[] array;
     array = nullptr;
 }
@@ -843,6 +979,7 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, infoFile);
         _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, infoFile);
+        _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, infoFile);
         _pallas_fwrite(&sub_array->first_value, sizeof(sub_array->first_value), 1, infoFile);
         _pallas_fwrite(&sub_array->last_value, sizeof(sub_array->last_value), 1, infoFile);
         _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, infoFile);
@@ -854,6 +991,7 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
 pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
     _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
+    _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&first_value, sizeof(first_value), 1, file);
     _pallas_fread(&last_value, sizeof(last_value), 1, file);
     _pallas_fread(&offset, sizeof(offset), 1, file);
@@ -917,6 +1055,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, vectorFile);
         _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, vectorFile);
+        _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, vectorFile);
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
         _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
@@ -931,6 +1070,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
 pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
     _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
+    _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&min, sizeof(min), 1, file);
     _pallas_fread(&max, sizeof(max), 1, file);
     _pallas_fread(&mean, sizeof(mean), 1, file);
@@ -992,7 +1132,7 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
     }
 }
 
-void decode_timestamp_delta2(uint64_t* array, size_t size) {
+static void decode_timestamp_delta2(uint64_t* array, size_t size) {
     if (size <= 1)
         return;
     uint64_t prev_delta = array[1];
@@ -1005,7 +1145,7 @@ void decode_timestamp_delta2(uint64_t* array, size_t size) {
     }
 }
 
-void decode_duration_delta2(uint64_t* array, size_t size) {
+static void decode_duration_delta2(uint64_t* array, size_t size) {
     if (size <= 1)
         return;
     int64_t prev_delta = zigzag_decode(array[1]);
@@ -1014,6 +1154,76 @@ void decode_duration_delta2(uint64_t* array, size_t size) {
         int64_t ddelta = zigzag_decode(array[i]);
         int64_t cur_delta = prev_delta + ddelta;
         array[i] = static_cast<uint64_t>(static_cast<int64_t>(array[i - 1]) + cur_delta);  // Recover d_i
+        prev_delta = cur_delta;
+    }
+}
+
+static void decode_timestamp_delta2_varint_words( const uint64_t* encoded_words, size_t enc_size, uint64_t* out, size_t size) {
+    if (size == 0) {
+        return;
+    }
+
+    pallas_assert(encoded_words != nullptr);
+    pallas_assert(enc_size > 0);
+
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(encoded_words);
+    const uint8_t* end = p + enc_size * sizeof(uint64_t);
+
+    // base timestamp
+    out[0] = read_varint(p, end);
+
+    if (size == 1) {
+        return;
+    }
+
+    // first delta, non-negative for timestamps
+    uint64_t prev_delta = read_varint(p, end);
+    out[1] = out[0] + prev_delta;
+
+    for (size_t i = 2; i < size; ++i) {
+        int64_t ddelta = zigzag_decode(read_varint(p, end));
+
+        uint64_t cur_delta = static_cast<uint64_t>(
+            static_cast<int64_t>(prev_delta) + ddelta
+        );
+
+        out[i] = out[i - 1] + cur_delta;
+        prev_delta = cur_delta;
+    }
+}
+
+static void decode_duration_delta2_varint_words(const uint64_t* encoded_words, size_t enc_size, uint64_t* out, size_t size) {
+    if (size == 0) {
+        return;
+    }
+
+    pallas_assert(encoded_words != nullptr);
+    pallas_assert(enc_size > 0);
+
+    const uint8_t* p = reinterpret_cast<const uint8_t*>(encoded_words);
+    const uint8_t* end = p + enc_size * sizeof(uint64_t);
+
+    // base duration
+    out[0] = read_varint(p, end);
+
+    if (size == 1) {
+        return;
+    }
+
+    // first duration delta can be negative
+    int64_t prev_delta = zigzag_decode(read_varint(p, end));
+    out[1] = static_cast<uint64_t>(
+        static_cast<int64_t>(out[0]) + prev_delta
+    );
+
+    for (size_t i = 2; i < size; ++i) {
+        int64_t ddelta = zigzag_decode(read_varint(p, end));
+        int64_t cur_delta = prev_delta + ddelta;
+
+        out[i] = static_cast<uint64_t>(
+            static_cast<int64_t>(out[i - 1]) + cur_delta
+        );
+
         prev_delta = cur_delta;
     }
 }
@@ -1030,20 +1240,29 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
         f.open("r");
         ret = fseek(f.file, sub->offset, 0);
     }
-    sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
+    uint64_t* encoded_array = _pallas_compress_read(sub->enc_size, f.file, parameter_handler); 
     switch (sub->sub_arr_encoding) {
-    case pallas::SubArrayEncoding::None:
-        break;
-    case pallas::SubArrayEncoding::Delta2Encoding:
-        // We need to decode the delta2 encoding before being able to use the data.
-        decode_timestamp_delta2(sub->array, sub->size);
-        break;
-    case pallas::SubArrayEncoding::LossyGenerator:
-        pallas_error("LossyGenerator Not yet implemented\n");
-        break;
-    default:
-        pallas_error("Invalid encoding of Subarray\n");
-        break;
+        case pallas::SubArrayEncoding::None:
+            sub->array = encoded_array;
+            break;
+        case pallas::SubArrayEncoding::Delta2Enc:
+            sub->array = encoded_array;
+            decode_timestamp_delta2(sub->array, sub->size);
+            break;
+
+        case pallas::SubArrayEncoding::Delta2EncVint: {
+            sub->array = new uint64_t[sub->size];
+            decode_timestamp_delta2_varint_words(encoded_array, sub->enc_size, sub->array, sub->size);
+            delete[] encoded_array;
+            break;
+        }
+        case pallas::SubArrayEncoding::LossyGenerator:
+            sub->array = encoded_array;
+            pallas_error("LossyGenerator Not yet implemented\n");
+            break;
+        default:
+            pallas_error("Invalid encoding of Subarray\n");
+            break;
     }
     parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
     parameter_handler.subvector_queue.emplace_back(sub);
@@ -1061,20 +1280,31 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
         f.open("r");
         ret = fseek(f.file, sub->offset, 0);
     }
-    sub->array = _pallas_compress_read(sub->size, f.file, parameter_handler);
+
+    uint64_t* encoded_array = _pallas_compress_read(sub->enc_size, f.file, parameter_handler);
+    
     switch (sub->sub_arr_encoding) {
-    case pallas::SubArrayEncoding::None:
-        break;
-    case pallas::SubArrayEncoding::Delta2Encoding:
-        // We need to decode the delta2 encoding before being able to use the data.
-        decode_timestamp_delta2(sub->array, sub->size);
-        break;
-    case pallas::SubArrayEncoding::LossyGenerator:
-        pallas_error("LossyGenerator Not yet implemented\n");
-        break;
-    default:
-        pallas_error("Invalid encoding of Subarray\n");
-        break;
+        case pallas::SubArrayEncoding::None:
+            sub->array = encoded_array;
+            break;
+
+        case pallas::SubArrayEncoding::Delta2Enc:
+            sub->array = encoded_array;
+            decode_duration_delta2(sub->array, sub->size);
+            break;
+
+        case pallas::SubArrayEncoding::Delta2EncVint: {
+            sub->array = new uint64_t[sub->size];
+            decode_duration_delta2_varint_words(encoded_array, sub->enc_size, sub->array, sub->size);
+            delete[] encoded_array;
+            break;
+        }
+        case pallas::SubArrayEncoding::LossyGenerator:
+            pallas_error("LossyGenerator Not yet implemented\n");
+            break;
+        default:
+            pallas_error("Invalid encoding of Subarray\n");
+            break;
     }
     parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
     parameter_handler.subvector_queue.emplace_back(sub);
