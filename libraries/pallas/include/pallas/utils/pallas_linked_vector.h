@@ -22,8 +22,18 @@
 #include "pallas_parameter_handler.h"
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
-
+#define DEFAULT_SUBARRAY_ENCODING 1
 namespace pallas {
+
+/**
+ * Indicates the type of SubArray Encoding used for a LinkedVector::SubArray
+ */
+enum class SubArrayEncoding : uint8_t {
+    None = 0,
+    Delta2Encoding = 1,
+    LossyGenerator = 2,
+};
+
 /**
  * Classic linked array list. Sub-arrays are implemented as a subclass
  */
@@ -118,6 +128,9 @@ private:
 
         /** Number of elements this vector has allocated. */
         size_t allocated = DEFAULT_VECTOR_SIZE;
+
+        /** Subarray encoding used during the storage time */
+        SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
 
         /** Array of elements. Currently only used on uint64_t */
         uint64_t* array = nullptr;
@@ -318,6 +331,10 @@ class LinkedDurationVector {
 
         /** Number of elements this vector has allocated. */
         size_t allocated = DEFAULT_VECTOR_SIZE;
+      
+        /** Subarray Encoding Mechanism used */
+
+        SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
 
         /** Array of elements. Currently only used on uint64_t */
         uint64_t* array = nullptr;
