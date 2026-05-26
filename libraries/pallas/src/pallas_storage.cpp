@@ -436,7 +436,7 @@ inline static size_t _pallas_histogram_compress(const uint64_t* src, size_t n, b
       // This MUST be <= MAX_BIT
       if (toWrite > MAX_BIT) {
         pallas_warn("Trying to write %lu values using %d byte at most\n", n, N_BYTES);
-        pallas_warn("%lu <= value <= %lu. Problematic value is @%lu:%lu > %d", min, max, i, toWrite, MAX_BIT);
+        pallas_warn("%" PRIu64 " <= value <= %" PRIu64 ". Problematic value is @%lu:%lu > %d", min, max, i, toWrite, MAX_BIT);
         pallas_error();
       }
       memcpy(&dest[i * N_BYTES], &toWrite, N_BYTES);
@@ -872,6 +872,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
     free_data();
 }
 
+// NOTE: leading space
  pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
     _pallas_fread(&min, sizeof(min), 1, file);
@@ -1038,22 +1039,31 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
   }
 }
 static void storeEventData(pallas::EventData& event,
-                             const File& eventFile,
-                             const pallas::ParameterHandler& parameter_handler) {
-    eventFile.write(&event, event.event_size, 1);
+                           const File& eventFile,
+                           const pallas::ParameterHandler& parameter_handler) {
+    eventFile.write(&event.record, sizeof(event.record), 1);
+    eventFile.write(&event.event_size, sizeof(event.event_size), 1);
+    size_t payload_size = event.event_size - offsetof(pallas::EventData, event_data);
+    if (payload_size > 0) {
+        eventFile.write(event.event_data, payload_size, 1);
+    }
 }
 
 static void readEventData(pallas::EventData& event,
-                            const File& eventFile,
-                            const pallas::ParameterHandler& parameter_handler,
-                            uint8_t abi_version) {
+                          const File& eventFile,
+                          const pallas::ParameterHandler& parameter_handler,
+                          uint8_t abi_version) {
     eventFile.read(&event.record, sizeof(event.record), 1);
     if (abi_version <= 18 && event.record == 0) {
         event.record = pallas::PALLAS_EVENT_BUFFER_FLUSH;
     }
     eventFile.read(&event.event_size, sizeof(event.event_size), 1);
+    std::memset(event.event_data, 0, sizeof(event.event_data));
     auto size = event.event_size - offsetof(pallas::EventData, event_data);
-    eventFile.read(event.event_data, size, 1);
+    size_t payload_size = event.event_size - offsetof(pallas::EventData, event_data);
+    if (payload_size > 0) {
+        eventFile.read(event.event_data, payload_size, 1);
+    }
 };
 
 static void storeEvent(pallas::Event& event,
@@ -1062,12 +1072,33 @@ static void storeEvent(pallas::Event& event,
                                     const pallas::ParameterHandler* parameter_handler,
                                     bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+
+    if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
+        pallas::EventData dummy{};
+        dummy.record = pallas::PALLAS_EVENT_MAX_ID;
+        dummy.event_size = offsetof(pallas::EventData, event_data); // Just the header, no payload
+        storeEventData(dummy, eventFile, *parameter_handler);
+
+        size_t serialized_attr_size = 0;
+        eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+
+        if (STORE_TIMESTAMPS) {
+            size_t zero_size = 0;
+            size_t one_sub_array = 1;
+            eventFile.write(&zero_size, sizeof(zero_size), 1);
+            eventFile.write(&one_sub_array, sizeof(one_sub_array), 1);
+        }
+        return;
+    }
+
     pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
+
     storeEventData(event.data, eventFile, *parameter_handler);
-    eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
-    if (event.attribute_pos > 0) {
-        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", event.attribute_pos);
-        eventFile.write(event.attribute_buffer, sizeof(byte), event.attribute_pos);
+    size_t serialized_attr_size = event.attribute_pos;
+    eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+    if (serialized_attr_size > 0) {
+        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", serialized_attr_size);
+        eventFile.write(event.attribute_buffer, sizeof(byte), serialized_attr_size);
     }
     if (STORE_TIMESTAMPS) {
         if (load_thread) {
@@ -1085,13 +1116,34 @@ static void readEvent(pallas::Event& event,
                                    pallas::ParameterHandler& parameter_handler,
                                    uint8_t abi_version) {
     readEventData(event.data, eventFile, parameter_handler, abi_version);
-    eventFile.read(&event.attribute_buffer_size, sizeof(event.attribute_buffer_size), 1);
-    event.attribute_pos = 0;
+
+    size_t serialized_attr_size = 0;
+    eventFile.read(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+
     event.attribute_buffer = nullptr;
-    if (event.attribute_buffer_size > 0) {
-        event.attribute_buffer = new byte[event.attribute_buffer_size];
-        eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
+    event.attribute_buffer_size = serialized_attr_size;
+    event.attribute_pos = serialized_attr_size;
+
+    if (serialized_attr_size > 0) {
+        event.attribute_buffer = new byte[serialized_attr_size];
+        eventFile.read(event.attribute_buffer, sizeof(byte), serialized_attr_size);
     }
+
+    if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
+        if (STORE_TIMESTAMPS) {
+            size_t size = 0;
+            eventFile.read(&size, sizeof(size), 1);
+            if (abi_version >= 18) {
+                size_t n_sub_array = 0;
+                eventFile.read(&n_sub_array, sizeof(n_sub_array), 1);
+            }
+        }
+        event.timestamps = nullptr;
+        event.nb_occurrences = 0;
+        pallas_log(pallas::DebugLevel::Debug, "\tLoaded invalid event %d\n", event.id);
+        return;
+    }
+
     event.timestamps = new pallas::LinkedVector(eventFile.file, durationFileName, parameter_handler, abi_version);
     event.nb_occurrences = event.timestamps->size;
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
@@ -1109,10 +1161,17 @@ static void storeSequence(pallas::Sequence& sequence,
                                 const File& sequenceFile,
                                 const File& durationFile,
                                 const pallas::ParameterHandler* parameter_handler,
-                                bool load_thread
-        ) {
+                                bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
                sequence.id.id, sequence.size(), sequence.durations->size);
+
+    if (sequence.id.type == pallas::TypeInvalid) {
+        sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
+        size_t zero_size = 0;
+        sequenceFile.write(&zero_size, sizeof(zero_size), 1);
+        return;
+    }
+
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         //    th->printSequence(sequence);
         std::cout << "Durations: " << sequence.durations->to_string() << "\n"
@@ -1122,6 +1181,9 @@ static void storeSequence(pallas::Sequence& sequence,
     sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
     size_t size = sequence.size();
     sequenceFile.write(&size, sizeof(size), 1);
+    if (size == 0) {
+      return;
+    }
     sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
 #ifdef DEBUG
     for (const auto& t : sequence.tokens) {
@@ -1155,6 +1217,18 @@ static void readSequence(pallas::Sequence& sequence,
     sequenceFile.read(&sequence.type, sizeof(sequence.type), 1);
     size_t size;
     sequenceFile.read(&size, sizeof(size), 1);
+
+    // catch empty sequence
+    if (size == 0) {
+        sequence.id = pallas::Token();
+        sequence.tokens.clear();
+        sequence.durations = nullptr;
+        sequence.exclusive_durations = nullptr;
+        sequence.timestamps = nullptr;
+        pallas_log(pallas::DebugLevel::Debug, "\\tLoaded invalid sequence\\n");
+        return;
+    }
+
     sequence.tokens.resize(size);
     sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
@@ -1178,15 +1252,19 @@ static void storeLoop(pallas::Loop& loop, const File& loopFile) {
 }
 
 static void readLoop(pallas::Loop& loop, const File& loopFile, uint8_t abi_version) {
-  loopFile.read(&loop.repeated_token, sizeof(loop.repeated_token), 1);
-  loopFile.read(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
+    loopFile.read(&loop.repeated_token, sizeof(loop.repeated_token), 1);
+    loopFile.read(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
     if (abi_version <= 18) {
         loop.nb_occurrences = - 1;
     } else {
         loopFile.read(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
     }
-    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u, .nb_occurrences: %lu}\n",
+    pallas_log(pallas::DebugLevel::Debug, "\tLoad loop %d {.repeated_token=%d.%d, .nb_iterations: %u, .nb_occurrences: %" PRIu64 "}\n",
                loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id, loop.nb_iterations, loop.nb_occurrences);
+
+    if (loop.repeated_token.type == pallas::TypeInvalid) {
+      loop.self_id.type = pallas::TypeInvalid;
+    }
 }
 
 static void storeString(pallas::Definition& definitions, File& file) {
@@ -1452,6 +1530,8 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   threadFile.write(&th->nb_sequences, sizeof(th->nb_sequences), 1);
   threadFile.write(&th->nb_loops, sizeof(th->nb_loops), 1);
 
+  threadFile.write(&th->sequence_root, sizeof(th->sequence_root), 1);
+
   threadFile.write(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
   const char* eventDurationFilename = pallasGetEventDurationFilename(path, th);
@@ -1462,6 +1542,13 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   }
   eventDurationFile.close();
 
+  // write event indirection map
+  size_t event_map_size = th->event_id_map.size();
+  threadFile.write(&event_map_size, sizeof(size_t), 1);
+  if (event_map_size > 0) {
+    threadFile.write(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
+  }
+
   const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(path, th);
   File sequenceDurationFile = File(sequenceDurationFilename, "w");
   delete[] sequenceDurationFilename;
@@ -1470,8 +1557,24 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
   }
   sequenceDurationFile.close();
 
-  for (int i = 0; i < th->nb_loops; i++)
+  // write sequence indirection map
+  size_t seq_map_size = th->sequence_id_map.size();
+  threadFile.write(&seq_map_size, sizeof(size_t), 1);
+  if (seq_map_size > 0) {
+    threadFile.write(th->sequence_id_map.data(), sizeof(uint32_t), seq_map_size);
+  }
+
+  for (int i = 0; i < th->nb_loops; i++) {
     storeLoop(th->loops[i], threadFile);
+  }
+
+  // write loop indirection map
+  size_t loop_map_size = th->loop_id_map.size();
+  threadFile.write(&loop_map_size, sizeof(size_t), 1);
+  if (loop_map_size > 0) {
+    threadFile.write(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
+  }
+
   threadFile.close();
   pallas_log(pallas::DebugLevel::Debug, "Average compression ratio: %.2f\n",
              (numberRawBytes + .0) / numberCompressedBytes);
@@ -1512,6 +1615,12 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   th->nb_allocated_loops = th->nb_loops;
   th->loops = new pallas::Loop[th->nb_allocated_loops];
 
+  if (abi_version >= 20) {
+    threadFile.read(&th->sequence_root, sizeof(th->sequence_root), 1);
+  } else {
+    th->sequence_root = 0;
+  }
+
   threadFile.read(&th->first_timestamp, sizeof(th->first_timestamp), 1);
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu events\n", th->nb_events);
@@ -1519,9 +1628,31 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   if (fileMap.find(eventDurationFilename) == fileMap.end()) {
     fileMap[eventDurationFilename] = new File(eventDurationFilename);;
   }
-  for (int i = 0; i < th->nb_events; i++) {
+  for (size_t i = 0; i < th->nb_events; i++) {
     th->events[i].id = i;
     readEvent(th->events[i], threadFile, *fileMap[eventDurationFilename], eventDurationFilename, *global_archive->parameter_handler, abi_version);
+  }
+
+  // read events with indirection map if supported
+  if (abi_version >= 20) {
+    size_t event_map_size;
+    threadFile.read(&event_map_size, sizeof(size_t), 1);
+    th->event_id_map.resize(event_map_size);
+    if (event_map_size > 0) {
+      threadFile.read(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
+    }
+    for (size_t logi_id = 0; logi_id < th->event_id_map.size(); logi_id++) {
+      uint32_t phys_id = th->event_id_map[logi_id];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        th->events[phys_id].id = logi_id;
+      }
+    }
+  } else {
+    th->event_id_map.resize(th->nb_events);
+    for (size_t i = 0; i < th->nb_events; i++) {
+      th->events[i].id = i;
+      th->event_id_map[i] = i;
+    }
   }
 
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu sequences\n", th->nb_sequences);
@@ -1529,16 +1660,61 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   if (fileMap.find(sequenceDurationFilename) == fileMap.end()) {
     fileMap[sequenceDurationFilename] = new File(sequenceDurationFilename);;
   }
-  for (int i = 0; i < th->nb_sequences; i++) {
+  for (size_t i = 0; i < th->nb_sequences; i++) {
     th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
     readSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler, abi_version);
   }
 
+  // read sequences with indirection map if supported
+  if (abi_version >= 20) {
+    size_t seq_map_size;
+    threadFile.read(&seq_map_size, sizeof(size_t), 1);
+    th->sequence_id_map.resize(seq_map_size);
+    if (seq_map_size > 0) {
+      threadFile.read(th->sequence_id_map.data(), sizeof(uint32_t), seq_map_size);
+    }
+    for (size_t logi_id = 0; logi_id < th->sequence_id_map.size(); logi_id++) {
+      uint32_t phys_id = th->sequence_id_map[logi_id];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        th->sequences[phys_id].id = PALLAS_SEQUENCE_ID(logi_id);
+      }
+    }
+  } else {
+    th->sequence_id_map.resize(th->nb_sequences);
+    for (size_t i = 0; i < th->nb_sequences; i++) {
+      th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
+      th->sequence_id_map[i] = i;
+    }
+  }
+
   pallas_log(pallas::DebugLevel::Verbose, "Reading %lu loops\n", th->nb_loops);
-  for (int i = 0; i < th->nb_loops; i++) {
+  for (size_t i = 0; i < th->nb_loops; i++) {
     th->loops[i].self_id = PALLAS_LOOP_ID(i);
     readLoop(th->loops[i], threadFile, abi_version);
   }
+
+  // read loops with indirection map if supported
+  if (abi_version >= 20) {
+    size_t loop_map_size;
+    threadFile.read(&loop_map_size, sizeof(size_t), 1);
+    th->loop_id_map.resize(loop_map_size);
+    if (loop_map_size > 0) {
+      threadFile.read(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
+    }
+    for (size_t logi_id = 0; logi_id < th->loop_id_map.size(); logi_id++) {
+      uint32_t phys_id = th->loop_id_map[logi_id];
+      if (phys_id != PALLAS_INDEX_INVALID) {
+        th->loops[phys_id].self_id = PALLAS_LOOP_ID(logi_id);
+      }
+    }
+  } else {
+    th->loop_id_map.resize(th->nb_loops);
+    for (size_t i = 0; i < th->nb_loops; i++) {
+      th->loops[i].self_id = PALLAS_LOOP_ID(i);
+      th->loop_id_map[i] = i;
+    }
+  }
+
   threadFile.close();
 
   pallas_log(pallas::DebugLevel::Verbose, "\tThread %u: {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", th->id,

@@ -23,11 +23,13 @@
 #include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
+#include <cstdint>
 #include <cstring>
 #include <map>
 #include <ankerl/unordered_dense.h>
 
 #else
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #endif
@@ -75,6 +77,8 @@ enum TokenType { TypeInvalid = 0, TypeEvent = 1, TypeSequence = 2, TypeLoop = 3 
  * Useful macros
  */
 #define PALLAS_TOKEN_ID_INVALID 0x3fffffff
+
+#define PALLAS_INDEX_INVALID UINT32_MAX
 
 /**
  * Definition of the type for a token ID
@@ -311,6 +315,7 @@ public:
     [[nodiscard]] std::string guessName(const pallas::Thread* thread) const;
 
     ~Sequence();
+    Sequence(Sequence&&) = default;
     Sequence& operator=(Sequence&& other);
     Sequence(ParameterHandler& parameter_handler);
     explicit Sequence() {};
@@ -613,6 +618,8 @@ typedef struct Thread {
     size_t nb_allocated_events;
     /** Number of pallas::Event in #events. */
     size_t nb_events;
+    /** Logical to physical indirection map for Events */
+    DEFINE_Vector(uint32_t, event_id_map);
 
     /** Array of pallas::Sequence recorded in this Thread. */
     Sequence* sequences;
@@ -620,6 +627,11 @@ typedef struct Thread {
     size_t nb_allocated_sequences;
     /** Number of pallas::Sequence  in #sequences. */
     size_t nb_sequences;
+    /** Logical to physical indirection map for Sequences */
+    DEFINE_Vector(uint32_t, sequence_id_map);
+
+    /** Id/Index of the entry point sequence of this Thread. */
+    TokenId sequence_root;
 
     /** First timestamp of this thread. */
     pallas_timestamp_t first_timestamp;
@@ -641,6 +653,8 @@ typedef struct Thread {
     size_t nb_allocated_loops;
     /** Number of pallas::Loop in #loops. */
     size_t nb_loops;
+    /** Logical to physical indirection map for Loops */
+    DEFINE_Vector(uint32_t, loop_id_map);
 #ifdef __cplusplus
     /** Loads all the timestamps for all the Events and Sequences. */
     void loadTimestamps();
@@ -773,6 +787,10 @@ typedef struct Thread {
     Thread(const Thread &) = delete;
 
     void operator=(const Thread &) = delete;
+
+    Thread(Thread&&) = default;
+
+    Thread& operator=(Thread&&) = default;
 
     ~Thread();
 #endif

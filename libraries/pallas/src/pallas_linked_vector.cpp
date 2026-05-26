@@ -477,7 +477,7 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
             output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
         } else {
             pallas_error("This is not supposed to happen !\n");
-            pallas_error("start=%lu, end=%lu\n", start, end);
+            pallas_error("start=%" PRIu64 ", end=%" PRIu64 "\n", start, end);
         }
         sum += output.back();
         current = current->next;

@@ -64,7 +64,7 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
     // ie set the cursor on the first event
     this->currentState.current_frame_index = 0;
     this->currentState.currentFrame = &currentState.callstack[0];
-    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, 0);
+    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, thread_trace->sequence_root);
     this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
     // Enter main sequence
     enterBlock();
@@ -124,9 +124,7 @@ void ThreadReader::printCallstack() const {
 }
 Event* ThreadReader::getEvent(Token event) const {
     pallas_assert(event.type == TypeEvent);
-    if (event.id < thread_trace->nb_events) {
-        return &thread_trace->events[event.id];
-    }
+    return thread_trace->getEvent(event);
     pallas_error("Given event (%d) was invalid\n", event.id);
 }
 pallas_timestamp_t ThreadReader::getEventTimestamp(Token event, int occurrence_id) const {
@@ -253,7 +251,7 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurr
 
 void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const {
     // Let's call the main sequence "main"
-    names[&thread_trace->sequences[0]] = "main";
+    names[&thread_trace->sequences[thread_trace->sequence_id_map[thread_trace->sequence_root]]] = "main";
 
     for (int i = 1; i < thread_trace->nb_sequences; i++) {
         pallas::Sequence* s = &thread_trace->sequences[i];
@@ -318,6 +316,8 @@ Token ThreadReader::pollNextToken(int flags) const {
     if (flags == PALLAS_READ_FLAG_NONE)
         flags = pallas_read_flag;
 
+    // NOTE:
+    // are these the same field, redundancy? 
     int current_frame = currentState.current_frame_index;
     int current_index = currentState.currentFrame->frame_index;
     auto current_iterable_token = currentState.currentFrame->callstack_iterable;
@@ -334,6 +334,8 @@ Token ThreadReader::pollNextToken(int flags) const {
     while (isEndOfBlock(current_index, current_iterable_token)) {
         if (current_frame == 0)
             return Token();
+        // NOTE:
+        // merge logic 
         if (current_iterable_token.type == TypeSequence && flags & PALLAS_READ_FLAG_UNROLL_SEQUENCE) {
             current_frame--;
             current_index = currentState.currentFrame->frame_index;
