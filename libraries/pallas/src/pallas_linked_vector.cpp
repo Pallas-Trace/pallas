@@ -437,7 +437,6 @@ SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
 std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<double>();
     auto *current = first;
-    double sum = 0;
     // While loop to go through all the SubVectors.
     // Legend:
     //   - : Time spent in current vector but NOT in the window
@@ -479,24 +478,8 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
             pallas_error("This is not supposed to happen !\n");
             pallas_error("start=%" PRIu64 ", end=%" PRIu64 "\n", start, end);
         }
-        sum += output.back();
         current = current->next;
     }
-    // Then we need to normalize the weight vector
-    // UPDATE: We don't actually need to normalize the weight vector
-    //
-    // For example, a vector formatted like this:
-    //          start                   end
-    //          |                         |
-    // A: [......##][########][#######][##......]
-    // B:   [....############]
-    // A would have a non-normalized weight of [ .25, 1, 1, .25 ] -> [ .1, .4, .4, 0.1 ]
-    // B would have a non-normalized weight of [ .75 ] and that's that
-    // if (sum > 1.0) {
-    //     for (auto &i: output) {
-    //         i /= sum;
-    //     }
-    // }
     return output;
 }
 
