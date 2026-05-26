@@ -60,14 +60,18 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
         this->thread_trace->printSequence(Token(TypeSequence, 0));
     }
 
-    // And initialize the callstack
-    // ie set the cursor on the first event
-    this->currentState.current_frame_index = 0;
-    this->currentState.currentFrame = &currentState.callstack[0];
-    this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, 0);
-    this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
-    // Enter main sequence
-    enterBlock();
+    if (this->thread_trace->getSequence(Token(TypeSequence, 0))->size() != 0) {
+        // And initialize the callstack
+        // ie set the cursor on the first event
+        this->currentState.current_frame_index = 0;
+        this->currentState.currentFrame = &currentState.callstack[0];
+        this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, 0);
+        this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
+        // Enter main sequence
+        enterBlock();
+    } else {
+        pallas_warn("Thread %s is empty\n", this->thread_trace->getName());
+    }
 }
 
 const Token& ThreadReader::getFrameInCallstack(int frame_number) const {

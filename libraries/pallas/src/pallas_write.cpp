@@ -579,7 +579,9 @@ void ThreadWriter::threadClose() {
     // Then we need to store the main sequence
     auto& mainSequence = thread->sequences[0];
     mainSequence.tokens = sequence_stack[0];
-    pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
+    if (mainSequence.tokens.size() != 0) {
+        pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
+    }
     pallas_timestamp_t duration = last_timestamp - thread->first_timestamp;
     mainSequence.durations->add(duration);
     mainSequence.exclusive_durations->add(0);
