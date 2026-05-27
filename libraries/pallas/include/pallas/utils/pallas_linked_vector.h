@@ -11,7 +11,7 @@
 #include "pallas_timestamp.h"
 #ifndef __cplusplus
 #include <stdint.h>
-#include <stdexcept>
+
 #endif
 #ifdef __cplusplus
 #include <cstdint>
