@@ -921,7 +921,7 @@ void pallas::LinkedVector::SubArray::write_to_file(FILE* file, const ParameterHa
             delete[] encoded_array;
             break;
         }
-        case pallas::SubArrayEncoding::LossyGenerator:
+        case pallas::SubArrayEncoding::TestLossyGenerator:
             pallas_error("Not yet implemented\n");
             break;
         default:
@@ -954,7 +954,7 @@ void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const Par
             delete[] encoded_array;
             break;
         }
-        case pallas::SubArrayEncoding::LossyGenerator:
+        case pallas::SubArrayEncoding::TestLossyGenerator:
             pallas_error("Not yet implemented\n");
             break;
         default:
@@ -1256,9 +1256,9 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
             delete[] encoded_array;
             break;
         }
-        case pallas::SubArrayEncoding::LossyGenerator:
+        case pallas::SubArrayEncoding::TestLossyGenerator:
             sub->array = encoded_array;
-            pallas_error("LossyGenerator Not yet implemented\n");
+            pallas_error("TestLossyGenerator Not yet implemented\n");
             break;
         default:
             pallas_error("Invalid encoding of Subarray\n");
@@ -1299,8 +1299,8 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
             delete[] encoded_array;
             break;
         }
-        case pallas::SubArrayEncoding::LossyGenerator:
-            pallas_error("LossyGenerator Not yet implemented\n");
+        case pallas::SubArrayEncoding::TestLossyGenerator:
+            pallas_error("TestLossyGenerator Not yet implemented\n");
             break;
         default:
             pallas_error("Invalid encoding of Subarray\n");
@@ -1939,6 +1939,7 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fwrite(&maxLoopLength, sizeof(maxLoopLength), 1, file);
     _pallas_fwrite(&timestampStorage, sizeof(timestampStorage), 1, file);
+    _pallas_fwrite(&subArrayEncoding, sizeof(subArrayEncoding), 1, file);
 }
 
 pallas::ParameterHandler::ParameterHandler(FILE* file) {
@@ -1953,6 +1954,7 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fread(&maxLoopLength, sizeof(maxLoopLength), 1, file);
     _pallas_fread(&timestampStorage, sizeof(timestampStorage), 1, file);
+    _pallas_fread(&subArrayEncoding, sizeof(subArrayEncoding), 1, file);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 

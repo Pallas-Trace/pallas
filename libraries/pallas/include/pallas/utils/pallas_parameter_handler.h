@@ -17,6 +17,7 @@
 #endif
 
 namespace pallas {
+enum class SubArrayEncoding : uint8_t;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -161,6 +162,8 @@ class ParameterHandler {
 
     /** Timestamp storage method. */
     TimestampStorage timestampStorage{TimestampStorageDefault};
+    /** Default encoding to use for newly created SubArrays. */
+    SubArrayEncoding subArrayEncoding{static_cast<SubArrayEncoding>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -189,6 +192,8 @@ class ParameterHandler {
      * @returns Value of #loopFindingAlgorithm.
      */
     [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
+    /** Getter for the default SubArray encoding used for new vectors. */
+    [[nodiscard]] SubArrayEncoding getSubArrayEncoding() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 

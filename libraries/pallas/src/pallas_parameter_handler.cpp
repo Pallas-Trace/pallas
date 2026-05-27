@@ -12,6 +12,7 @@
 
 #include "pallas_config.h"
 
+#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
@@ -122,6 +123,26 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
   return TimestampStorage::Invalid;
 }
 
+std::map<SubArrayEncoding, std::string> SubArrayEncodingMap = {
+    {SubArrayEncoding::None, "None"},
+    {SubArrayEncoding::Delta2Enc, "Delta2Enc"},
+    {SubArrayEncoding::Delta2EncVint, "Delta2EncVint"},
+    {SubArrayEncoding::TestLossyGenerator, "TestLossyGenerator"},
+};
+
+std::string toString(SubArrayEncoding encoding) {
+  return SubArrayEncodingMap[encoding];
+}
+
+SubArrayEncoding subArrayEncodingFromString(const std::string& str) {
+  for (auto& [en, enStr] : SubArrayEncodingMap) {
+    if (enStr == str) {
+      return en;
+    }
+  }
+  return static_cast<SubArrayEncoding>(UINT8_MAX);
+}
+
 /** Simple class to handle the parsing of the configuration file. */
 class ConfigFile {
   std::map<std::string, std::string> config;
@@ -219,6 +240,23 @@ class ConfigFile {
     return ret;
   }
 
+  SubArrayEncoding loadSubArrayEncodingConfig() {
+    SubArrayEncoding ret = SubArrayEncoding::None;
+
+    std::string value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
+    if (value.empty() && !config.empty()) {
+      value = loadStringFromConfig("subArrayEncoding");
+    }
+    if (!value.empty()) {
+      ret = subArrayEncodingFromString(value);
+      if (ret == static_cast<SubArrayEncoding>(UINT8_MAX)) {
+        pallas_warn("Invalid SubArrayEncoding in config: %s\n", value.c_str());
+        ret = SubArrayEncoding::None;
+      }
+    }
+    return ret;
+  }
+
   explicit ConfigFile(const std::string& configPath) {
     std::ifstream configFile(configPath);
     if (configFile.is_open()) {
@@ -243,6 +281,7 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
+  subArrayEncoding = config.loadSubArrayEncodingConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -279,6 +318,7 @@ ParameterHandler::ParameterHandler() {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
+  subArrayEncoding = config.loadSubArrayEncodingConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -305,6 +345,10 @@ LoopFindingAlgorithm ParameterHandler::getLoopFindingAlgorithm() const {
   return loopFindingAlgorithm;
 }
 
+SubArrayEncoding ParameterHandler::getSubArrayEncoding() const {
+  return subArrayEncoding;
+}
+
 TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
@@ -317,6 +361,7 @@ std::string ParameterHandler::to_string() const {
   stream << "maxLoopLength=" << maxLoopLength << "\n";
   stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
   stream << "timestampStorage=" << toString(timestampStorage) << "\n";
+  stream << "subArrayEncoding=" << toString(subArrayEncoding) << "\n";
   return stream.str();
 }
 
