@@ -125,8 +125,8 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
 
 std::map<SubArrayEncoding, std::string> SubArrayEncodingMap = {
     {SubArrayEncoding::None, "None"},
-    {SubArrayEncoding::Delta2Enc, "Delta2Enc"},
-    {SubArrayEncoding::Delta2Vint, "Delta2Vint"},
+    {SubArrayEncoding::Delta2VintTimestamp, "Delta2VintTimestamp"},
+    {SubArrayEncoding::Delta2VintDuration, "Delta2VintDuration"},
     {SubArrayEncoding::MonotoneLossy, "MonotoneLossy"},
 };
 
@@ -135,6 +135,9 @@ std::string toString(SubArrayEncoding encoding) {
 }
 
 SubArrayEncoding subArrayEncodingFromString(const std::string& str) {
+  if (str == "Delta2Vint") {
+    return SubArrayEncoding::Delta2VintTimestamp;
+  }
   for (auto& [en, enStr] : SubArrayEncodingMap) {
     if (enStr == str) {
       return en;
@@ -240,17 +243,46 @@ class ConfigFile {
     return ret;
   }
 
-  SubArrayEncoding loadSubArrayEncodingConfig() {
+  SubArrayEncoding loadTimestampSubArrayEncodingConfig() {
     SubArrayEncoding ret = SubArrayEncoding::None;
 
-    std::string value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
-    if (value.empty() && !config.empty()) {
-      value = loadStringFromConfig("subArrayEncoding");
+    std::string value = loadStringFromEnv("PALLAS_TS_SUBARRAY_ENCODING");
+    if (value.empty()) {
+      value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
+    }
+    if (value.empty() && !config.empty() && config.find("tsSubArrayEncoding") != config.end()) {
+      value = config["tsSubArrayEncoding"];
+    }
+    if (value.empty() && !config.empty() && config.find("subArrayEncoding") != config.end()) {
+      value = config["subArrayEncoding"];
     }
     if (!value.empty()) {
       ret = subArrayEncodingFromString(value);
       if (ret == static_cast<SubArrayEncoding>(UINT8_MAX)) {
-        pallas_warn("Invalid SubArrayEncoding in config: %s\n", value.c_str());
+        pallas_warn("Invalid timestamp SubArrayEncoding in config: %s\n", value.c_str());
+        ret = SubArrayEncoding::None;
+      }
+    }
+    return ret;
+  }
+
+  SubArrayEncoding loadDurationSubArrayEncodingConfig() {
+    SubArrayEncoding ret = SubArrayEncoding::None;
+
+    std::string value = loadStringFromEnv("PALLAS_DURATION_SUBARRAY_ENCODING");
+    if (value.empty()) {
+      value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
+    }
+    if (value.empty() && !config.empty() && config.find("durationSubArrayEncoding") != config.end()) {
+      value = config["durationSubArrayEncoding"];
+    }
+    if (value.empty() && !config.empty() && config.find("subArrayEncoding") != config.end()) {
+      value = config["subArrayEncoding"];
+    }
+    if (!value.empty()) {
+      ret = subArrayEncodingFromString(value);
+      if (ret == static_cast<SubArrayEncoding>(UINT8_MAX)) {
+        pallas_warn("Invalid duration SubArrayEncoding in config: %s\n", value.c_str());
         ret = SubArrayEncoding::None;
       }
     }
@@ -281,7 +313,8 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
-  subArrayEncoding = config.loadSubArrayEncodingConfig();
+  tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
+  durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -318,7 +351,8 @@ ParameterHandler::ParameterHandler() {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
-  subArrayEncoding = config.loadSubArrayEncodingConfig();
+  tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
+  durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -345,8 +379,12 @@ LoopFindingAlgorithm ParameterHandler::getLoopFindingAlgorithm() const {
   return loopFindingAlgorithm;
 }
 
-SubArrayEncoding ParameterHandler::getSubArrayEncoding() const {
-  return subArrayEncoding;
+SubArrayEncoding ParameterHandler::getTimestampSubArrayEncoding() const {
+  return tsSubArrayEncoding;
+}
+
+SubArrayEncoding ParameterHandler::getDurationSubArrayEncoding() const {
+  return durationSubArrayEncoding;
 }
 
 TimestampStorage ParameterHandler::getTimestampStorage() const {
@@ -361,7 +399,8 @@ std::string ParameterHandler::to_string() const {
   stream << "maxLoopLength=" << maxLoopLength << "\n";
   stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
   stream << "timestampStorage=" << toString(timestampStorage) << "\n";
-  stream << "subArrayEncoding=" << toString(subArrayEncoding) << "\n";
+  stream << "tsSubArrayEncoding=" << toString(tsSubArrayEncoding) << "\n";
+  stream << "durationSubArrayEncoding=" << toString(durationSubArrayEncoding) << "\n";
   return stream.str();
 }
 

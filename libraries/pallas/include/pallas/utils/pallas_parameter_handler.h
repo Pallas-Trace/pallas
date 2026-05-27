@@ -162,8 +162,10 @@ class ParameterHandler {
 
     /** Timestamp storage method. */
     TimestampStorage timestampStorage{TimestampStorageDefault};
-    /** Default encoding to use for newly created SubArrays. */
-    SubArrayEncoding subArrayEncoding{static_cast<SubArrayEncoding>(0)};
+    /** Default encoding to use for newly created timestamp SubArrays. */
+    SubArrayEncoding tsSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
+    /** Default encoding to use for newly created duration SubArrays. */
+    SubArrayEncoding durationSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -192,8 +194,10 @@ class ParameterHandler {
      * @returns Value of #loopFindingAlgorithm.
      */
     [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
-    /** Getter for the default SubArray encoding used for new vectors. */
-    [[nodiscard]] SubArrayEncoding getSubArrayEncoding() const;
+    /** Getter for the default SubArray encoding used for new timestamp vectors. */
+    [[nodiscard]] SubArrayEncoding getTimestampSubArrayEncoding() const;
+    /** Getter for the default SubArray encoding used for new duration vectors. */
+    [[nodiscard]] SubArrayEncoding getDurationSubArrayEncoding() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 

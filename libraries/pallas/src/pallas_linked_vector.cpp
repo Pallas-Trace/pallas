@@ -56,13 +56,13 @@ std::string LinkedDurationVector::to_string() {
 
 LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
-    first->sub_arr_encoding = parameter_handler.getSubArrayEncoding();
+    first->sub_arr_encoding = parameter_handler.getTimestampSubArrayEncoding();
     last = first;
 }
 
 LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
-    first->sub_arr_encoding = parameter_handler.getSubArrayEncoding();
+    first->sub_arr_encoding = parameter_handler.getDurationSubArrayEncoding();
     last = first;
 }
 
@@ -147,7 +147,7 @@ uint64_t* LinkedDurationVector::add(uint64_t val) {
     if (this->last->size >= this->last->allocated) {
         last->final_update_mean();
         last = new SubArray(DEFAULT_VECTOR_SIZE, last);
-        last->sub_arr_encoding = parameter_handler.getSubArrayEncoding();
+        last->sub_arr_encoding = parameter_handler.getDurationSubArrayEncoding();
         n_sub_array++;
     }
     size++;
@@ -159,7 +159,7 @@ uint64_t* LinkedDurationVector::add(uint64_t val) {
 uint64_t* LinkedVector::add(uint64_t val) {
     if (this->last->size >= this->last->allocated) {
         last = new SubArray(DEFAULT_VECTOR_SIZE, last);
-        last->sub_arr_encoding = parameter_handler.getSubArrayEncoding();
+        last->sub_arr_encoding = parameter_handler.getTimestampSubArrayEncoding();
         n_sub_array++;
     }
     size++;

@@ -11,14 +11,18 @@
 #include "pallas_timestamp.h"
 #ifndef __cplusplus
 #include <stdint.h>
+#include <stdexcept>
 #endif
 #ifdef __cplusplus
 #include <cstdint>
 #include <cstring>
+#include <stdexcept>
 #include <set>
 #include <vector>
 
 #include "pallas_parameter_handler.h"
+#include "pallas_dbg.h"
+#include "pallas_log.h"
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 #define DEFAULT_SUBARRAY_ENCODING 0
@@ -29,8 +33,9 @@ namespace pallas {
  */
 enum class SubArrayEncoding : uint8_t {
     None = 0,
-    Delta2Vint = 1,
-    MonotoneLossy = 2,
+    Delta2VintTimestamp = 1,
+    Delta2VintDuration = 2,
+    MonotoneLossy = 3,
 };
 
 class SubArrayCodec {
@@ -47,8 +52,8 @@ class SubArrayCodec {
         virtual ~SubArrayCodec() = default;
         virtual SubArrayEncoding encoding() const = 0;
         virtual bool can_encode(uint64_t* array, size_t size) const = 0;
-        virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t* encoded_array, const ParameterHandler* parameter_handler) const = 0;
-        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size) const = 0;
+        virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const = 0;
+        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const = 0;
 };
 class NoneCodec : public SubArrayCodec {
     public:
@@ -58,17 +63,17 @@ class NoneCodec : public SubArrayCodec {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t* encoded_array, const ParameterHandler* parameter_handler) const override {
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
             encoded_array = array;  // No encoding, so the encoded array is the same as the original array.
             return size;
         }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size) const override {
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
             decoded_array = encoded_array;
         }
 };
 
-class Delta2VintCodec : public SubArrayCodec {
-    private:
+class Delta2VintCodecBase : public SubArrayCodec {
+    protected:
         /** Varint Helpers */
         static inline void write_varint(uint64_t x, uint8_t*& out) {
             while (x >= 0x80) {
@@ -246,20 +251,39 @@ class Delta2VintCodec : public SubArrayCodec {
                 prev_delta = cur_delta;
             }
         }
+};
+
+class TimestampDelta2VintCodec : public Delta2VintCodecBase {
     public:
         SubArrayEncoding encoding() const override {
-            return SubArrayEncoding::Delta2Vint;
+            return SubArrayEncoding::Delta2VintTimestamp;
         }
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t* encoded_array, const ParameterHandler* parameter_handler) const override {
-            size_t enc_size = encode_timestamp(array, size, encoded_array);
-            _pallas_compress_write(encoded_array, enc_size, file, parameter_handler);
-            return enc_size;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
+            return encode_timestamp(array, size, encoded_array);
         }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size) const override {
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
+            decoded_array = new uint64_t[size];
             decode_timestamp(encoded_array, enc_size, decoded_array, size);
+        }
+};
+
+class DurationDelta2VintCodec : public Delta2VintCodecBase {
+    public:
+        SubArrayEncoding encoding() const override {
+            return SubArrayEncoding::Delta2VintDuration;
+        }
+        bool can_encode(uint64_t* array, size_t size) const override {
+            return true;
+        }
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
+            return encode_duration(array, size, encoded_array);
+        }
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
+            decoded_array = new uint64_t[size];
+            decode_duration(encoded_array, enc_size, decoded_array, size);
         }
 };
 
@@ -282,25 +306,29 @@ class MonotoneLossyCodec : public SubArrayCodec {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t* encoded_array, const ParameterHandler* parameter_handler) const override {
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
             pallas_error("Not yet implemented\n");
             return 0;
         }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size) const override {
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
             pallas_error("Not yet implemented\n");
         }
 };
 
-const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding) {
+inline const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding) {
     static const NoneCodec none_codec;
-    static const Delta2VintCodec delta2_vint_codec;
+    static const TimestampDelta2VintCodec delta2_vint_timestamp_codec;
+    static const DurationDelta2VintCodec delta2_vint_duration_codec;
     static const MonotoneLossyCodec monotone_lossy_codec;
     switch (encoding) {
         case SubArrayEncoding::None:
             return &none_codec;
 
-        case SubArrayEncoding::Delta2Vint:
-            return &delta2_vint_codec;
+        case SubArrayEncoding::Delta2VintTimestamp:
+            return &delta2_vint_timestamp_codec;
+
+        case SubArrayEncoding::Delta2VintDuration:
+            return &delta2_vint_duration_codec;
 
         case SubArrayEncoding::MonotoneLossy:
             return &monotone_lossy_codec;
