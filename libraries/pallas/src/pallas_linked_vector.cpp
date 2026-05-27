@@ -14,6 +14,9 @@
 
 #define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
 
+
+/** Functions pertaining to  */
+
 namespace pallas {
 
 std::string LinkedVector::to_string() {
@@ -313,9 +316,6 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
     return sum;
 }
 
-
-
-
 uint64_t& LinkedVector::front() {
     return first->first_value;
 }
@@ -513,8 +513,5 @@ pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights
     }
     return sum;
 }
-
-
-// Sub-LinkedVector methods
 
 }  // namespace pallas

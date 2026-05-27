@@ -126,8 +126,8 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
 std::map<SubArrayEncoding, std::string> SubArrayEncodingMap = {
     {SubArrayEncoding::None, "None"},
     {SubArrayEncoding::Delta2Enc, "Delta2Enc"},
-    {SubArrayEncoding::Delta2EncVint, "Delta2EncVint"},
-    {SubArrayEncoding::TestLossyGenerator, "TestLossyGenerator"},
+    {SubArrayEncoding::Delta2Vint, "Delta2Vint"},
+    {SubArrayEncoding::MonotoneLossy, "MonotoneLossy"},
 };
 
 std::string toString(SubArrayEncoding encoding) {
