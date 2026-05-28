@@ -51,6 +51,21 @@ static Token getLastEvent(Token t, const Thread* thread) {
     return t;
 }
 
+static SubArrayEncoding getPreferredEventTimestampEncoding(const EventData& event_data,
+                                                           const ParameterHandler& parameter_handler) {
+    SubArrayEncoding suggested_encoding = parameter_handler.getTimestampSubArrayEncoding();
+    
+    if(suggested_encoding == SubArrayEncoding::None) {
+        // Cannot Override a None encoding, so we return it directly.
+        return SubArrayEncoding::None;
+    }
+
+    if (event_data.record == PALLAS_EVENT_MPI_REQUEST_TEST) {
+        return SubArrayEncoding::MonotoneLossy;
+    }
+    return suggested_encoding;
+}
+
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
         return thread->sequences[token_array->id];
@@ -680,7 +695,7 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
 
     auto* new_event = new (&thread->events[index]) Event(index, *e);
-    new_event->timestamps = new LinkedVector(*parameter_handler);
+    new_event->timestamps = new LinkedVector(*parameter_handler, getPreferredEventTimestampEncoding(*e, *parameter_handler));
 
     // In-place initialisation
     thread->hashToEvent[hash].push_back(index);

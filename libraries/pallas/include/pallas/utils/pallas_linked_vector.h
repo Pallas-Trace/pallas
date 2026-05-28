@@ -15,14 +15,11 @@
 #endif
 #ifdef __cplusplus
 #include <cstdint>
-#include <cstring>
-#include <stdexcept>
 #include <set>
 #include <vector>
 
 #include "pallas_parameter_handler.h"
-#include "pallas_dbg.h"
-#include "pallas_log.h"
+
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 #define DEFAULT_SUBARRAY_ENCODING 0
@@ -41,19 +38,14 @@ enum class SubArrayEncoding : uint8_t {
 class SubArrayCodec {
     protected:
         /** ZigZag Mapping of Negative Values to Non-Negative Values */
-        static inline uint64_t zigzag_encode(int64_t x) {
-            return (static_cast<uint64_t>(x) << 1) ^ static_cast<uint64_t>(x >> 63);
-        }
-
-        static inline int64_t zigzag_decode(uint64_t x) {
-            return static_cast<int64_t>((x >> 1) ^ static_cast<uint64_t>(-static_cast<int64_t>(x & 1)));
-        }
+        static uint64_t zigzag_encode(int64_t x);
+        static int64_t zigzag_decode(uint64_t x);
     public: 
         virtual ~SubArrayCodec() = default;
         virtual SubArrayEncoding encoding() const = 0;
         virtual bool can_encode(uint64_t* array, size_t size) const = 0;
         virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const = 0;
-        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const = 0;
+        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const = 0;
 };
 class NoneCodec : public SubArrayCodec {
     public:
@@ -63,194 +55,19 @@ class NoneCodec : public SubArrayCodec {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
-            encoded_array = array;  // No encoding, so the encoded array is the same as the original array.
-            return size;
-        }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
-            decoded_array = encoded_array;
-        }
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
 };
 
 class Delta2VintCodecBase : public SubArrayCodec {
     protected:
         /** Varint Helpers */
-        static inline void write_varint(uint64_t x, uint8_t*& out) {
-            while (x >= 0x80) {
-                *out++ = static_cast<uint8_t>((x & 0x7f) | 0x80);
-                x >>= 7;
-            }
-            *out++ = static_cast<uint8_t>(x);
-        }
-
-        static inline uint64_t read_varint(const uint8_t*& p, const uint8_t* end) {
-            uint64_t result = 0;
-            int shift = 0;
-            while (p < end) {
-                uint8_t byte = *p++;
-                result |= static_cast<uint64_t>(byte & 0x7f) << shift;
-
-                if ((byte & 0x80) == 0) {
-                    return result;
-                }
-
-                shift += 7;
-                if (shift >= 64) {
-                    throw std::runtime_error("varint too long");
-                }
-            }
-            throw std::runtime_error("truncated varint");
-        }
-    
-        size_t encode_timestamp(uint64_t* src, size_t size, uint64_t*& encoded_array) const {
-            size_t enc_size = 0;
-
-            if (size == 0) {
-                encoded_array = nullptr;  // Should never encounter this case
-                return enc_size;
-            }
-
-            // Worst case: uint64_t varint takes 10 bytes.
-            const size_t max_bytes = 10 * size;
-            const size_t max_words = (max_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
-
-            uint64_t* packed = new uint64_t[max_words];  // not zero-initialized
-            uint8_t* begin = reinterpret_cast<uint8_t*>(packed);
-            uint8_t* out = begin;
-            encoded_array = packed;
-
-            // base timestamp
-            write_varint(src[0], out);
-
-            if (size >= 2) {
-                uint64_t prev_delta = src[1] - src[0];
-                write_varint(prev_delta, out);
-                for (size_t i = 2; i < size; ++i) {
-                    uint64_t cur_delta = src[i] - src[i - 1];
-                    int64_t ddelta = static_cast<int64_t>(cur_delta) - static_cast<int64_t>(prev_delta);
-                    write_varint(zigzag_encode(ddelta), out);
-                    prev_delta = cur_delta;
-                }
-            }
-
-            const size_t used_bytes = static_cast<size_t>(out - begin);
-            enc_size = (used_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
-
-            // zero the padding bytes in the final uint64_t word.
-            const size_t padded_bytes = enc_size * sizeof(uint64_t);
-            if (padded_bytes > used_bytes) {
-                std::memset(begin + used_bytes, 0, padded_bytes - used_bytes);
-            }
-
-            return enc_size;
-        }
-
-        size_t encode_duration(uint64_t* src, size_t size, uint64_t*& encoded_array) const {
-            size_t enc_size = 0;
-            if (size == 0) {
-                encoded_array = nullptr;  // Should never encounter this case
-                return enc_size;
-            }
-
-            // Worst case: uint64_t varint takes 10 bytes.
-            const size_t max_bytes = 10 * size;
-            const size_t max_words = (max_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
-
-            uint64_t* packed = new uint64_t[max_words];  // not zero-initialized
-            uint8_t* begin = reinterpret_cast<uint8_t*>(packed);
-            uint8_t* out = begin;
-            encoded_array = packed;
-
-            // base duration
-            write_varint(src[0], out);
-
-            if (size >= 2) {
-                int64_t prev_delta = static_cast<int64_t>(src[1]) - static_cast<int64_t>(src[0]);
-                write_varint(zigzag_encode(prev_delta), out);
-
-                for (size_t i = 2; i < size; ++i) {
-                    int64_t cur_delta = static_cast<int64_t>(src[i]) - static_cast<int64_t>(src[i - 1]);
-                    int64_t ddelta = cur_delta - prev_delta;
-                    write_varint(zigzag_encode(ddelta), out);
-                    prev_delta = cur_delta;
-                }
-            }
-
-            const size_t used_bytes = static_cast<size_t>(out - begin);
-            enc_size = (used_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
-
-            // zero the padding bytes in the final uint64_t word.
-            const size_t padded_bytes = enc_size * sizeof(uint64_t);
-            if (padded_bytes > used_bytes) {
-                std::memset(begin + used_bytes, 0, padded_bytes - used_bytes);
-            }
-
-            return enc_size;
-        }
-    
-        static void decode_timestamp(const uint64_t* encoded_words, size_t enc_size, uint64_t* decoded_array, size_t size) {
-            if (size == 0) {
-                return;
-            }
-
-            pallas_assert(encoded_words != nullptr);
-            pallas_assert(enc_size > 0);
-
-            const uint8_t* p = reinterpret_cast<const uint8_t*>(encoded_words);
-            const uint8_t* end = p + enc_size * sizeof(uint64_t);
-
-            // base timestamp
-            decoded_array[0] = read_varint(p, end);
-
-            if (size == 1) {
-                return;
-            }
-
-            // first delta, non-negative for timestamps
-            uint64_t prev_delta = read_varint(p, end);
-            decoded_array[1] = decoded_array[0] + prev_delta;
-
-            for (size_t i = 2; i < size; ++i) {
-                int64_t ddelta = zigzag_decode(read_varint(p, end));
-
-                uint64_t cur_delta = static_cast<uint64_t>(static_cast<int64_t>(prev_delta) + ddelta);
-
-                decoded_array[i] = decoded_array[i - 1] + cur_delta;
-                prev_delta = cur_delta;
-            }
-        }
-
-        static void decode_duration(const uint64_t* encoded_words, size_t enc_size, uint64_t* out, size_t size) {
-            if (size == 0) {
-                return;
-            }
-
-            pallas_assert(encoded_words != nullptr);
-            pallas_assert(enc_size > 0);
-
-            const uint8_t* p = reinterpret_cast<const uint8_t*>(encoded_words);
-            const uint8_t* end = p + enc_size * sizeof(uint64_t);
-
-            // base duration
-            out[0] = read_varint(p, end);
-
-            if (size == 1) {
-                return;
-            }
-
-            // first duration delta can be negative
-            int64_t prev_delta = zigzag_decode(read_varint(p, end));
-            out[1] = static_cast<uint64_t>(static_cast<int64_t>(out[0]) + prev_delta);
-
-            for (size_t i = 2; i < size; ++i) {
-                int64_t ddelta = zigzag_decode(read_varint(p, end));
-                int64_t cur_delta = prev_delta + ddelta;
-
-                out[i] = static_cast<uint64_t>(static_cast<int64_t>(out[i - 1]) + cur_delta);
-
-                prev_delta = cur_delta;
-            }
-        }
+        static void write_varint(uint64_t x, uint8_t*& out);
+        static uint64_t read_varint(const uint8_t*& p, const uint8_t* end);
+        size_t encode_timestamp(uint64_t* src, size_t size, uint64_t*& encoded_array) const;
+        size_t encode_duration(uint64_t* src, size_t size, uint64_t*& encoded_array) const;
+        static void decode_timestamp(const uint64_t* encoded_words, size_t enc_size, uint64_t* decoded_array, size_t size);
+        static void decode_duration(const uint64_t* encoded_words, size_t enc_size, uint64_t* out, size_t size);
 };
 
 class TimestampDelta2VintCodec : public Delta2VintCodecBase {
@@ -261,13 +78,8 @@ class TimestampDelta2VintCodec : public Delta2VintCodecBase {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
-            return encode_timestamp(array, size, encoded_array);
-        }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
-            decoded_array = new uint64_t[size];
-            decode_timestamp(encoded_array, enc_size, decoded_array, size);
-        }
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
 };
 
 class DurationDelta2VintCodec : public Delta2VintCodecBase {
@@ -278,13 +90,8 @@ class DurationDelta2VintCodec : public Delta2VintCodecBase {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
-            return encode_duration(array, size, encoded_array);
-        }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
-            decoded_array = new uint64_t[size];
-            decode_duration(encoded_array, enc_size, decoded_array, size);
-        }
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
 };
 
 /**
@@ -292,53 +99,33 @@ class DurationDelta2VintCodec : public Delta2VintCodecBase {
  */
 
 enum class MonotoneLossyVariant : uint8_t {
-    DecileLinear = 0,
-    DecileLinearMeanRep = 1,
-    DecilePchipMeanRep = 2,
-    DecilePchipMeanRepAdaptive = 4, 
+    Linear = 0,
+    LinearMeanRep = 1,
+    LinearPchipMeanRep = 2,
+    LinearPchipMeanRepAdaptive = 4, 
 };
 
 class MonotoneLossyCodec : public SubArrayCodec {
+    protected:
+        static constexpr size_t kKPercentileAnchorCount = 11;
+        static constexpr size_t kKPercentileSegmentCount = kKPercentileAnchorCount - 1;
+        static constexpr size_t kLinearWordCount = kKPercentileAnchorCount;
+
+        static size_t kpercentile_anchor_index(size_t size, size_t anchor_id);
+        static uint64_t linear_interpolate(uint64_t start_value, uint64_t end_value, size_t offset, size_t span);
+        static size_t encode_kpercentile_linear(uint64_t* array, size_t size, uint64_t*& encoded_array);
+        static void decode_kpercentile_linear(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size);
+
     public:
         SubArrayEncoding encoding() const override {
             return SubArrayEncoding::MonotoneLossy;
         }
-        bool can_encode(uint64_t* array, size_t size) const override {
-            return true;
-        }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override {
-            pallas_error("Not yet implemented\n");
-            return 0;
-        }
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size) const override {
-            pallas_error("Not yet implemented\n");
-        }
+        bool can_encode(uint64_t* array, size_t size) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
 };
 
-inline const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding) {
-    static const NoneCodec none_codec;
-    static const TimestampDelta2VintCodec delta2_vint_timestamp_codec;
-    static const DurationDelta2VintCodec delta2_vint_duration_codec;
-    static const MonotoneLossyCodec monotone_lossy_codec;
-    switch (encoding) {
-        case SubArrayEncoding::None:
-            return &none_codec;
-
-        case SubArrayEncoding::Delta2VintTimestamp:
-            return &delta2_vint_timestamp_codec;
-
-        case SubArrayEncoding::Delta2VintDuration:
-            return &delta2_vint_duration_codec;
-
-        case SubArrayEncoding::MonotoneLossy:
-            return &monotone_lossy_codec;
-
-        default:
-            pallas_error("Invalid SubArrayEncoding: %u\n",
-                        static_cast<unsigned>(encoding));
-            return nullptr;
-    }
-}
+const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding);
 
 }
 
@@ -421,12 +208,19 @@ class LinkedVector {
      */
     std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
 
+    /** Sets the preferred encoding for future subarrays of this vector. */
+    void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
+    /** Returns the preferred encoding for future subarrays of this vector. */
+    [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
+
    private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
 
     /** Parameter handler for the whole trace. */
     ParameterHandler& parameter_handler;
+    /** Preferred encoding for newly created subarrays. */
+    SubArrayEncoding preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -536,6 +330,7 @@ class LinkedVector {
      * Creates a new LinkedVector.
      */
     LinkedVector(ParameterHandler& p);
+    LinkedVector(ParameterHandler& p, SubArrayEncoding preferred_encoding);
 
     /** Creates a new LinkedVector from a file. Doesn't actually load it until and element is accessed. */
     LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version);
@@ -628,11 +423,18 @@ class LinkedDurationVector {
      */
     void reset_offsets();
 
+    /** Sets the preferred encoding for future subarrays of this vector. */
+    void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
+    /** Returns the preferred encoding for future subarrays of this vector. */
+    [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
+
    private:
     /** Path to the file storing this vector. */
     const char* filePath = nullptr;
     /** Parameter handler for the whole trace. */
     ParameterHandler& parameter_handler;
+    /** Preferred encoding for newly created subarrays. */
+    SubArrayEncoding preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
     /**
      * A fixed-sized array functioning as a node in a linked array list.
      */
@@ -785,6 +587,7 @@ class LinkedDurationVector {
      * Creates a new LinkedDurationVector.
      */
     LinkedDurationVector(ParameterHandler& p);
+    LinkedDurationVector(ParameterHandler& p, SubArrayEncoding preferred_encoding);
 };
 }  // namespace pallas
 

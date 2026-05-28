@@ -539,6 +539,7 @@ inline static uint64_t* _pallas_masking_read(size_t n, byte* encodedArray, size_
     return dest;
 }
 
+size_t numberPreRawBytes = 0;
 size_t numberRawBytes = 0;
 size_t numberCompressedBytes = 0;
 
@@ -552,6 +553,7 @@ size_t numberCompressedBytes = 0;
  */
 inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
     size_t size = n * sizeof(uint64_t);
+    numberRawBytes += size;
     uint64_t* encodedArray = nullptr;
     size_t encodedSize;
     // First we do the encoding
@@ -626,17 +628,18 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
         pallas_log(pallas::DebugLevel::Debug, "Compressing %lu bytes as %lu bytes\n", size, compressedSize);
         _pallas_fwrite(&compressedSize, sizeof(compressedSize), 1, file);
         _pallas_fwrite(compressedArray, compressedSize, 1, file);
-        numberRawBytes += size;
-        numberCompressedBytes += compressedSize;
+        numberCompressedBytes += sizeof(compressedSize) + compressedSize;
     } else if (parameter_handler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None) {
         pallas_log(pallas::DebugLevel::Debug, "Encoding %lu bytes as %lu bytes\n", size, encodedSize);
         _pallas_fwrite(&encodedSize, sizeof(encodedSize), 1, file);
         _pallas_fwrite(encodedArray, encodedSize, 1, file);
+        numberCompressedBytes += sizeof(encodedSize) + encodedSize;
     } else {
         size_t offset = ftell(file);
         pallas_log(pallas::DebugLevel::Debug, "Writing %lu bytes as is @%lu in %p.\n", size, offset, file);
         _pallas_fwrite(&size, sizeof(size), 1, file);
         _pallas_fwrite(src, size, 1, file);
+        numberCompressedBytes += sizeof(size) + size;
     }
     if (parameter_handler->getCompressionAlgorithm() != pallas::CompressionAlgorithm::None)
         delete[] compressedArray;
@@ -747,6 +750,7 @@ void pallas::LinkedVector::SubArray::write_to_file(FILE* file, const ParameterHa
     first_value = array[0];
     last_value = array[size - 1];
     offset = ftell(file);
+    numberPreRawBytes += size * sizeof(uint64_t);
 
     const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
 
@@ -770,6 +774,7 @@ void pallas::LinkedVector::SubArray::write_to_file(FILE* file, const ParameterHa
 
 void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
     offset = ftell(file);
+    numberPreRawBytes += size * sizeof(uint64_t);
 
     const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
 
@@ -794,6 +799,7 @@ void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const Par
 void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
     _pallas_fwrite(&size, sizeof(size), 1, infoFile);
     _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, infoFile);
+    _pallas_fwrite(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, infoFile);
     if (size == 0)
         return;
     // Write the Subarrays statistics
@@ -803,7 +809,6 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
             sub_array->write_to_file(dataFile, parameter_handler);
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, infoFile);
-        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, infoFile);
         _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, infoFile);
         _pallas_fwrite(&sub_array->first_value, sizeof(sub_array->first_value), 1, infoFile);
         _pallas_fwrite(&sub_array->last_value, sizeof(sub_array->last_value), 1, infoFile);
@@ -815,7 +820,6 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
 
 pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
-    _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
     _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&first_value, sizeof(first_value), 1, file);
     _pallas_fread(&last_value, sizeof(last_value), 1, file);
@@ -830,11 +834,13 @@ pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
 
 pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version) : parameter_handler(parameter_handler) {
     filePath = valueFilePath;
+    preferred_sub_arr_encoding = parameter_handler.getTimestampSubArrayEncoding();
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
     if (abi_version >= 18) {
         _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+        _pallas_fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
     }
     if (size == 0) {
         return;
@@ -844,11 +850,13 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
         is_contiguous = true;
         for (size_t i = 0; i < n_sub_array; i++) {
             last = new (&first[i]) SubArray(vectorFile, last);
+            last->sub_arr_encoding = preferred_sub_arr_encoding;
         }
     } else {
         size_t temp_size = 0;
         while (temp_size < size) {
             last = new SubArray(vectorFile, last);
+            last->sub_arr_encoding = preferred_sub_arr_encoding;
             if (first == nullptr) {
                 first = last;
             }
@@ -861,6 +869,7 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
 void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
     _pallas_fwrite(&size, sizeof(size), 1, vectorFile);
     _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+    _pallas_fwrite(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
     if (size == 0)
         return;
     if (parameter_handler->does_stats_need_compute) {
@@ -879,7 +888,6 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
             sub_array->write_to_file(valueFile, parameter_handler);
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, vectorFile);
-        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, vectorFile);
         _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, vectorFile);
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
@@ -894,7 +902,6 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
 
 pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
-    _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
     _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&min, sizeof(min), 1, file);
     _pallas_fread(&max, sizeof(max), 1, file);
@@ -925,11 +932,14 @@ pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous)
 pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
     : parameter_handler(parameter_handler) {
     filePath = valueFilePath;
+    preferred_sub_arr_encoding = parameter_handler.getDurationSubArrayEncoding();
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
-    if (abi_version >= 18)
+    if (abi_version >= 18) {
         _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+        _pallas_fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
+    }
 
     if (size == 0) {
         return;
@@ -943,11 +953,13 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
         is_contiguous = true;
         for (size_t i = 0; i < n_sub_array; i++) {
             last = new (&first[i]) SubArray(vectorFile, last);
+            last->sub_arr_encoding = preferred_sub_arr_encoding;
         }
     } else {
         size_t temp_size = 0;
         while (temp_size < size) {
             last = new SubArray(vectorFile, last);
+            last->sub_arr_encoding = preferred_sub_arr_encoding;
             if (first == nullptr) {
                 first = last;
             }
@@ -979,7 +991,7 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
         codec = get_subarray_codec(SubArrayEncoding::None);
     } 
     
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size);
+    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, &parameter_handler);
     
     if(encoded_array != sub->array) {
         delete[] encoded_array;
@@ -1012,7 +1024,7 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
         codec = get_subarray_codec(SubArrayEncoding::None);
     } 
 
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size);
+    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, &parameter_handler);
     
     if(encoded_array != sub->array) {
         delete[] encoded_array;
@@ -1498,7 +1510,15 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
     for (int i = 0; i < th->nb_loops; i++)
         storeLoop(th->loops[i], threadFile);
     threadFile.close();
-    pallas_log(pallas::DebugLevel::Debug, "Average compression ratio: %.2f\n", (numberRawBytes + .0) / numberCompressedBytes);
+    double effective_ratio = numberCompressedBytes ? (numberRawBytes + .0) / numberCompressedBytes : 0.0;
+    double true_ratio = numberCompressedBytes ? (numberPreRawBytes + .0) / numberCompressedBytes : 0.0;
+    pallas_log(pallas::DebugLevel::Error,
+               "Storage bytes: pre_raw=%lu raw=%lu compressed=%lu effective_ratio=%.2f true_ratio=%.2f\n",
+               numberPreRawBytes,
+               numberRawBytes,
+               numberCompressedBytes,
+               effective_ratio,
+               true_ratio);
 }
 
 void pallas::Thread::store(const char* path, const ParameterHandler* parameter_handler, bool load_thread) {
@@ -1653,6 +1673,7 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&timestampStorage, sizeof(timestampStorage), 1, file);
     _pallas_fwrite(&tsSubArrayEncoding, sizeof(tsSubArrayEncoding), 1, file);
     _pallas_fwrite(&durationSubArrayEncoding, sizeof(durationSubArrayEncoding), 1, file);
+    _pallas_fwrite(&monotoneLossyVariant, sizeof(monotoneLossyVariant), 1, file);
 }
 
 pallas::ParameterHandler::ParameterHandler(FILE* file) {
@@ -1669,6 +1690,7 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&timestampStorage, sizeof(timestampStorage), 1, file);
     _pallas_fread(&tsSubArrayEncoding, sizeof(tsSubArrayEncoding), 1, file);
     _pallas_fread(&durationSubArrayEncoding, sizeof(durationSubArrayEncoding), 1, file);
+    _pallas_fread(&monotoneLossyVariant, sizeof(monotoneLossyVariant), 1, file);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 

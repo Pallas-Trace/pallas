@@ -18,6 +18,7 @@
 
 namespace pallas {
 enum class SubArrayEncoding : uint8_t;
+enum class MonotoneLossyVariant : uint8_t;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -166,6 +167,8 @@ class ParameterHandler {
     SubArrayEncoding tsSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
     /** Default encoding to use for newly created duration SubArrays. */
     SubArrayEncoding durationSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
+    /** Variant used when MonotoneLossy subarray encoding is enabled. */
+    MonotoneLossyVariant monotoneLossyVariant{static_cast<MonotoneLossyVariant>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -198,6 +201,8 @@ class ParameterHandler {
     [[nodiscard]] SubArrayEncoding getTimestampSubArrayEncoding() const;
     /** Getter for the default SubArray encoding used for new duration vectors. */
     [[nodiscard]] SubArrayEncoding getDurationSubArrayEncoding() const;
+    /** Getter for the active MonotoneLossy variant. */
+    [[nodiscard]] MonotoneLossyVariant getMonotoneLossyVariant() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 
