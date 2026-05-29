@@ -89,6 +89,13 @@ void setupEnums(const py::module_ &m) {
             .value("COMM_DESTROY", pallas::PALLAS_EVENT_COMM_DESTROY)
             .value("GENERIC", pallas::PALLAS_EVENT_GENERIC)
             .export_values();
+
+    py::enum_<pallas::SubArrayEncoding>(m, "SubArrayEncoding")
+            .value("None", pallas::SubArrayEncoding::None)
+            .value("Delta2VintTimestamp", pallas::SubArrayEncoding::Delta2VintTimestamp)
+            .value("Delta2VintDuration", pallas::SubArrayEncoding::Delta2VintDuration)
+            .value("MonotoneLossy", pallas::SubArrayEncoding::MonotoneLossy)
+            .export_values();
 }
 
 PYBIND11_MODULE(_core, m) {
@@ -112,6 +119,21 @@ PYBIND11_MODULE(_core, m) {
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
             .def_property_readonly("size", [](PyLinkedVector self) {
                 return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size;
+            })
+            .def_property_readonly("preferred_subarray_encoding", [](PyLinkedVector self) {
+                return self.linked_vector
+                           ? self.linked_vector->getPreferredSubArrayEncoding()
+                           : self.linked_duration_vector->getPreferredSubArrayEncoding();
+            })
+            .def_property_readonly("subarray_encodings", [](PyLinkedVector self) {
+                return self.linked_vector
+                           ? self.linked_vector->getSubArrayEncodings()
+                           : self.linked_duration_vector->getSubArrayEncodings();
+            })
+            .def_property_readonly("loaded_subarray_encodings", [](PyLinkedVector self) {
+                return self.linked_vector
+                           ? self.linked_vector->getLoadedSubArrayEncodings()
+                           : self.linked_duration_vector->getLoadedSubArrayEncodings();
             })
             .def("__getitem__", [](PyLinkedVector self, int i) {
                 return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i);

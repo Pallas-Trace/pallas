@@ -212,6 +212,10 @@ class LinkedVector {
     void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
     /** Returns the preferred encoding for future subarrays of this vector. */
     [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
+    /** Returns the stored encoding of each subarray in linked-list order. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getSubArrayEncodings() const;
+    /** Returns the stored encoding of currently loaded subarrays in linked-list order. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getLoadedSubArrayEncodings() const;
 
    private:
     /** Path to the file storing this vector. */
@@ -427,6 +431,10 @@ class LinkedDurationVector {
     void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
     /** Returns the preferred encoding for future subarrays of this vector. */
     [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
+    /** Returns the stored encoding of each subarray in linked-list order. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getSubArrayEncodings() const;
+    /** Returns the stored encoding of currently loaded subarrays in linked-list order. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getLoadedSubArrayEncodings() const;
 
    private:
     /** Path to the file storing this vector. */

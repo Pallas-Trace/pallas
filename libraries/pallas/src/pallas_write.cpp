@@ -10,6 +10,7 @@
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
+#include "pallas/pallas_record.h"
 #include "pallas/pallas_write.h"
 
 #include "pallas/utils/pallas_hash.h"
@@ -51,19 +52,101 @@ static Token getLastEvent(Token t, const Thread* thread) {
     return t;
 }
 
+static bool getEventRegionRef(const EventData& event_data, RegionRef* region_ref) {
+    if (region_ref == nullptr) {
+        return false;
+    }
+
+    switch (event_data.record) {
+    case PALLAS_EVENT_ENTER:
+        pallas_read_enter(&event_data, nullptr, region_ref);
+        return true;
+    case PALLAS_EVENT_LEAVE:
+        pallas_read_leave(&event_data, nullptr, region_ref);
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool isMpiTestFailureSequence(const Thread& thread, Token* token_array, size_t array_len) {
+    if (array_len != 2) {
+        return false;
+    }
+
+    if (token_array[0].type != TypeEvent || token_array[1].type != TypeEvent) {
+        return false;
+    }
+
+    pallas::Event* enter_event = thread.getEvent(token_array[0]);
+    pallas::Event* leave_event = thread.getEvent(token_array[1]);
+    if (enter_event == nullptr || leave_event == nullptr) {
+        return false;
+    }
+
+    if (enter_event->data.record != PALLAS_EVENT_ENTER || leave_event->data.record != PALLAS_EVENT_LEAVE) {
+        return false;
+    }
+
+    RegionRef enter_region = 0;
+    RegionRef leave_region = 0;
+    if (!getEventRegionRef(enter_event->data, &enter_region) || !getEventRegionRef(leave_event->data, &leave_region)) {
+        return false;
+    }
+
+    if (enter_region != leave_region) {
+        return false;
+    }
+
+    const char* region_name = thread.getRegionStringFromEvent(&enter_event->data);
+    return region_name != nullptr && strcmp(region_name, "MPI_Test") == 0;
+}
+
 static SubArrayEncoding getPreferredEventTimestampEncoding(const EventData& event_data,
                                                            const ParameterHandler& parameter_handler) {
     SubArrayEncoding suggested_encoding = parameter_handler.getTimestampSubArrayEncoding();
     
-    if(suggested_encoding == SubArrayEncoding::None) {
-        // Cannot Override a None encoding, so we return it directly.
-        return SubArrayEncoding::None;
-    }
+    // if(suggested_encoding == SubArrayEncoding::None) {
+    //     // Cannot Override a None encoding, so we return it directly.
+    //     return SubArrayEncoding::None;
+    // }
 
     if (event_data.record == PALLAS_EVENT_MPI_REQUEST_TEST) {
         return SubArrayEncoding::MonotoneLossy;
     }
     return suggested_encoding;
+}
+
+static void applyPreferredSequencePolicies(Sequence& sequence,
+                                           Token* token_array,
+                                           size_t array_len,
+                                           Thread& thread,
+                                           const ParameterHandler& parameter_handler) {
+    const bool is_mpi_test_failure_sequence = isMpiTestFailureSequence(thread, token_array, array_len);
+    const SubArrayEncoding timestamp_encoding = is_mpi_test_failure_sequence
+                                                    ? SubArrayEncoding::MonotoneLossy
+                                                    : parameter_handler.getTimestampSubArrayEncoding();
+    const SubArrayEncoding duration_encoding = is_mpi_test_failure_sequence
+                                                   ? SubArrayEncoding::MonotoneLossy
+                                                   : parameter_handler.getDurationSubArrayEncoding();
+
+    sequence.timestamps->setPreferredSubArrayEncoding(timestamp_encoding);
+    sequence.durations->setPreferredSubArrayEncoding(duration_encoding);
+    sequence.exclusive_durations->setPreferredSubArrayEncoding(duration_encoding);
+
+    if (!is_mpi_test_failure_sequence) {
+        return;
+    }
+
+    for (size_t i = 0; i < array_len; i++) {
+        if (token_array[i].type != TypeEvent) {
+            continue;
+        }
+        auto* event = thread.getEvent(token_array[i]);
+        if (event && event->timestamps) {
+            event->timestamps->setPreferredSubArrayEncoding(timestamp_encoding);
+        }
+    }
 }
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
@@ -103,6 +186,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     if (s->tokens[0].type != TypeEvent || thread->getEvent(s->tokens[0])->data.record != PALLAS_EVENT_ENTER) {
         s->type = SEQUENCE_LOOP;
     }
+    applyPreferredSequencePolicies(*s, s->tokens.data(), array_len, *thread, *parameter_handler);
     return *s;
 }
 

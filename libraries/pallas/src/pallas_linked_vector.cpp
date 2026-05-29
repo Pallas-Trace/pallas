@@ -526,6 +526,26 @@ SubArrayEncoding LinkedVector::getPreferredSubArrayEncoding() const {
     return preferred_sub_arr_encoding;
 }
 
+std::vector<SubArrayEncoding> LinkedVector::getSubArrayEncodings() const {
+    std::vector<SubArrayEncoding> encodings;
+    encodings.reserve(n_sub_array);
+    for (auto* sub = first; sub != nullptr; sub = sub->next) {
+        encodings.push_back(sub->sub_arr_encoding);
+    }
+    return encodings;
+}
+
+std::vector<SubArrayEncoding> LinkedVector::getLoadedSubArrayEncodings() const {
+    std::vector<SubArrayEncoding> encodings;
+    encodings.reserve(loaded_subarrays.size());
+    for (auto* sub = first; sub != nullptr; sub = sub->next) {
+        if (sub->array != nullptr) {
+            encodings.push_back(sub->sub_arr_encoding);
+        }
+    }
+    return encodings;
+}
+
 void LinkedDurationVector::setPreferredSubArrayEncoding(SubArrayEncoding encoding) {
     preferred_sub_arr_encoding = encoding;
     if (last && last->size == 0) {
@@ -535,6 +555,26 @@ void LinkedDurationVector::setPreferredSubArrayEncoding(SubArrayEncoding encodin
 
 SubArrayEncoding LinkedDurationVector::getPreferredSubArrayEncoding() const {
     return preferred_sub_arr_encoding;
+}
+
+std::vector<SubArrayEncoding> LinkedDurationVector::getSubArrayEncodings() const {
+    std::vector<SubArrayEncoding> encodings;
+    encodings.reserve(n_sub_array);
+    for (auto* sub = first; sub != nullptr; sub = sub->next) {
+        encodings.push_back(sub->sub_arr_encoding);
+    }
+    return encodings;
+}
+
+std::vector<SubArrayEncoding> LinkedDurationVector::getLoadedSubArrayEncodings() const {
+    std::vector<SubArrayEncoding> encodings;
+    encodings.reserve(loaded_subarrays.size());
+    for (auto* sub = first; sub != nullptr; sub = sub->next) {
+        if (sub->array != nullptr) {
+            encodings.push_back(sub->sub_arr_encoding);
+        }
+    }
+    return encodings;
 }
 
 SAME_FOR_BOTH_VECTORS(void, load_all_data() {

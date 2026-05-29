@@ -809,6 +809,7 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
             sub_array->write_to_file(dataFile, parameter_handler);
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, infoFile);
+        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, infoFile);
         _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, infoFile);
         _pallas_fwrite(&sub_array->first_value, sizeof(sub_array->first_value), 1, infoFile);
         _pallas_fwrite(&sub_array->last_value, sizeof(sub_array->last_value), 1, infoFile);
@@ -820,6 +821,7 @@ void pallas::LinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const P
 
 pallas::LinkedVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
+    _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
     _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&first_value, sizeof(first_value), 1, file);
     _pallas_fread(&last_value, sizeof(last_value), 1, file);
@@ -850,13 +852,11 @@ pallas::LinkedVector::LinkedVector(FILE* vectorFile, const char* valueFilePath, 
         is_contiguous = true;
         for (size_t i = 0; i < n_sub_array; i++) {
             last = new (&first[i]) SubArray(vectorFile, last);
-            last->sub_arr_encoding = preferred_sub_arr_encoding;
         }
     } else {
         size_t temp_size = 0;
         while (temp_size < size) {
             last = new SubArray(vectorFile, last);
-            last->sub_arr_encoding = preferred_sub_arr_encoding;
             if (first == nullptr) {
                 first = last;
             }
@@ -888,6 +888,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
             sub_array->write_to_file(valueFile, parameter_handler);
         }
         _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, vectorFile);
+        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, vectorFile);
         _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, vectorFile);
         _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
         _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
@@ -902,6 +903,7 @@ void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFi
 
 pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous) {
     _pallas_fread(&size, sizeof(size), 1, file);
+    _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
     _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
     _pallas_fread(&min, sizeof(min), 1, file);
     _pallas_fread(&max, sizeof(max), 1, file);
@@ -953,13 +955,11 @@ pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char*
         is_contiguous = true;
         for (size_t i = 0; i < n_sub_array; i++) {
             last = new (&first[i]) SubArray(vectorFile, last);
-            last->sub_arr_encoding = preferred_sub_arr_encoding;
         }
     } else {
         size_t temp_size = 0;
         while (temp_size < size) {
             last = new SubArray(vectorFile, last);
-            last->sub_arr_encoding = preferred_sub_arr_encoding;
             if (first == nullptr) {
                 first = last;
             }
