@@ -320,8 +320,13 @@ const char* Thread::getRegionStringFromEvent(EventData *e) const {
         return "INVALID_EVENT";
     }
     region = archive->getRegion(region_ref);
-
-    return region ? archive->getString(region->string_ref)->str : "INVALID_REGION";
+    if(region){
+        return archive->getString(region->string_ref)->str;
+    }
+    else {
+        pallas_log(DebugLevel::Error, "Region not found for region_ref=%d\n", region_ref);
+        return "INVALID_REGION";
+    }
 }
 
 std::string Thread::getEventString(EventData *e) const {
