@@ -30,6 +30,7 @@ option(BUILD_DOC "Build Doxygen Documentation" ON)
 option(ENABLE_SZ "Enables compression using the SZ lib" ON)
 option(ENABLE_ZFP "Enables compression using the ZFP lib" ON)
 option(ENABLE_MPI_TEST "MPI tests" ON)
+option(BMARK "Enable benchmark-specific code paths" OFF)
 option(_PIP "Used internally, use pip install ." OFF)
 option(Python3_DYNAMIC "Link the Pallas library dynamically instead of statically." OFF)
 
@@ -40,6 +41,10 @@ if(_PIP)
     set(ENABLE_OTF2 OFF)
     set(BUILD_DOC OFF)
     set(ENABLE_MPI_TEST OFF)
+endif()
+
+if(BMARK)
+    add_compile_definitions(BMARK)
 endif()
 
 # Get the current working branch

@@ -12,6 +12,7 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 
+#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"
@@ -19,6 +20,8 @@
 
 thread_local int pallas_recursion_shield = 0;
 namespace pallas {
+// Forward declaration for SubArrayEncoding (defined in pallas_timestamp.h)
+// enum class SubArrayEncoding : int;
 /**
  * Compares two arrays of tokens array1 and array2
  */
@@ -32,7 +35,7 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 static constexpr unsigned kHotLoopIterationThreshold = 100;
 static constexpr pallas_duration_t kHotLoopDurationThreshold = 1000ULL * 1000ULL; // 1000 micro-secs for now
 static constexpr SubArrayEncoding kHotLoopTimestampEncoding = SubArrayEncoding::MonotoneLossy;
-static constexpr SubArrayEncoding kHotLoopDurationEncoding = SubArrayEncoding::None;
+static constexpr SubArrayEncoding kHotLoopDurationEncoding = SubArrayEncoding::Delta2VintDuration;
 
 static void applyEventTimestampEncodingToToken(Token token, Thread& thread, SubArrayEncoding encoding) {
     switch (token.type) {
@@ -199,7 +202,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
         return;
     }
 
-    pallas_log(DebugLevel::Error,
+    pallas_log(DebugLevel::Debug,
                "Promoting hot loop L%d/S%d at %u iterations with cumulative_duration=%lu ns\n",
                loop->self_id.id,
                loop->repeated_token.id,
