@@ -10,6 +10,7 @@ authors = [
   { name="Francois Trahay", email="francois.trahay@telecom-sudparis.eu" },
   { name="Valentin Delis", email="valentin.delis@ensiie.fr" },
   { name="Louis Delyon", email="louis_delyon@telecom-sudparis.eu" },
+  { name="Aaron Bushnell", email="aaron.bushnell@ip-paris.fr" },
 ]
 
 description = "Pallas is a scalable trace format for HPC applications."
