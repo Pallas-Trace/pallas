@@ -128,6 +128,7 @@ std::map<SubArrayEncoding, std::string> SubArrayEncodingMap = {
     {SubArrayEncoding::Delta2VintTimestamp, "Delta2VintTimestamp"},
     {SubArrayEncoding::Delta2VintDuration, "Delta2VintDuration"},
     {SubArrayEncoding::MonotoneLossy, "MonotoneLossy"},
+    {SubArrayEncoding::DurationLossy, "DurationLossy"},
 };
 
 std::string toString(SubArrayEncoding encoding) {
@@ -147,10 +148,10 @@ SubArrayEncoding subArrayEncodingFromString(const std::string& str) {
 }
 
 std::map<MonotoneLossyVariant, std::string> MonotoneLossyVariantMap = {
-    {MonotoneLossyVariant::Linear, "Linear"},
-    {MonotoneLossyVariant::LinearMeanRep, "LinearMeanRep"},
-    {MonotoneLossyVariant::LinearPchipMeanRep, "LinearPchipMeanRep"},
-    {MonotoneLossyVariant::LinearPchipMeanRepAdaptive, "LinearPchipMeanRepAdaptive"},
+    {MonotoneLossyVariant::QLinear, "QLinear"},
+    {MonotoneLossyVariant::QLinearMeanRep, "QLinearMeanRep"},
+    {MonotoneLossyVariant::QLinearPchipMeanRep, "QLinearPchipMeanRep"},
+    {MonotoneLossyVariant::QLinearPchipMeanRepAdaptive, "QLinearPchipMeanRepAdaptive"},
 };
 
 std::string toString(MonotoneLossyVariant variant) {
@@ -164,6 +165,24 @@ MonotoneLossyVariant monotoneLossyVariantFromString(const std::string& str) {
     }
   }
   return static_cast<MonotoneLossyVariant>(UINT8_MAX);
+}
+
+std::map<DurationLossyVariant, std::string> DurationLossyVariantMap = {
+    {DurationLossyVariant::QLinear, "QLinear"},
+    {DurationLossyVariant::QLinearMeanRep, "QLinearMeanRep"},
+};
+
+std::string toString(DurationLossyVariant variant) {
+  return DurationLossyVariantMap[variant];
+}
+
+DurationLossyVariant durationLossyVariantFromString(const std::string& str) {
+  for (auto& [en, enStr] : DurationLossyVariantMap) {
+    if (enStr == str) {
+      return en;
+    }
+  }
+  return static_cast<DurationLossyVariant>(UINT8_MAX);
 }
 
 /** Simple class to handle the parsing of the configuration file. */
@@ -310,7 +329,7 @@ class ConfigFile {
   }
 
   MonotoneLossyVariant loadMonotoneLossyVariantConfig() {
-    MonotoneLossyVariant ret = MonotoneLossyVariant::Linear;
+    MonotoneLossyVariant ret = MonotoneLossyVariant::QLinear;
 
     std::string value = loadStringFromEnv("PALLAS_MONOTONE_LOSSY_VARIANT");
     if (value.empty() && !config.empty() && config.find("monotoneLossyVariant") != config.end()) {
@@ -320,7 +339,24 @@ class ConfigFile {
       ret = monotoneLossyVariantFromString(value);
       if (ret == static_cast<MonotoneLossyVariant>(UINT8_MAX)) {
         pallas_warn("Invalid MonotoneLossyVariant in config: %s\n", value.c_str());
-        ret = MonotoneLossyVariant::Linear;
+        ret = MonotoneLossyVariant::QLinear;
+      }
+    }
+    return ret;
+  }
+
+  DurationLossyVariant loadDurationLossyVariantConfig() {
+    DurationLossyVariant ret = DurationLossyVariant::QLinear;
+
+    std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_VARIANT");
+    if (value.empty() && !config.empty() && config.find("durationLossyVariant") != config.end()) {
+      value = config["durationLossyVariant"];
+    }
+    if (!value.empty()) {
+      ret = durationLossyVariantFromString(value);
+      if (ret == static_cast<DurationLossyVariant>(UINT8_MAX)) {
+        pallas_warn("Invalid DurationLossyVariant in config: %s\n", value.c_str());
+        ret = DurationLossyVariant::QLinear;
       }
     }
     return ret;
@@ -353,6 +389,7 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
   durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
   monotoneLossyVariant = config.loadMonotoneLossyVariantConfig();
+  durationLossyVariant = config.loadDurationLossyVariantConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -392,6 +429,7 @@ ParameterHandler::ParameterHandler() {
   tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
   durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
   monotoneLossyVariant = config.loadMonotoneLossyVariantConfig();
+  durationLossyVariant = config.loadDurationLossyVariantConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -430,6 +468,10 @@ MonotoneLossyVariant ParameterHandler::getMonotoneLossyVariant() const {
   return monotoneLossyVariant;
 }
 
+DurationLossyVariant ParameterHandler::getDurationLossyVariant() const {
+  return durationLossyVariant;
+}
+
 TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
@@ -445,6 +487,7 @@ std::string ParameterHandler::to_string() const {
   stream << "tsSubArrayEncoding=" << toString(tsSubArrayEncoding) << "\n";
   stream << "durationSubArrayEncoding=" << toString(durationSubArrayEncoding) << "\n";
   stream << "monotoneLossyVariant=" << toString(monotoneLossyVariant) << "\n";
+  stream << "durationLossyVariant=" << toString(durationLossyVariant) << "\n";
   return stream.str();
 }
 

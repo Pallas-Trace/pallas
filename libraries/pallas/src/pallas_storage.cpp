@@ -761,7 +761,7 @@ void pallas::LinkedVector::SubArray::write_to_file(FILE* file, const ParameterHa
     }  
 
     uint64_t* encodedArray = nullptr; // Should be freed by the codec after writing
-    enc_size = codec->encode(file, array, size, encodedArray, parameter_handler);
+    enc_size = codec->encode(file, array, size, encodedArray, this, 0, parameter_handler);
     _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
     
     if(encodedArray != array) {
@@ -785,7 +785,7 @@ void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const Par
     }  
 
     uint64_t* encodedArray = nullptr; 
-    enc_size = codec->encode(file, array, size, encodedArray, parameter_handler);
+    enc_size = codec->encode(file, array, size, encodedArray, this, 1, parameter_handler);
     _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
     
     if(encodedArray != array) {
@@ -991,7 +991,7 @@ void pallas::LinkedVector::load_data(SubArray* sub) {
         codec = get_subarray_codec(SubArrayEncoding::None);
     } 
     
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, &parameter_handler);
+    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, sub, 0, &parameter_handler);
     
     if(encoded_array != sub->array) {
         delete[] encoded_array;
@@ -1024,7 +1024,7 @@ void pallas::LinkedDurationVector::load_data(SubArray* sub) {
         codec = get_subarray_codec(SubArrayEncoding::None);
     } 
 
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, &parameter_handler);
+    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, sub, 1, &parameter_handler);
     
     if(encoded_array != sub->array) {
         delete[] encoded_array;

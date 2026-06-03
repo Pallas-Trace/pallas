@@ -33,6 +33,7 @@ enum class SubArrayEncoding : uint8_t {
     Delta2VintTimestamp = 1,
     Delta2VintDuration = 2,
     MonotoneLossy = 3,
+    DurationLossy = 4,
 };
 
 class SubArrayCodec {
@@ -44,8 +45,10 @@ class SubArrayCodec {
         virtual ~SubArrayCodec() = default;
         virtual SubArrayEncoding encoding() const = 0;
         virtual bool can_encode(uint64_t* array, size_t size) const = 0;
-        virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const = 0;
-        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const = 0;
+        /** caller_kind is 0 for LinkedVector::SubArray and 1 for LinkedDurationVector::SubArray. */
+        virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const = 0;
+        /** caller_kind is 0 for LinkedVector::SubArray and 1 for LinkedDurationVector::SubArray. */
+        virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const = 0;
 };
 class NoneCodec : public SubArrayCodec {
     public:
@@ -55,8 +58,8 @@ class NoneCodec : public SubArrayCodec {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
 };
 
 class Delta2VintCodecBase : public SubArrayCodec {
@@ -78,8 +81,8 @@ class TimestampDelta2VintCodec : public Delta2VintCodecBase {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
 };
 
 class DurationDelta2VintCodec : public Delta2VintCodecBase {
@@ -90,8 +93,8 @@ class DurationDelta2VintCodec : public Delta2VintCodecBase {
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
         }
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
 };
 
 /**
@@ -99,17 +102,22 @@ class DurationDelta2VintCodec : public Delta2VintCodecBase {
  */
 
 enum class MonotoneLossyVariant : uint8_t {
-    Linear = 0,
-    LinearMeanRep = 1,
-    LinearPchipMeanRep = 2,
-    LinearPchipMeanRepAdaptive = 4, 
+    QLinear = 0,
+    QLinearMeanRep = 1,
+    QLinearPchipMeanRep = 2,
+    QLinearPchipMeanRepAdaptive = 4, 
+};
+
+enum class DurationLossyVariant : uint8_t {
+    QLinear = 0,
+    QLinearMeanRep = 1,
 };
 
 class MonotoneLossyCodec : public SubArrayCodec {
     protected:
         static constexpr size_t kKPercentileAnchorCount = 11;
         static constexpr size_t kKPercentileSegmentCount = kKPercentileAnchorCount - 1;
-        static constexpr size_t kLinearWordCount = kKPercentileAnchorCount;
+        static constexpr size_t kQLinearWordCount = kKPercentileAnchorCount;
 
         static size_t kpercentile_anchor_index(size_t size, size_t anchor_id);
         static uint64_t linear_interpolate(uint64_t start_value, uint64_t end_value, size_t offset, size_t span);
@@ -121,8 +129,30 @@ class MonotoneLossyCodec : public SubArrayCodec {
             return SubArrayEncoding::MonotoneLossy;
         }
         bool can_encode(uint64_t* array, size_t size) const override;
-        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, const ParameterHandler* parameter_handler) const override;
-        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, const ParameterHandler* parameter_handler) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+};
+
+class DurationLossyCodec : public SubArrayCodec {
+    protected:
+        static constexpr size_t kKPercentileAnchorCount = 11;
+        static constexpr size_t kKPercentileSegmentCount = kKPercentileAnchorCount - 1;
+        static constexpr size_t kQLinearStoredWordCount = kKPercentileAnchorCount - 2;
+        static constexpr uint64_t kShuffleSeed = 0xD071A110ULL;
+
+        static size_t kpercentile_anchor_index(size_t size, size_t anchor_id);
+        static uint64_t linear_interpolate(uint64_t start_value, uint64_t end_value, size_t offset, size_t span);
+        static uint64_t compute_shuffle_seed(size_t size, size_t starting_index);
+        static size_t encode_qlinear(uint64_t* array, size_t size, uint64_t*& encoded_array);
+        static void decode_qlinear(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind);
+
+    public:
+        SubArrayEncoding encoding() const override {
+            return SubArrayEncoding::DurationLossy;
+        }
+        bool can_encode(uint64_t* array, size_t size) const override;
+        size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
+        void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const override;
 };
 
 const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding);
@@ -229,6 +259,12 @@ class LinkedVector {
      * A fixed-sized array functioning as a node in a linked array list.
      */
     class SubArray {
+        friend class NoneCodec;
+        friend class TimestampDelta2VintCodec;
+        friend class DurationDelta2VintCodec;
+        friend class MonotoneLossyCodec;
+        friend class DurationLossyCodec;
+
        public:
         /** Number of elements stored in the vector. */
         size_t size = 0;
@@ -240,7 +276,6 @@ class LinkedVector {
         SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
 
         /** Encoded size : Will be calculated during the sub_array->write_to_file */
-
         size_t enc_size = 0;
 
         /** Array of elements. Currently only used on uint64_t */
@@ -330,6 +365,8 @@ class LinkedVector {
     void load_all_data();
     /** Returns the index of the first value <= ts. If all values > ts, returns 0. */
     size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
+    /** Returns the starting index of a LinkedVector subarray passed through the codec callback API. */
+    static size_t codec_subarray_starting_index(const void* caller_sub_array);
     /**
      * Creates a new LinkedVector.
      */
@@ -447,6 +484,12 @@ class LinkedDurationVector {
      * A fixed-sized array functioning as a node in a linked array list.
      */
     class SubArray {
+        friend class NoneCodec;
+        friend class TimestampDelta2VintCodec;
+        friend class DurationDelta2VintCodec;
+        friend class MonotoneLossyCodec;
+        friend class DurationLossyCodec;
+
        public:
         /** Number of elements stored in the vector. */
         size_t size = 0;
@@ -455,11 +498,9 @@ class LinkedDurationVector {
         size_t allocated = DEFAULT_VECTOR_SIZE;
 
         /** Subarray Encoding Mechanism used */
-
         SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
 
         /** Encoded size : Will be calculated during the sub_array->write_to_file */
-
         size_t enc_size = 0;
 
         /** Array of elements. Currently only used on uint64_t */
@@ -574,6 +615,12 @@ class LinkedDurationVector {
     void final_update_mean();
     /** Returns the sum of the durations between [start, end[. */
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
+    /** Returns the starting index of a LinkedDurationVector subarray passed through the codec callback API. */
+    static size_t codec_subarray_starting_index(const void* caller_sub_array);
+    /** Returns the minimum value of a LinkedDurationVector subarray passed through the codec callback API. */
+    static uint64_t codec_subarray_min(const void* caller_sub_array);
+    /** Returns the maximum value of a LinkedDurationVector subarray passed through the codec callback API. */
+    static uint64_t codec_subarray_max(const void* caller_sub_array);
 
     ~LinkedDurationVector();
     /** Returns an array of size #size containing a copy of the values in this vector.*/
