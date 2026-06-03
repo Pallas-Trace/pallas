@@ -336,11 +336,11 @@ void MonotoneLossyCodec::decode(uint64_t* encoded_array, size_t enc_size, uint64
 
 /** DurationLossy quantile helpers and reconstruction. */
 bool DurationLossyCodec::can_encode(uint64_t* array, size_t size) const {
-    return size > 0;
+    return size >= kKPercentileAnchorCount;
 }
 
 size_t DurationLossyCodec::kpercentile_anchor_index(size_t size, size_t anchor_id) {
-    pallas_assert(size > 0);
+    pallas_assert(size >= kKPercentileAnchorCount);
     pallas_assert(anchor_id < kKPercentileAnchorCount);
     return (anchor_id * (size - 1) + kKPercentileSegmentCount / 2) / kKPercentileSegmentCount;
 }
@@ -364,7 +364,7 @@ uint64_t DurationLossyCodec::compute_shuffle_seed(size_t size, size_t starting_i
 }
 
 size_t DurationLossyCodec::encode_qlinear(uint64_t* array, size_t size, uint64_t*& encoded_array) {
-    pallas_assert(size > 0);
+    pallas_assert(size >= kKPercentileAnchorCount);
 
     std::vector<uint64_t> sorted_values(array, array + size);
     std::sort(sorted_values.begin(), sorted_values.end());
@@ -379,7 +379,7 @@ size_t DurationLossyCodec::encode_qlinear(uint64_t* array, size_t size, uint64_t
 }
 
 void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind) {
-    pallas_assert(size > 0);
+    pallas_assert(size >= kKPercentileAnchorCount);
     pallas_assert(caller_sub_array != nullptr);
 
     if (caller_kind != 1) {
@@ -395,11 +395,6 @@ void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t en
         anchors[anchor_id] = encoded_array[anchor_id - 1];
     }
 
-    if (size == 1) {
-        decoded_array[0] = anchors[0];
-        return;
-    }
-
     const size_t quantile_span = size - 1;
     for (size_t rank = 0; rank < size; ++rank) {
         __uint128_t scaled_position = static_cast<__uint128_t>(rank) * kKPercentileSegmentCount;
@@ -411,11 +406,7 @@ void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t en
         }
 
         size_t segment_offset = static_cast<size_t>(scaled_position % quantile_span);
-        decoded_array[rank] = linear_interpolate(
-            anchors[segment_id],
-            anchors[segment_id + 1],
-            segment_offset,
-            quantile_span);
+        decoded_array[rank] = linear_interpolate(anchors[segment_id], anchors[segment_id + 1], segment_offset, quantile_span);
     }
 
     std::mt19937_64 rng(compute_shuffle_seed(size, LinkedDurationVector::codec_subarray_starting_index(caller_sub_array)));
