@@ -1,9 +1,10 @@
 #include "python_read.h"
 
-#include <cstdint>
-#include <variant>
 #include <pallas/utils/pallas_storage.h>
 #include <pybind11/pytypes.h>
+#include <cstddef>
+#include <cstdint>
+#include <variant>
 #include <vector>
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -268,23 +269,22 @@ int get_read_flags_from_bools(bool enter_sequence, bool enter_loop) {
 
 py::dict get_attributes(PyEvent &event, size_t occurrence) {
     py::dict result;
-    pallas::Archive *archive = event.thread->archive;
-    auto *summary = event.self;
-    pallas::AttributeList *attribute_list;
-    if (event.self->attribute_buffer == nullptr) return result;
-    if (summary->attribute_pos < summary->attribute_buffer_size) {
-        attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
-        while (attribute_list->index < occurrence) { /* move to the next attribute until we reach the needed index */
-            summary->attribute_pos += attribute_list->struct_size;
-            if (summary->attribute_pos >= summary->attribute_buffer_size)
-                return result;
-            attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
-        }
-        if (attribute_list->index > occurrence) {
-            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence, attribute_list->index);
-        }
-    } else {
+    pallas::Archive* archive = event.thread->archive;
+    auto* summary = event.self;
+    pallas::AttributeList* attribute_list;
+    if (summary->attribute_buffer == nullptr)
         return result;
+    byte* read_pos = summary->attribute_buffer;
+    attribute_list = (pallas::AttributeList*)read_pos;
+    while (attribute_list->index != occurrence) { /* move to the next attribute until we reach the needed index */
+        read_pos += attribute_list->struct_size;
+        if (read_pos > summary->attribute_buffer + summary->attribute_buffer_size) {
+            return result;
+        }
+        attribute_list = (pallas::AttributeList*)read_pos;
+    }
+    if (attribute_list->index > occurrence) {
+        pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence, attribute_list->index);
     }
     byte *reading_addr = (byte *)attribute_list->attributes;
     byte *reading_end = (byte *)attribute_list + attribute_list->struct_size;
