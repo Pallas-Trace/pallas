@@ -4,6 +4,7 @@
 #include <pybind11/pytypes.h>
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <variant>
 #include <vector>
 #include "pallas/pallas.h"
@@ -287,9 +288,7 @@ py::dict get_attributes(PyEvent &event, size_t occurrence) {
         pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence, attribute_list->index);
     }
     byte *reading_addr = (byte *)attribute_list->attributes;
-    byte *reading_end = (byte *)attribute_list + attribute_list->struct_size;
     for (int i = 0; i < attribute_list->nb_values; i++) {
-        if (reading_addr >= reading_end) break;
         pallas::AttributeData *data = (pallas::AttributeData *)reading_addr;
         uint16_t size = data->struct_size;
         if (size == 0) break;
