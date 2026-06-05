@@ -255,6 +255,9 @@ PYBIND11_MODULE(_core, m) {
                 pallas::Token t;
                 while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
                     out = self.inner->moveToNextToken();
+                    if (!out) {
+                        throw py::stop_iteration();
+                    }
                 }
                 if (out) {
                     if (!t.isValid()) {
