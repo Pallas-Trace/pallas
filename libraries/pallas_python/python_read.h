@@ -47,6 +47,7 @@ struct PyLinkedVectorIterator {
 
 struct PyThreadIterator {
     pallas::ThreadReader *inner;
+    bool is_first_event;
     ~PyThreadIterator() {
         delete inner;
     }
