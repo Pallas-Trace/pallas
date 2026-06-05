@@ -54,18 +54,20 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
     this->thread_trace = archive->getThread(threadId);
     pallas_assert(this->thread_trace != nullptr);
 
+    Token root_token = Token(TypeSequence, this->thread_trace->sequence_root);
+
     if (debugLevel >= DebugLevel::Verbose) {
         pallas_log(DebugLevel::Verbose, "init callstack for thread %d\n", threadId);
         pallas_log(DebugLevel::Verbose, "The trace contains:\n");
-        this->thread_trace->printSequence(Token(TypeSequence, 0));
+        this->thread_trace->printSequence(root_token);
     }
 
-    if (this->thread_trace->getSequence(Token(TypeSequence, 0))->size() != 0) {
+    if (this->thread_trace->getSequence(root_token)->size() != 0) {
         // And initialize the callstack
         // ie set the cursor on the first event
         this->currentState.current_frame_index = 0;
         this->currentState.currentFrame = &currentState.callstack[0];
-        this->currentState.currentFrame->callstack_iterable = Token(TypeSequence, thread_trace->sequence_root);
+        this->currentState.currentFrame->callstack_iterable = root_token;
         this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
         // Enter main sequence
         enterBlock();
@@ -398,7 +400,7 @@ Token ThreadReader::pollPrevToken(int flags) const {
 
 bool ThreadReader::moveToNextToken(int flags) {
     // Check if we've reached the end of the trace
-    if (currentState.current_frame_index < 0) {
+    if (currentState.current_frame_index == 0) {
         pallas_log(DebugLevel::Debug, "End of trace %d!\n", __LINE__);
         return false;
     }
