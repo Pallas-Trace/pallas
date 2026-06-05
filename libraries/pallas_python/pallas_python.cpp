@@ -9,6 +9,7 @@
 #include "python_read.h"
 #include "python_analysis.h"
 #include <pybind11/cast.h>
+#include <pybind11/detail/common.h>
 #include <pybind11/numpy.h>
 
 namespace py = pybind11;
@@ -229,6 +230,9 @@ PYBIND11_MODULE(_core, m) {
                 pallas::Token t;
                 while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
                     out = self.inner->moveToNextToken();
+                    if (!out) {
+                        throw py::stop_iteration();
+                    }
                 }
                 if (out) {
                     if (!t.isValid()) {
