@@ -5,9 +5,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <deque>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <sstream>
 #include <stdexcept>
@@ -334,15 +336,9 @@ void MonotoneLossyCodec::decode(uint64_t* encoded_array, size_t enc_size, uint64
     }
 }
 
-/** DurationLossy quantile helpers and reconstruction. */
+/** DurationLossy normal-sampling and quantile reconstruction helpers. */
 bool DurationLossyCodec::can_encode(uint64_t* array, size_t size) const {
-    return size >= kKPercentileAnchorCount;
-}
-
-size_t DurationLossyCodec::kpercentile_anchor_index(size_t size, size_t anchor_id) {
-    pallas_assert(size >= kKPercentileAnchorCount);
-    pallas_assert(anchor_id < kKPercentileAnchorCount);
-    return (anchor_id * (size - 1) + kKPercentileSegmentCount / 2) / kKPercentileSegmentCount;
+    return size >= 2;
 }
 
 uint64_t DurationLossyCodec::linear_interpolate(uint64_t start_value, uint64_t end_value, size_t offset, size_t span) {
@@ -363,15 +359,37 @@ uint64_t DurationLossyCodec::compute_shuffle_seed(size_t size, size_t starting_i
     return kShuffleSeed ^ static_cast<uint64_t>(size) ^ (static_cast<uint64_t>(starting_index) << 32);
 }
 
+uint64_t DurationLossyCodec::pack_double(double value) {
+    uint64_t packed = 0;
+    static_assert(sizeof(packed) == sizeof(value));
+    std::memcpy(&packed, &value, sizeof(value));
+    return packed;
+}
+
+double DurationLossyCodec::unpack_double(uint64_t value) {
+    double unpacked = 0.0;
+    static_assert(sizeof(unpacked) == sizeof(value));
+    std::memcpy(&unpacked, &value, sizeof(value));
+    return unpacked;
+}
+
+size_t DurationLossyCodec::qlinear_anchor_index(size_t size, size_t anchor_id) {
+    pallas_assert(size >= kQLinearAnchorCount);
+    pallas_assert(anchor_id < kQLinearAnchorCount);
+    return (anchor_id * (size - 1) + kQLinearSegmentCount / 2) / kQLinearSegmentCount;
+}
+
 size_t DurationLossyCodec::encode_qlinear(uint64_t* array, size_t size, uint64_t*& encoded_array) {
-    pallas_assert(size >= kKPercentileAnchorCount);
+    if (size < kQLinearAnchorCount) {
+        return encode_normal_sample(array, size, encoded_array);
+    }
 
     std::vector<uint64_t> sorted_values(array, array + size);
     std::sort(sorted_values.begin(), sorted_values.end());
 
     encoded_array = new uint64_t[kQLinearStoredWordCount];
-    for (size_t anchor_id = 1; anchor_id + 1 < kKPercentileAnchorCount; ++anchor_id) {
-        size_t anchor_index = kpercentile_anchor_index(size, anchor_id);
+    for (size_t anchor_id = 1; anchor_id + 1 < kQLinearAnchorCount; ++anchor_id) {
+        size_t anchor_index = qlinear_anchor_index(size, anchor_id);
         encoded_array[anchor_id - 1] = sorted_values[anchor_index];
     }
 
@@ -379,7 +397,7 @@ size_t DurationLossyCodec::encode_qlinear(uint64_t* array, size_t size, uint64_t
 }
 
 void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind) {
-    pallas_assert(size >= kKPercentileAnchorCount);
+    pallas_assert(size >= kQLinearAnchorCount);
     pallas_assert(caller_sub_array != nullptr);
 
     if (caller_kind != 1) {
@@ -388,20 +406,20 @@ void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t en
 
     pallas_assert(enc_size == kQLinearStoredWordCount);
 
-    std::array<uint64_t, kKPercentileAnchorCount> anchors{};
+    std::array<uint64_t, kQLinearAnchorCount> anchors{};
     anchors[0] = LinkedDurationVector::codec_subarray_min(caller_sub_array);
-    anchors[kKPercentileAnchorCount - 1] = LinkedDurationVector::codec_subarray_max(caller_sub_array);
-    for (size_t anchor_id = 1; anchor_id + 1 < kKPercentileAnchorCount; ++anchor_id) {
+    anchors[kQLinearAnchorCount - 1] = LinkedDurationVector::codec_subarray_max(caller_sub_array);
+    for (size_t anchor_id = 1; anchor_id + 1 < kQLinearAnchorCount; ++anchor_id) {
         anchors[anchor_id] = encoded_array[anchor_id - 1];
     }
 
     const size_t quantile_span = size - 1;
     for (size_t rank = 0; rank < size; ++rank) {
-        __uint128_t scaled_position = static_cast<__uint128_t>(rank) * kKPercentileSegmentCount;
+        __uint128_t scaled_position = static_cast<__uint128_t>(rank) * kQLinearSegmentCount;
         size_t segment_id = static_cast<size_t>(scaled_position / quantile_span);
 
-        if (segment_id >= kKPercentileSegmentCount) {
-            decoded_array[rank] = anchors[kKPercentileAnchorCount - 1];
+        if (segment_id >= kQLinearSegmentCount) {
+            decoded_array[rank] = anchors[kQLinearAnchorCount - 1];
             continue;
         }
 
@@ -410,6 +428,72 @@ void DurationLossyCodec::decode_qlinear(const uint64_t* encoded_array, size_t en
     }
 
     std::mt19937_64 rng(compute_shuffle_seed(size, LinkedDurationVector::codec_subarray_starting_index(caller_sub_array)));
+    std::shuffle(decoded_array, decoded_array + size, rng);
+}
+
+size_t DurationLossyCodec::encode_normal_sample(uint64_t* array, size_t size, uint64_t*& encoded_array) {
+    pallas_assert(size >= 2);
+
+    const long double mean = std::accumulate(array, array + size, 0.0L) / static_cast<long double>(size);
+    long double squared_sum = 0.0L;
+    for (size_t i = 0; i < size; ++i) {
+        const long double centered = static_cast<long double>(array[i]) - mean;
+        squared_sum += centered * centered;
+    }
+    const long double variance = squared_sum / static_cast<long double>(size);
+    const double stddev = std::sqrt(static_cast<double>(variance));
+
+    encoded_array = new uint64_t[kNormalSampleWordCount];
+    encoded_array[0] = pack_double(stddev);
+    return kNormalSampleWordCount;
+}
+
+void DurationLossyCodec::decode_normal_sample(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind) {
+    pallas_assert(size >= 2);
+    pallas_assert(caller_sub_array != nullptr);
+
+    if (caller_kind != 1) {
+        pallas_error("DurationLossyCodec only supports LinkedDurationVector::SubArray callers\n");
+    }
+
+    pallas_assert(enc_size == kNormalSampleWordCount);
+
+    const uint64_t min_value = LinkedDurationVector::codec_subarray_min(caller_sub_array);
+    const uint64_t max_value = LinkedDurationVector::codec_subarray_max(caller_sub_array);
+    const uint64_t mean_value = LinkedDurationVector::codec_subarray_mean(caller_sub_array);
+    const double stddev = unpack_double(encoded_array[0]);
+
+    if (min_value == max_value || !(stddev > 0.0) || !std::isfinite(stddev)) {
+        std::fill(decoded_array, decoded_array + size, mean_value);
+        for (size_t i = 0; i < size; ++i) {
+            decoded_array[i] = std::clamp(decoded_array[i], min_value, max_value);
+        }
+        return;
+    }
+
+    std::mt19937_64 rng(compute_shuffle_seed(size, LinkedDurationVector::codec_subarray_starting_index(caller_sub_array)));
+    std::normal_distribution<double> distribution(static_cast<double>(mean_value), stddev);
+
+    size_t prefix = 0;
+    decoded_array[prefix++] = min_value;
+    if (size > 1) {
+        decoded_array[prefix++] = max_value;
+    }
+
+    const double min_double = static_cast<double>(min_value);
+    const double max_double = static_cast<double>(max_value);
+    for (size_t i = prefix; i < size; ++i) {
+        double sample = static_cast<double>(mean_value);
+        for (int attempt = 0; attempt < 8; ++attempt) {
+            sample = distribution(rng);
+            if (sample >= min_double && sample <= max_double) {
+                break;
+            }
+        }
+        sample = std::clamp(sample, min_double, max_double);
+        decoded_array[i] = static_cast<uint64_t>(std::llround(sample));
+    }
+
     std::shuffle(decoded_array, decoded_array + size, rng);
 }
 
@@ -424,8 +508,8 @@ size_t DurationLossyCodec::encode(FILE* file, uint64_t* array, size_t size, uint
     switch (parameter_handler->getDurationLossyVariant()) {
         case DurationLossyVariant::QLinear:
             return encode_qlinear(array, size, encoded_array);
-        case DurationLossyVariant::QLinearMeanRep:
-            pallas_error("DurationLossyVariant::QLinearMeanRep not yet implemented\n");
+        case DurationLossyVariant::NormalSample:
+            return encode_normal_sample(array, size, encoded_array);
         default:
             pallas_error("Invalid DurationLossyVariant\n");
     }
@@ -435,12 +519,22 @@ void DurationLossyCodec::decode(uint64_t* encoded_array, size_t enc_size, uint64
     pallas_assert(parameter_handler != nullptr);
     decoded_array = new uint64_t[size];
 
+    if (enc_size == kQLinearStoredWordCount) {
+        decode_qlinear(encoded_array, enc_size, decoded_array, size, caller_sub_array, caller_kind);
+        return;
+    }
+    if (enc_size == kNormalSampleWordCount) {
+        decode_normal_sample(encoded_array, enc_size, decoded_array, size, caller_sub_array, caller_kind);
+        return;
+    }
+
     switch (parameter_handler->getDurationLossyVariant()) {
         case DurationLossyVariant::QLinear:
             decode_qlinear(encoded_array, enc_size, decoded_array, size, caller_sub_array, caller_kind);
             return;
-        case DurationLossyVariant::QLinearMeanRep:
-            pallas_error("DurationLossyVariant not yet implemented\n");
+        case DurationLossyVariant::NormalSample:
+            decode_normal_sample(encoded_array, enc_size, decoded_array, size, caller_sub_array, caller_kind);
+            return;
         default:
             pallas_error("Invalid DurationLossyVariant\n");
     }
@@ -722,6 +816,11 @@ uint64_t LinkedDurationVector::codec_subarray_min(const void* caller_sub_array) 
 uint64_t LinkedDurationVector::codec_subarray_max(const void* caller_sub_array) {
     pallas_assert(caller_sub_array != nullptr);
     return static_cast<const SubArray*>(caller_sub_array)->max;
+}
+
+uint64_t LinkedDurationVector::codec_subarray_mean(const void* caller_sub_array) {
+    pallas_assert(caller_sub_array != nullptr);
+    return static_cast<const SubArray*>(caller_sub_array)->mean;
 }
 
 SAME_FOR_BOTH_VECTORS(void, load_all_data() {

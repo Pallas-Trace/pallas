@@ -110,7 +110,7 @@ enum class MonotoneLossyVariant : uint8_t {
 
 enum class DurationLossyVariant : uint8_t {
     QLinear = 0,
-    QLinearMeanRep = 1,
+    NormalSample = 1,
 };
 
 class MonotoneLossyCodec : public SubArrayCodec {
@@ -135,16 +135,21 @@ class MonotoneLossyCodec : public SubArrayCodec {
 
 class DurationLossyCodec : public SubArrayCodec {
     protected:
-        static constexpr size_t kKPercentileAnchorCount = 11;
-        static constexpr size_t kKPercentileSegmentCount = kKPercentileAnchorCount - 1;
-        static constexpr size_t kQLinearStoredWordCount = kKPercentileAnchorCount - 2;
+        static constexpr size_t kNormalSampleWordCount = 1;
+        static constexpr size_t kQLinearAnchorCount = 11;
+        static constexpr size_t kQLinearSegmentCount = kQLinearAnchorCount - 1;
+        static constexpr size_t kQLinearStoredWordCount = kQLinearAnchorCount - 2;
         static constexpr uint64_t kShuffleSeed = 0xD071A110ULL;
 
-        static size_t kpercentile_anchor_index(size_t size, size_t anchor_id);
         static uint64_t linear_interpolate(uint64_t start_value, uint64_t end_value, size_t offset, size_t span);
         static uint64_t compute_shuffle_seed(size_t size, size_t starting_index);
+        static uint64_t pack_double(double value);
+        static double unpack_double(uint64_t value);
+        static size_t qlinear_anchor_index(size_t size, size_t anchor_id);
         static size_t encode_qlinear(uint64_t* array, size_t size, uint64_t*& encoded_array);
         static void decode_qlinear(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind);
+        static size_t encode_normal_sample(uint64_t* array, size_t size, uint64_t*& encoded_array);
+        static void decode_normal_sample(const uint64_t* encoded_array, size_t enc_size, uint64_t* decoded_array, size_t size, void* caller_sub_array, int caller_kind);
 
     public:
         SubArrayEncoding encoding() const override {
@@ -621,6 +626,8 @@ class LinkedDurationVector {
     static uint64_t codec_subarray_min(const void* caller_sub_array);
     /** Returns the maximum value of a LinkedDurationVector subarray passed through the codec callback API. */
     static uint64_t codec_subarray_max(const void* caller_sub_array);
+    /** Returns the mean value of a LinkedDurationVector subarray passed through the codec callback API. */
+    static uint64_t codec_subarray_mean(const void* caller_sub_array);
 
     ~LinkedDurationVector();
     /** Returns an array of size #size containing a copy of the values in this vector.*/

@@ -169,7 +169,7 @@ MonotoneLossyVariant monotoneLossyVariantFromString(const std::string& str) {
 
 std::map<DurationLossyVariant, std::string> DurationLossyVariantMap = {
     {DurationLossyVariant::QLinear, "QLinear"},
-    {DurationLossyVariant::QLinearMeanRep, "QLinearMeanRep"},
+    {DurationLossyVariant::NormalSample, "NormalSample"},
 };
 
 std::string toString(DurationLossyVariant variant) {
@@ -346,7 +346,7 @@ class ConfigFile {
   }
 
   DurationLossyVariant loadDurationLossyVariantConfig() {
-    DurationLossyVariant ret = DurationLossyVariant::QLinear;
+    DurationLossyVariant ret = DurationLossyVariant::NormalSample;
 
     std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_VARIANT");
     if (value.empty() && !config.empty() && config.find("durationLossyVariant") != config.end()) {
@@ -356,7 +356,7 @@ class ConfigFile {
       ret = durationLossyVariantFromString(value);
       if (ret == static_cast<DurationLossyVariant>(UINT8_MAX)) {
         pallas_warn("Invalid DurationLossyVariant in config: %s\n", value.c_str());
-        ret = DurationLossyVariant::QLinear;
+        ret = DurationLossyVariant::NormalSample;
       }
     }
     return ret;
