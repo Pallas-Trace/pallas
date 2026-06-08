@@ -12,7 +12,11 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_read.h"
 
+#include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+
+/** Default Callstack Size. */
+#define DEFAULT_CALLSTACK_DEPTH 64
 
 namespace pallas {
 
@@ -23,9 +27,22 @@ CallstackFrame::CallstackFrame() {
 
 CallstackFrame::~CallstackFrame() = default;
 
+Cursor::Cursor() {
+    current_frame_index = 0;
+    callstack_capacity = DEFAULT_CALLSTACK_DEPTH;
+    callstack = new CallstackFrame[callstack_capacity]();
+    currentFrame = callstack;
+}
+
+Cursor::~Cursor() {
+    delete[] callstack;
+}
+
 Cursor::Cursor(const Cursor& other) {
     current_frame_index = other.current_frame_index;
-    DOFOR(i, MAX_CALLSTACK_DEPTH) {
+    callstack_capacity = other.callstack_capacity;
+    callstack = new CallstackFrame[callstack_capacity]();
+    DOFOR(i, current_frame_index) {
         callstack[i].tokenCount = other.callstack[i].tokenCount;
         callstack[i].frame_index = other.callstack[i].frame_index;
         callstack[i].callstack_iterable = other.callstack[i].callstack_iterable;
@@ -35,7 +52,9 @@ Cursor::Cursor(const Cursor& other) {
 }
 Cursor& Cursor::operator=(const Cursor& other) {
     current_frame_index = other.current_frame_index;
-    DOFOR(i, MAX_CALLSTACK_DEPTH) {
+    callstack_capacity = other.callstack_capacity;
+    callstack = new CallstackFrame[callstack_capacity]();
+    DOFOR(i, current_frame_index) {
         callstack[i].tokenCount = other.callstack[i].tokenCount;
         callstack[i].frame_index = other.callstack[i].frame_index;
         callstack[i].callstack_iterable = other.callstack[i].callstack_iterable;
@@ -78,14 +97,14 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
 }
 
 const Token& ThreadReader::getFrameInCallstack(int frame_number) const {
-    if (frame_number < 0 || frame_number >= MAX_CALLSTACK_DEPTH) {
+    if (frame_number < 0 || frame_number >= currentState.callstack_capacity) {
         pallas_error("Frame number is too high or negative: %d\n", frame_number);
     }
     return currentState.callstack[frame_number].callstack_iterable;
 }
 
 const Token& ThreadReader::getTokenInCallstack(int frame_number) const {
-    if (frame_number < 0 || frame_number >= MAX_CALLSTACK_DEPTH) {
+    if (frame_number < 0 || frame_number >= currentState.callstack_capacity) {
         pallas_error("Frame number is too high or negative: %d\n", frame_number);
     }
     auto sequence = getFrameInCallstack(frame_number);
@@ -119,11 +138,11 @@ void ThreadReader::printCallstack() const {
         if (current_sequence_id.type == TypeLoop) {
             auto* loop = thread_trace->getLoop(current_sequence_id);
             printf(" iter %d/%d", currentState.callstack[i].frame_index, loop->nb_iterations);
-            pallas_assert(currentState.callstack[i].frame_index < MAX_CALLSTACK_DEPTH);
+            pallas_assert(currentState.callstack[i].frame_index < currentState.callstack_capacity);
         } else if (current_sequence_id.type == TypeSequence) {
             auto* sequence = thread_trace->getSequence(current_sequence_id);
             printf(" pos %d/%lu", currentState.callstack[i].frame_index, sequence->size());
-            pallas_assert(currentState.callstack[i].frame_index < MAX_CALLSTACK_DEPTH);
+            pallas_assert(currentState.callstack[i].frame_index < currentState.callstack_capacity);
         }
 
         std::cout << "\t-> " << thread_trace->getTokenString(current_token) << std::endl;
@@ -560,6 +579,16 @@ void ThreadReader::enterBlock() {
     }
 
     currentState.current_frame_index++;
+    if (currentState.current_frame_index >= currentState.callstack_capacity) {
+        pallas_log(DebugLevel::Debug, "Doubling size of callstack buffer");
+        currentState.callstack_capacity *= 2;
+        CallstackFrame *new_buffer = new CallstackFrame[currentState.callstack_capacity]();
+        DOFOR(i, currentState.current_frame_index) {
+            new_buffer[i] = currentState.callstack[i];
+        }
+        delete[] currentState.callstack;
+        currentState.callstack = new_buffer;
+    }
     currentState.currentFrame++;
     currentState.currentFrame->frame_index = 0;
     currentState.currentFrame->current_timestamp = currentState.callstack[currentState.current_frame_index - 1].current_timestamp;
@@ -753,94 +782,94 @@ Token MultiThreadReader::getNextToken() {
 
 /* C bindings */
 
-ThreadReader pallasCreateThreadReader(Archive* archive, ThreadId threadId, int options) {
+extern ThreadReader pallasCreateThreadReader(Archive* archive, ThreadId threadId, int options) {
     return {archive, threadId, options};
 }
-void pallasPrintCurToken(ThreadReader* thread_reader) {
+extern void pallasPrintCurToken(ThreadReader* thread_reader) {
     thread_reader->printCurToken();
 }
-Token pallasGetCurIterable(ThreadReader* thread_reader) {
+extern Token pallasGetCurIterable(ThreadReader* thread_reader) {
     return thread_reader->getCurIterable();
 }
-void pallasPrintCurSequence(ThreadReader* thread_reader) {
+extern void pallasPrintCurSequence(ThreadReader* thread_reader) {
     thread_reader->printCurSequence();
 }
-void pallasPrintCallstack(ThreadReader* thread_reader) {
+extern void pallasPrintCallstack(ThreadReader* thread_reader) {
     thread_reader->printCallstack();
 }
-Event* pallasGetEvent(ThreadReader* thread_reader, Token event) {
+extern Event* pallasGetEvent(ThreadReader* thread_reader, Token event) {
     return thread_reader->getEvent(event);
 }
-pallas_timestamp_t pallasGetEventTimestamp(ThreadReader* thread_reader, Token event, int occurrence_id) {
+extern pallas_timestamp_t pallasGetEventTimestamp(ThreadReader* thread_reader, Token event, int occurrence_id) {
     return thread_reader->getEventTimestamp(event, occurrence_id);
 }
-bool pallasIsEndOfSequence(ThreadReader* thread_reader, int current_index, Token sequence_id) {
+extern bool pallasIsEndOfSequence(ThreadReader* thread_reader, int current_index, Token sequence_id) {
     return thread_reader->isEndOfSequence(current_index, sequence_id);
 }
-bool pallasIsEndOfLoop(ThreadReader* thread_reader, int current_index, Token loop_id) {
+extern bool pallasIsEndOfLoop(ThreadReader* thread_reader, int current_index, Token loop_id) {
     return thread_reader->isEndOfLoop(current_index, loop_id);
 }
-bool pallasIsEndOfCurrentBlock(ThreadReader* thread_reader) {
+extern bool pallasIsEndOfCurrentBlock(ThreadReader* thread_reader) {
     return thread_reader->isEndOfCurrentBlock();
 }
-bool pallasIsEndOfTrace(ThreadReader* thread_reader) {
+extern bool pallasIsEndOfTrace(ThreadReader* thread_reader) {
     return thread_reader->isEndOfTrace();
 }
-EventOccurrence pallasGetEventOccurrence(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
+extern EventOccurrence pallasGetEventOccurrence(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
     return thread_reader->getEventOccurrence(event_id, occurrence_id);
 }
-SequenceOccurrence pallasGetSequenceOccurrence(ThreadReader* thread_reader, Token sequence_id, size_t occurrence_id) {
+extern SequenceOccurrence pallasGetSequenceOccurrence(ThreadReader* thread_reader, Token sequence_id, size_t occurrence_id) {
     return thread_reader->getSequenceOccurrence(sequence_id, occurrence_id);
 }
-LoopOccurrence pallasGetLoopOccurrence(ThreadReader* thread_reader, Token loop_id, size_t occurrence_id) {
+extern LoopOccurrence pallasGetLoopOccurrence(ThreadReader* thread_reader, Token loop_id, size_t occurrence_id) {
     return thread_reader->getLoopOccurrence(loop_id, occurrence_id);
 }
-AttributeList* pallasGetEventAttributeList(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
+extern AttributeList* pallasGetEventAttributeList(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
     return thread_reader->getEventAttributeList(event_id, occurrence_id);
 }
-Token pallasPollCurToken(ThreadReader* thread_reader) {
+extern Token pallasPollCurToken(ThreadReader* thread_reader) {
     return thread_reader->pollCurToken();
 }
-Token pallasPollNextToken(ThreadReader* thread_reader, int flags) {
+extern Token pallasPollNextToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->pollNextToken(flags);
 }
-Token pallasPollPrevToken(ThreadReader* thread_reader, int flags) {
+extern Token pallasPollPrevToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->pollPrevToken(flags);
 }
-bool pallasMoveToNextToken(ThreadReader* thread_reader, int flags) {
+extern bool pallasMoveToNextToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->moveToNextToken(flags);
 }
-bool pallasMoveToNextTokenInBlock(ThreadReader* thread_reader) {
+extern bool pallasMoveToNextTokenInBlock(ThreadReader* thread_reader) {
     return pallasMoveToNextToken(thread_reader, PALLAS_READ_FLAG_NO_UNROLL);
 }
-bool pallasMoveToPrevToken(ThreadReader* thread_reader, int flags) {
+extern bool pallasMoveToPrevToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->moveToPrevToken(flags);
 }
-bool pallasMoveToPrevTokenInBlock(ThreadReader* thread_reader) {
+extern bool pallasMoveToPrevTokenInBlock(ThreadReader* thread_reader) {
     return pallasMoveToPrevToken(thread_reader, PALLAS_READ_FLAG_NO_UNROLL);
 }
-Token pallasGetNextToken(ThreadReader* thread_reader, int flags) {
+extern Token pallasGetNextToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->getNextToken(flags);
 }
-Token pallasGetPrevToken(ThreadReader* thread_reader, int flags) {
+extern Token pallasGetPrevToken(ThreadReader* thread_reader, int flags) {
     return thread_reader->getPrevToken(flags);
 }
-void pallasEnterBlock(ThreadReader* thread_reader) {
+extern void pallasEnterBlock(ThreadReader* thread_reader) {
     thread_reader->enterBlock();
 }
-void pallasLeaveBlock(ThreadReader* thread_reader) {
+extern void pallasLeaveBlock(ThreadReader* thread_reader) {
     thread_reader->leaveBlock();
 }
-bool pallasExitIfEndOfBlock(ThreadReader* thread_reader, int flags) {
+extern bool pallasExitIfEndOfBlock(ThreadReader* thread_reader, int flags) {
     return thread_reader->exitIfEndOfBlock(flags);
 }
-bool pallasEnterIfStartOfBlock(ThreadReader* thread_reader, int flags) {
+extern bool pallasEnterIfStartOfBlock(ThreadReader* thread_reader, int flags) {
     return thread_reader->enterIfStartOfBlock(flags);
 }
-Cursor pallasCreateCheckpoint(ThreadReader* thread_reader) {
+extern Cursor pallasCreateCheckpoint(ThreadReader* thread_reader) {
     return thread_reader->createCheckpoint();
 }
-void pallasLoadCheckpoint(ThreadReader* thread_reader, Cursor* checkpoint) {
+extern void pallasLoadCheckpoint(ThreadReader* thread_reader, Cursor* checkpoint) {
     thread_reader->loadCheckpoint(checkpoint);
 }
 

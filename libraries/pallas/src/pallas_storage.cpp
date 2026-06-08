@@ -1823,7 +1823,7 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
   pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 
-pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archive_id, bool print_warning) {
+pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archive_id) {
   /* check if archive_id is already known */
   for (int i = 0; i < nb_archives; i++) {
     if (archive_list[i] != nullptr && archive_list[i]->id == archive_id) {

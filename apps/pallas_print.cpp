@@ -350,7 +350,7 @@ void printTrace(pallas::GlobalArchive& trace) {
     }
 }
 
-static std::string structure_indent[MAX_CALLSTACK_DEPTH];
+static std::string structure_indent[64]; // Arbitrary default since too much indent wouldn't display properly anyways
 std::string getCurrentIndent(const pallas::ThreadReader& tr) {
   if (tr.currentState.current_frame_index <= 1) {
     return "";

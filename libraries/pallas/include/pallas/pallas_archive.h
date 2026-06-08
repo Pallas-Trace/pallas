@@ -262,7 +262,7 @@ typedef struct GlobalArchive {
      */
     [[nodiscard]] std::vector<Thread*> getThreadList();
 
-    [[nodiscard]] Archive* getArchive(LocationGroupId archiveId, bool print_warning = true);
+    [[nodiscard]] Archive* getArchive(LocationGroupId archiveId);
 
     void freeArchive(LocationGroupId archiveId);
 
@@ -433,6 +433,12 @@ extern void pallas_global_archive_delete(PALLAS(GlobalArchive*));
  * @returns First Thread matching the given pallas::ThreadId, or nullptr if it doesn't have a match.
  */
 extern struct PALLAS(Thread) * pallas_archive_get_thread(PALLAS(Archive) * archive, PALLAS(ThreadId) thread_id);
+
+/**
+ * Getter for an Archive from its id.
+ * @returns First Archive matching the given pallas::LocationGroupId, or nullptr if it doesn't have a match.
+ */
+extern struct PALLAS(Archive) * pallas_global_archive_get_archive(PALLAS(GlobalArchive) * archive, PALLAS(LocationGroupId) archive_id);
 
 /**
  * Getter for a LocationGroup from its id.
