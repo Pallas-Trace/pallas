@@ -521,6 +521,10 @@ pallas::Thread* pallas_archive_get_thread(pallas::Archive* archive, pallas::Thre
   return archive->getThread(thread_id);
 };
 
+pallas::Archive* pallas_global_archive_get_archive(pallas::GlobalArchive* archive, pallas::LocationGroupId archive_id) {
+  return archive->getArchive(archive_id);
+};
+
 const pallas::LocationGroup* pallas_archive_get_location_group(pallas::GlobalArchive* archive, pallas::LocationGroupId location_group) {
   return archive->getLocationGroup(location_group);
 };
