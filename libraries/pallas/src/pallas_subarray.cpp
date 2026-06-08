@@ -14,8 +14,28 @@
 /** Methods Pertaining to the memory manager of the SubArray */
 namespace pallas {
 
-Manager::Manager(size_t allocated, size_t starting_index)
-    : allocated_count(allocated), values(new uint64_t[allocated_count]), first_index(starting_index) {}
+namespace {
+
+size_t resolve_manager_capacity(ValueDomain, Policy policy) {
+    switch (policy) {
+        case Policy::None:
+        case Policy::Delta:
+            return DEFAULT_VECTOR_SIZE;
+        case Policy::Lossy:
+            return DEFAULT_SMALL_SIZE;
+    }
+
+    return DEFAULT_VECTOR_SIZE;
+}
+
+}  // namespace
+
+Manager::Manager(ValueDomain domain, Policy policy, size_t starting_index)
+    : allocated_count(resolve_manager_capacity(domain, policy)),
+      values(new uint64_t[allocated_count]),
+      first_index(starting_index),
+      value_domain(domain),
+      storage_policy(policy) {}
 
 Manager::~Manager() {
     delete[] values;
@@ -70,6 +90,14 @@ void Manager::set_offset(size_t offset) {
     file_offset = offset;
 }
 
+ValueDomain Manager::domain() const {
+    return value_domain;
+}
+
+Policy Manager::policy() const {
+    return storage_policy;
+}
+
 uint64_t* Manager::data() const {
     return values;
 }
@@ -112,8 +140,8 @@ void Manager::note_prediction_sample(uint64_t) {
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
 
-SubArrayBase::SubArrayBase(ValueDomain domain, size_t allocated, SubArrayBase* previous)
-    : prev(previous), value_domain(domain), manager(allocated) {
+SubArrayBase::SubArrayBase(ValueDomain domain, Policy policy, SubArrayBase* previous)
+    : prev(previous), value_domain(domain), manager(domain, policy) {
     if (prev != nullptr) {
         prev->next = this;
         manager.set_starting_index(prev->manager.starting_index() + prev->manager.size());
@@ -136,6 +164,10 @@ void SubArrayBase::copy_to_array(uint64_t* given_array) const {
 
 ValueDomain SubArrayBase::domain() const {
     return value_domain;
+}
+
+Policy SubArrayBase::policy() const {
+    return manager.policy();
 }
 
 size_t SubArrayBase::size() const {
@@ -163,14 +195,14 @@ void SubArrayBase::set_offset(size_t offset) {
 /** Methods Peratining to the TimeSubArray Class */
 namespace pallas {
 
-TimeSubArray::TimeSubArray(size_t allocated, TimeSubArray* previous)
-    : SubArrayBase(ValueDomain::Timestamp, allocated, previous) {}
+TimeSubArray::TimeSubArray(Policy policy, TimeSubArray* previous)
+    : SubArrayBase(ValueDomain::Timestamp, policy, previous) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
     if (manager.size() == 0) {
         first_timestamp = val;
     }
-
+    
     auto status = manager.add_raw(val);
     pallas_assert(status == AddStatus::Ok);
     last_timestamp = val;
@@ -191,8 +223,8 @@ uint64_t TimeSubArray::last_value() const {
 /** Methods Peratining to the DurationSubArray Class */
 namespace pallas {
 
-DurationSubArray::DurationSubArray(size_t allocated, DurationSubArray* previous)
-    : SubArrayBase(ValueDomain::Duration, allocated, previous) {}
+DurationSubArray::DurationSubArray(Policy policy, DurationSubArray* previous)
+    : SubArrayBase(ValueDomain::Duration, policy, previous) {}
 
 AddStatus DurationSubArray::add(uint64_t val) {
     auto status = manager.add_raw(val);

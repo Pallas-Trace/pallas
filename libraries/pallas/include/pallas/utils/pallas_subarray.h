@@ -22,6 +22,10 @@
 #define DEFAULT_VECTOR_SIZE 1000
 #endif
 
+#ifndef DEFAULT_SMALL_SIZE
+#define DEFAULT_SMALL_SIZE 32
+#endif
+
 namespace pallas {
 
 enum class ValueDomain : uint8_t {
@@ -48,7 +52,7 @@ enum class AddStatus : uint8_t {
 
 class Manager {
    public:
-    explicit Manager(size_t allocated = DEFAULT_VECTOR_SIZE, size_t starting_index = 0);
+    explicit Manager(ValueDomain domain, Policy policy = Policy::None, size_t starting_index = 0);
     ~Manager();
 
     AddStatus add_raw(uint64_t val);
@@ -63,6 +67,8 @@ class Manager {
     void set_starting_index(size_t starting_index);
     [[nodiscard]] size_t offset() const;
     void set_offset(size_t offset);
+    [[nodiscard]] ValueDomain domain() const;
+    [[nodiscard]] Policy policy() const;
 
     [[nodiscard]] uint64_t* data() const;
 
@@ -78,6 +84,8 @@ class Manager {
     uint64_t* values = nullptr;
     size_t first_index = 0;
     size_t file_offset = 0;
+    ValueDomain value_domain = ValueDomain::Timestamp;
+    Policy storage_policy = Policy::None;
 
     // Placeholders for upcoming on-the-fly prediction logic.
     bool dynamic_mode_enabled = false;
@@ -95,6 +103,7 @@ class SubArrayBase {
     void copy_to_array(uint64_t* given_array) const;
 
     [[nodiscard]] ValueDomain domain() const;
+    [[nodiscard]] Policy policy() const;
     [[nodiscard]] size_t size() const;
     [[nodiscard]] size_t capacity() const;
     [[nodiscard]] size_t starting_index() const;
@@ -102,7 +111,7 @@ class SubArrayBase {
     void set_offset(size_t offset);
 
    protected:
-    explicit SubArrayBase(ValueDomain domain, size_t allocated = DEFAULT_VECTOR_SIZE, SubArrayBase* previous = nullptr);
+    explicit SubArrayBase(ValueDomain domain, Policy policy = Policy::None, SubArrayBase* previous = nullptr);
     SubArrayBase* next = nullptr;
     SubArrayBase* prev = nullptr;
     ValueDomain value_domain;
@@ -111,7 +120,7 @@ class SubArrayBase {
 
 class TimeSubArray : public SubArrayBase {
    public:
-    explicit TimeSubArray(size_t allocated = DEFAULT_VECTOR_SIZE, TimeSubArray* previous = nullptr);
+    explicit TimeSubArray(Policy policy = Policy::None, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
 
@@ -125,7 +134,7 @@ class TimeSubArray : public SubArrayBase {
 
 class DurationSubArray : public SubArrayBase {
    public:
-    explicit DurationSubArray(size_t allocated = DEFAULT_VECTOR_SIZE, DurationSubArray* previous = nullptr);
+    explicit DurationSubArray(Policy policy = Policy::None, DurationSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
     void update_statistics();
