@@ -33,9 +33,27 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 
 
 static constexpr unsigned kHotLoopIterationThreshold = 100;
-static constexpr pallas_duration_t kHotLoopDurationThreshold = 1000ULL * 1000ULL; // 1000 micro-secs for now
+static constexpr pallas_duration_t kHotLoopMaxDurationThreshold = 300ULL;  // 300 ns per failed poll candidate
 static constexpr SubArrayEncoding kHotLoopTimestampEncoding = SubArrayEncoding::MonotoneLossy;
-static constexpr SubArrayEncoding kHotLoopDurationEncoding = SubArrayEncoding::Delta2VintDuration;
+static constexpr SubArrayEncoding kHotLoopDurationEncoding = SubArrayEncoding::DeltaDuration;
+
+static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
+    if (sequence.tokens.size() != 2) {
+        return false;
+    }
+    if (sequence.tokens[0].type != TypeEvent || sequence.tokens[1].type != TypeEvent) {
+        return false;
+    }
+
+    auto* first_event = thread.getEvent(sequence.tokens[0]);
+    auto* second_event = thread.getEvent(sequence.tokens[1]);
+    if (first_event == nullptr || second_event == nullptr) {
+        return false;
+    }
+
+    return first_event->data.record == PALLAS_EVENT_ENTER &&
+           second_event->data.record == PALLAS_EVENT_LEAVE;
+}
 
 static void applyEventTimestampEncodingToToken(Token token, Thread& thread, SubArrayEncoding encoding) {
     switch (token.type) {
@@ -92,7 +110,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
             thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
             thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
+            thread->sequences[i].timestamps = new LinkedTimeVector(*parameter_handler);
         }
     }
 
@@ -192,22 +210,27 @@ void ThreadWriter::incrementLoop(Loop* loop) {
         return;
     }
 
-    pallas_duration_t cumulative_duration = 0;
-    const size_t first_duration_index = sequence->durations->size - kHotLoopIterationThreshold;
-    for (size_t i = 0; i < kHotLoopIterationThreshold; ++i) {
-        cumulative_duration += sequence->durations->at(first_duration_index + i);
+    if (!isSimpleEnterLeaveSequence(*sequence, *thread)) {
+        return;
     }
 
-    if (cumulative_duration > kHotLoopDurationThreshold) {
+    pallas_duration_t max_duration = 0;
+    const size_t first_duration_index = sequence->durations->size - kHotLoopIterationThreshold;
+    for (size_t i = 0; i < kHotLoopIterationThreshold; ++i) {
+        const pallas_duration_t duration = sequence->durations->at(first_duration_index + i);
+        max_duration = (duration > max_duration) ? duration : max_duration;
+    }
+
+    if (max_duration > kHotLoopMaxDurationThreshold) {
         return;
     }
 
     pallas_log(DebugLevel::Debug,
-               "Promoting hot loop L%d/S%d at %u iterations with cumulative_duration=%lu ns\n",
+               "Promoting hot loop L%d/S%d at %u iterations with max_duration=%lu ns\n",
                loop->self_id.id,
                loop->repeated_token.id,
                loop->nb_iterations,
-               static_cast<unsigned long>(cumulative_duration));
+               static_cast<unsigned long>(max_duration));
     applyHotLoopSequencePolicy(*sequence, *thread);
 }
 
@@ -679,7 +702,7 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
         thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
         thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
+        thread->sequences[i].timestamps = new LinkedTimeVector(*parameter_handler);
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -733,7 +756,7 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
 
     auto* new_event = new (&thread->events[index]) Event(index, *e);
-    new_event->timestamps = new LinkedVector(*parameter_handler);
+    new_event->timestamps = new LinkedTimeVector(*parameter_handler);
 
     // In-place initialisation
     thread->hashToEvent[hash].push_back(index);

@@ -35,12 +35,12 @@ struct PyRegion {
 };
 
 struct PyLinkedVector {
-    pallas::LinkedVector* linked_vector;
+    pallas::LinkedTimeVector* linked_vector;
     pallas::LinkedDurationVector* linked_duration_vector;
 };
 
 struct PyLinkedVectorIterator {
-    pallas::LinkedVector* linked_vector;
+    pallas::LinkedTimeVector* linked_vector;
     pallas::LinkedDurationVector* linked_duration_vector;
     size_t index;
 };

@@ -995,7 +995,7 @@ Sequence& Sequence::operator=(Sequence&& other) {
 Sequence::Sequence(ParameterHandler& parameter_handler) {
     durations = new LinkedDurationVector(parameter_handler);
     exclusive_durations = new LinkedDurationVector(parameter_handler);
-    timestamps = new LinkedVector(parameter_handler);
+    timestamps = new LinkedTimeVector(parameter_handler);
 }
 }  // namespace pallas
 

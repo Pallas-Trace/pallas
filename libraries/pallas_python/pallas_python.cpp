@@ -92,8 +92,8 @@ void setupEnums(const py::module_ &m) {
 
     py::enum_<pallas::SubArrayEncoding>(m, "SubArrayEncoding")
             .value("None", pallas::SubArrayEncoding::None)
-            .value("Delta2VintTimestamp", pallas::SubArrayEncoding::Delta2VintTimestamp)
-            .value("Delta2VintDuration", pallas::SubArrayEncoding::Delta2VintDuration)
+            .value("DeltaTimestamp", pallas::SubArrayEncoding::DeltaTimestamp)
+            .value("DeltaDuration", pallas::SubArrayEncoding::DeltaDuration)
             .value("MonotoneLossy", pallas::SubArrayEncoding::MonotoneLossy)
             .export_values();
 }

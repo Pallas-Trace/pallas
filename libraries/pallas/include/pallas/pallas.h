@@ -276,7 +276,7 @@ typedef struct Sequence {
      */
     LinkedDurationVector* exclusive_durations CXX({nullptr});
     /** Vector of the timestamps of each sequence. */
-    LinkedVector* timestamps CXX({nullptr});
+    LinkedTimeVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});
     /** Vector of Token to store the sequence of tokens */
@@ -361,7 +361,7 @@ typedef struct Event {
     /** The Event being summarized.*/
     EventData data;
     /** Timestamps for each occurrence of that Event.*/
-    LinkedVector* timestamps;
+    LinkedTimeVector* timestamps;
     /** Number of times that Event has happened. */
     size_t nb_occurrences;
     /** Storage for Attribute.*/

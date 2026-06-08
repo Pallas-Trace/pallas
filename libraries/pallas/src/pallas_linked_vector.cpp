@@ -18,7 +18,7 @@
 #include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_log.h"
 
-#define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
+#define SAME_FOR_BOTH_DERIVED_VECTORS(return_type, function_core) return_type LinkedTimeVector::function_core return_type LinkedDurationVector::function_core
 
 
 /** Functions pertaining to SubArrayCodec */
@@ -551,10 +551,10 @@ const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding) {
         case SubArrayEncoding::None:
             return &none_codec;
 
-        case SubArrayEncoding::Delta2VintTimestamp:
+        case SubArrayEncoding::DeltaTimestamp:
             return &delta2_vint_timestamp_codec;
 
-        case SubArrayEncoding::Delta2VintDuration:
+        case SubArrayEncoding::DeltaDuration:
             return &delta2_vint_duration_codec;
 
         case SubArrayEncoding::MonotoneLossy:
@@ -573,70 +573,70 @@ const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding) {
 }
 namespace pallas {
 
-std::string LinkedVector::to_string() {
-    if (size == 0)
-        return "[ ]";
-    std::ostringstream output;
-    output << "[";
-    for (size_t i = 0; i < size; i++) {
-        if (i != size - 1) {
-            output << this->at(i) << ", ";
-        }
-        else {
-            output << this->at(i) << "]";
-        }
-    }
-    return output.str();
+std::string LinkedTimeVector::to_string() {
+    return values_to_string();
 }
 
 std::string LinkedDurationVector::to_string() {
-    if (size == 0)
-        return "[ ]";
     std::ostringstream output;
-    output << "[";
-    for (size_t i = 0; i < size; i++) {
-        if (i != size - 1) {
-            output << this->at(i) << ", ";
-        }
-        else {
-            output << this->at(i) << "]";
-        }
-    }
+    output << values_to_string();
     if (size >= 2) {
         output << " { " << min << ", " << mean << ", " << max << " }";
     }
     return output.str();
 }
 
-LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
-    preferred_sub_arr_encoding = parameter_handler.getTimestampSubArrayEncoding();
+LinkedVectorBase::LinkedVectorBase(ParameterHandler& p, SubArrayEncoding preferred_encoding)
+    : parameter_handler(p), preferred_sub_arr_encoding(preferred_encoding) {}
+
+std::string LinkedVectorBase::values_to_string() const {
+    if (size == 0) {
+        return "[ ]";
+    }
+
+    auto* flat_array = const_cast<LinkedVectorBase*>(this)->as_flat_array();
+    std::ostringstream output;
+    output << "[";
+    for (size_t i = 0; i < size; i++) {
+        if (i != size - 1) {
+            output << flat_array[i] << ", ";
+        } else {
+            output << flat_array[i] << "]";
+        }
+    }
+    delete[] flat_array;
+    return output.str();
+}
+
+LinkedTimeVector::LinkedTimeVector(ParameterHandler& p)
+    : LinkedVectorBase(p, p.getTimestampSubArrayEncoding()) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     first->sub_arr_encoding = preferred_sub_arr_encoding;
     last = first;
 }
 
-LinkedVector::LinkedVector(ParameterHandler& p, SubArrayEncoding preferred_encoding) : parameter_handler(p) {
-    preferred_sub_arr_encoding = preferred_encoding;
+LinkedTimeVector::LinkedTimeVector(ParameterHandler& p, SubArrayEncoding preferred_encoding)
+    : LinkedVectorBase(p, preferred_encoding) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     first->sub_arr_encoding = preferred_sub_arr_encoding;
     last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
-    preferred_sub_arr_encoding = parameter_handler.getDurationSubArrayEncoding();
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p)
+    : LinkedVectorBase(p, p.getDurationSubArrayEncoding()) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     first->sub_arr_encoding = preferred_sub_arr_encoding;
     last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector(ParameterHandler& p, SubArrayEncoding preferred_encoding) : parameter_handler(p) {
-    preferred_sub_arr_encoding = preferred_encoding;
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p, SubArrayEncoding preferred_encoding)
+    : LinkedVectorBase(p, preferred_encoding) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     first->sub_arr_encoding = preferred_sub_arr_encoding;
     last = first;
 }
 
-uint64_t* LinkedVector::SubArray::add(uint64_t val) {
+uint64_t* LinkedTimeVector::SubArray::add(uint64_t val) {
     array[size] = val;
     return &array[size++];
 }
@@ -647,18 +647,25 @@ uint64_t* LinkedDurationVector::SubArray::add(uint64_t val) {
     return &array[size-1];
 }
 
-SAME_FOR_BOTH_VECTORS(
-  uint64_t&,
-  SubArray::at(size_t pos) const {
-      if (pos >= starting_index && pos < size + starting_index) {
-          return array[pos - starting_index];
-      }
-      pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, starting_index, size);
-  })
+uint64_t& LinkedVectorBase::SubArrayBase::at(size_t pos) const {
+    if (pos >= starting_index && pos < size + starting_index) {
+        return array[pos - starting_index];
+    }
+    pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, starting_index, size);
+}
 
-SAME_FOR_BOTH_VECTORS(uint64_t&, SubArray::operator[](size_t pos) const { return array[pos - starting_index]; })
+uint64_t& LinkedVectorBase::SubArrayBase::operator[](size_t pos) const { return array[pos - starting_index]; }
 
-LinkedVector::SubArray::SubArray(size_t size, LinkedVector::SubArray* previous) {
+LinkedTimeVector::SubArray::SubArray(size_t size, LinkedTimeVector::SubArray* previous)
+    : SubArrayBase(size, previous) {
+    first_value = 0;
+    last_value = 0;
+}
+
+LinkedDurationVector::SubArray::SubArray(size_t size, LinkedDurationVector::SubArray* previous)
+    : SubArrayBase(size, previous) {}
+
+LinkedVectorBase::SubArrayBase::SubArrayBase(size_t size, LinkedVectorBase::SubArrayBase* previous) {
     this->previous = previous;
     starting_index = 0;
     if (previous) {
@@ -669,21 +676,10 @@ LinkedVector::SubArray::SubArray(size_t size, LinkedVector::SubArray* previous) 
     array = new uint64_t[size];
 }
 
-LinkedDurationVector::SubArray::SubArray(size_t size, LinkedDurationVector::SubArray* previous) {
-    this->previous = previous;
-    starting_index = 0;
-    if (previous) {
-        previous->next = this;
-        starting_index = previous->starting_index + previous->size;
-    }
-    allocated = size;
-    array = new uint64_t[size];
-}
 
+LinkedVectorBase::SubArrayBase::~SubArrayBase() { delete[] array; }
 
-SAME_FOR_BOTH_VECTORS(, SubArray::~SubArray() { delete[] array; })
-
-SAME_FOR_BOTH_VECTORS(void, SubArray::copy_to_array(uint64_t* given_array) const { memcpy(given_array, array, size * sizeof(uint64_t)); })
+void LinkedVectorBase::SubArrayBase::copy_to_array(uint64_t* given_array) const { memcpy(given_array, array, size * sizeof(uint64_t)); }
 
 void LinkedDurationVector::update_statistics() {
     auto& val = at(size - 1);
@@ -696,7 +692,7 @@ void LinkedDurationVector::final_update_mean() {
     mean /= size;
     pallas_assert_inferior_equal(mean, max);
     pallas_assert_inferior_equal(min, mean);
-    last->final_update_mean();
+    static_cast<SubArray*>(last)->final_update_mean();
 }
 
 
@@ -715,8 +711,8 @@ void LinkedDurationVector::SubArray::final_update_mean() {
 
 uint64_t* LinkedDurationVector::add(uint64_t val) {
     if (this->last->size >= this->last->allocated) {
-        last->final_update_mean();
-        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
+        static_cast<SubArray*>(last)->final_update_mean();
+        last = new SubArray(DEFAULT_VECTOR_SIZE, static_cast<SubArray*>(last));
         last->sub_arr_encoding = preferred_sub_arr_encoding;
         n_sub_array++;
     }
@@ -726,9 +722,9 @@ uint64_t* LinkedDurationVector::add(uint64_t val) {
     return out;
 }
 
-uint64_t* LinkedVector::add(uint64_t val) {
+uint64_t* LinkedTimeVector::add(uint64_t val) {
     if (this->last->size >= this->last->allocated) {
-        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
+        last = new SubArray(DEFAULT_VECTOR_SIZE, static_cast<SubArray*>(last));
         last->sub_arr_encoding = preferred_sub_arr_encoding;
         n_sub_array++;
     }
@@ -736,18 +732,18 @@ uint64_t* LinkedVector::add(uint64_t val) {
     return last->add(val);
 }
 
-void LinkedVector::setPreferredSubArrayEncoding(SubArrayEncoding encoding) {
+void LinkedVectorBase::setPreferredSubArrayEncoding(SubArrayEncoding encoding) {
     preferred_sub_arr_encoding = encoding;
     if (last && last->size == 0) {
         last->sub_arr_encoding = encoding;
     }
 }
 
-SubArrayEncoding LinkedVector::getPreferredSubArrayEncoding() const {
+SubArrayEncoding LinkedVectorBase::getPreferredSubArrayEncoding() const {
     return preferred_sub_arr_encoding;
 }
 
-std::vector<SubArrayEncoding> LinkedVector::getSubArrayEncodings() const {
+std::vector<SubArrayEncoding> LinkedVectorBase::getSubArrayEncodings() const {
     std::vector<SubArrayEncoding> encodings;
     encodings.reserve(n_sub_array);
     for (auto* sub = first; sub != nullptr; sub = sub->next) {
@@ -756,7 +752,7 @@ std::vector<SubArrayEncoding> LinkedVector::getSubArrayEncodings() const {
     return encodings;
 }
 
-std::vector<SubArrayEncoding> LinkedVector::getLoadedSubArrayEncodings() const {
+std::vector<SubArrayEncoding> LinkedVectorBase::getLoadedSubArrayEncodings() const {
     std::vector<SubArrayEncoding> encodings;
     encodings.reserve(loaded_subarrays.size());
     for (auto* sub = first; sub != nullptr; sub = sub->next) {
@@ -767,45 +763,17 @@ std::vector<SubArrayEncoding> LinkedVector::getLoadedSubArrayEncodings() const {
     return encodings;
 }
 
-void LinkedDurationVector::setPreferredSubArrayEncoding(SubArrayEncoding encoding) {
-    preferred_sub_arr_encoding = encoding;
-    if (last && last->size == 0) {
-        last->sub_arr_encoding = encoding;
-    }
-}
-
-SubArrayEncoding LinkedDurationVector::getPreferredSubArrayEncoding() const {
-    return preferred_sub_arr_encoding;
-}
-
-std::vector<SubArrayEncoding> LinkedDurationVector::getSubArrayEncodings() const {
-    std::vector<SubArrayEncoding> encodings;
-    encodings.reserve(n_sub_array);
-    for (auto* sub = first; sub != nullptr; sub = sub->next) {
-        encodings.push_back(sub->sub_arr_encoding);
-    }
-    return encodings;
-}
-
-std::vector<SubArrayEncoding> LinkedDurationVector::getLoadedSubArrayEncodings() const {
-    std::vector<SubArrayEncoding> encodings;
-    encodings.reserve(loaded_subarrays.size());
-    for (auto* sub = first; sub != nullptr; sub = sub->next) {
-        if (sub->array != nullptr) {
-            encodings.push_back(sub->sub_arr_encoding);
-        }
-    }
-    return encodings;
-}
-
-size_t LinkedVector::codec_subarray_starting_index(const void* caller_sub_array) {
+size_t LinkedVectorBase::codec_subarray_starting_index_impl(const void* caller_sub_array) {
     pallas_assert(caller_sub_array != nullptr);
-    return static_cast<const SubArray*>(caller_sub_array)->starting_index;
+    return static_cast<const SubArrayBase*>(caller_sub_array)->starting_index;
+}
+
+size_t LinkedTimeVector::codec_subarray_starting_index(const void* caller_sub_array) {
+    return codec_subarray_starting_index_impl(caller_sub_array);
 }
 
 size_t LinkedDurationVector::codec_subarray_starting_index(const void* caller_sub_array) {
-    pallas_assert(caller_sub_array != nullptr);
-    return static_cast<const SubArray*>(caller_sub_array)->starting_index;
+    return codec_subarray_starting_index_impl(caller_sub_array);
 }
 
 uint64_t LinkedDurationVector::codec_subarray_min(const void* caller_sub_array) {
@@ -823,29 +791,29 @@ uint64_t LinkedDurationVector::codec_subarray_mean(const void* caller_sub_array)
     return static_cast<const SubArray*>(caller_sub_array)->mean;
 }
 
-SAME_FOR_BOTH_VECTORS(void, load_all_data() {
+void LinkedVectorBase::load_all_data() {
     auto* v = first;
     while (v) {
         load_data(v);
         loaded_subarrays.insert(v);
         v = v->next;
     }
-})
+}
 
 
-SAME_FOR_BOTH_VECTORS(
+SAME_FOR_BOTH_DERIVED_VECTORS(
     uint64_t&,
     at(size_t pos) {
       if (pos >= size) {
-          pallas_error("Getting an element whose index (%lu) is bigger than LinkedVector size (%lu)\n", pos, size);
+          pallas_error("Getting an element whose index (%lu) is bigger than LinkedTimeVector size (%lu)\n", pos, size);
       }
       return operator[](pos);
   })
 
-uint64_t& LinkedVector::operator[](size_t pos) {
-    SubArray* correct_sub = last;
+uint64_t& LinkedTimeVector::operator[](size_t pos) {
+    auto* correct_sub = static_cast<SubArray*>(last);
     while (pos < correct_sub->starting_index) {
-        correct_sub = correct_sub->previous;
+        correct_sub = static_cast<SubArray*>(correct_sub->previous);
     }
     if (correct_sub->array == nullptr) {
         // TODO We should not load data for small vectors ( <= 2 )
@@ -857,7 +825,7 @@ uint64_t& LinkedVector::operator[](size_t pos) {
             return correct_sub->last_value;
         }
         while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-            auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
+            auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
             parameter_handler.subvector_queue.pop_front();
             delete[] temp->array;
             temp->array = nullptr;
@@ -870,13 +838,13 @@ uint64_t& LinkedVector::operator[](size_t pos) {
 }
 
 uint64_t& LinkedDurationVector::operator[](size_t pos) {
-      SubArray* correct_sub = last;
+      auto* correct_sub = static_cast<SubArray*>(last);
       while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
+          correct_sub = static_cast<SubArray*>(correct_sub->previous);
       }
       if (correct_sub->array == nullptr) {
           while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
+              auto * temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
               parameter_handler.subvector_queue.pop_front();
               delete[] temp->array;
               temp->array = nullptr;
@@ -888,7 +856,7 @@ uint64_t& LinkedDurationVector::operator[](size_t pos) {
       return (*correct_sub)[pos];
 }
 
-size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
+size_t LinkedTimeVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
     if (ts <= front()) {
         return 0;
     }
@@ -896,10 +864,10 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
         return size - 1;
     }
     // TODO Infinite loop on ft.C.64 with 30 slices
-    auto current_subarray = first;
+    auto current_subarray = static_cast<SubArray*>(first);
     // First, we find the correct subarray
     while (current_subarray->last_value < ts) {
-        current_subarray = current_subarray->next;
+        current_subarray = static_cast<SubArray*>(current_subarray->next);
         if (current_subarray == nullptr) {
             pallas_warn("This shouldn't have happened\n");
             return -1;
@@ -938,9 +906,9 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
 
 pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {
     // Find the correct starting sub-array
-    auto* start_subarray = first;
+    auto* start_subarray = static_cast<SubArray*>(first);
     while (start_subarray->starting_index + start_subarray->size < start_index) {
-        start_subarray = start_subarray->next;
+        start_subarray = static_cast<SubArray*>(start_subarray->next);
         if (start_subarray == nullptr)
             return 0;
     }
@@ -953,14 +921,14 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
         for (; i < start_subarray->starting_index + start_subarray->size && i < end_index; i++) {
             sum += start_subarray->at(i);
         }
-        start_subarray = start_subarray->next;
+        start_subarray = static_cast<SubArray*>(start_subarray->next);
         if (start_subarray == nullptr)
             return sum;
     }
 
     while (start_subarray->starting_index + start_subarray->size < end_index) {
         sum += start_subarray->mean * start_subarray->size;
-        start_subarray = start_subarray->next;
+        start_subarray = static_cast<SubArray*>(start_subarray->next);
         if (start_subarray == nullptr)
             return sum;
     }
@@ -973,12 +941,12 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
     return sum;
 }
 
-uint64_t& LinkedVector::front() {
-    return first->first_value;
+uint64_t& LinkedTimeVector::front() {
+    return static_cast<SubArray*>(first)->first_value;
 }
 
-uint64_t& LinkedVector::back() {
-    return last->last_value;
+uint64_t& LinkedTimeVector::back() {
+    return static_cast<SubArray*>(last)->last_value;
 }
 
 
@@ -990,22 +958,7 @@ uint64_t& LinkedDurationVector::back() {
     return at(size - 1);
 }
 
-void LinkedVector::free_data() {
-    if (first == nullptr)
-        return;
-    auto& dq = parameter_handler.subvector_queue;
-    for (auto* sub : loaded_subarrays) {
-        // We need to remove the subvector from the global memory queue
-        auto it = std::find(dq.begin(), dq.end(), sub);
-        if (it != dq.end()) {
-            dq.erase(it);
-        }
-        delete[] sub->array;
-        sub->array = nullptr;
-        parameter_handler.loaded_durations_size -= sub->size;
-    }
-}
-void LinkedDurationVector::free_data() {
+void LinkedVectorBase::free_data() {
     if (first == nullptr)
         return;
     auto& dq = parameter_handler.subvector_queue;
@@ -1021,7 +974,7 @@ void LinkedDurationVector::free_data() {
     }
 }
 
-LinkedVector::~LinkedVector() {
+LinkedTimeVector::~LinkedTimeVector() {
     free_data();
     if (is_contiguous) {
         // All the subvectors were allocated using a single big calloc
@@ -1073,31 +1026,31 @@ LinkedDurationVector::~LinkedDurationVector() {
     }
 }
 
-SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
+void LinkedVectorBase::reset_offsets() {
     auto* v = first;
     while (v != nullptr) {
         v->offset = 0;
         v = v->next;
     }
-})
+}
 
-SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
+uint64_t* LinkedVectorBase::as_flat_array() {
     load_all_data();
     auto * output = new uint64_t[size];
     auto * start = first;
     size_t i = 0;
     while (start != nullptr) {
-        std::memcpy(&output[i], start->array, start->size * sizeof(uint64_t));
+        start->copy_to_array(&output[i]);
         i += start->size;
         start = start->next;
     }
     return output;
-})
+}
 
 
-std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
+std::vector<double> LinkedTimeVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<double>();
-    auto *current = first;
+    auto* current = static_cast<SubArray*>(first);
     double sum = 0;
     // While loop to go through all the SubVectors.
     // Legend:
@@ -1141,7 +1094,7 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
             pallas_error("start=%lu, end=%lu\n", start, end);
         }
         sum += output.back();
-        current = current->next;
+        current = static_cast<SubArray*>(current->next);
     }
     // Then we need to normalize the weight vector
     // UPDATE: We don't actually need to normalize the weight vector
@@ -1163,10 +1116,10 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
 
 pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights) {
     double sum = 0;
-    auto* current = first;
+    auto* current = static_cast<SubArray*>(first);
     for (auto w: weights) {
         sum += w * current->mean * current->size;
-        current = current->next;
+        current = static_cast<SubArray*>(current->next);
     }
     return sum;
 }

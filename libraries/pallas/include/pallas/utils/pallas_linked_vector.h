@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "pallas_parameter_handler.h"
+#include "pallas_subarray_policy.h"
 
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
@@ -26,14 +27,24 @@
 namespace pallas {
 
 /**
- * Indicates the type of SubArray Encoding used for a LinkedVector::SubArray
+ * Indicates the type of SubArray Encoding used for a LinkedTimeVector::SubArray
  */
 enum class SubArrayEncoding : uint8_t {
     None = 0,
-    Delta2VintTimestamp = 1,
-    Delta2VintDuration = 2,
+    DeltaTimestamp = 1,
+    DeltaDuration = 2,
     MonotoneLossy = 3,
     DurationLossy = 4,
+};
+
+/**
+ * Explicit semantic domain tag for linked-vector values.
+ * This is introduced as scaffolding for future codec/predictor refactors and
+ * is intentionally not threaded through the implementation yet.
+ */
+enum class ValueDomain : uint8_t {
+    Timestamp = 0,
+    Duration = 1,
 };
 
 class SubArrayCodec {
@@ -45,9 +56,9 @@ class SubArrayCodec {
         virtual ~SubArrayCodec() = default;
         virtual SubArrayEncoding encoding() const = 0;
         virtual bool can_encode(uint64_t* array, size_t size) const = 0;
-        /** caller_kind is 0 for LinkedVector::SubArray and 1 for LinkedDurationVector::SubArray. */
+        /** caller_kind is 0 for LinkedTimeVector::SubArray and 1 for LinkedDurationVector::SubArray. */
         virtual size_t encode(FILE* file, uint64_t* array, size_t size, uint64_t*& encoded_array, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const = 0;
-        /** caller_kind is 0 for LinkedVector::SubArray and 1 for LinkedDurationVector::SubArray. */
+        /** caller_kind is 0 for LinkedTimeVector::SubArray and 1 for LinkedDurationVector::SubArray. */
         virtual void decode(uint64_t* encoded_array, size_t enc_size, uint64_t*& decoded_array, size_t size, void* caller_sub_array, int caller_kind, const ParameterHandler* parameter_handler) const = 0;
 };
 class NoneCodec : public SubArrayCodec {
@@ -76,7 +87,7 @@ class Delta2VintCodecBase : public SubArrayCodec {
 class TimestampDelta2VintCodec : public Delta2VintCodecBase {
     public:
         SubArrayEncoding encoding() const override {
-            return SubArrayEncoding::Delta2VintTimestamp;
+            return SubArrayEncoding::DeltaTimestamp;
         }
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
@@ -88,7 +99,7 @@ class TimestampDelta2VintCodec : public Delta2VintCodecBase {
 class DurationDelta2VintCodec : public Delta2VintCodecBase {
     public:
         SubArrayEncoding encoding() const override {
-            return SubArrayEncoding::Delta2VintDuration;
+            return SubArrayEncoding::DeltaDuration;
         }
         bool can_encode(uint64_t* array, size_t size) const override {
             return true;
@@ -166,9 +177,9 @@ const SubArrayCodec* get_subarray_codec(SubArrayEncoding encoding);
 
 namespace pallas {
 /**
- * Classic linked array list. Sub-arrays are implemented as a subclass
+ * Common base for linked-vector implementations.
  */
-class LinkedVector {
+class LinkedVectorBase {
    public:
     /** Number of element stored in the vector.  */
     size_t size = 0;
@@ -178,6 +189,184 @@ class LinkedVector {
     size_t n_sub_array = 1;
     /** Describes if the SubArrays were all defined contiguously or not. */
     bool is_contiguous = false;
+
+   protected:
+    /** Path to the file storing this vector. */
+    const char* filePath = nullptr;
+
+    /** Parameter handler for the whole trace. */
+    ParameterHandler& parameter_handler;
+    /** Preferred encoding for newly created subarrays. */
+    SubArrayEncoding preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
+
+    /**
+     * Common base for all subarray implementations.
+     */
+    class SubArrayBase {
+       public:
+        /**
+         * Adds a new element at the end of the vector, after its current last element.
+         *
+         * @param val Value to be added.
+         * @return Pointer to the new element.
+         */
+        virtual uint64_t* add(uint64_t val) = 0;
+
+        /**
+         * Returns a reference to the element at specified location `pos`, with bounds checking.
+         * @param pos Position of the element in the array.
+         * @return Reference to the requested element.
+         */
+        [[nodiscard]] uint64_t& at(size_t pos) const;
+
+        /**
+         * Returns a reference to the element at specified location `pos`, without bounds checking.
+         * @param pos Position of the element in the linked vector.
+         * @return Reference to the requested element.
+         */
+        [[nodiscard]] uint64_t& operator[](size_t pos) const;
+
+        /**
+         * Copies the values in array to given_array.
+         * @param given_array An allocated array of correct size.
+         */
+        void copy_to_array(uint64_t* given_array) const;
+
+        /**
+         * Writes the content of this array to the file at the current offset.
+         * @param file File where the data is stored.
+         * @param parameter_handler Handler for the storage parameters.
+         */
+        virtual void write_to_file(FILE* file, const ParameterHandler* parameter_handler) = 0;
+
+        virtual ~SubArrayBase();
+
+       protected:
+        friend class LinkedVectorBase;
+        friend class LinkedTimeVector;
+        friend class LinkedDurationVector;
+        friend class NoneCodec;
+        friend class TimestampDelta2VintCodec;
+        friend class DurationDelta2VintCodec;
+        friend class MonotoneLossyCodec;
+        friend class DurationLossyCodec;
+
+        /** Number of elements stored in the vector. */
+        size_t size = 0;
+
+        /** Number of elements this vector has allocated. */
+        size_t allocated = DEFAULT_VECTOR_SIZE;
+
+        /** Subarray encoding used during the storage time */
+        SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
+
+        /** Encoded size : Will be calculated during write_to_file */
+        size_t enc_size = 0;
+
+        /** Array of elements. Currently only used on uint64_t */
+        uint64_t* array = nullptr;
+
+        /** Next SubArray in the Vector. nullptr if last. */
+        SubArrayBase* next = nullptr;
+
+        /** Previous SubArray in the Vector. nullptr if first. */
+        SubArrayBase* previous = nullptr;
+
+        /** Starting index of this SubVector. */
+        size_t starting_index = 0;
+
+        /** Offset where data is written. */
+        size_t offset = 0;
+
+        /**
+         * Construct a SubArray of a given size.
+         * @param size Size of the SubVector.
+         * @param previous Previous SubArray.
+         */
+        explicit SubArrayBase(size_t size, SubArrayBase* previous = nullptr);
+        /**
+         * Load a SubArray's metadata from a file. Doesn't load the data.
+         * @param file File where the metadata is stored.
+         * @param previous Previous SubArray.
+         */
+        SubArrayBase(FILE* file, SubArrayBase* previous = nullptr);
+    };
+
+    /** Set of loaded subarrays indexes. */
+    std::set<SubArrayBase*> loaded_subarrays;
+
+    /** First array list in the linked array list structure.*/
+    SubArrayBase* first = nullptr;
+    /** Last array list in the linked array list structure.*/
+    SubArrayBase* last = nullptr;
+
+    /** Loads a subarray from file storage. */
+    virtual void load_data(SubArrayBase* sub) = 0;
+    /** Protected ctor for common initialization. */
+    explicit LinkedVectorBase(ParameterHandler& p, SubArrayEncoding preferred_encoding);
+
+   public:
+    /** Preferred-encoding helper. */
+    void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
+    /** Common getter for preferred encoding. */
+    [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
+    /** Common getter for stored encodings. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getSubArrayEncodings() const;
+    /** Common getter for loaded encodings. */
+    [[nodiscard]] std::vector<SubArrayEncoding> getLoadedSubArrayEncodings() const;
+    /** Loads all the subvectors. */
+    void load_all_data();
+    /** Frees currently loaded data while keeping reload metadata. */
+    void free_data();
+    /** Resets the offsets of all the subvectors. */
+    void reset_offsets();
+    /** Returns an array of size #size containing a copy of the values in this vector. */
+    [[nodiscard]] uint64_t* as_flat_array();
+    /** Shared helper for value-only string formatting. */
+    [[nodiscard]] std::string values_to_string() const;
+    /** Shared helper for codec callback starting-index access. */
+    static size_t codec_subarray_starting_index_impl(const void* caller_sub_array);
+    virtual ~LinkedVectorBase() = default;
+};
+
+/**
+ * Timestamp-linked vector implementation.
+ */
+class LinkedTimeVector : public LinkedVectorBase {
+   public:
+    /**
+     * Timestamp-specific subarray implementation.
+     */
+    class SubArray : public SubArrayBase {
+       public:
+        uint64_t* add(uint64_t val) override;
+        void write_to_file(FILE* file, const ParameterHandler* parameter_handler) override;
+        explicit SubArray(size_t size, SubArray* previous = nullptr);
+        SubArray(FILE* file, SubArray* previous = nullptr);
+
+       protected:
+        friend class LinkedVectorBase;
+        friend class LinkedTimeVector;
+        friend class LinkedDurationVector;
+        friend class NoneCodec;
+        friend class TimestampDelta2VintCodec;
+        friend class DurationDelta2VintCodec;
+        friend class MonotoneLossyCodec;
+        friend class DurationLossyCodec;
+
+        /** Value of the first element of that sub-array.*/
+        uint64_t first_value = 0;
+        /** Value of the last element of that sub-array.*/
+        uint64_t last_value = 0;
+    };
+
+   private:
+    /**
+     * Loads the timestamps from filePath.
+     */
+    void load_data(SubArrayBase* sub) override;
+
+   public:
     /**
      * Adds a new element at the end of the vector, after its current last element.
      *
@@ -215,11 +404,6 @@ class LinkedVector {
     [[nodiscard]] uint64_t& back();
 
     /**
-     * Frees the data contained in the vector, but keeps the references needed to load them again.
-     */
-    void free_data();
-
-    /**
      * Returns a representation of the vector as a string, for example: "[10, 10000, 3141]"
      */
     std::string to_string();
@@ -233,172 +417,81 @@ class LinkedVector {
     void write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler);
 
     /**
-     * Resets the offsets of all the subvectors.
-     */
-    void reset_offsets();
-
-    /**
      * Given a starting and an ending timestamp, returns an array containing the ratio, for each subvector,
      * of the time spent between those two timestamps over the total duration of the subvector.
      */
     std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end);
 
-    /** Sets the preferred encoding for future subarrays of this vector. */
-    void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
-    /** Returns the preferred encoding for future subarrays of this vector. */
-    [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
-    /** Returns the stored encoding of each subarray in linked-list order. */
-    [[nodiscard]] std::vector<SubArrayEncoding> getSubArrayEncodings() const;
-    /** Returns the stored encoding of currently loaded subarrays in linked-list order. */
-    [[nodiscard]] std::vector<SubArrayEncoding> getLoadedSubArrayEncodings() const;
-
-   private:
-    /** Path to the file storing this vector. */
-    const char* filePath = nullptr;
-
-    /** Parameter handler for the whole trace. */
-    ParameterHandler& parameter_handler;
-    /** Preferred encoding for newly created subarrays. */
-    SubArrayEncoding preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
+   public:
+    /** Returns the index of the first value <= ts. If all values > ts, returns 0. */
+    size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
+    /** Returns the starting index of a LinkedTimeVector subarray passed through the codec callback API. */
+    static size_t codec_subarray_starting_index(const void* caller_sub_array);
     /**
-     * A fixed-sized array functioning as a node in a linked array list.
+     * Creates a new LinkedTimeVector.
      */
-    class SubArray {
+    LinkedTimeVector(ParameterHandler& p);
+    LinkedTimeVector(ParameterHandler& p, SubArrayEncoding preferred_encoding);
+
+    /** Creates a new LinkedTimeVector from a file. Doesn't actually load it until and element is accessed. */
+    LinkedTimeVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version);
+
+    /**
+     * Classic destructor. Calls free_data().
+     */
+    ~LinkedTimeVector();
+};
+
+class LinkedDurationVector : public LinkedVectorBase {
+   public:
+    /**
+     * Duration-specific subarray implementation.
+     */
+    class SubArray : public SubArrayBase {
+       public:
+        /**
+         * Updates the min/max/mean.
+         */
+        void update_statistics();
+
+        /** Replace the sum (being stored in the mean) by the actual mean. */
+        void final_update_mean();
+        uint64_t* add(uint64_t val) override;
+        void write_to_file(FILE* file, const ParameterHandler* parameter_handler) override;
+        explicit SubArray(size_t size, SubArray* previous = nullptr);
+        SubArray(FILE* file, SubArray* previous = nullptr);
+
+       protected:
+        friend class LinkedVectorBase;
+        friend class LinkedTimeVector;
+        friend class LinkedDurationVector;
         friend class NoneCodec;
         friend class TimestampDelta2VintCodec;
         friend class DurationDelta2VintCodec;
         friend class MonotoneLossyCodec;
         friend class DurationLossyCodec;
 
-       public:
-        /** Number of elements stored in the vector. */
-        size_t size = 0;
+        /** Max element stored in the array. */
+        uint64_t min = UINT64_MAX;
 
-        /** Number of elements this vector has allocated. */
-        size_t allocated = DEFAULT_VECTOR_SIZE;
+        /** Min element stored in the array. */
+        uint64_t max = 0;
 
-        /** Subarray encoding used during the storage time */
-        SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
-
-        /** Encoded size : Will be calculated during the sub_array->write_to_file */
-        size_t enc_size = 0;
-
-        /** Array of elements. Currently only used on uint64_t */
-        uint64_t* array = nullptr;
-
-        /** Next SubArray in the Vector. nullptr if last. */
-        SubArray* next = nullptr;
-
-        /** Previous SubArray in the Vector. nullptr if first. */
-        SubArray* previous = nullptr;
-
-        /** Starting index of this SubVector. */
-        size_t starting_index = 0;
-        /** Value of the first element of that sub-array.*/
-        uint64_t first_value = 0;
-        /** Value of the last element of that sub-array.*/
-        uint64_t last_value = 0;
-        /** Offset where data is written. */
-        size_t offset = 0;
-        /**
-         * Adds a new element at the end of the vector, after its current last element.
-         *
-         * @param val Value to be added.
-         * @return Reference to the new element.
-         */
-        uint64_t* add(uint64_t val);
-
-        /**
-         * Returns a reference to the element at specified location `pos`, with bounds checking.
-         * @param pos Position of the element in the array.
-         * @return Reference to the requested element.
-         */
-        [[nodiscard]] uint64_t& at(size_t pos) const;
-
-        /**
-         * Returns a reference to the element at specified location `pos`, without bounds checking.
-         * @param pos Position of the element in the LinkedVector.
-         * @return Reference to the requested element.
-         */
-        [[nodiscard]] uint64_t& operator[](size_t pos) const;
-
-        /**
-         * Copies the values in array to given_array.
-         * @param given_array An allocated array of correct size.
-         */
-        void copy_to_array(uint64_t* given_array) const;
-
-        /**
-         * Writes the content of this array to the file at the current offset.
-         * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
-         * Then, sets up the "offset" field accordingly.
-         * @param file File where the data is stored.
-         * @param parameter_handler Handler for the storage parameters.
-         */
-        void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
-
-        ~SubArray();
-
-        /**
-         * Construct a SubArray of a given size.
-         * @param size Size of the SubVector.
-         * @param previous Previous SubArray.
-         */
-        explicit SubArray(size_t size, SubArray* previous = nullptr);
-        /**
-         * Load a SubArray's metadata from a file. Doesn't load the data.
-         * @param file File where the metadata is stored.
-         * @param previous Previous SubArray.
-         */
-        SubArray(FILE* file, SubArray* previous = nullptr);
+        /** Mean of all the elements in the array. */
+        uint64_t mean = 0;
     };
 
-    std::set<SubArray*> loaded_subarrays;
-
-    /** First array list in the linked array list structure.*/
-    SubArray* first;
-    /** Last array list in the linked array list structure.*/
-    SubArray* last;
-
+   private:
     /**
-     * Loads the timestamps from filePath.
+     * Loads the durations from filePath.
      */
-    void load_data(SubArray* sub);
+    void load_data(SubArrayBase* sub) override;
+    /**
+     * Updates the min/max/mean.
+     */
+    void update_statistics();
 
    public:
-    /** Loads all the subvectors. */
-    void load_all_data();
-    /** Returns the index of the first value <= ts. If all values > ts, returns 0. */
-    size_t getFirstOccurrenceBefore(pallas_timestamp_t ts);
-    /** Returns the starting index of a LinkedVector subarray passed through the codec callback API. */
-    static size_t codec_subarray_starting_index(const void* caller_sub_array);
-    /**
-     * Creates a new LinkedVector.
-     */
-    LinkedVector(ParameterHandler& p);
-    LinkedVector(ParameterHandler& p, SubArrayEncoding preferred_encoding);
-
-    /** Creates a new LinkedVector from a file. Doesn't actually load it until and element is accessed. */
-    LinkedVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version);
-
-    /**
-     * Classic destructor. Calls free_data().
-     */
-    ~LinkedVector();
-    /** Returns an array of size #size containing a copy of the values in this vector.*/
-    [[nodiscard]] uint64_t* as_flat_array();
-};
-
-class LinkedDurationVector {
-   public:
-    /** Number of element stored in the vector.  */
-    size_t size = 0;
-    /** Number of times the vector's data is linked somewhere. */
-    size_t ref = 0;
-    /** Number of Sub-arrays. */
-    size_t n_sub_array = 1;
-    /** Describes if the SubArrays were all defined contiguously or not. */
-    bool is_contiguous = false;
     /**
      * Adds a new element at the end of the vector, after its current last element.
      * Updates mean, min and max.
@@ -437,11 +530,6 @@ class LinkedDurationVector {
     [[nodiscard]] uint64_t& back();
 
     /**
-     * Frees the data contained in the vector, but keeps the references needed to load them again.
-     */
-    void free_data();
-
-    /**
      * Returns a representation of the vector as a string, for example: "[10, 10000, 3141] { min, mean, max }"
      */
     std::string to_string();
@@ -464,158 +552,7 @@ class LinkedDurationVector {
      */
     pallas_duration_t weightedSum(std::vector<double>& weights);
 
-    /**
-     * Resets the offsets of all the subvectors.
-     */
-    void reset_offsets();
-
-    /** Sets the preferred encoding for future subarrays of this vector. */
-    void setPreferredSubArrayEncoding(SubArrayEncoding encoding);
-    /** Returns the preferred encoding for future subarrays of this vector. */
-    [[nodiscard]] SubArrayEncoding getPreferredSubArrayEncoding() const;
-    /** Returns the stored encoding of each subarray in linked-list order. */
-    [[nodiscard]] std::vector<SubArrayEncoding> getSubArrayEncodings() const;
-    /** Returns the stored encoding of currently loaded subarrays in linked-list order. */
-    [[nodiscard]] std::vector<SubArrayEncoding> getLoadedSubArrayEncodings() const;
-
-   private:
-    /** Path to the file storing this vector. */
-    const char* filePath = nullptr;
-    /** Parameter handler for the whole trace. */
-    ParameterHandler& parameter_handler;
-    /** Preferred encoding for newly created subarrays. */
-    SubArrayEncoding preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
-    /**
-     * A fixed-sized array functioning as a node in a linked array list.
-     */
-    class SubArray {
-        friend class NoneCodec;
-        friend class TimestampDelta2VintCodec;
-        friend class DurationDelta2VintCodec;
-        friend class MonotoneLossyCodec;
-        friend class DurationLossyCodec;
-
-       public:
-        /** Number of elements stored in the vector. */
-        size_t size = 0;
-
-        /** Number of elements this vector has allocated. */
-        size_t allocated = DEFAULT_VECTOR_SIZE;
-
-        /** Subarray Encoding Mechanism used */
-        SubArrayEncoding sub_arr_encoding = static_cast<SubArrayEncoding>(DEFAULT_SUBARRAY_ENCODING);
-
-        /** Encoded size : Will be calculated during the sub_array->write_to_file */
-        size_t enc_size = 0;
-
-        /** Array of elements. Currently only used on uint64_t */
-        uint64_t* array = nullptr;
-
-        /** Next SubArray in the Vector. nullptr if last. */
-        SubArray* next = nullptr;
-
-        /** Previous SubArray in the Vector. nullptr if first. */
-        SubArray* previous = nullptr;
-
-        /** Starting index of this SubVector. */
-        size_t starting_index = 0;
-
-        /** Offset where data is written. */
-        size_t offset = 0;
-
-        /**
-         * Updates the min/max/mean.
-         */
-        void update_statistics();
-
-       public:
-        /** Replace the sum (being stored in the mean) by the actual mean. */
-        void final_update_mean();
-        /** Max element stored in the array. */
-        uint64_t min = UINT64_MAX;
-
-        /** Min element stored in the array. */
-        uint64_t max = 0;
-
-        /** Mean of all the elements in the array. */
-        uint64_t mean = 0;
-
-        /**
-         * Adds a new element at the end of the vector, after its current last element.
-         * Updates mean, min and max.
-         *
-         * @param val Value to be added.
-         * @return Pointer to the new element.
-         */
-        uint64_t* add(uint64_t val);
-
-        /**
-         * Returns a reference to the element at specified location `pos`, with bounds checking.
-         * @param pos Position of the element in the array.
-         * @return Reference to the requested element.
-         */
-        [[nodiscard]] uint64_t& at(size_t pos) const;
-
-        /**
-         * Returns a reference to the element at specified location `pos`, without bounds checking.
-         * @param pos Position of the element in the LinkedVector.
-         * @return Reference to the requested element.
-         */
-        [[nodiscard]] uint64_t& operator[](size_t pos) const;
-
-        /**
-         * Copies the values in array to given_array.
-         * @param given_array An allocated array of correct size.
-         */
-        void copy_to_array(uint64_t* given_array) const;
-
-        /**
-         * Writes the content of this array to the file at the current offset.
-         * Specifically, the first sizeof(size_t) bytes written will be the size of the data, then the data.
-         * Then, sets up the "offset" field accordingly.
-         *  @param file File where the data is stored.
-         * @param parameter_handler Handler for the storage parameters.
-         */
-        void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
-
-        ~SubArray();
-
-        /**
-         * Construct a SubArray of a given size.
-         * @param size Size of the SubVector.
-         * @param previous Previous SubArray.
-         */
-        explicit SubArray(size_t size, SubArray* previous = nullptr);
-
-        /**
-         * Load a SubArray's metadata from a file. Doesn't load the data.
-         * @param file File where the metadata is stored.
-         * @param previous Previous SubArray.
-         */
-        SubArray(FILE* file, SubArray* previous = nullptr);
-    };
-    /** Set of loaded subarrays indexes. */
-    std::set<SubArray*> loaded_subarrays;
-
-    /** First array list in the linked array list structure.*/
-    SubArray* first;
-    /** Last array list in the linked array list structure.*/
-    SubArray* last;
-
-    /**
-     * Loads the durations from filePath.
-     */
-    void load_data(SubArray* sub);
-    /**
-     * Updates the min/max/mean.
-     */
-    void update_statistics();
-
    public:
-    /**
-     * Loads all the subvectors.
-     */
-    void load_all_data();
     /** Replace the sum (being stored in the mean) by the actual mean. */
     void final_update_mean();
     /** Returns the sum of the durations between [start, end[. */
@@ -630,8 +567,6 @@ class LinkedDurationVector {
     static uint64_t codec_subarray_mean(const void* caller_sub_array);
 
     ~LinkedDurationVector();
-    /** Returns an array of size #size containing a copy of the values in this vector.*/
-    [[nodiscard]] uint64_t* as_flat_array();
 
     /** Max element stored in the vector. */
     uint64_t min = UINT64_MAX;
@@ -654,8 +589,8 @@ class LinkedDurationVector {
 }  // namespace pallas
 
 #else
-typedef struct LinkedVector {
-} LinkedVector;
+typedef struct LinkedTimeVector {
+} LinkedTimeVector;
 
 typedef struct LinkedDurationVector {
 } LinkedDurationVector;
@@ -667,4 +602,4 @@ typedef struct LinkedDurationVector {
    c-basic-offset 4;
    tab-width 4 ;
    indent-tabs-mode nil
-   -*- */
+   -*- */       
