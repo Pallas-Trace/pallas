@@ -347,7 +347,8 @@ extern bool pallasIsEndOfCurrentBlock(ThreadReader *thread_reader);
 extern bool pallasIsEndOfTrace(ThreadReader *thread_reader);
 /** Returns the duration of the given Loop. */
 extern pallas_duration_t pallasGetLoopDuration(ThreadReader *thread_reader, Token loop_id);
-
+/** Returns the the current occurrence for the given Token */
+extern size_t pallasGetOccurrence(ThreadReader *thread_reader, Token token);
 /** Returns an EventOccurrence for the given Token appearing at the given occurrence_id.
  * Timestamp is set to Reader's referential timestamp.*/
 extern EventOccurrence pallasGetEventOccurrence(ThreadReader *thread_reader, Token event_id, size_t occurrence_id);
@@ -355,8 +356,7 @@ extern EventOccurrence pallasGetEventOccurrence(ThreadReader *thread_reader, Tok
  * Timestamp is set to Reader's referential timestamp.*/
 extern SequenceOccurrence pallasGetSequenceOccurrence(ThreadReader *thread_reader,
                                              Token sequence_id,
-                                             size_t occurrence_id,
-                                             bool create_checkpoint);
+                                             size_t occurrence_id);
 /** Returns an LoopOccurrence for the given Token appearing at the given occurrence_id.
  * Timestamp is set to Reader's referential timestamp.*/
 extern LoopOccurrence pallasGetLoopOccurrence(ThreadReader *thread_reader, Token loop_id, size_t occurrence_id);
