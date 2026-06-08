@@ -605,19 +605,19 @@ extern void pallas_archive_define_location(pallas::Archive* archive, pallas::Thr
   archive->defineLocation(id, name, parent);
 };
 
-const pallas::String* pallas_archive_get_string(pallas::GlobalArchive* archive, pallas::StringRef string_ref) {
+const pallas::String* pallas_archive_get_string(pallas::Archive* archive, pallas::StringRef string_ref) {
   return archive->getString(string_ref);
 }
-const pallas::Region* pallas_archive_get_region(pallas::GlobalArchive* archive, pallas::RegionRef region_ref) {
+const pallas::Region* pallas_archive_get_region(pallas::Archive* archive, pallas::RegionRef region_ref) {
   return archive->getRegion(region_ref);
 }
-const pallas::Attribute* pallas_archive_get_attribute(pallas::GlobalArchive* archive, pallas::AttributeRef attribute_ref) {
+const pallas::Attribute* pallas_archive_get_attribute(pallas::Archive* archive, pallas::AttributeRef attribute_ref) {
   return archive->getAttribute(attribute_ref);
 }
-const pallas::Group* pallas_archive_get_group(pallas::GlobalArchive* archive, pallas::GroupRef group_ref) {
+const pallas::Group* pallas_archive_get_group(pallas::Archive* archive, pallas::GroupRef group_ref) {
   return archive->getGroup(group_ref);
 }
-const pallas::Comm* pallas_archive_get_communicator(pallas::GlobalArchive* archive, pallas::CommRef comm_ref) {
+const pallas::Comm* pallas_archive_get_communicator(pallas::Archive* archive, pallas::CommRef comm_ref) {
   return archive->getComm(comm_ref);
 }
 

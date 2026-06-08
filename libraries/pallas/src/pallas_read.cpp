@@ -258,21 +258,19 @@ AttributeList* ThreadReader::getEventAttributeList(Token event_id, size_t occurr
     if (summary->attribute_buffer == nullptr)
         return nullptr;
 
-    if (summary->attribute_pos < summary->attribute_buffer_size) {
-        auto* l = (AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
-
-        while (l->index < occurrence_id) { /* move to the next attribute until we reach the needed index */
-            summary->attribute_pos += l->struct_size;
-            l = (AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
+    byte* read_pos = summary->attribute_buffer;
+    AttributeList *attribute_list = (pallas::AttributeList*)read_pos;
+    while (attribute_list->index != occurrence_id) { /* move to the next attribute until we reach the needed index */
+        read_pos += attribute_list->struct_size;
+        if (read_pos > summary->attribute_buffer + summary->attribute_buffer_size) {
+            return nullptr;
         }
-        if (l->index == occurrence_id) {
-            return l;
-        }
-        if (l->index > occurrence_id) {
-            pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence_id, l->index);
-        }
+        attribute_list = (pallas::AttributeList*)read_pos;
     }
-    return nullptr;
+    if (attribute_list->index > occurrence_id) {
+        pallas_error("Error fetching attribute %zu. We went too far (cur position: %d) !\n", occurrence_id, attribute_list->index);
+    }
+    return attribute_list;
 }
 
 void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>& names) const {
@@ -814,6 +812,9 @@ extern bool pallasIsEndOfCurrentBlock(ThreadReader* thread_reader) {
 }
 extern bool pallasIsEndOfTrace(ThreadReader* thread_reader) {
     return thread_reader->isEndOfTrace();
+}
+extern size_t pallasGetOccurrence(ThreadReader *thread_reader, Token token) {
+    return thread_reader->getCurrentTokenCount(token);
 }
 extern EventOccurrence pallasGetEventOccurrence(ThreadReader* thread_reader, Token event_id, size_t occurrence_id) {
     return thread_reader->getEventOccurrence(event_id, occurrence_id);

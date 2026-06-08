@@ -579,35 +579,35 @@ extern void pallas_archive_register_comm(PALLAS(Archive) * archive, PALLAS(CommR
  * @returns First String matching the given pallas::StringRef in this archive, or in the global_archive if it doesn't
  * have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(String) * pallas_archive_get_string(PALLAS(GlobalArchive) * archive, PALLAS(StringRef) string_ref);
+extern const struct PALLAS(String) * pallas_archive_get_string(PALLAS(Archive) * archive, PALLAS(StringRef) string_ref);
 
 /**
  * Getter for a Region from its id.
  * @returns First Region matching the given pallas::RegionRef in this archive, or in the global_archive if it doesn't
  * have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(Region) * pallas_archive_get_region(PALLAS(GlobalArchive) * archive, PALLAS(RegionRef) region_ref);
+extern const struct PALLAS(Region) * pallas_archive_get_region(PALLAS(Archive) * archive, PALLAS(RegionRef) region_ref);
 
 /**
  * Getter for a Attribute from its id.
  * @returns First Attribute matching the given pallas::AttributeRef in this archive, or in the global_archive if it
  * doesn't have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(Attribute) * pallas_archive_get_attribute(PALLAS(GlobalArchive) * archive, PALLAS(AttributeRef) attribute_ref);
+extern const struct PALLAS(Attribute) * pallas_archive_get_attribute(PALLAS(Archive) * archive, PALLAS(AttributeRef) attribute_ref);
 
 /**
  * Getter for a Group from its id.
  * @returns First Group matching the given pallas::GroupRef in this archive, or in the global_archive if it
  * doesn't have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(Group) * pallas_archive_get_group(PALLAS(GlobalArchive) * archive, PALLAS(GroupRef) group_ref);
+extern const struct PALLAS(Group) * pallas_archive_get_group(PALLAS(Archive) * archive, PALLAS(GroupRef) group_ref);
 
 /**
  * Getter for a Comm from its id.
  * @returns First Comm matching the given pallas::CommRef in this archive, or in the global_archive if it
  * doesn't have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(Comm) * pallas_archive_get_comm(PALLAS(GlobalArchive) * archive, PALLAS(CommRef) comm_ref);
+extern const struct PALLAS(Comm) * pallas_archive_get_comm(PALLAS(Archive) * archive, PALLAS(CommRef) comm_ref);
 
 extern void pallas_global_archive_add_metadata(PALLAS(GlobalArchive*) archive, const char* key, const char* value);
 
