@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "pallas_parameter_handler.h"
-#include "pallas_subarray_policy.h"
+#include "pallas_subarray.h"
 
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
@@ -35,16 +35,6 @@ enum class SubArrayEncoding : uint8_t {
     DeltaDuration = 2,
     MonotoneLossy = 3,
     DurationLossy = 4,
-};
-
-/**
- * Explicit semantic domain tag for linked-vector values.
- * This is introduced as scaffolding for future codec/predictor refactors and
- * is intentionally not threaded through the implementation yet.
- */
-enum class ValueDomain : uint8_t {
-    Timestamp = 0,
-    Duration = 1,
 };
 
 class SubArrayCodec {

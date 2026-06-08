@@ -32,6 +32,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
         include/pallas/utils/pallas_linked_vector.h
+        include/pallas/utils/pallas_subarray.h
         include/pallas/utils/pallas_storage.h
         include/pallas/utils/pallas_timestamp.h
        include/pallas/utils/pallas_parameter_handler.h
@@ -46,6 +47,7 @@ target_sources(pallas
         src/pallas_hash.cpp
         src/pallas_read.cpp
         src/pallas_storage.cpp
+        src/pallas_subarray.cpp
         src/pallas_timestamp.cpp
         src/pallas_write.cpp
         src/pallas_linked_vector.cpp
@@ -155,4 +157,3 @@ if (NOT _PIP)
   )
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
 endif()
-
