@@ -17,6 +17,9 @@
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_serialisation.h"
+
+extern size_t numberPreRawBytes;
 
 #define SAME_FOR_BOTH_DERIVED_VECTORS(return_type, function_core) return_type LinkedTimeVector::function_core return_type LinkedDurationVector::function_core
 
@@ -707,6 +710,92 @@ void LinkedDurationVector::SubArray::final_update_mean() {
     mean /= size;
     pallas_assert_inferior_equal(mean, max);
     pallas_assert_inferior_equal(min, mean);
+}
+
+void LinkedTimeVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
+    first_value = array[0];
+    last_value = array[size - 1];
+    offset = ftell(file);
+    ::numberPreRawBytes += size * sizeof(uint64_t);
+
+    const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
+
+    if (!(codec && codec->can_encode(array, size))) {
+        pallas_log(pallas::DebugLevel::Debug, "Subarray of size %lu cannot be encoded with encoding %d. Writing as is.\n", size, sub_arr_encoding);
+        sub_arr_encoding = SubArrayEncoding::None;
+        codec = get_subarray_codec(SubArrayEncoding::None);
+    }
+
+    uint64_t* encodedArray = nullptr;
+    enc_size = codec->encode(file, array, size, encodedArray, this, 0, parameter_handler);
+    _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
+
+    if (encodedArray != array) {
+        delete[] encodedArray;
+    }
+
+    delete[] array;
+    array = nullptr;
+}
+
+void LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
+    offset = ftell(file);
+    ::numberPreRawBytes += size * sizeof(uint64_t);
+
+    const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
+
+    if (!(codec && codec->can_encode(array, size))) {
+        pallas_log(pallas::DebugLevel::Debug, "Subarray of size %lu cannot be encoded with encoding %d. Writing as is.\n", size, sub_arr_encoding);
+        sub_arr_encoding = SubArrayEncoding::None;
+        codec = get_subarray_codec(SubArrayEncoding::None);
+    }
+
+    uint64_t* encodedArray = nullptr;
+    enc_size = codec->encode(file, array, size, encodedArray, this, 1, parameter_handler);
+    _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
+
+    if (encodedArray != array) {
+        delete[] encodedArray;
+    }
+
+    delete[] array;
+    array = nullptr;
+}
+
+void LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
+    _pallas_fwrite(&size, sizeof(size), 1, vectorFile);
+    _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+    _pallas_fwrite(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
+    if (size == 0) {
+        return;
+    }
+    if (parameter_handler->does_stats_need_compute) {
+        final_update_mean();
+    }
+
+    _pallas_fwrite(&min, sizeof(min), 1, vectorFile);
+    _pallas_fwrite(&max, sizeof(max), 1, vectorFile);
+    _pallas_fwrite(&mean, sizeof(mean), 1, vectorFile);
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
+
+    auto* sub_array = static_cast<SubArray*>(first);
+    while (sub_array) {
+        if (sub_array->array != nullptr) {
+            sub_array->write_to_file(valueFile, parameter_handler);
+        }
+        _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, vectorFile);
+        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, vectorFile);
+        _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, vectorFile);
+        _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
+        _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
+        _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
+        pallas_assert_inferior_equal(sub_array->mean, sub_array->max);
+        pallas_assert_inferior_equal(sub_array->min, sub_array->mean);
+        _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, vectorFile);
+        sub_array = static_cast<SubArray*>(sub_array->next);
+    }
+    free_data();
 }
 
 uint64_t* LinkedDurationVector::add(uint64_t val) {

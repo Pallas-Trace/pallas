@@ -80,6 +80,12 @@ class LVBase {
 
    protected:
     explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy);
+    explicit LVBase(FILE* vector_file,
+                    const char* value_file_path,
+                    ParameterHandler& p,
+                    ValueDomain domain,
+                    StoragePolicy preferred_policy,
+                    uint8_t abi_version);
 
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;
@@ -102,12 +108,14 @@ class TimeLV : public LVBase {
    public:
     explicit TimeLV(ParameterHandler& p);
     explicit TimeLV(ParameterHandler& p, StoragePolicy preferred_policy);
+    TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     AddStatus add(uint64_t val);
 
     [[nodiscard]] std::string to_string() const;
     [[nodiscard]] std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const;
     [[nodiscard]] size_t getFirstOccurrenceBefore(pallas_timestamp_t ts) const;
+    void write_header(FILE* info_file);
     void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
 
    protected:
@@ -118,6 +126,7 @@ class DurationLV : public LVBase {
    public:
     explicit DurationLV(ParameterHandler& p);
     explicit DurationLV(ParameterHandler& p, StoragePolicy preferred_policy);
+    DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     AddStatus add(uint64_t val);
     void final_update_mean();
@@ -130,6 +139,7 @@ class DurationLV : public LVBase {
     [[nodiscard]] uint64_t max_value() const;
     [[nodiscard]] uint64_t mean_value() const;
 
+    void write_header(FILE* info_file);
     void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
 
    protected:

@@ -9,7 +9,10 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_subarray.h"
+
+extern size_t numberPreRawBytes;
 
 /** Methods Pertaining to the policy manager of the SubArray */
 namespace pallas {
@@ -88,20 +91,19 @@ void NoneManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_ar
     std::memcpy(given_array, subarray.values, subarray.value_count * sizeof(uint64_t));
 }
 
-void NoneManager::dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const {
-    if (data_file == nullptr || subarray.values == nullptr) {
+void NoneManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const {
+    if (data_file == nullptr || parameter_handler == nullptr || subarray.values == nullptr) {
         return;
     }
 
-    std::fwrite(subarray.values, sizeof(uint64_t), subarray.value_count, data_file);
-}
-
-void NoneManager::load_runtime_values(SubArrayBase& subarray, FILE* data_file) const {
-    if (data_file == nullptr || subarray.values == nullptr) {
-        return;
+    const long current_offset = std::ftell(data_file);
+    if (current_offset >= 0) {
+        subarray.file_offset = static_cast<size_t>(current_offset);
     }
 
-    std::fread(subarray.values, sizeof(uint64_t), subarray.value_count, data_file);
+    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
+    _pallas_compress_write(subarray.values, subarray.allocated_count, data_file, parameter_handler);
+    subarray.free_values();
 }
 
 } 
@@ -191,29 +193,8 @@ void SubArrayBase::set_offset(size_t offset) {
     file_offset = offset;
 }
 
-void SubArrayBase::dump_runtime_state(FILE* info_file, FILE* data_file) {
-    if (data_file != nullptr) {
-        const long current_offset = std::ftell(data_file);
-        if (current_offset >= 0) {
-            file_offset = static_cast<size_t>(current_offset);
-        }
-        manager->dump_runtime_values(*this, data_file);
-    }
-
-    manager->dump_runtime_state(*this, info_file);
-}
-
 void SubArrayBase::load_runtime_state(FILE* info_file) {
     manager->load_runtime_state(*this, info_file);
-}
-
-void SubArrayBase::load_runtime_values(FILE* data_file) {
-    if (data_file == nullptr) {
-        return;
-    }
-
-    std::fseek(data_file, static_cast<long>(file_offset), SEEK_SET);
-    manager->load_runtime_values(*this, data_file);
 }
 
 }
@@ -233,6 +214,10 @@ AddStatus TimeSubArray::add(uint64_t val) {
     pallas_assert(status == AddStatus::Ok);
     last_timestamp = val;
     return status;
+}
+
+void TimeSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
+    manager->write_data(*this, file, parameter_handler);
 }
 
 uint64_t TimeSubArray::first_value() const {
@@ -256,6 +241,10 @@ AddStatus DurationSubArray::add(uint64_t val) {
     pallas_assert(status == AddStatus::Ok);
     update_statistics();
     return status;
+}
+
+void DurationSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
+    manager->write_data(*this, file, parameter_handler);
 }
 
 void DurationSubArray::update_statistics() {

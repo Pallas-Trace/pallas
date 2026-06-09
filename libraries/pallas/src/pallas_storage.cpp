@@ -37,35 +37,6 @@
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
 
-namespace {
-
-pallas::SubArrayEncoding storage_policy_to_legacy_time_encoding(pallas::StoragePolicy policy) {
-    switch (policy) {
-        case pallas::StoragePolicy::None:
-            return pallas::SubArrayEncoding::None;
-        case pallas::StoragePolicy::Delta:
-            return pallas::SubArrayEncoding::DeltaTimestamp;
-        case pallas::StoragePolicy::Lossy:
-            return pallas::SubArrayEncoding::MonotoneLossy;
-    }
-    return pallas::SubArrayEncoding::None;
-}
-
-pallas::SubArrayEncoding storage_policy_to_legacy_duration_encoding(pallas::StoragePolicy policy) {
-    switch (policy) {
-        case pallas::StoragePolicy::None:
-            return pallas::SubArrayEncoding::None;
-        case pallas::StoragePolicy::Delta:
-            return pallas::SubArrayEncoding::DeltaDuration;
-        case pallas::StoragePolicy::Lossy:
-            return pallas::SubArrayEncoding::DurationLossy;
-    }
-    return pallas::SubArrayEncoding::None;
-}
-
-}  // namespace
-
-
 void pallas_storage_option_init() {
     // Timestamp storage
     const char* store_timestamps_str = getenv("STORE_TIMESTAMPS");
@@ -779,17 +750,7 @@ uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHan
 }
 
 
-void pallas::TimeSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
-    if (file == nullptr || parameter_handler == nullptr || raw_values() == nullptr) {
-        return;
-    }
-
-    set_offset(ftell(file));
-    numberPreRawBytes += capacity() * sizeof(uint64_t);
-    _pallas_compress_write(raw_values(), capacity(), file, parameter_handler);
-    free_values();
-}
-
+/** Writing to the file */
 void pallas::TimeSubArray::write_header(FILE* info_file) const {
     if (info_file == nullptr) {
         return;
@@ -810,45 +771,222 @@ void pallas::TimeSubArray::write_header(FILE* info_file) const {
     _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
 }
 
-void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
-    offset = ftell(file);
-    numberPreRawBytes += size * sizeof(uint64_t);
-
-    const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
-
-    if(!(codec && codec->can_encode(array, size))) {
-        pallas_log(pallas::DebugLevel::Debug, "Subarray of size %lu cannot be encoded with encoding %d. Writing as is.\n", size, sub_arr_encoding);
-        sub_arr_encoding = SubArrayEncoding::None;  // Fall back to no encoding if the codec cannot encode the array.
-        codec = get_subarray_codec(SubArrayEncoding::None);
-    }  
-
-    uint64_t* encodedArray = nullptr; 
-    enc_size = codec->encode(file, array, size, encodedArray, this, 1, parameter_handler);
-    _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
-    
-    if(encodedArray != array) {
-        delete[] encodedArray;
+void pallas::DurationSubArray::write_header(FILE* info_file) const {
+    if (info_file == nullptr) {
+        return;
     }
 
-    delete[] array;
-    array = nullptr;
+    const auto actual_encoding = SubArrayEncoding::None;
+    const auto enc_size = capacity();
+    const auto subarray_size = size();
+    const auto min = min_value();
+    const auto max = max_value();
+    const auto mean = mean_value();
+    const auto subarray_offset = offset();
+
+    _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, info_file);
+    _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, info_file);
+    _pallas_fwrite(&enc_size, sizeof(enc_size), 1, info_file);
+    _pallas_fwrite(&min, sizeof(min), 1, info_file);
+    _pallas_fwrite(&max, sizeof(max), 1, info_file);
+    _pallas_fwrite(&mean, sizeof(mean), 1, info_file);
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
+    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
 }
 
-void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
-    const auto preferred_encoding = storage_policy_to_legacy_time_encoding(getPreferredStoragePolicy());
+void pallas::TimeLV::write_header(FILE* infoFile) {
+    const auto preferred_policy = getPreferredStoragePolicy();
 
     _pallas_fwrite(&value_count, sizeof(value_count), 1, infoFile);
     _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, infoFile);
-    _pallas_fwrite(&preferred_encoding, sizeof(preferred_encoding), 1, infoFile);
+    _pallas_fwrite(&preferred_policy, sizeof(preferred_policy), 1, infoFile);
+}
 
-    if (value_count == 0) {
-        return;
-    }
+void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
+    write_header(infoFile);
 
     for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
         auto* subarray = static_cast<TimeSubArray*>(base_subarray);
         subarray->write_data(dataFile, parameter_handler);
         subarray->write_header(infoFile);
+    }
+}
+
+void pallas::DurationLV::write_header(FILE* vectorFile) {
+    const auto preferred_policy = getPreferredStoragePolicy();
+
+    _pallas_fwrite(&value_count, sizeof(value_count), 1, vectorFile);
+    _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, vectorFile);
+    _pallas_fwrite(&preferred_policy, sizeof(preferred_policy), 1, vectorFile);
+    if (value_count == 0) {
+        return;
+    }
+    if (parameter_handler.does_stats_need_compute) {
+        final_update_mean();
+        static_cast<DurationSubArray*>(last)->final_update_mean();
+    }
+
+    _pallas_fwrite(&min_duration, sizeof(min_duration), 1, vectorFile);
+    _pallas_fwrite(&max_duration, sizeof(max_duration), 1, vectorFile);
+    _pallas_fwrite(&mean_duration, sizeof(mean_duration), 1, vectorFile);
+    pallas_assert_inferior_equal(mean_duration, max_duration);
+    pallas_assert_inferior_equal(min_duration, mean_duration);
+}
+
+void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
+    write_header(vectorFile);
+    if (value_count == 0) {
+        return;
+    }
+
+    for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
+        auto* subarray = static_cast<DurationSubArray*>(base_subarray);
+        subarray->write_data(valueFile, parameter_handler);
+        subarray->write_header(vectorFile);
+    }
+}
+
+/** Reading from the file */
+
+pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, StoragePolicy policy, SubArrayBase* previous)
+    : prev(previous),
+      value_domain(domain),
+      storage_policy(policy),
+      manager(std::make_unique<NoneManager>()),
+      values(nullptr) {
+    uint8_t ignored_encoding = 0;
+    size_t encoded_size = 0;
+
+    _pallas_fread(&value_count, sizeof(value_count), 1, info_file);
+    _pallas_fread(&ignored_encoding, sizeof(ignored_encoding), 1, info_file);
+    _pallas_fread(&encoded_size, sizeof(encoded_size), 1, info_file);
+    allocated_count = encoded_size;
+
+    if (prev != nullptr) {
+        prev->next = this;
+        first_index = prev->first_index + prev->value_count;
+    }
+}
+
+void pallas::TimeSubArray::read_header(FILE* info_file) {
+    _pallas_fread(&first_timestamp, sizeof(first_timestamp), 1, info_file);
+    _pallas_fread(&last_timestamp, sizeof(last_timestamp), 1, info_file);
+    _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
+}
+
+pallas::TimeSubArray::TimeSubArray(FILE* info_file, StoragePolicy policy, TimeSubArray* previous)
+    : SubArrayBase(info_file, ValueDomain::Timestamp, policy, previous) {
+    read_header(info_file);
+}
+
+void pallas::DurationSubArray::read_header(FILE* info_file) {
+    _pallas_fread(&min_duration, sizeof(min_duration), 1, info_file);
+    _pallas_fread(&max_duration, sizeof(max_duration), 1, info_file);
+    _pallas_fread(&mean_duration, sizeof(mean_duration), 1, info_file);
+    if (max_duration < mean_duration) {
+        static bool show_warning = true;
+        if (show_warning) {
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+            show_warning = false;
+        }
+        mean_duration /= value_count;
+    }
+    pallas_assert_inferior_equal(mean_duration, max_duration);
+    pallas_assert_inferior_equal(min_duration, mean_duration);
+    _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
+}
+
+pallas::DurationSubArray::DurationSubArray(FILE* info_file, StoragePolicy policy, DurationSubArray* previous)
+    : SubArrayBase(info_file, ValueDomain::Duration, policy, previous) {
+    read_header(info_file);
+}
+
+pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, ParameterHandler& p,
+                       ValueDomain domain, StoragePolicy preferred_policy, uint8_t abi_version)
+    : parameter_handler(p),
+      value_domain(domain),
+      preferred_storage_policy(preferred_policy),
+      file_path(value_file_path) {
+    _pallas_fread(&value_count, sizeof(value_count), 1, vector_file);
+
+    if (abi_version >= 18) {
+        uint8_t stored_policy = 0;
+        _pallas_fread(&subarray_total, sizeof(subarray_total), 1, vector_file);
+        _pallas_fread(&stored_policy, sizeof(stored_policy), 1, vector_file);
+        if (stored_policy <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
+            preferred_storage_policy = static_cast<StoragePolicy>(stored_policy);
+        }
+    }
+}
+
+pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
+    : LVBase(vector_file, value_file_path, p, ValueDomain::Timestamp, p.getStoragePolicy(), abi_version) {
+    if (value_count == 0) {
+        return;
+    }
+
+    if (abi_version >= 18) {
+        for (size_t i = 0; i < subarray_total; ++i) {
+            last = new TimeSubArray(vector_file, preferred_storage_policy, static_cast<TimeSubArray*>(last));
+            if (first == nullptr) {
+                first = last;
+            }
+        }
+        return;
+    }
+
+    size_t loaded_values = 0;
+    subarray_total = 0;
+    while (loaded_values < value_count) {
+        last = new TimeSubArray(vector_file, preferred_storage_policy, static_cast<TimeSubArray*>(last));
+        if (first == nullptr) {
+            first = last;
+        }
+        loaded_values += last->size();
+        subarray_total++;
+    }
+}
+
+pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
+    : LVBase(vector_file, value_file_path, p, ValueDomain::Duration, p.getStoragePolicy(), abi_version) {
+    if (value_count == 0) {
+        return;
+    }
+
+    _pallas_fread(&min_duration, sizeof(min_duration), 1, vector_file);
+    _pallas_fread(&max_duration, sizeof(max_duration), 1, vector_file);
+    _pallas_fread(&mean_duration, sizeof(mean_duration), 1, vector_file);
+    if (max_duration < mean_duration) {
+        static bool show_warning = true;
+        if (show_warning) {
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+            show_warning = false;
+        }
+        mean_duration /= value_count;
+    }
+    pallas_assert_inferior_equal(mean_duration, max_duration);
+    pallas_assert_inferior_equal(min_duration, mean_duration);
+
+    if (abi_version >= 18) {
+        for (size_t i = 0; i < subarray_total; ++i) {
+            last = new DurationSubArray(vector_file, preferred_storage_policy, static_cast<DurationSubArray*>(last));
+            if (first == nullptr) {
+                first = last;
+            }
+        }
+        return;
+    }
+
+    size_t loaded_values = 0;
+    subarray_total = 0;
+    while (loaded_values < value_count) {
+        last = new DurationSubArray(vector_file, preferred_storage_policy, static_cast<DurationSubArray*>(last));
+        if (first == nullptr) {
+            first = last;
+        }
+        loaded_values += last->size();
+        subarray_total++;
     }
 }
 
@@ -872,9 +1010,9 @@ pallas::LinkedVectorBase::SubArrayBase::SubArrayBase(FILE* file, SubArrayBase* p
 }
 
 pallas::LinkedTimeVector::LinkedTimeVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, storage_policy_to_legacy_time_encoding(parameter_handler.getStoragePolicy())) {
+    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
     filePath = valueFilePath;
-    preferred_sub_arr_encoding = storage_policy_to_legacy_time_encoding(parameter_handler.getStoragePolicy());
+    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
@@ -906,41 +1044,6 @@ pallas::LinkedTimeVector::LinkedTimeVector(FILE* vectorFile, const char* valueFi
     }
 }
 
-void pallas::LinkedDurationVector::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
-    _pallas_fwrite(&size, sizeof(size), 1, vectorFile);
-    _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
-    _pallas_fwrite(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
-    if (size == 0)
-        return;
-    if (parameter_handler->does_stats_need_compute) {
-        final_update_mean();
-    }
-    // Write the statistics to the vectorFile
-    _pallas_fwrite(&min, sizeof(min), 1, vectorFile);
-    _pallas_fwrite(&max, sizeof(max), 1, vectorFile);
-    _pallas_fwrite(&mean, sizeof(mean), 1, vectorFile);
-    pallas_assert_inferior_equal(mean, max);
-    pallas_assert_inferior_equal(min, mean);
-    // Then write the statistics for all the sub_arrays.
-    auto* sub_array = static_cast<SubArray*>(first);
-    while (sub_array) {
-        if (sub_array->array != nullptr) {
-            sub_array->write_to_file(valueFile, parameter_handler);
-        }
-        _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, vectorFile);
-        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, vectorFile);
-        _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, vectorFile);
-        _pallas_fwrite(&sub_array->min, sizeof(sub_array->min), 1, vectorFile);
-        _pallas_fwrite(&sub_array->max, sizeof(sub_array->max), 1, vectorFile);
-        _pallas_fwrite(&sub_array->mean, sizeof(sub_array->mean), 1, vectorFile);
-        pallas_assert_inferior_equal(sub_array->mean, sub_array->max);
-        pallas_assert_inferior_equal(sub_array->min, sub_array->mean);
-        _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, vectorFile);
-        sub_array = static_cast<SubArray*>(sub_array->next);
-    }
-    free_data();
-}
-
 pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous)
     : SubArrayBase(file, previous) {
     _pallas_fread(&min, sizeof(min), 1, file);
@@ -964,9 +1067,9 @@ pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous)
 }
 
 pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, storage_policy_to_legacy_duration_encoding(parameter_handler.getStoragePolicy())) {
+    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
     filePath = valueFilePath;
-    preferred_sub_arr_encoding = storage_policy_to_legacy_duration_encoding(parameter_handler.getStoragePolicy());
+    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
@@ -1136,6 +1239,7 @@ static void _pallas_read_attribute_values(pallas::Event* e, const File& file, co
         }
     }
 }
+
 static void storeEventData(pallas::EventData& event, const File& eventFile, const pallas::ParameterHandler& parameter_handler) {
     eventFile.write(&event, event.event_size, 1);
 }
@@ -1182,7 +1286,7 @@ static void readEvent(pallas::Event& event,
         event.attribute_buffer = new byte[event.attribute_buffer_size];
         eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
     }
-    event.timestamps = new pallas::LinkedTimeVector(eventFile.file, durationFileName, parameter_handler, abi_version);
+    event.timestamps = new pallas::TimeLV(eventFile.file, durationFileName, parameter_handler, abi_version);
     event.nb_occurrences = event.timestamps->size();
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
 }
@@ -1238,9 +1342,9 @@ static void readSequence(pallas::Sequence& sequence, const File& sequenceFile, c
     sequence.tokens.resize(size);
     sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
-        sequence.durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
-        sequence.exclusive_durations = new pallas::LinkedDurationVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
-        sequence.timestamps = new pallas::LinkedTimeVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.exclusive_durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.timestamps = new pallas::TimeLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
     }
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size);
 }

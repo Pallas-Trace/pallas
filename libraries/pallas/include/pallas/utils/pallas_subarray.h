@@ -64,11 +64,10 @@ class Manager {
 
     [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
     virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
+    virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const = 0;
 
     virtual void dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const;
     virtual void load_runtime_state(SubArrayBase& subarray, FILE* info_file) const;
-    virtual void dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const = 0;
-    virtual void load_runtime_values(SubArrayBase& subarray, FILE* data_file) const = 0;
 };
 
 class NoneManager : public Manager {
@@ -77,8 +76,7 @@ class NoneManager : public Manager {
     AddStatus add(SubArrayBase& subarray, uint64_t val) const override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const override;
-    void load_runtime_values(SubArrayBase& subarray, FILE* data_file) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const override;
 };
 
 class SubArrayBase {
@@ -100,15 +98,14 @@ class SubArrayBase {
     [[nodiscard]] SubArrayBase* next_subarray() const;
     [[nodiscard]] SubArrayBase* previous_subarray() const;
     void set_offset(size_t offset);
-    void dump_runtime_state(FILE* info_file, FILE* data_file);
     void load_runtime_state(FILE* info_file);
-    void load_runtime_values(FILE* data_file);
 
    protected:
     friend class Manager;
     friend class NoneManager;
 
     explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
+    explicit SubArrayBase(FILE* info_file, ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
     [[nodiscard]] bool contains(size_t pos) const;
     [[nodiscard]] size_t local_index(size_t pos) const;
     [[nodiscard]] uint64_t* raw_values();
@@ -129,10 +126,12 @@ class SubArrayBase {
 class TimeSubArray : public SubArrayBase {
    public:
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
+    explicit TimeSubArray(FILE* info_file, StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
     void write_data(FILE* file, const ParameterHandler* parameter_handler);
     void write_header(FILE* info_file) const;
+    void read_header(FILE* info_file);
 
     [[nodiscard]] uint64_t first_value() const;
     [[nodiscard]] uint64_t last_value() const;
@@ -145,8 +144,12 @@ class TimeSubArray : public SubArrayBase {
 class DurationSubArray : public SubArrayBase {
    public:
     explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None, DurationSubArray* previous = nullptr);
+    explicit DurationSubArray(FILE* info_file, StoragePolicy policy = StoragePolicy::None, DurationSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
+    void write_data(FILE* file, const ParameterHandler* parameter_handler);
+    void write_header(FILE* info_file) const;
+    void read_header(FILE* info_file);
     void update_statistics();
     void final_update_mean();
 
