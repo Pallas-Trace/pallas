@@ -36,28 +36,28 @@ static short STORE_HASHING = 0;
 
 namespace {
 
-SubArrayEncoding storage_policy_to_legacy_time_encoding(pallas::StoragePolicy policy) {
+pallas::SubArrayEncoding storage_policy_to_legacy_time_encoding(pallas::StoragePolicy policy) {
     switch (policy) {
         case pallas::StoragePolicy::None:
-            return SubArrayEncoding::None;
+            return pallas::SubArrayEncoding::None;
         case pallas::StoragePolicy::Delta:
-            return SubArrayEncoding::DeltaTimestamp;
+            return pallas::SubArrayEncoding::DeltaTimestamp;
         case pallas::StoragePolicy::Lossy:
-            return SubArrayEncoding::MonotoneLossy;
+            return pallas::SubArrayEncoding::MonotoneLossy;
     }
-    return SubArrayEncoding::None;
+    return pallas::SubArrayEncoding::None;
 }
 
-SubArrayEncoding storage_policy_to_legacy_duration_encoding(pallas::StoragePolicy policy) {
+pallas::SubArrayEncoding storage_policy_to_legacy_duration_encoding(pallas::StoragePolicy policy) {
     switch (policy) {
         case pallas::StoragePolicy::None:
-            return SubArrayEncoding::None;
+            return pallas::SubArrayEncoding::None;
         case pallas::StoragePolicy::Delta:
-            return SubArrayEncoding::DeltaDuration;
+            return pallas::SubArrayEncoding::DeltaDuration;
         case pallas::StoragePolicy::Lossy:
-            return SubArrayEncoding::DurationLossy;
+            return pallas::SubArrayEncoding::DurationLossy;
     }
-    return SubArrayEncoding::None;
+    return pallas::SubArrayEncoding::None;
 }
 
 }  // namespace

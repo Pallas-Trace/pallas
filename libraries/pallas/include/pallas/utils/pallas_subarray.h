@@ -40,15 +40,8 @@ enum class StoragePolicy : uint8_t {
     Lossy = 2,
 };
 
-enum class TimeLossyPolicy : uint8_t {
-    QLinear = 0,
-    QLinearMeanRep = 1,
-    QLinearPchipMeanRep = 2,
-    QLinearPchipMeanRepAdaptive = 4,
-};
-
-enum class DurationLossyPolicy : uint8_t {
-    QLinear = 0,
+enum class LossyPolicy : uint8_t {
+    Linear = 0,
     NormalSample = 1,
 };
 

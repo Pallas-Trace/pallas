@@ -134,12 +134,6 @@ std::string toString(StoragePolicy policy) {
 }
 
 StoragePolicy storagePolicyFromString(const std::string& str) {
-  if (str == "DeltaTimestamp" || str == "DeltaDuration" || str == "Delta2Vint") {
-    return StoragePolicy::Delta;
-  }
-  if (str == "MonotoneLossy" || str == "DurationLossy") {
-    return StoragePolicy::Lossy;
-  }
   for (auto& [en, enStr] : StoragePolicyMap) {
     if (enStr == str) {
       return en;
@@ -148,42 +142,22 @@ StoragePolicy storagePolicyFromString(const std::string& str) {
   return static_cast<StoragePolicy>(UINT8_MAX);
 }
 
-std::map<TimeLossyPolicy, std::string> TimeLossyPolicyMap = {
-    {TimeLossyPolicy::QLinear, "QLinear"},
-    {TimeLossyPolicy::QLinearMeanRep, "QLinearMeanRep"},
-    {TimeLossyPolicy::QLinearPchipMeanRep, "QLinearPchipMeanRep"},
-    {TimeLossyPolicy::QLinearPchipMeanRepAdaptive, "QLinearPchipMeanRepAdaptive"},
+std::map<LossyPolicy, std::string> LossyPolicyMap = {
+    {LossyPolicy::Linear, "Linear"},
+    {LossyPolicy::NormalSample, "NormalSample"},
 };
 
-std::string toString(TimeLossyPolicy policy) {
-  return TimeLossyPolicyMap[policy];
+std::string toString(LossyPolicy policy) {
+  return LossyPolicyMap[policy];
 }
 
-TimeLossyPolicy timeLossyPolicyFromString(const std::string& str) {
-  for (auto& [en, enStr] : TimeLossyPolicyMap) {
+LossyPolicy lossyPolicyFromString(const std::string& str) {
+  for (auto& [en, enStr] : LossyPolicyMap) {
     if (enStr == str) {
       return en;
     }
   }
-  return static_cast<TimeLossyPolicy>(UINT8_MAX);
-}
-
-std::map<DurationLossyPolicy, std::string> DurationLossyPolicyMap = {
-    {DurationLossyPolicy::QLinear, "QLinear"},
-    {DurationLossyPolicy::NormalSample, "NormalSample"},
-};
-
-std::string toString(DurationLossyPolicy policy) {
-  return DurationLossyPolicyMap[policy];
-}
-
-DurationLossyPolicy durationLossyPolicyFromString(const std::string& str) {
-  for (auto& [en, enStr] : DurationLossyPolicyMap) {
-    if (enStr == str) {
-      return en;
-    }
-  }
-  return static_cast<DurationLossyPolicy>(UINT8_MAX);
+  return static_cast<LossyPolicy>(UINT8_MAX);
 }
 
 /** Simple class to handle the parsing of the configuration file. */
@@ -290,18 +264,6 @@ class ConfigFile {
     if (value.empty() && !config.empty() && config.find("storagePolicy") != config.end()) {
       value = config["storagePolicy"];
     }
-    if (value.empty() && !config.empty() && config.find("StoragePolicy") != config.end()) {
-      value = config["StoragePolicy"];
-    }
-    if (value.empty() && !config.empty() && config.find("tsSubArrayEncoding") != config.end()) {
-      value = config["tsSubArrayEncoding"];
-    }
-    if (value.empty() && !config.empty() && config.find("durationSubArrayEncoding") != config.end()) {
-      value = config["durationSubArrayEncoding"];
-    }
-    if (value.empty() && !config.empty() && config.find("subArrayEncoding") != config.end()) {
-      value = config["subArrayEncoding"];
-    }
     if (!value.empty()) {
       ret = storagePolicyFromString(value);
       if (ret == static_cast<StoragePolicy>(UINT8_MAX)) {
@@ -312,47 +274,35 @@ class ConfigFile {
     return ret;
   }
 
-  TimeLossyPolicy loadTimeLossyPolicyConfig() {
-    TimeLossyPolicy ret = TimeLossyPolicy::QLinear;
+  LossyPolicy loadTimeLossyPolicyConfig() {
+    LossyPolicy ret = LossyPolicy::Linear;
 
     std::string value = loadStringFromEnv("PALLAS_TIME_LOSSY_POLICY");
     if (value.empty() && !config.empty() && config.find("timeLossyPolicy") != config.end()) {
       value = config["timeLossyPolicy"];
     }
-    if (value.empty() && !config.empty() && config.find("TimeLossyPolicy") != config.end()) {
-      value = config["TimeLossyPolicy"];
-    }
-    if (value.empty() && !config.empty() && config.find("monotoneLossyVariant") != config.end()) {
-      value = config["monotoneLossyVariant"];
-    }
     if (!value.empty()) {
-      ret = timeLossyPolicyFromString(value);
-      if (ret == static_cast<TimeLossyPolicy>(UINT8_MAX)) {
+      ret = lossyPolicyFromString(value);
+      if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
         pallas_warn("Invalid TimeLossyPolicy in config: %s\n", value.c_str());
-        ret = TimeLossyPolicy::QLinear;
+        ret = LossyPolicy::Linear;
       }
     }
     return ret;
   }
 
-  DurationLossyPolicy loadDurationLossyPolicyConfig() {
-    DurationLossyPolicy ret = DurationLossyPolicy::NormalSample;
+  LossyPolicy loadDurationLossyPolicyConfig() {
+    LossyPolicy ret = LossyPolicy::NormalSample;
 
     std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_POLICY");
     if (value.empty() && !config.empty() && config.find("durationLossyPolicy") != config.end()) {
       value = config["durationLossyPolicy"];
     }
-    if (value.empty() && !config.empty() && config.find("DurationLossyPolicy") != config.end()) {
-      value = config["DurationLossyPolicy"];
-    }
-    if (value.empty() && !config.empty() && config.find("durationLossyVariant") != config.end()) {
-      value = config["durationLossyVariant"];
-    }
     if (!value.empty()) {
-      ret = durationLossyPolicyFromString(value);
-      if (ret == static_cast<DurationLossyPolicy>(UINT8_MAX)) {
+      ret = lossyPolicyFromString(value);
+      if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
         pallas_warn("Invalid DurationLossyPolicy in config: %s\n", value.c_str());
-        ret = DurationLossyPolicy::NormalSample;
+        ret = LossyPolicy::NormalSample;
       }
     }
     return ret;
@@ -454,11 +404,11 @@ StoragePolicy ParameterHandler::getStoragePolicy() const {
   return storagePolicy;
 }
 
-TimeLossyPolicy ParameterHandler::getTimeLossyPolicy() const {
+LossyPolicy ParameterHandler::getTimeLossyPolicy() const {
   return timeLossyPolicy;
 }
 
-DurationLossyPolicy ParameterHandler::getDurationLossyPolicy() const {
+LossyPolicy ParameterHandler::getDurationLossyPolicy() const {
   return durationLossyPolicy;
 }
 

@@ -19,8 +19,7 @@
 
 namespace pallas {
 enum class StoragePolicy : uint8_t;
-enum class TimeLossyPolicy : uint8_t;
-enum class DurationLossyPolicy : uint8_t;
+enum class LossyPolicy : uint8_t;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -168,9 +167,9 @@ class ParameterHandler {
     /** Default storage policy to use for newly created SubArrays. */
     StoragePolicy storagePolicy{static_cast<StoragePolicy>(0)};
     /** Lossy policy to use when timestamp SubArrays are created in lossy mode. */
-    TimeLossyPolicy timeLossyPolicy{static_cast<TimeLossyPolicy>(0)};
+    LossyPolicy timeLossyPolicy{static_cast<LossyPolicy>(0)};
     /** Lossy policy to use when duration SubArrays are created in lossy mode. */
-    DurationLossyPolicy durationLossyPolicy{static_cast<DurationLossyPolicy>(0)};
+    LossyPolicy durationLossyPolicy{static_cast<LossyPolicy>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -202,9 +201,9 @@ class ParameterHandler {
     /** Getter for the default SubArray storage policy used for new vectors. */
     [[nodiscard]] StoragePolicy getStoragePolicy() const;
     /** Getter for the active timestamp lossy policy. */
-    [[nodiscard]] TimeLossyPolicy getTimeLossyPolicy() const;
+    [[nodiscard]] LossyPolicy getTimeLossyPolicy() const;
     /** Getter for the active duration lossy policy. */
-    [[nodiscard]] DurationLossyPolicy getDurationLossyPolicy() const;
+    [[nodiscard]] LossyPolicy getDurationLossyPolicy() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 
