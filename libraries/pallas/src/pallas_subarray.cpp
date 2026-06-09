@@ -11,183 +11,154 @@
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_subarray.h"
 
-/** Methods Pertaining to the memory manager of the SubArray */
+/** Methods Pertaining to the policy manager of the SubArray */
 namespace pallas {
 
 namespace {
 
-size_t resolve_manager_capacity(ValueDomain, Policy policy) {
+std::unique_ptr<Manager> make_manager(ValueDomain, StoragePolicy policy) {
     switch (policy) {
-        case Policy::None:
-        case Policy::Delta:
-            return DEFAULT_VECTOR_SIZE;
-        case Policy::Lossy:
-            return DEFAULT_SMALL_SIZE;
+        case StoragePolicy::None:
+        case StoragePolicy::Delta:
+        case StoragePolicy::Lossy:
+            return std::make_unique<NoneManager>();
     }
 
-    return DEFAULT_VECTOR_SIZE;
+    return std::make_unique<NoneManager>();
 }
 
 }  // namespace
 
-Manager::Manager(ValueDomain domain, Policy policy, size_t starting_index)
-    : allocated_count(resolve_manager_capacity(domain, policy)),
-      values(new uint64_t[allocated_count]),
-      first_index(starting_index),
-      value_domain(domain),
-      storage_policy(policy) {}
+Manager::~Manager() = default;
 
-Manager::~Manager() {
-    delete[] values;
+void Manager::dump_runtime_state(const SubArrayBase& subarray, FILE* file) const {
+    if (file == nullptr) {
+        return;
+    }
+    std::fwrite(&subarray.value_count, sizeof(subarray.value_count), 1, file);
+    std::fwrite(&subarray.allocated_count, sizeof(subarray.allocated_count), 1, file);
+    std::fwrite(&subarray.first_index, sizeof(subarray.first_index), 1, file);
+    std::fwrite(&subarray.file_offset, sizeof(subarray.file_offset), 1, file);
 }
 
-AddStatus Manager::add_raw(uint64_t val) {
-    if (value_count >= allocated_count) {
+void Manager::load_runtime_state(SubArrayBase& subarray, FILE* file) const {
+    if (file == nullptr) {
+        return;
+    }
+    size_t loaded_allocated_count = 0;
+    std::fread(&subarray.value_count, sizeof(subarray.value_count), 1, file);
+    std::fread(&loaded_allocated_count, sizeof(loaded_allocated_count), 1, file);
+    std::fread(&subarray.first_index, sizeof(subarray.first_index), 1, file);
+    std::fread(&subarray.file_offset, sizeof(subarray.file_offset), 1, file);
+
+    if (loaded_allocated_count != subarray.allocated_count) {
+        delete[] subarray.values;
+        subarray.allocated_count = loaded_allocated_count;
+        subarray.values = (subarray.allocated_count == 0) ? nullptr : new uint64_t[subarray.allocated_count];
+    }
+}
+
+size_t NoneManager::recommended_capacity(ValueDomain, StoragePolicy policy) const {
+    
+    return DEFAULT_VECTOR_SIZE;
+}
+
+AddStatus NoneManager::add(SubArrayBase& subarray, uint64_t val) const {
+    if (subarray.value_count >= subarray.allocated_count) {
         return AddStatus::Full;
     }
 
-    values[value_count] = val;
-    value_count++;
+    subarray.values[subarray.value_count] = val;
+    subarray.value_count++;
     return AddStatus::Ok;
 }
 
-uint64_t Manager::at(size_t pos) const {
-    if (pos < first_index || pos >= first_index + value_count) {
-        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, first_index, value_count);
+uint64_t NoneManager::at(const SubArrayBase& subarray, size_t pos) const {
+    if (!subarray.contains(pos)) {
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, subarray.first_index, subarray.value_count);
     }
-    return values[pos - first_index];
+    return subarray.values[subarray.local_index(pos)];
 }
 
-uint64_t Manager::operator[](size_t pos) const {
-    return values[pos - first_index];
-}
-
-void Manager::copy_to_array(uint64_t* given_array) const {
-    std::memcpy(given_array, values, value_count * sizeof(uint64_t));
-}
-
-size_t Manager::size() const {
-    return value_count;
-}
-
-size_t Manager::capacity() const {
-    return allocated_count;
-}
-
-size_t Manager::starting_index() const {
-    return first_index;
-}
-
-void Manager::set_starting_index(size_t starting_index) {
-    first_index = starting_index;
-}
-
-size_t Manager::offset() const {
-    return file_offset;
-}
-
-void Manager::set_offset(size_t offset) {
-    file_offset = offset;
-}
-
-ValueDomain Manager::domain() const {
-    return value_domain;
-}
-
-Policy Manager::policy() const {
-    return storage_policy;
-}
-
-uint64_t* Manager::data() const {
-    return values;
-}
-
-void Manager::dump_runtime_state(FILE* file) const {
-    if (file == nullptr) {
-        return;
+uint64_t NoneManager::get(const SubArrayBase& subarray, size_t pos) const {
+    if (!subarray.contains(pos)) {
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, subarray.first_index, subarray.value_count);
     }
-    std::fwrite(&value_count, sizeof(value_count), 1, file);
-    std::fwrite(&allocated_count, sizeof(allocated_count), 1, file);
-    std::fwrite(&first_index, sizeof(first_index), 1, file);
-    std::fwrite(&file_offset, sizeof(file_offset), 1, file);
-    std::fwrite(&dynamic_mode_enabled, sizeof(dynamic_mode_enabled), 1, file);
-    std::fwrite(&prediction_sample_count, sizeof(prediction_sample_count), 1, file);
+    return subarray.values[subarray.local_index(pos)];
 }
 
-void Manager::load_runtime_state(FILE* file) {
-    if (file == nullptr) {
-        return;
-    }
-    std::fread(&value_count, sizeof(value_count), 1, file);
-    std::fread(&allocated_count, sizeof(allocated_count), 1, file);
-    std::fread(&first_index, sizeof(first_index), 1, file);
-    std::fread(&file_offset, sizeof(file_offset), 1, file);
-    std::fread(&dynamic_mode_enabled, sizeof(dynamic_mode_enabled), 1, file);
-    std::fread(&prediction_sample_count, sizeof(prediction_sample_count), 1, file);
+void NoneManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+    std::memcpy(given_array, subarray.values, subarray.value_count * sizeof(uint64_t));
 }
 
-void Manager::reset_prediction_state() {
-    dynamic_mode_enabled = false;
-    prediction_sample_count = 0;
-}
-
-void Manager::note_prediction_sample(uint64_t) {
-    prediction_sample_count++;
-}
-
-}
+}  // namespace pallas
 
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
 
-SubArrayBase::SubArrayBase(ValueDomain domain, Policy policy, SubArrayBase* previous)
-    : prev(previous), value_domain(domain), manager(domain, policy) {
+SubArrayBase::SubArrayBase(ValueDomain domain, StoragePolicy policy, SubArrayBase* previous)
+    : prev(previous),
+      value_domain(domain),
+      storage_policy(policy),
+      manager(make_manager(domain, policy)),
+      allocated_count(manager->recommended_capacity(domain, policy)),
+      values(new uint64_t[allocated_count]) {
     if (prev != nullptr) {
         prev->next = this;
-        manager.set_starting_index(prev->manager.starting_index() + prev->manager.size());
+        first_index = prev->first_index + prev->value_count;
     }
 }
 
-SubArrayBase::~SubArrayBase() = default;
+SubArrayBase::~SubArrayBase() {
+    delete[] values;
+}
+
+bool SubArrayBase::contains(size_t pos) const {
+    return pos >= first_index && pos < first_index + value_count;
+}
+
+size_t SubArrayBase::local_index(size_t pos) const {
+    return pos - first_index;
+}
 
 uint64_t SubArrayBase::at(size_t pos) const {
-    return manager.at(pos);
+    return manager->at(*this, pos);
 }
 
 uint64_t SubArrayBase::operator[](size_t pos) const {
-    return manager[pos];
+    return manager->get(*this, pos);
 }
 
 void SubArrayBase::copy_to_array(uint64_t* given_array) const {
-    manager.copy_to_array(given_array);
+    manager->copy_to_array(*this, given_array);
 }
 
 ValueDomain SubArrayBase::domain() const {
     return value_domain;
 }
 
-Policy SubArrayBase::policy() const {
-    return manager.policy();
+StoragePolicy SubArrayBase::policy() const {
+    return storage_policy;
 }
 
 size_t SubArrayBase::size() const {
-    return manager.size();
+    return value_count;
 }
 
 size_t SubArrayBase::capacity() const {
-    return manager.capacity();
+    return allocated_count;
 }
 
 size_t SubArrayBase::starting_index() const {
-    return manager.starting_index();
+    return first_index;
 }
 
 size_t SubArrayBase::offset() const {
-    return manager.offset();
+    return file_offset;
 }
 
 void SubArrayBase::set_offset(size_t offset) {
-    manager.set_offset(offset);
+    file_offset = offset;
 }
 
 }
@@ -195,18 +166,17 @@ void SubArrayBase::set_offset(size_t offset) {
 /** Methods Peratining to the TimeSubArray Class */
 namespace pallas {
 
-TimeSubArray::TimeSubArray(Policy policy, TimeSubArray* previous)
+TimeSubArray::TimeSubArray(StoragePolicy policy, TimeSubArray* previous)
     : SubArrayBase(ValueDomain::Timestamp, policy, previous) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
-    if (manager.size() == 0) {
+    if (value_count == 0) {
         first_timestamp = val;
     }
-    
-    auto status = manager.add_raw(val);
+
+    auto status = manager->add(*this, val);
     pallas_assert(status == AddStatus::Ok);
     last_timestamp = val;
-    manager.note_prediction_sample(val);
     return status;
 }
 
@@ -223,29 +193,28 @@ uint64_t TimeSubArray::last_value() const {
 /** Methods Peratining to the DurationSubArray Class */
 namespace pallas {
 
-DurationSubArray::DurationSubArray(Policy policy, DurationSubArray* previous)
+DurationSubArray::DurationSubArray(StoragePolicy policy, DurationSubArray* previous)
     : SubArrayBase(ValueDomain::Duration, policy, previous) {}
 
 AddStatus DurationSubArray::add(uint64_t val) {
-    auto status = manager.add_raw(val);
+    auto status = manager->add(*this, val);
     pallas_assert(status == AddStatus::Ok);
     update_statistics();
-    manager.note_prediction_sample(val);
     return status;
 }
 
 void DurationSubArray::update_statistics() {
-    const uint64_t current_value = manager.data()[manager.size() - 1];
+    const uint64_t current_value = values[value_count - 1];
     min_duration = (current_value < min_duration) ? current_value : min_duration;
     max_duration = (current_value > max_duration) ? current_value : max_duration;
     mean_duration += current_value;
 }
 
 void DurationSubArray::final_update_mean() {
-    if (manager.size() == 0) {
+    if (value_count == 0) {
         return;
     }
-    mean_duration /= manager.size();
+    mean_duration /= value_count;
     pallas_assert_inferior_equal(mean_duration, max_duration);
     pallas_assert_inferior_equal(min_duration, mean_duration);
 }
