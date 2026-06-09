@@ -208,7 +208,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
     }
 
     auto* sequence = thread->getSequence(loop->repeated_token);
-    if (sequence == nullptr || sequence->durations == nullptr || sequence->durations->size < kHotLoopIterationThreshold) {
+    if (sequence == nullptr || sequence->durations == nullptr || sequence->durations->size() < kHotLoopIterationThreshold) {
         return;
     }
 
@@ -217,7 +217,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
     }
 
     pallas_duration_t max_duration = 0;
-    const size_t first_duration_index = sequence->durations->size - kHotLoopIterationThreshold;
+    const size_t first_duration_index = sequence->durations->size() - kHotLoopIterationThreshold;
     for (size_t i = 0; i < kHotLoopIterationThreshold; ++i) {
         const pallas_duration_t duration = sequence->durations->at(first_duration_index + i);
         max_duration = (duration > max_duration) ? duration : max_duration;

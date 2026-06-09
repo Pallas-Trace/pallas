@@ -1090,7 +1090,7 @@ static void readEventData(pallas::EventData& event, const File& eventFile, const
 };
 
 static void storeEvent(pallas::Event& event, const File& eventFile, const File& durationFile, const pallas::ParameterHandler* parameter_handler, bool load_thread) {
-    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
     pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
     storeEventData(event.data, eventFile, *parameter_handler);
     eventFile.write(&event.attribute_pos, sizeof(event.attribute_pos), 1);
@@ -1135,7 +1135,7 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
 }
 
 static void storeSequence(pallas::Sequence& sequence, const File& sequenceFile, const File& durationFile, const pallas::ParameterHandler* parameter_handler, bool load_thread) {
-    pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size);
+    pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size());
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         //    th->printSequence(sequence);
         std::cout << "Durations: " << sequence.durations->to_string() << "\n"
@@ -1181,7 +1181,7 @@ static void readSequence(pallas::Sequence& sequence, const File& sequenceFile, c
         sequence.exclusive_durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
         sequence.timestamps = new pallas::TimeLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
     }
-    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size);
+    pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size());
 }
 
 static void storeLoop(pallas::Loop& loop, const File& loopFile) {

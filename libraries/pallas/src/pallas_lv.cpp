@@ -41,7 +41,7 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
 }
 
 uint64_t LVBase::at(size_t pos) const {
-    auto* subarray = find_subarray(pos);
+    auto* subarray = const_cast<SubArrayBase*>(find_subarray(pos));
     if (subarray == nullptr) {
         pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
     }

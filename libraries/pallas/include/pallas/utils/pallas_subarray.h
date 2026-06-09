@@ -66,9 +66,6 @@ class Manager {
     virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
     virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const = 0;
     virtual void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const = 0;
-
-    virtual void dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const;
-    virtual void load_runtime_state(SubArrayBase& subarray, FILE* info_file) const;
 };
 
 class NoneManager : public Manager {
@@ -102,7 +99,6 @@ class SubArrayBase {
     [[nodiscard]] bool has_values() const;
     void set_offset(size_t offset);
     void load_data(FILE* data_file, const ParameterHandler& parameter_handler);
-    void load_runtime_state(FILE* info_file);
 
    protected:
     friend class Manager;

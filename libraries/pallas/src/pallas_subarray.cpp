@@ -34,33 +34,6 @@ std::unique_ptr<Manager> make_manager(ValueDomain, StoragePolicy policy) {
 
 Manager::~Manager() = default;
 
-void Manager::dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const {
-    if (info_file == nullptr) {
-        return;
-    }
-    std::fwrite(&subarray.value_count, sizeof(subarray.value_count), 1, info_file);
-    std::fwrite(&subarray.allocated_count, sizeof(subarray.allocated_count), 1, info_file);
-    std::fwrite(&subarray.first_index, sizeof(subarray.first_index), 1, info_file);
-    std::fwrite(&subarray.file_offset, sizeof(subarray.file_offset), 1, info_file);
-}
-
-void Manager::load_runtime_state(SubArrayBase& subarray, FILE* info_file) const {
-    if (info_file == nullptr) {
-        return;
-    }
-    size_t loaded_allocated_count = 0;
-    std::fread(&subarray.value_count, sizeof(subarray.value_count), 1, info_file);
-    std::fread(&loaded_allocated_count, sizeof(loaded_allocated_count), 1, info_file);
-    std::fread(&subarray.first_index, sizeof(subarray.first_index), 1, info_file);
-    std::fread(&subarray.file_offset, sizeof(subarray.file_offset), 1, info_file);
-
-    if (loaded_allocated_count != subarray.allocated_count) {
-        delete[] subarray.values;
-        subarray.allocated_count = loaded_allocated_count;
-        subarray.values = (subarray.allocated_count == 0) ? nullptr : new uint64_t[subarray.allocated_count];
-    }
-}
-
 }
 
 /** Methods Peratining to NoneManger Class */
@@ -208,10 +181,6 @@ void SubArrayBase::set_offset(size_t offset) {
 
 void SubArrayBase::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
     manager->load_data(*this, data_file, parameter_handler);
-}
-
-void SubArrayBase::load_runtime_state(FILE* info_file) {
-    manager->load_runtime_state(*this, info_file);
 }
 
 }
