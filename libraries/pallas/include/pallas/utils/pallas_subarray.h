@@ -40,9 +40,16 @@ enum class StoragePolicy : uint8_t {
     Lossy = 2,
 };
 
-enum class LossyPolicy : uint8_t {
-    Linear = 0,  // ValueDomain must be Timestamp
-    Normal = 1,  // ValueDomain must be Duration
+enum class TimeLossyPolicy : uint8_t {
+    QLinear = 0,
+    QLinearMeanRep = 1,
+    QLinearPchipMeanRep = 2,
+    QLinearPchipMeanRepAdaptive = 4,
+};
+
+enum class DurationLossyPolicy : uint8_t {
+    QLinear = 0,
+    NormalSample = 1,
 };
 
 enum class AddStatus : uint8_t {
@@ -61,11 +68,12 @@ class Manager {
     virtual AddStatus add(SubArrayBase& subarray, uint64_t val) const = 0;
 
     [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
-    [[nodiscard]] virtual uint64_t get(const SubArrayBase& subarray, size_t pos) const = 0;
     virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
 
-    virtual void dump_runtime_state(const SubArrayBase& subarray, FILE* file) const;
-    virtual void load_runtime_state(SubArrayBase& subarray, FILE* file) const;
+    virtual void dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const;
+    virtual void load_runtime_state(SubArrayBase& subarray, FILE* info_file) const;
+    virtual void dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const = 0;
+    virtual void load_runtime_values(SubArrayBase& subarray, FILE* data_file) const = 0;
 };
 
 class NoneManager : public Manager {
@@ -73,8 +81,9 @@ class NoneManager : public Manager {
     [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy) const override;
     AddStatus add(SubArrayBase& subarray, uint64_t val) const override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
-    [[nodiscard]] uint64_t get(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
+    void dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const override;
+    void load_runtime_values(SubArrayBase& subarray, FILE* data_file) const override;
 };
 
 class SubArrayBase {
@@ -93,7 +102,12 @@ class SubArrayBase {
     [[nodiscard]] size_t capacity() const;
     [[nodiscard]] size_t starting_index() const;
     [[nodiscard]] size_t offset() const;
+    [[nodiscard]] SubArrayBase* next_subarray() const;
+    [[nodiscard]] SubArrayBase* previous_subarray() const;
     void set_offset(size_t offset);
+    void dump_runtime_state(FILE* info_file, FILE* data_file);
+    void load_runtime_state(FILE* info_file);
+    void load_runtime_values(FILE* data_file);
 
    protected:
     friend class Manager;

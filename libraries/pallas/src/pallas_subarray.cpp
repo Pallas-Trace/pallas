@@ -31,25 +31,25 @@ std::unique_ptr<Manager> make_manager(ValueDomain, StoragePolicy policy) {
 
 Manager::~Manager() = default;
 
-void Manager::dump_runtime_state(const SubArrayBase& subarray, FILE* file) const {
-    if (file == nullptr) {
+void Manager::dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const {
+    if (info_file == nullptr) {
         return;
     }
-    std::fwrite(&subarray.value_count, sizeof(subarray.value_count), 1, file);
-    std::fwrite(&subarray.allocated_count, sizeof(subarray.allocated_count), 1, file);
-    std::fwrite(&subarray.first_index, sizeof(subarray.first_index), 1, file);
-    std::fwrite(&subarray.file_offset, sizeof(subarray.file_offset), 1, file);
+    std::fwrite(&subarray.value_count, sizeof(subarray.value_count), 1, info_file);
+    std::fwrite(&subarray.allocated_count, sizeof(subarray.allocated_count), 1, info_file);
+    std::fwrite(&subarray.first_index, sizeof(subarray.first_index), 1, info_file);
+    std::fwrite(&subarray.file_offset, sizeof(subarray.file_offset), 1, info_file);
 }
 
-void Manager::load_runtime_state(SubArrayBase& subarray, FILE* file) const {
-    if (file == nullptr) {
+void Manager::load_runtime_state(SubArrayBase& subarray, FILE* info_file) const {
+    if (info_file == nullptr) {
         return;
     }
     size_t loaded_allocated_count = 0;
-    std::fread(&subarray.value_count, sizeof(subarray.value_count), 1, file);
-    std::fread(&loaded_allocated_count, sizeof(loaded_allocated_count), 1, file);
-    std::fread(&subarray.first_index, sizeof(subarray.first_index), 1, file);
-    std::fread(&subarray.file_offset, sizeof(subarray.file_offset), 1, file);
+    std::fread(&subarray.value_count, sizeof(subarray.value_count), 1, info_file);
+    std::fread(&loaded_allocated_count, sizeof(loaded_allocated_count), 1, info_file);
+    std::fread(&subarray.first_index, sizeof(subarray.first_index), 1, info_file);
+    std::fread(&subarray.file_offset, sizeof(subarray.file_offset), 1, info_file);
 
     if (loaded_allocated_count != subarray.allocated_count) {
         delete[] subarray.values;
@@ -58,8 +58,12 @@ void Manager::load_runtime_state(SubArrayBase& subarray, FILE* file) const {
     }
 }
 
+}
+
+/** Methods Peratining to NoneManger Class */
+namespace pallas {
+
 size_t NoneManager::recommended_capacity(ValueDomain, StoragePolicy policy) const {
-    
     return DEFAULT_VECTOR_SIZE;
 }
 
@@ -80,18 +84,27 @@ uint64_t NoneManager::at(const SubArrayBase& subarray, size_t pos) const {
     return subarray.values[subarray.local_index(pos)];
 }
 
-uint64_t NoneManager::get(const SubArrayBase& subarray, size_t pos) const {
-    if (!subarray.contains(pos)) {
-        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, subarray.first_index, subarray.value_count);
-    }
-    return subarray.values[subarray.local_index(pos)];
-}
-
 void NoneManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
     std::memcpy(given_array, subarray.values, subarray.value_count * sizeof(uint64_t));
 }
 
-}  // namespace pallas
+void NoneManager::dump_runtime_values(const SubArrayBase& subarray, FILE* data_file) const {
+    if (data_file == nullptr || subarray.values == nullptr) {
+        return;
+    }
+
+    std::fwrite(subarray.values, sizeof(uint64_t), subarray.value_count, data_file);
+}
+
+void NoneManager::load_runtime_values(SubArrayBase& subarray, FILE* data_file) const {
+    if (data_file == nullptr || subarray.values == nullptr) {
+        return;
+    }
+
+    std::fread(subarray.values, sizeof(uint64_t), subarray.value_count, data_file);
+}
+
+} 
 
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
@@ -126,7 +139,7 @@ uint64_t SubArrayBase::at(size_t pos) const {
 }
 
 uint64_t SubArrayBase::operator[](size_t pos) const {
-    return manager->get(*this, pos);
+    return at(pos);
 }
 
 void SubArrayBase::copy_to_array(uint64_t* given_array) const {
@@ -157,8 +170,41 @@ size_t SubArrayBase::offset() const {
     return file_offset;
 }
 
+SubArrayBase* SubArrayBase::next_subarray() const {
+    return next;
+}
+
+SubArrayBase* SubArrayBase::previous_subarray() const {
+    return prev;
+}
+
 void SubArrayBase::set_offset(size_t offset) {
     file_offset = offset;
+}
+
+void SubArrayBase::dump_runtime_state(FILE* info_file, FILE* data_file) {
+    if (data_file != nullptr) {
+        const long current_offset = std::ftell(data_file);
+        if (current_offset >= 0) {
+            file_offset = static_cast<size_t>(current_offset);
+        }
+        manager->dump_runtime_values(*this, data_file);
+    }
+
+    manager->dump_runtime_state(*this, info_file);
+}
+
+void SubArrayBase::load_runtime_state(FILE* info_file) {
+    manager->load_runtime_state(*this, info_file);
+}
+
+void SubArrayBase::load_runtime_values(FILE* data_file) {
+    if (data_file == nullptr) {
+        return;
+    }
+
+    std::fseek(data_file, static_cast<long>(file_offset), SEEK_SET);
+    manager->load_runtime_values(*this, data_file);
 }
 
 }

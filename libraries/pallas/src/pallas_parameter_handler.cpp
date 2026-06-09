@@ -12,10 +12,10 @@
 
 #include "pallas_config.h"
 
-#include "pallas/utils/pallas_linked_vector.h"
-#include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_subarray.h"
 
 namespace pallas {
 
@@ -123,66 +123,67 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
   return TimestampStorage::Invalid;
 }
 
-std::map<SubArrayEncoding, std::string> SubArrayEncodingMap = {
-    {SubArrayEncoding::None, "None"},
-    {SubArrayEncoding::DeltaTimestamp, "DeltaTimestamp"},
-    {SubArrayEncoding::DeltaDuration, "DeltaDuration"},
-    {SubArrayEncoding::MonotoneLossy, "MonotoneLossy"},
-    {SubArrayEncoding::DurationLossy, "DurationLossy"},
+std::map<StoragePolicy, std::string> StoragePolicyMap = {
+    {StoragePolicy::None, "None"},
+    {StoragePolicy::Delta, "Delta"},
+    {StoragePolicy::Lossy, "Lossy"},
 };
 
-std::string toString(SubArrayEncoding encoding) {
-  return SubArrayEncodingMap[encoding];
+std::string toString(StoragePolicy policy) {
+  return StoragePolicyMap[policy];
 }
 
-SubArrayEncoding subArrayEncodingFromString(const std::string& str) {
-  if (str == "Delta2Vint") {
-    return SubArrayEncoding::DeltaTimestamp;
+StoragePolicy storagePolicyFromString(const std::string& str) {
+  if (str == "DeltaTimestamp" || str == "DeltaDuration" || str == "Delta2Vint") {
+    return StoragePolicy::Delta;
   }
-  for (auto& [en, enStr] : SubArrayEncodingMap) {
+  if (str == "MonotoneLossy" || str == "DurationLossy") {
+    return StoragePolicy::Lossy;
+  }
+  for (auto& [en, enStr] : StoragePolicyMap) {
     if (enStr == str) {
       return en;
     }
   }
-  return static_cast<SubArrayEncoding>(UINT8_MAX);
+  return static_cast<StoragePolicy>(UINT8_MAX);
 }
 
-std::map<MonotoneLossyVariant, std::string> MonotoneLossyVariantMap = {
-    {MonotoneLossyVariant::QLinear, "QLinear"},
-    {MonotoneLossyVariant::QLinearMeanRep, "QLinearMeanRep"},
-    {MonotoneLossyVariant::QLinearPchipMeanRep, "QLinearPchipMeanRep"},
-    {MonotoneLossyVariant::QLinearPchipMeanRepAdaptive, "QLinearPchipMeanRepAdaptive"},
+std::map<TimeLossyPolicy, std::string> TimeLossyPolicyMap = {
+    {TimeLossyPolicy::QLinear, "QLinear"},
+    {TimeLossyPolicy::QLinearMeanRep, "QLinearMeanRep"},
+    {TimeLossyPolicy::QLinearPchipMeanRep, "QLinearPchipMeanRep"},
+    {TimeLossyPolicy::QLinearPchipMeanRepAdaptive, "QLinearPchipMeanRepAdaptive"},
 };
 
-std::string toString(MonotoneLossyVariant variant) {
-  return MonotoneLossyVariantMap[variant];
+std::string toString(TimeLossyPolicy policy) {
+  return TimeLossyPolicyMap[policy];
 }
 
-MonotoneLossyVariant monotoneLossyVariantFromString(const std::string& str) {
-  for (auto& [en, enStr] : MonotoneLossyVariantMap) {
+TimeLossyPolicy timeLossyPolicyFromString(const std::string& str) {
+  for (auto& [en, enStr] : TimeLossyPolicyMap) {
     if (enStr == str) {
       return en;
     }
   }
-  return static_cast<MonotoneLossyVariant>(UINT8_MAX);
+  return static_cast<TimeLossyPolicy>(UINT8_MAX);
 }
 
-std::map<DurationLossyVariant, std::string> DurationLossyVariantMap = {
-    {DurationLossyVariant::QLinear, "QLinear"},
-    {DurationLossyVariant::NormalSample, "NormalSample"},
+std::map<DurationLossyPolicy, std::string> DurationLossyPolicyMap = {
+    {DurationLossyPolicy::QLinear, "QLinear"},
+    {DurationLossyPolicy::NormalSample, "NormalSample"},
 };
 
-std::string toString(DurationLossyVariant variant) {
-  return DurationLossyVariantMap[variant];
+std::string toString(DurationLossyPolicy policy) {
+  return DurationLossyPolicyMap[policy];
 }
 
-DurationLossyVariant durationLossyVariantFromString(const std::string& str) {
-  for (auto& [en, enStr] : DurationLossyVariantMap) {
+DurationLossyPolicy durationLossyPolicyFromString(const std::string& str) {
+  for (auto& [en, enStr] : DurationLossyPolicyMap) {
     if (enStr == str) {
       return en;
     }
   }
-  return static_cast<DurationLossyVariant>(UINT8_MAX);
+  return static_cast<DurationLossyPolicy>(UINT8_MAX);
 }
 
 /** Simple class to handle the parsing of the configuration file. */
@@ -282,35 +283,18 @@ class ConfigFile {
     return ret;
   }
 
-  SubArrayEncoding loadTimestampSubArrayEncodingConfig() {
-    SubArrayEncoding ret = SubArrayEncoding::None;
+  StoragePolicy loadStoragePolicyConfig() {
+    StoragePolicy ret = StoragePolicy::None;
 
-    std::string value = loadStringFromEnv("PALLAS_TS_SUBARRAY_ENCODING");
-    if (value.empty()) {
-      value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
+    std::string value = loadStringFromEnv("PALLAS_STORAGE_POLICY");
+    if (value.empty() && !config.empty() && config.find("storagePolicy") != config.end()) {
+      value = config["storagePolicy"];
+    }
+    if (value.empty() && !config.empty() && config.find("StoragePolicy") != config.end()) {
+      value = config["StoragePolicy"];
     }
     if (value.empty() && !config.empty() && config.find("tsSubArrayEncoding") != config.end()) {
       value = config["tsSubArrayEncoding"];
-    }
-    if (value.empty() && !config.empty() && config.find("subArrayEncoding") != config.end()) {
-      value = config["subArrayEncoding"];
-    }
-    if (!value.empty()) {
-      ret = subArrayEncodingFromString(value);
-      if (ret == static_cast<SubArrayEncoding>(UINT8_MAX)) {
-        pallas_warn("Invalid timestamp SubArrayEncoding in config: %s\n", value.c_str());
-        ret = SubArrayEncoding::None;
-      }
-    }
-    return ret;
-  }
-
-  SubArrayEncoding loadDurationSubArrayEncodingConfig() {
-    SubArrayEncoding ret = SubArrayEncoding::None;
-
-    std::string value = loadStringFromEnv("PALLAS_DURATION_SUBARRAY_ENCODING");
-    if (value.empty()) {
-      value = loadStringFromEnv("PALLAS_SUBARRAY_ENCODING");
     }
     if (value.empty() && !config.empty() && config.find("durationSubArrayEncoding") != config.end()) {
       value = config["durationSubArrayEncoding"];
@@ -319,44 +303,56 @@ class ConfigFile {
       value = config["subArrayEncoding"];
     }
     if (!value.empty()) {
-      ret = subArrayEncodingFromString(value);
-      if (ret == static_cast<SubArrayEncoding>(UINT8_MAX)) {
-        pallas_warn("Invalid duration SubArrayEncoding in config: %s\n", value.c_str());
-        ret = SubArrayEncoding::None;
+      ret = storagePolicyFromString(value);
+      if (ret == static_cast<StoragePolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid StoragePolicy in config: %s\n", value.c_str());
+        ret = StoragePolicy::None;
       }
     }
     return ret;
   }
 
-  MonotoneLossyVariant loadMonotoneLossyVariantConfig() {
-    MonotoneLossyVariant ret = MonotoneLossyVariant::QLinear;
+  TimeLossyPolicy loadTimeLossyPolicyConfig() {
+    TimeLossyPolicy ret = TimeLossyPolicy::QLinear;
 
-    std::string value = loadStringFromEnv("PALLAS_MONOTONE_LOSSY_VARIANT");
+    std::string value = loadStringFromEnv("PALLAS_TIME_LOSSY_POLICY");
+    if (value.empty() && !config.empty() && config.find("timeLossyPolicy") != config.end()) {
+      value = config["timeLossyPolicy"];
+    }
+    if (value.empty() && !config.empty() && config.find("TimeLossyPolicy") != config.end()) {
+      value = config["TimeLossyPolicy"];
+    }
     if (value.empty() && !config.empty() && config.find("monotoneLossyVariant") != config.end()) {
       value = config["monotoneLossyVariant"];
     }
     if (!value.empty()) {
-      ret = monotoneLossyVariantFromString(value);
-      if (ret == static_cast<MonotoneLossyVariant>(UINT8_MAX)) {
-        pallas_warn("Invalid MonotoneLossyVariant in config: %s\n", value.c_str());
-        ret = MonotoneLossyVariant::QLinear;
+      ret = timeLossyPolicyFromString(value);
+      if (ret == static_cast<TimeLossyPolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid TimeLossyPolicy in config: %s\n", value.c_str());
+        ret = TimeLossyPolicy::QLinear;
       }
     }
     return ret;
   }
 
-  DurationLossyVariant loadDurationLossyVariantConfig() {
-    DurationLossyVariant ret = DurationLossyVariant::NormalSample;
+  DurationLossyPolicy loadDurationLossyPolicyConfig() {
+    DurationLossyPolicy ret = DurationLossyPolicy::NormalSample;
 
-    std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_VARIANT");
+    std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_POLICY");
+    if (value.empty() && !config.empty() && config.find("durationLossyPolicy") != config.end()) {
+      value = config["durationLossyPolicy"];
+    }
+    if (value.empty() && !config.empty() && config.find("DurationLossyPolicy") != config.end()) {
+      value = config["DurationLossyPolicy"];
+    }
     if (value.empty() && !config.empty() && config.find("durationLossyVariant") != config.end()) {
       value = config["durationLossyVariant"];
     }
     if (!value.empty()) {
-      ret = durationLossyVariantFromString(value);
-      if (ret == static_cast<DurationLossyVariant>(UINT8_MAX)) {
-        pallas_warn("Invalid DurationLossyVariant in config: %s\n", value.c_str());
-        ret = DurationLossyVariant::NormalSample;
+      ret = durationLossyPolicyFromString(value);
+      if (ret == static_cast<DurationLossyPolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid DurationLossyPolicy in config: %s\n", value.c_str());
+        ret = DurationLossyPolicy::NormalSample;
       }
     }
     return ret;
@@ -386,10 +382,9 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
-  tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
-  durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
-  monotoneLossyVariant = config.loadMonotoneLossyVariantConfig();
-  durationLossyVariant = config.loadDurationLossyVariantConfig();
+  storagePolicy = config.loadStoragePolicyConfig();
+  timeLossyPolicy = config.loadTimeLossyPolicyConfig();
+  durationLossyPolicy = config.loadDurationLossyPolicyConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -426,10 +421,9 @@ ParameterHandler::ParameterHandler() {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
-  tsSubArrayEncoding = config.loadTimestampSubArrayEncodingConfig();
-  durationSubArrayEncoding = config.loadDurationSubArrayEncodingConfig();
-  monotoneLossyVariant = config.loadMonotoneLossyVariantConfig();
-  durationLossyVariant = config.loadDurationLossyVariantConfig();
+  storagePolicy = config.loadStoragePolicyConfig();
+  timeLossyPolicy = config.loadTimeLossyPolicyConfig();
+  durationLossyPolicy = config.loadDurationLossyPolicyConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -456,20 +450,16 @@ LoopFindingAlgorithm ParameterHandler::getLoopFindingAlgorithm() const {
   return loopFindingAlgorithm;
 }
 
-SubArrayEncoding ParameterHandler::getTimestampSubArrayEncoding() const {
-  return tsSubArrayEncoding;
+StoragePolicy ParameterHandler::getStoragePolicy() const {
+  return storagePolicy;
 }
 
-SubArrayEncoding ParameterHandler::getDurationSubArrayEncoding() const {
-  return durationSubArrayEncoding;
+TimeLossyPolicy ParameterHandler::getTimeLossyPolicy() const {
+  return timeLossyPolicy;
 }
 
-MonotoneLossyVariant ParameterHandler::getMonotoneLossyVariant() const {
-  return monotoneLossyVariant;
-}
-
-DurationLossyVariant ParameterHandler::getDurationLossyVariant() const {
-  return durationLossyVariant;
+DurationLossyPolicy ParameterHandler::getDurationLossyPolicy() const {
+  return durationLossyPolicy;
 }
 
 TimestampStorage ParameterHandler::getTimestampStorage() const {
@@ -483,11 +473,10 @@ std::string ParameterHandler::to_string() const {
   stream << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
   stream << "maxLoopLength=" << maxLoopLength << "\n";
   stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
-  stream << "timestampStorage=" << toString(timestampStorage) << "\n";
-  stream << "tsSubArrayEncoding=" << toString(tsSubArrayEncoding) << "\n";
-  stream << "durationSubArrayEncoding=" << toString(durationSubArrayEncoding) << "\n";
-  stream << "monotoneLossyVariant=" << toString(monotoneLossyVariant) << "\n";
-  stream << "durationLossyVariant=" << toString(durationLossyVariant) << "\n";
+  stream << "timestampStorageAlgorithm=" << toString(timestampStorage) << "\n";
+  stream << "storagePolicy=" << toString(storagePolicy) << "\n";
+  stream << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
+  stream << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
   return stream.str();
 }
 

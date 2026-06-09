@@ -33,6 +33,35 @@
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
+
+namespace {
+
+SubArrayEncoding storage_policy_to_legacy_time_encoding(pallas::StoragePolicy policy) {
+    switch (policy) {
+        case pallas::StoragePolicy::None:
+            return SubArrayEncoding::None;
+        case pallas::StoragePolicy::Delta:
+            return SubArrayEncoding::DeltaTimestamp;
+        case pallas::StoragePolicy::Lossy:
+            return SubArrayEncoding::MonotoneLossy;
+    }
+    return SubArrayEncoding::None;
+}
+
+SubArrayEncoding storage_policy_to_legacy_duration_encoding(pallas::StoragePolicy policy) {
+    switch (policy) {
+        case pallas::StoragePolicy::None:
+            return SubArrayEncoding::None;
+        case pallas::StoragePolicy::Delta:
+            return SubArrayEncoding::DeltaDuration;
+        case pallas::StoragePolicy::Lossy:
+            return SubArrayEncoding::DurationLossy;
+    }
+    return SubArrayEncoding::None;
+}
+
+}  // namespace
+
 void pallas_storage_option_init() {
     // Timestamp storage
     const char* store_timestamps_str = getenv("STORE_TIMESTAMPS");
@@ -839,9 +868,9 @@ pallas::LinkedVectorBase::SubArrayBase::SubArrayBase(FILE* file, SubArrayBase* p
 }
 
 pallas::LinkedTimeVector::LinkedTimeVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, parameter_handler.getTimestampSubArrayEncoding()) {
+    : LinkedVectorBase(parameter_handler, storage_policy_to_legacy_time_encoding(parameter_handler.getStoragePolicy())) {
     filePath = valueFilePath;
-    preferred_sub_arr_encoding = parameter_handler.getTimestampSubArrayEncoding();
+    preferred_sub_arr_encoding = storage_policy_to_legacy_time_encoding(parameter_handler.getStoragePolicy());
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
@@ -931,9 +960,9 @@ pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous)
 }
 
 pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, parameter_handler.getDurationSubArrayEncoding()) {
+    : LinkedVectorBase(parameter_handler, storage_policy_to_legacy_duration_encoding(parameter_handler.getStoragePolicy())) {
     filePath = valueFilePath;
-    preferred_sub_arr_encoding = parameter_handler.getDurationSubArrayEncoding();
+    preferred_sub_arr_encoding = storage_policy_to_legacy_duration_encoding(parameter_handler.getStoragePolicy());
     first = nullptr;
     last = nullptr;
     _pallas_fread(&size, sizeof(size), 1, vectorFile);
@@ -1674,9 +1703,9 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fwrite(&maxLoopLength, sizeof(maxLoopLength), 1, file);
     _pallas_fwrite(&timestampStorage, sizeof(timestampStorage), 1, file);
-    _pallas_fwrite(&tsSubArrayEncoding, sizeof(tsSubArrayEncoding), 1, file);
-    _pallas_fwrite(&durationSubArrayEncoding, sizeof(durationSubArrayEncoding), 1, file);
-    _pallas_fwrite(&monotoneLossyVariant, sizeof(monotoneLossyVariant), 1, file);
+    _pallas_fwrite(&storagePolicy, sizeof(storagePolicy), 1, file);
+    _pallas_fwrite(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
+    _pallas_fwrite(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
 }
 
 pallas::ParameterHandler::ParameterHandler(FILE* file) {
@@ -1691,9 +1720,9 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fread(&maxLoopLength, sizeof(maxLoopLength), 1, file);
     _pallas_fread(&timestampStorage, sizeof(timestampStorage), 1, file);
-    _pallas_fread(&tsSubArrayEncoding, sizeof(tsSubArrayEncoding), 1, file);
-    _pallas_fread(&durationSubArrayEncoding, sizeof(durationSubArrayEncoding), 1, file);
-    _pallas_fread(&monotoneLossyVariant, sizeof(monotoneLossyVariant), 1, file);
+    _pallas_fread(&storagePolicy, sizeof(storagePolicy), 1, file);
+    _pallas_fread(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
+    _pallas_fread(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 

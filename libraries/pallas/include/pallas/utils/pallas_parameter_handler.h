@@ -9,6 +9,7 @@
 #pragma once
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <string>
 
@@ -17,9 +18,9 @@
 #endif
 
 namespace pallas {
-enum class SubArrayEncoding : uint8_t;
-enum class MonotoneLossyVariant : uint8_t;
-enum class DurationLossyVariant : uint8_t;
+enum class StoragePolicy : uint8_t;
+enum class TimeLossyPolicy : uint8_t;
+enum class DurationLossyPolicy : uint8_t;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -164,14 +165,12 @@ class ParameterHandler {
 
     /** Timestamp storage method. */
     TimestampStorage timestampStorage{TimestampStorageDefault};
-    /** Default encoding to use for newly created timestamp SubArrays. */
-    SubArrayEncoding tsSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
-    /** Default encoding to use for newly created duration SubArrays. */
-    SubArrayEncoding durationSubArrayEncoding{static_cast<SubArrayEncoding>(0)};
-    /** Variant used when MonotoneLossy subarray encoding is enabled. */
-    MonotoneLossyVariant monotoneLossyVariant{static_cast<MonotoneLossyVariant>(0)};
-    /** Variant used when DurationLossy subarray encoding is enabled. */
-    DurationLossyVariant durationLossyVariant{static_cast<DurationLossyVariant>(0)};
+    /** Default storage policy to use for newly created SubArrays. */
+    StoragePolicy storagePolicy{static_cast<StoragePolicy>(0)};
+    /** Lossy policy to use when timestamp SubArrays are created in lossy mode. */
+    TimeLossyPolicy timeLossyPolicy{static_cast<TimeLossyPolicy>(0)};
+    /** Lossy policy to use when duration SubArrays are created in lossy mode. */
+    DurationLossyPolicy durationLossyPolicy{static_cast<DurationLossyPolicy>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -200,14 +199,12 @@ class ParameterHandler {
      * @returns Value of #loopFindingAlgorithm.
      */
     [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
-    /** Getter for the default SubArray encoding used for new timestamp vectors. */
-    [[nodiscard]] SubArrayEncoding getTimestampSubArrayEncoding() const;
-    /** Getter for the default SubArray encoding used for new duration vectors. */
-    [[nodiscard]] SubArrayEncoding getDurationSubArrayEncoding() const;
-    /** Getter for the active MonotoneLossy variant. */
-    [[nodiscard]] MonotoneLossyVariant getMonotoneLossyVariant() const;
-    /** Getter for the active DurationLossy variant. */
-    [[nodiscard]] DurationLossyVariant getDurationLossyVariant() const;
+    /** Getter for the default SubArray storage policy used for new vectors. */
+    [[nodiscard]] StoragePolicy getStoragePolicy() const;
+    /** Getter for the active timestamp lossy policy. */
+    [[nodiscard]] TimeLossyPolicy getTimeLossyPolicy() const;
+    /** Getter for the active duration lossy policy. */
+    [[nodiscard]] DurationLossyPolicy getDurationLossyPolicy() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 
