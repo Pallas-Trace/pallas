@@ -100,6 +100,9 @@ void LVBase::reset_offsets() {
 /** Methods Pertaining to TimeLV class */
 namespace pallas {
 
+TimeLV::TimeLV(ParameterHandler& p)
+    : TimeLV(p, p.getStoragePolicy()) {}
+
 TimeLV::TimeLV(ParameterHandler& p, StoragePolicy preferred_policy)
     : LVBase(p, ValueDomain::Timestamp, preferred_policy) {
     first = create_subarray(nullptr);
@@ -151,10 +154,6 @@ size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
     return result;
 }
 
-void TimeLV::write_to_file(FILE*, FILE*, const ParameterHandler*) {
-    pallas_error("TimeLV::write_to_file is not implemented yet\n");
-}
-
 SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     return new TimeSubArray(preferred_storage_policy, static_cast<TimeSubArray*>(previous));
 }
@@ -163,7 +162,10 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
 
 /** Methods Pertaining to DurationLV class */
 namespace pallas {
-    
+
+DurationLV::DurationLV(ParameterHandler& p)
+    : DurationLV(p, p.getStoragePolicy()) {}
+
 DurationLV::DurationLV(ParameterHandler& p, StoragePolicy preferred_policy)
     : LVBase(p, ValueDomain::Duration, preferred_policy) {
     first = create_subarray(nullptr);

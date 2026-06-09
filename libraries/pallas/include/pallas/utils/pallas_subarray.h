@@ -29,6 +29,8 @@
 
 namespace pallas {
 
+class ParameterHandler;
+
 enum class ValueDomain : uint8_t {
     Timestamp = 0,
     Duration = 1,
@@ -109,6 +111,8 @@ class SubArrayBase {
     explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
     [[nodiscard]] bool contains(size_t pos) const;
     [[nodiscard]] size_t local_index(size_t pos) const;
+    [[nodiscard]] uint64_t* raw_values();
+    void free_values();
 
     SubArrayBase* next = nullptr;
     SubArrayBase* prev = nullptr;
@@ -127,6 +131,7 @@ class TimeSubArray : public SubArrayBase {
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
+    void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
 
     [[nodiscard]] uint64_t first_value() const;
     [[nodiscard]] uint64_t last_value() const;

@@ -654,14 +654,14 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
         if (s->type != SEQUENCE_BLOCK)
             continue;
         // s.durations.min here because we don't want to load anything.
-        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min < start) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min_value() < start) {
             continue;
         }
-        if (s->timestamps->size == 1) {
+        if (s->timestamps->size() == 1) {
             // Special treatment for edge case
             // We know the timestamp is in the interval
             // So we compute it ourselves
-            pallas_duration_t duration = s->exclusive_durations->min;
+            pallas_duration_t duration = s->exclusive_durations->min_value();
             pallas_timestamp_t t_start = s->timestamps->front();
             pallas_timestamp_t t_end = duration + t_start;
             if (end < t_end) {
@@ -696,7 +696,7 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
 #ifdef DEBUG
         if (s.timestamps->front() <= start) {
             pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
-            if (start_index + 1 < s.timestamps->size) {
+            if (start_index + 1 < s.timestamps->size()) {
                 pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
             }
         }
@@ -775,7 +775,7 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
 #ifdef DEBUG
         if (s.timestamps->front() <= start) {
             pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
-            if (start_index + 1 < s.timestamps->size) {
+            if (start_index + 1 < s.timestamps->size()) {
                 pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
             }
         }
@@ -993,9 +993,9 @@ Sequence& Sequence::operator=(Sequence&& other) {
     return *this;
 };
 Sequence::Sequence(ParameterHandler& parameter_handler) {
-    durations = new LinkedDurationVector(parameter_handler);
-    exclusive_durations = new LinkedDurationVector(parameter_handler);
-    timestamps = new LinkedTimeVector(parameter_handler);
+    durations = new DurationLV(parameter_handler);
+    exclusive_durations = new DurationLV(parameter_handler);
+    timestamps = new TimeLV(parameter_handler);
 }
 }  // namespace pallas
 

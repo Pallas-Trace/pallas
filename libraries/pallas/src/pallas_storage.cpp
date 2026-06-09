@@ -28,8 +28,11 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_storage.h"
+#include "pallas/utils/pallas_lv.h"
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
@@ -61,6 +64,7 @@ pallas::SubArrayEncoding storage_policy_to_legacy_duration_encoding(pallas::Stor
 }
 
 }  // namespace
+
 
 void pallas_storage_option_init() {
     // Timestamp storage
@@ -580,7 +584,7 @@ size_t numberCompressedBytes = 0;
  * @param file File to write in.
  * @param parameter_handler Handler for the storage options.
  */
-inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
+void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
     size_t size = n * sizeof(uint64_t);
     numberRawBytes += size;
     uint64_t* encodedArray = nullptr;
@@ -683,7 +687,7 @@ inline static void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, c
  * @param file File to read from
  * @returns Array of uncompressed data of size uint64_t * n.
  */
-inline static uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHandler& parameter_handler) {
+uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHandler& parameter_handler) {
     size_t expectedSize = n * sizeof(uint64_t);
     uint64_t* uncompressedArray = nullptr;
 
@@ -801,6 +805,17 @@ void pallas::LinkedTimeVector::SubArray::write_to_file(FILE* file, const Paramet
     array = nullptr;
 }
 
+void pallas::TimeSubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
+    if (file == nullptr || parameter_handler == nullptr || raw_values() == nullptr) {
+        return;
+    }
+
+    set_offset(ftell(file));
+    numberPreRawBytes += capacity() * sizeof(uint64_t);
+    _pallas_compress_write(raw_values(), capacity(), file, parameter_handler);
+    free_values();
+}
+
 void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
     offset = ftell(file);
     numberPreRawBytes += size * sizeof(uint64_t);
@@ -823,6 +838,36 @@ void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const Par
 
     delete[] array;
     array = nullptr;
+}
+
+void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
+    const auto preferred_encoding = storage_policy_to_legacy_time_encoding(getPreferredStoragePolicy());
+
+    _pallas_fwrite(&value_count, sizeof(value_count), 1, infoFile);
+    _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, infoFile);
+    _pallas_fwrite(&preferred_encoding, sizeof(preferred_encoding), 1, infoFile);
+
+    if (value_count == 0) {
+        return;
+    }
+
+    for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
+        auto* subarray = static_cast<TimeSubArray*>(base_subarray);
+        const auto actual_encoding = SubArrayEncoding::None;
+        const auto enc_size = subarray->capacity();
+        subarray->write_to_file(dataFile, parameter_handler);
+        const auto first_value = subarray->first_value();
+        const auto last_value = subarray->last_value();
+        const auto subarray_size = subarray->size();
+        const auto subarray_offset = subarray->offset();
+
+        _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, infoFile);
+        _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, infoFile);
+        _pallas_fwrite(&enc_size, sizeof(enc_size), 1, infoFile);
+        _pallas_fwrite(&first_value, sizeof(first_value), 1, infoFile);
+        _pallas_fwrite(&last_value, sizeof(last_value), 1, infoFile);
+        _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, infoFile);
+    }
 }
 
 void pallas::LinkedTimeVector::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {

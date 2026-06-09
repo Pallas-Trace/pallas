@@ -12,7 +12,7 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 
-#include "pallas/utils/pallas_linked_vector.h"
+#include "pallas/utils/pallas_lv.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"
@@ -32,6 +32,7 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 }
 
 
+#if 0
 static constexpr unsigned kHotLoopIterationThreshold = 100;
 static constexpr pallas_duration_t kHotLoopMaxDurationThreshold = 300ULL;  // 300 ns per failed poll candidate
 static constexpr SubArrayEncoding kHotLoopTimestampEncoding = SubArrayEncoding::MonotoneLossy;
@@ -90,6 +91,7 @@ static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
         applyEventTimestampEncodingToToken(token, thread, kHotLoopTimestampEncoding);
     }
 }
+#endif
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
@@ -108,9 +110,9 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
-            thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i].timestamps = new LinkedTimeVector(*parameter_handler);
+            thread->sequences[i].durations = new DurationLV(*parameter_handler);
+            thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
+            thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
         }
     }
 
@@ -196,7 +198,7 @@ void ThreadWriter::storeToken(Token t, size_t i) {
 void ThreadWriter::incrementLoop(Loop* loop) {
     pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
     loop->nb_iterations++;
-
+#if 0
     if (!loop->repeated_token.isValid() || loop->repeated_token.type != TypeSequence) {
         return;
     }
@@ -232,6 +234,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
                loop->nb_iterations,
                static_cast<unsigned long>(max_duration));
     applyHotLoopSequencePolicy(*sequence, *thread);
+#endif
 }
 
 Loop* ThreadWriter::unsquashLoop(Loop* loop) {
@@ -264,8 +267,6 @@ Loop* ThreadWriter::squashLoop(Loop* loop) {
     return loop;
 }
 
-
-
 void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteration, size_t index_second_iteration) {
     if (index_first_iteration > index_second_iteration) {
         const size_t tmp = index_second_iteration;
@@ -282,8 +283,8 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     pallas_assert_equals(loop_sequence.id.id, loop->repeated_token.id);
     bool sequence_existed = loop_len == 1 && curTokenSeq[index_first_iteration].type == TypeSequence;
     if (sequence_existed) {
-        pallas_assert(loop_sequence.durations->size >= 2);
-        pallas_assert(loop_sequence.timestamps->size >= 2);
+        pallas_assert(loop_sequence.durations->size() >= 2);
+        pallas_assert(loop_sequence.timestamps->size() >= 2);
     }
 
 
@@ -342,7 +343,7 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     if (sequence_existed) {
         // Then we know we just saw twice the same sequence, hence - 2
         auto* sequence = thread->getSequence(loop_sequence.id);
-        curIndexSeq.push_back( sequence->durations->size - 2 );
+        curIndexSeq.push_back( sequence->durations->size() - 2 );
     } else {
         curIndexSeq.push_back( 0 );
     }
@@ -491,7 +492,7 @@ void ThreadWriter::findSequence(size_t n) {
 
             curTokenSeq.resize(curTokenSeq.size() - array_len);
             curTokenIndex.resize(curTokenIndex.size() - array_len);
-            storeToken(sequence_token, sequence->timestamps->size - 1);
+            storeToken(sequence_token, sequence->timestamps->size() - 1);
             pallas_log(DebugLevel::Debug, "findSequence: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
 
             return;
@@ -614,7 +615,7 @@ void ThreadWriter::recordExitFunction() {
 
 
     cur_depth--;
-    storeToken(sequence.id, sequence.timestamps->size - 1);
+    storeToken(sequence.id, sequence.timestamps->size() - 1);
     curTokenSeq.clear();
     index_stack[cur_depth+1].clear();
 
@@ -700,9 +701,9 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->sequences = new Sequence[thread->nb_allocated_sequences]();
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
-        thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i].timestamps = new LinkedTimeVector(*parameter_handler);
+        thread->sequences[i].durations = new DurationLV(*parameter_handler);
+        thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
+        thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -756,7 +757,7 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
 
     auto* new_event = new (&thread->events[index]) Event(index, *e);
-    new_event->timestamps = new LinkedTimeVector(*parameter_handler);
+    new_event->timestamps = new TimeLV(*parameter_handler);
 
     // In-place initialisation
     thread->hashToEvent[hash].push_back(index);

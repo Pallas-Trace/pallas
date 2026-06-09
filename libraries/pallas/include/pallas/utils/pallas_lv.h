@@ -7,6 +7,16 @@
  */
 #pragma once
 
+#ifndef __cplusplus
+
+typedef struct TimeLV {
+} TimeLV;
+
+typedef struct DurationLV {
+} DurationLV;
+
+#else
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -14,8 +24,8 @@
 #include <string>
 #include <vector>
 
-#include "pallas_subarray.h"
 #include "pallas_parameter_handler.h"
+#include "pallas_subarray.h"
 
 namespace pallas {
 
@@ -64,6 +74,8 @@ class LVBase {
     [[nodiscard]] uint64_t* as_flat_array() const;
     [[nodiscard]] std::string values_to_string() const;
 
+    void load_all_data() {
+    }
     void reset_offsets();
 
    protected:
@@ -88,7 +100,8 @@ class LVBase {
 
 class TimeLV : public LVBase {
    public:
-    explicit TimeLV(ParameterHandler& p, StoragePolicy preferred_policy = StoragePolicy::None);
+    explicit TimeLV(ParameterHandler& p);
+    explicit TimeLV(ParameterHandler& p, StoragePolicy preferred_policy);
 
     AddStatus add(uint64_t val);
 
@@ -104,7 +117,8 @@ class TimeLV : public LVBase {
 
 class DurationLV : public LVBase {
    public:
-    explicit DurationLV(ParameterHandler& p, StoragePolicy preferred_policy = StoragePolicy::None);
+    explicit DurationLV(ParameterHandler& p);
+    explicit DurationLV(ParameterHandler& p, StoragePolicy preferred_policy);
 
     AddStatus add(uint64_t val);
     void final_update_mean();
@@ -128,6 +142,8 @@ class DurationLV : public LVBase {
 };
 
 }  // namespace pallas
+
+#endif
 
 /* -*-
    mode: c++;

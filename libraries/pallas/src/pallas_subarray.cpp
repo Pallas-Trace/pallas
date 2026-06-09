@@ -123,7 +123,7 @@ SubArrayBase::SubArrayBase(ValueDomain domain, StoragePolicy policy, SubArrayBas
 }
 
 SubArrayBase::~SubArrayBase() {
-    delete[] values;
+    free_values();
 }
 
 bool SubArrayBase::contains(size_t pos) const {
@@ -132,6 +132,15 @@ bool SubArrayBase::contains(size_t pos) const {
 
 size_t SubArrayBase::local_index(size_t pos) const {
     return pos - first_index;
+}
+
+uint64_t* SubArrayBase::raw_values() {
+    return values;
+}
+
+void SubArrayBase::free_values() {
+    delete[] values;
+    values = nullptr;
 }
 
 uint64_t SubArrayBase::at(size_t pos) const {

@@ -32,6 +32,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
         include/pallas/utils/pallas_lv.h
+        include/pallas/utils/pallas_serialisation.h
         include/pallas/utils/pallas_subarray.h
         include/pallas/utils/pallas_storage.h
         include/pallas/utils/pallas_timestamp.h
