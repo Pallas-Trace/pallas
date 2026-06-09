@@ -65,6 +65,7 @@ class Manager {
     [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
     virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
     virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const = 0;
+    virtual void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const = 0;
 
     virtual void dump_runtime_state(const SubArrayBase& subarray, FILE* info_file) const;
     virtual void load_runtime_state(SubArrayBase& subarray, FILE* info_file) const;
@@ -77,6 +78,7 @@ class NoneManager : public Manager {
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
     void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const override;
 };
 
 class SubArrayBase {
@@ -97,7 +99,9 @@ class SubArrayBase {
     [[nodiscard]] size_t offset() const;
     [[nodiscard]] SubArrayBase* next_subarray() const;
     [[nodiscard]] SubArrayBase* previous_subarray() const;
+    [[nodiscard]] bool has_values() const;
     void set_offset(size_t offset);
+    void load_data(FILE* data_file, const ParameterHandler& parameter_handler);
     void load_runtime_state(FILE* info_file);
 
    protected:

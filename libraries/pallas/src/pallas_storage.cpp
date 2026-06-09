@@ -28,7 +28,6 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
-#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_storage.h"
@@ -756,7 +755,7 @@ void pallas::TimeSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const auto actual_encoding = SubArrayEncoding::None;
+    const uint8_t actual_encoding = 0;
     const auto enc_size = capacity();
     const auto subarray_size = size();
     const auto first = first_value();
@@ -776,7 +775,7 @@ void pallas::DurationSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const auto actual_encoding = SubArrayEncoding::None;
+    const uint8_t actual_encoding = 0;
     const auto enc_size = capacity();
     const auto subarray_size = size();
     const auto min = min_value();
@@ -990,186 +989,22 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
     }
 }
 
-pallas::LinkedTimeVector::SubArray::SubArray(FILE* file, SubArray* previous)
-    : SubArrayBase(file, previous) {
-    _pallas_fread(&first_value, sizeof(first_value), 1, file);
-    _pallas_fread(&last_value, sizeof(last_value), 1, file);
-    _pallas_fread(&offset, sizeof(offset), 1, file);
-}
-
-pallas::LinkedVectorBase::SubArrayBase::SubArrayBase(FILE* file, SubArrayBase* previous) {
-    _pallas_fread(&size, sizeof(size), 1, file);
-    _pallas_fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
-    _pallas_fread(&enc_size, sizeof(enc_size), 1, file);
-    allocated = 0;
-    this->previous = previous;
-    if (previous) {
-        previous->next = this;
-        starting_index = previous->starting_index + previous->size;
-    }
-}
-
-pallas::LinkedTimeVector::LinkedTimeVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
-    filePath = valueFilePath;
-    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
-    first = nullptr;
-    last = nullptr;
-    _pallas_fread(&size, sizeof(size), 1, vectorFile);
-    if (abi_version >= 18) {
-        _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
-        _pallas_fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
-    }
-    if (size == 0) {
-        return;
-    }
-    if (abi_version >= 18) {
-        auto* contiguous_subarrays = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
-        first = contiguous_subarrays;
-        is_contiguous = true;
-        for (size_t i = 0; i < n_sub_array; i++) {
-            auto* previous = (i == 0) ? nullptr : &contiguous_subarrays[i - 1];
-            last = new (&contiguous_subarrays[i]) SubArray(vectorFile, previous);
-        }
-    } else {
-        size_t temp_size = 0;
-        while (temp_size < size) {
-            last = new SubArray(vectorFile, static_cast<SubArray*>(last));
-            if (first == nullptr) {
-                first = last;
-            }
-            temp_size += last->size;
-            n_sub_array++;
-        }
-    }
-}
-
-pallas::LinkedDurationVector::SubArray::SubArray(FILE* file, SubArray* previous)
-    : SubArrayBase(file, previous) {
-    _pallas_fread(&min, sizeof(min), 1, file);
-    _pallas_fread(&max, sizeof(max), 1, file);
-    _pallas_fread(&mean, sizeof(mean), 1, file);
-    if (max < mean) {
-        static bool show_warning = true;
-        // This means that the trace was made before the fix of 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82
-        // And this isn't the mean, but the sum
-        // Hence:
-        if (show_warning) {
-            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
-            show_warning = false;
-        }
-        mean /= size;
-        // TODO: We should eventually retire this piece of code
-    }
-    pallas_assert_inferior_equal(mean, max);
-    pallas_assert_inferior_equal(min, mean);
-    _pallas_fread(&offset, sizeof(offset), 1, file);
-}
-
-pallas::LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
-    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
-    filePath = valueFilePath;
-    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
-    first = nullptr;
-    last = nullptr;
-    _pallas_fread(&size, sizeof(size), 1, vectorFile);
-    if (abi_version >= 18) {
-        _pallas_fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
-        _pallas_fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
-    }
-
-    if (size == 0) {
-        return;
-    }
-    // Load the statistics from the vectorFile
-    _pallas_fread(&min, sizeof(min), 1, vectorFile);
-    _pallas_fread(&max, sizeof(max), 1, vectorFile);
-    _pallas_fread(&mean, sizeof(mean), 1, vectorFile);
-    if (abi_version >= 18) {
-        auto* contiguous_subarrays = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
-        first = contiguous_subarrays;
-        is_contiguous = true;
-        for (size_t i = 0; i < n_sub_array; i++) {
-            auto* previous = (i == 0) ? nullptr : &contiguous_subarrays[i - 1];
-            last = new (&contiguous_subarrays[i]) SubArray(vectorFile, previous);
-        }
-    } else {
-        size_t temp_size = 0;
-        while (temp_size < size) {
-            last = new SubArray(vectorFile, static_cast<SubArray*>(last));
-            if (first == nullptr) {
-                first = last;
-            }
-            temp_size += last->size;
-            n_sub_array++;
-        }
-    }
-}
-
-void pallas::LinkedTimeVector::load_data(LinkedVectorBase::SubArrayBase* base_sub) {
-    auto* sub = static_cast<SubArray*>(base_sub);
-    pallas_log(DebugLevel::Debug, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
-    File& f = *fileMap[filePath];
+void pallas::LVBase::load_data(SubArrayBase* sub) {
+    pallas_log(DebugLevel::Debug, "Loading values from %s @ %lu\n", file_path, sub->offset());
+    File& f = *fileMap[file_path];
     if (!f.isOpen) {
         f.open("r");
     }
-    int ret = fseek(f.file, sub->offset, 0);
+    int ret = fseek(f.file, sub->offset(), 0);
     while (ret == EBADF) {
         f.close();
         f.open("r");
-        ret = fseek(f.file, sub->offset, 0);
-    }
-    
-    uint64_t* encoded_array = _pallas_compress_read(sub->enc_size, f.file, parameter_handler);
-    
-    const SubArrayCodec* codec = get_subarray_codec(sub->sub_arr_encoding);
-    if(!codec) {
-        pallas_log(pallas::DebugLevel::Debug, "Corrupted Values of SubArrayEncoding passed %lu, %d\n", sub->size, sub->sub_arr_encoding);
-        sub->sub_arr_encoding = SubArrayEncoding::None;  // Fall back to no encoding if the codec cannot encode the array.
-        codec = get_subarray_codec(SubArrayEncoding::None);
-    } 
-    
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, sub, 0, &parameter_handler);
-    
-    if(encoded_array != sub->array) {
-        delete[] encoded_array;
+        ret = fseek(f.file, sub->offset(), 0);
     }
 
-    parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
-    parameter_handler.subvector_queue.emplace_back(sub);
-}
+    sub->load_data(f.file, parameter_handler);
 
-void pallas::LinkedDurationVector::load_data(LinkedVectorBase::SubArrayBase* base_sub) {
-    auto* sub = static_cast<SubArray*>(base_sub);
-    pallas_log(DebugLevel::Debug, "Loading timestamps from %s @ %lu\n", filePath, sub->offset);
-    File& f = *fileMap[filePath];
-    if (!f.isOpen) {
-        f.open("r");
-    }
-    int ret = fseek(f.file, sub->offset, 0);
-    while (ret == EBADF) {
-        f.close();
-        f.open("r");
-        ret = fseek(f.file, sub->offset, 0);
-    }
-
-    uint64_t* encoded_array = _pallas_compress_read(sub->enc_size, f.file, parameter_handler);
-    
-    const SubArrayCodec* codec = get_subarray_codec(sub->sub_arr_encoding);
-    
-    if(!codec) {
-        pallas_log(pallas::DebugLevel::Debug, "Corrupted Values of SubArrayEncoding passed %lu, %d\n", sub->size, sub->sub_arr_encoding);
-        sub->sub_arr_encoding = SubArrayEncoding::None;  // Fall back to no encoding if the codec cannot encode the array.
-        codec = get_subarray_codec(SubArrayEncoding::None);
-    } 
-
-    codec->decode(encoded_array, sub->enc_size, sub->array, sub->size, sub, 1, &parameter_handler);
-    
-    if(encoded_array != sub->array) {
-        delete[] encoded_array;
-    }
-
-    parameter_handler.loaded_durations_size += sub->size * sizeof(uint64_t);
+    parameter_handler.loaded_durations_size += sub->capacity() * sizeof(uint64_t);
     parameter_handler.subvector_queue.emplace_back(sub);
 }
 

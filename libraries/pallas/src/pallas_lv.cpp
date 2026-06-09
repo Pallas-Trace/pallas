@@ -45,6 +45,10 @@ uint64_t LVBase::at(size_t pos) const {
     if (subarray == nullptr) {
         pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
     }
+    if (!subarray->has_values()) {
+        const_cast<LVBase*>(this)->load_data(subarray);
+        const_cast<LVBase*>(this)->loaded_subarrays.insert(subarray);
+    }
     return subarray->at(pos);
 }
 
@@ -87,6 +91,15 @@ std::string LVBase::values_to_string() const {
     }
     stream << "]";
     return stream.str();
+}
+
+void LVBase::load_all_data() {
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        if (!subarray->has_values()) {
+            load_data(subarray);
+            loaded_subarrays.insert(subarray);
+        }
+    }
 }
 
 void LVBase::reset_offsets() {

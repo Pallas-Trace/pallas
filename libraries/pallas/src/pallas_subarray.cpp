@@ -106,6 +106,15 @@ void NoneManager::write_data(SubArrayBase& subarray, FILE* data_file, const Para
     subarray.free_values();
 }
 
+void NoneManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const {
+    if (data_file == nullptr) {
+        return;
+    }
+
+    delete[] subarray.values;
+    subarray.values = _pallas_compress_read(subarray.allocated_count, data_file, parameter_handler);
+}
+
 } 
 
 /** Methods Pertaining to the base SubArray Class */
@@ -189,8 +198,16 @@ SubArrayBase* SubArrayBase::previous_subarray() const {
     return prev;
 }
 
+bool SubArrayBase::has_values() const {
+    return values != nullptr;
+}
+
 void SubArrayBase::set_offset(size_t offset) {
     file_offset = offset;
+}
+
+void SubArrayBase::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+    manager->load_data(*this, data_file, parameter_handler);
 }
 
 void SubArrayBase::load_runtime_state(FILE* info_file) {

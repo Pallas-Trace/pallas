@@ -74,8 +74,7 @@ class LVBase {
     [[nodiscard]] uint64_t* as_flat_array() const;
     [[nodiscard]] std::string values_to_string() const;
 
-    void load_all_data() {
-    }
+    void load_all_data();
     void reset_offsets();
 
    protected:
@@ -87,6 +86,7 @@ class LVBase {
                     StoragePolicy preferred_policy,
                     uint8_t abi_version);
 
+    void load_data(SubArrayBase* subarray);
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;
     virtual SubArrayBase* create_subarray(SubArrayBase* previous) const = 0;

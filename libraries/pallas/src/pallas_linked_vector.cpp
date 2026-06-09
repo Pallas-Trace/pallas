@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <iostream>
@@ -677,6 +678,117 @@ LinkedVectorBase::SubArrayBase::SubArrayBase(size_t size, LinkedVectorBase::SubA
     }
     allocated = size;
     array = new uint64_t[size];
+}
+
+LinkedTimeVector::SubArray::SubArray(FILE* file, LinkedTimeVector::SubArray* previous)
+    : SubArrayBase(file, previous) {
+    fread(&first_value, sizeof(first_value), 1, file);
+    fread(&last_value, sizeof(last_value), 1, file);
+    fread(&offset, sizeof(offset), 1, file);
+}
+
+LinkedVectorBase::SubArrayBase::SubArrayBase(FILE* file, LinkedVectorBase::SubArrayBase* previous) {
+    fread(&size, sizeof(size), 1, file);
+    fread(&sub_arr_encoding, sizeof(sub_arr_encoding), 1, file);
+    fread(&enc_size, sizeof(enc_size), 1, file);
+    allocated = 0;
+    this->previous = previous;
+    if (previous) {
+        previous->next = this;
+        starting_index = previous->starting_index + previous->size;
+    }
+}
+
+LinkedTimeVector::LinkedTimeVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
+    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
+    filePath = valueFilePath;
+    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
+    first = nullptr;
+    last = nullptr;
+    fread(&size, sizeof(size), 1, vectorFile);
+    if (abi_version >= 18) {
+        fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+        fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
+    }
+    if (size == 0) {
+        return;
+    }
+    if (abi_version >= 18) {
+        auto* contiguous_subarrays = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+        first = contiguous_subarrays;
+        is_contiguous = true;
+        for (size_t i = 0; i < n_sub_array; i++) {
+            auto* previous = (i == 0) ? nullptr : &contiguous_subarrays[i - 1];
+            last = new (&contiguous_subarrays[i]) SubArray(vectorFile, previous);
+        }
+    } else {
+        size_t temp_size = 0;
+        while (temp_size < size) {
+            last = new SubArray(vectorFile, static_cast<SubArray*>(last));
+            if (first == nullptr) {
+                first = last;
+            }
+            temp_size += last->size;
+            n_sub_array++;
+        }
+    }
+}
+
+LinkedDurationVector::SubArray::SubArray(FILE* file, LinkedDurationVector::SubArray* previous)
+    : SubArrayBase(file, previous) {
+    fread(&min, sizeof(min), 1, file);
+    fread(&max, sizeof(max), 1, file);
+    fread(&mean, sizeof(mean), 1, file);
+    if (max < mean) {
+        static bool show_warning = true;
+        if (show_warning) {
+            pallas_warn("This trace is malformed ( see 36daaa9ed0fd0517bbc42e6f78ca7627cea30b82 ). You should update Pallas and regenerate it.\n");
+            show_warning = false;
+        }
+        mean /= size;
+    }
+    pallas_assert_inferior_equal(mean, max);
+    pallas_assert_inferior_equal(min, mean);
+    fread(&offset, sizeof(offset), 1, file);
+}
+
+LinkedDurationVector::LinkedDurationVector(FILE* vectorFile, const char* valueFilePath, ParameterHandler& parameter_handler, uint8_t abi_version)
+    : LinkedVectorBase(parameter_handler, static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy())) {
+    filePath = valueFilePath;
+    preferred_sub_arr_encoding = static_cast<SubArrayEncoding>(parameter_handler.getStoragePolicy());
+    first = nullptr;
+    last = nullptr;
+    fread(&size, sizeof(size), 1, vectorFile);
+    if (abi_version >= 18) {
+        fread(&n_sub_array, sizeof(n_sub_array), 1, vectorFile);
+        fread(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, vectorFile);
+    }
+
+    if (size == 0) {
+        return;
+    }
+    fread(&min, sizeof(min), 1, vectorFile);
+    fread(&max, sizeof(max), 1, vectorFile);
+    fread(&mean, sizeof(mean), 1, vectorFile);
+    if (abi_version >= 18) {
+        auto* contiguous_subarrays = reinterpret_cast<SubArray*>(std::calloc(n_sub_array, sizeof(SubArray)));
+        first = contiguous_subarrays;
+        is_contiguous = true;
+        for (size_t i = 0; i < n_sub_array; i++) {
+            auto* previous = (i == 0) ? nullptr : &contiguous_subarrays[i - 1];
+            last = new (&contiguous_subarrays[i]) SubArray(vectorFile, previous);
+        }
+    } else {
+        size_t temp_size = 0;
+        while (temp_size < size) {
+            last = new SubArray(vectorFile, static_cast<SubArray*>(last));
+            if (first == nullptr) {
+                first = last;
+            }
+            temp_size += last->size;
+            n_sub_array++;
+        }
+    }
 }
 
 
