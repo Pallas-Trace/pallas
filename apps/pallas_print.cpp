@@ -240,7 +240,7 @@ void printCSVBulk(pallas::ThreadReader* readers, size_t n) {
       pallas_duration_t duration = s->durations->at(0);
       pallas_timestamp_t ts = s->timestamps->at(0);
 
-      for(int occurrence_id = 0; occurrence_id < s->durations->size; occurrence_id++) {
+      for(int occurrence_id = 0; occurrence_id < s->durations->size(); occurrence_id++) {
         if(s->type != pallas::SEQUENCE_BLOCK) {
           continue;
         }
