@@ -131,7 +131,8 @@ class TimeSubArray : public SubArrayBase {
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
-    void write_to_file(FILE* file, const ParameterHandler* parameter_handler);
+    void write_data(FILE* file, const ParameterHandler* parameter_handler);
+    void write_header(FILE* info_file) const;
 
     [[nodiscard]] uint64_t first_value() const;
     [[nodiscard]] uint64_t last_value() const;

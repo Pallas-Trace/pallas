@@ -7,8 +7,12 @@
 #include <sstream>
 
 #include "pallas/utils/pallas_dbg.h"
+#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_lv.h"
+#include "pallas/utils/pallas_serialisation.h"
+
+extern size_t numberPreRawBytes;
 
 /** Methods Pertaining to base LV class */
 namespace pallas {
@@ -249,6 +253,32 @@ void DurationLV::write_to_file(FILE*, FILE*, const ParameterHandler*) {
 
 SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
     return new DurationSubArray(preferred_storage_policy, static_cast<DurationSubArray*>(previous));
+}
+
+void LinkedTimeVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
+    first_value = array[0];
+    last_value = array[size - 1];
+    offset = ftell(file);
+    ::numberPreRawBytes += size * sizeof(uint64_t);
+
+    const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
+
+    if (!(codec && codec->can_encode(array, size))) {
+        pallas_log(pallas::DebugLevel::Debug, "Subarray of size %lu cannot be encoded with encoding %d. Writing as is.\n", size, sub_arr_encoding);
+        sub_arr_encoding = SubArrayEncoding::None;
+        codec = get_subarray_codec(SubArrayEncoding::None);
+    }
+
+    uint64_t* encodedArray = nullptr;
+    enc_size = codec->encode(file, array, size, encodedArray, this, 0, parameter_handler);
+    _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
+
+    if (encodedArray != array) {
+        delete[] encodedArray;
+    }
+
+    delete[] array;
+    array = nullptr;
 }
 
 }  // namespace pallas

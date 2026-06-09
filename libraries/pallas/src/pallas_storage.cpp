@@ -779,33 +779,7 @@ uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHan
 }
 
 
-void pallas::LinkedTimeVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
-    first_value = array[0];
-    last_value = array[size - 1];
-    offset = ftell(file);
-    numberPreRawBytes += size * sizeof(uint64_t);
-
-    const SubArrayCodec* codec = get_subarray_codec(sub_arr_encoding);
-
-    if(!(codec && codec->can_encode(array, size))) {
-        pallas_log(pallas::DebugLevel::Debug, "Subarray of size %lu cannot be encoded with encoding %d. Writing as is.\n", size, sub_arr_encoding);
-        sub_arr_encoding = SubArrayEncoding::None;  // Fall back to no encoding if the codec cannot encode the array.
-        codec = get_subarray_codec(SubArrayEncoding::None);
-    }  
-
-    uint64_t* encodedArray = nullptr; // Should be freed by the codec after writing
-    enc_size = codec->encode(file, array, size, encodedArray, this, 0, parameter_handler);
-    _pallas_compress_write(encodedArray, enc_size, file, parameter_handler);
-    
-    if(encodedArray != array) {
-        delete[] encodedArray;
-    }
-
-    delete[] array;
-    array = nullptr;
-}
-
-void pallas::TimeSubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
+void pallas::TimeSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
     if (file == nullptr || parameter_handler == nullptr || raw_values() == nullptr) {
         return;
     }
@@ -814,6 +788,26 @@ void pallas::TimeSubArray::write_to_file(FILE* file, const ParameterHandler* par
     numberPreRawBytes += capacity() * sizeof(uint64_t);
     _pallas_compress_write(raw_values(), capacity(), file, parameter_handler);
     free_values();
+}
+
+void pallas::TimeSubArray::write_header(FILE* info_file) const {
+    if (info_file == nullptr) {
+        return;
+    }
+
+    const auto actual_encoding = SubArrayEncoding::None;
+    const auto enc_size = capacity();
+    const auto subarray_size = size();
+    const auto first = first_value();
+    const auto last = last_value();
+    const auto subarray_offset = offset();
+
+    _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, info_file);
+    _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, info_file);
+    _pallas_fwrite(&enc_size, sizeof(enc_size), 1, info_file);
+    _pallas_fwrite(&first, sizeof(first), 1, info_file);
+    _pallas_fwrite(&last, sizeof(last), 1, info_file);
+    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
 }
 
 void pallas::LinkedDurationVector::SubArray::write_to_file(FILE* file, const ParameterHandler* parameter_handler) {
@@ -853,44 +847,9 @@ void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const Paramet
 
     for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
         auto* subarray = static_cast<TimeSubArray*>(base_subarray);
-        const auto actual_encoding = SubArrayEncoding::None;
-        const auto enc_size = subarray->capacity();
-        subarray->write_to_file(dataFile, parameter_handler);
-        const auto first_value = subarray->first_value();
-        const auto last_value = subarray->last_value();
-        const auto subarray_size = subarray->size();
-        const auto subarray_offset = subarray->offset();
-
-        _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, infoFile);
-        _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, infoFile);
-        _pallas_fwrite(&enc_size, sizeof(enc_size), 1, infoFile);
-        _pallas_fwrite(&first_value, sizeof(first_value), 1, infoFile);
-        _pallas_fwrite(&last_value, sizeof(last_value), 1, infoFile);
-        _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, infoFile);
+        subarray->write_data(dataFile, parameter_handler);
+        subarray->write_header(infoFile);
     }
-}
-
-void pallas::LinkedTimeVector::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
-    _pallas_fwrite(&size, sizeof(size), 1, infoFile);
-    _pallas_fwrite(&n_sub_array, sizeof(n_sub_array), 1, infoFile);
-    _pallas_fwrite(&preferred_sub_arr_encoding, sizeof(preferred_sub_arr_encoding), 1, infoFile);
-    if (size == 0)
-        return;
-    // Write the Subarrays statistics
-    auto* sub_array = static_cast<SubArray*>(first);
-    while (sub_array) {
-        if (sub_array->array != nullptr) {
-            sub_array->write_to_file(dataFile, parameter_handler);
-        }
-        _pallas_fwrite(&sub_array->size, sizeof(sub_array->size), 1, infoFile);
-        _pallas_fwrite(&sub_array->sub_arr_encoding, sizeof(sub_array->sub_arr_encoding), 1, infoFile);
-        _pallas_fwrite(&sub_array->enc_size, sizeof(sub_array->enc_size), 1, infoFile);
-        _pallas_fwrite(&sub_array->first_value, sizeof(sub_array->first_value), 1, infoFile);
-        _pallas_fwrite(&sub_array->last_value, sizeof(sub_array->last_value), 1, infoFile);
-        _pallas_fwrite(&sub_array->offset, sizeof(sub_array->offset), 1, infoFile);
-        sub_array = static_cast<SubArray*>(sub_array->next);
-    }
-    free_data();
 }
 
 pallas::LinkedTimeVector::SubArray::SubArray(FILE* file, SubArray* previous)
@@ -1224,8 +1183,8 @@ static void readEvent(pallas::Event& event,
         eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
     }
     event.timestamps = new pallas::LinkedTimeVector(eventFile.file, durationFileName, parameter_handler, abi_version);
-    event.nb_occurrences = event.timestamps->size;
-    pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+    event.nb_occurrences = event.timestamps->size();
+    pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
 }
 
 static const char* pallasGetSequenceDurationFilename(const char* base_dirname, pallas::Thread* th) {

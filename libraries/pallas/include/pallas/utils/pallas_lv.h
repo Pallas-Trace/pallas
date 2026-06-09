@@ -108,7 +108,6 @@ class TimeLV : public LVBase {
     [[nodiscard]] std::string to_string() const;
     [[nodiscard]] std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const;
     [[nodiscard]] size_t getFirstOccurrenceBefore(pallas_timestamp_t ts) const;
-
     void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
 
    protected:

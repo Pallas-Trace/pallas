@@ -399,14 +399,6 @@ class LinkedTimeVector : public LinkedVectorBase {
     std::string to_string();
 
     /**
-     * Writes the vector to the given files.
-     * @param infoFile File where information about the vector is stored.
-     * @param dataFile  File where most of the data are stored.
-     * @param parameter_handler Handler for the storage parameters.
-     */
-    void write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler);
-
-    /**
      * Given a starting and an ending timestamp, returns an array containing the ratio, for each subvector,
      * of the time spent between those two timestamps over the total duration of the subvector.
      */
