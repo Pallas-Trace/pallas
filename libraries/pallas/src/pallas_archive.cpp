@@ -5,6 +5,7 @@
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
+#include <cstddef>
 #include "pallas/pallas_record.h"
 
 #include "pallas/utils/pallas_dbg.h"
@@ -627,6 +628,20 @@ void pallas_global_archive_add_metadata(pallas::GlobalArchive* archive, const ch
 
 void pallas_archive_add_metadata(pallas::GlobalArchive* archive, const char* key, const char * value) {
     archive->add_metadata(key, value);
+}
+
+const char *pallas_global_archive_get_metadata(pallas::GlobalArchive* archive, const char* key) {
+    if (archive->metadata.contains(key)) {
+        return archive->metadata[key].c_str();
+    }
+    return NULL;
+}
+
+const char *pallas_archive_get_metadata(pallas::Archive* archive, const char* key) {
+    if (archive->metadata.contains(key)) {
+        return archive->metadata[key].c_str();
+    }
+    return NULL;
 }
 /* -*-
   mode: c++;

@@ -613,6 +613,10 @@ extern void pallas_global_archive_add_metadata(PALLAS(GlobalArchive*) archive, c
 
 extern void pallas_archive_add_metadata(PALLAS(Archive*) archive, const char* key, const char* value);
 
+extern const char *pallas_global_archive_get_metadata(PALLAS(GlobalArchive*) archive, const char* key);
+
+extern const char *pallas_archive_get_metadata(PALLAS(Archive*) archive, const char* key);
+
 #ifdef __cplusplus
 };
 #endif /* __cplusplus */
