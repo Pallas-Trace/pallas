@@ -556,7 +556,6 @@ size_t numberCompressedBytes = 0;
  */
 void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
     size_t size = n * sizeof(uint64_t);
-    numberRawBytes += size;
     uint64_t* encodedArray = nullptr;
     size_t encodedSize;
     // First we do the encoding
@@ -755,16 +754,16 @@ void pallas::TimeSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const uint8_t actual_encoding = 0;
-    const auto enc_size = capacity();
-    const auto subarray_size = size();
+    const uint8_t stored_policy = static_cast<uint8_t>(policy());
+    const auto physical_size = mem_size();
+    const auto size = this->size();
     const auto first = first_value();
     const auto last = last_value();
     const auto subarray_offset = offset();
 
-    _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, info_file);
-    _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, info_file);
-    _pallas_fwrite(&enc_size, sizeof(enc_size), 1, info_file);
+    _pallas_fwrite(&size, sizeof(size), 1, info_file);
+    _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
+    _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
     _pallas_fwrite(&first, sizeof(first), 1, info_file);
     _pallas_fwrite(&last, sizeof(last), 1, info_file);
     _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
@@ -775,17 +774,17 @@ void pallas::DurationSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const uint8_t actual_encoding = 0;
-    const auto enc_size = capacity();
-    const auto subarray_size = size();
+    const uint8_t stored_policy = static_cast<uint8_t>(policy());
+    const auto physical_size = mem_size();
+    const auto size = this->size();
     const auto min = min_value();
     const auto max = max_value();
     const auto mean = mean_value();
     const auto subarray_offset = offset();
 
-    _pallas_fwrite(&subarray_size, sizeof(subarray_size), 1, info_file);
-    _pallas_fwrite(&actual_encoding, sizeof(actual_encoding), 1, info_file);
-    _pallas_fwrite(&enc_size, sizeof(enc_size), 1, info_file);
+    _pallas_fwrite(&size, sizeof(size), 1, info_file);
+    _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
+    _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
     _pallas_fwrite(&min, sizeof(min), 1, info_file);
     _pallas_fwrite(&max, sizeof(max), 1, info_file);
     _pallas_fwrite(&mean, sizeof(mean), 1, info_file);
@@ -848,19 +847,27 @@ void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const 
 
 /** Reading from the file */
 
-pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, StoragePolicy policy, SubArrayBase* previous)
+pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous)
     : prev(previous),
       value_domain(domain),
-      storage_policy(policy),
-      manager(std::make_unique<NoneManager>()),
+      manager(nullptr),
       values(nullptr) {
-    uint8_t ignored_encoding = 0;
-    size_t encoded_size = 0;
+    uint8_t stored_policy = static_cast<uint8_t>(StoragePolicy::None);
+    size_t physical_size = 0;
 
     _pallas_fread(&value_count, sizeof(value_count), 1, info_file);
-    _pallas_fread(&ignored_encoding, sizeof(ignored_encoding), 1, info_file);
-    _pallas_fread(&encoded_size, sizeof(encoded_size), 1, info_file);
-    allocated_count = encoded_size;
+    _pallas_fread(&stored_policy, sizeof(stored_policy), 1, info_file);
+    _pallas_fread(&physical_size, sizeof(physical_size), 1, info_file);
+
+    if (stored_policy <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
+        storage_policy = static_cast<StoragePolicy>(stored_policy);
+    } else {
+        storage_policy = StoragePolicy::None;
+    }
+
+    rebuild_manager();
+    this->physical_size = physical_size;
+    allocated_count = physical_size;
 
     if (prev != nullptr) {
         prev->next = this;
@@ -874,8 +881,8 @@ void pallas::TimeSubArray::read_header(FILE* info_file) {
     _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 }
 
-pallas::TimeSubArray::TimeSubArray(FILE* info_file, StoragePolicy policy, TimeSubArray* previous)
-    : SubArrayBase(info_file, ValueDomain::Timestamp, policy, previous) {
+pallas::TimeSubArray::TimeSubArray(FILE* info_file, TimeSubArray* previous)
+    : SubArrayBase(info_file, ValueDomain::Timestamp, previous) {
     read_header(info_file);
 }
 
@@ -896,8 +903,8 @@ void pallas::DurationSubArray::read_header(FILE* info_file) {
     _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 }
 
-pallas::DurationSubArray::DurationSubArray(FILE* info_file, StoragePolicy policy, DurationSubArray* previous)
-    : SubArrayBase(info_file, ValueDomain::Duration, policy, previous) {
+pallas::DurationSubArray::DurationSubArray(FILE* info_file, DurationSubArray* previous)
+    : SubArrayBase(info_file, ValueDomain::Duration, previous) {
     read_header(info_file);
 }
 
@@ -927,7 +934,7 @@ pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, Parameter
 
     if (abi_version >= 18) {
         for (size_t i = 0; i < subarray_total; ++i) {
-            last = new TimeSubArray(vector_file, preferred_storage_policy, static_cast<TimeSubArray*>(last));
+            last = new TimeSubArray(vector_file, static_cast<TimeSubArray*>(last));
             if (first == nullptr) {
                 first = last;
             }
@@ -938,7 +945,7 @@ pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, Parameter
     size_t loaded_values = 0;
     subarray_total = 0;
     while (loaded_values < value_count) {
-        last = new TimeSubArray(vector_file, preferred_storage_policy, static_cast<TimeSubArray*>(last));
+        last = new TimeSubArray(vector_file, static_cast<TimeSubArray*>(last));
         if (first == nullptr) {
             first = last;
         }
@@ -969,7 +976,7 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
 
     if (abi_version >= 18) {
         for (size_t i = 0; i < subarray_total; ++i) {
-            last = new DurationSubArray(vector_file, preferred_storage_policy, static_cast<DurationSubArray*>(last));
+            last = new DurationSubArray(vector_file, static_cast<DurationSubArray*>(last));
             if (first == nullptr) {
                 first = last;
             }
@@ -980,7 +987,7 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
     size_t loaded_values = 0;
     subarray_total = 0;
     while (loaded_values < value_count) {
-        last = new DurationSubArray(vector_file, preferred_storage_policy, static_cast<DurationSubArray*>(last));
+        last = new DurationSubArray(vector_file, static_cast<DurationSubArray*>(last));
         if (first == nullptr) {
             first = last;
         }
@@ -1004,7 +1011,7 @@ void pallas::LVBase::load_data(SubArrayBase* sub) {
 
     sub->load_data(f.file, parameter_handler);
 
-    parameter_handler.loaded_durations_size += sub->capacity() * sizeof(uint64_t);
+    parameter_handler.loaded_durations_size += sub->mem_size() * sizeof(uint64_t);
     parameter_handler.subvector_queue.emplace_back(sub);
 }
 

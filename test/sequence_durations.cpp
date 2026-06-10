@@ -19,8 +19,8 @@ static pallas_timestamp_t ts = 0;
 static pallas_timestamp_t step = 1;
 
 static pallas_timestamp_t get_timestamp() {
-    ts += step;
-    return ts;
+    pallas_timestamp_t now_ts = ts; ts += step; // Clock now provides 0 based timestamps
+    return now_ts;
 }
 
 static inline void check_event_allocation(Thread* thread_trace, unsigned id) {
@@ -39,7 +39,7 @@ static inline void print_sequence_info(Sequence& s, Thread* t) {
     std::cout << "Information on sequence " << s.id.id << ":\n"
             << "\tNumber of tokens: " << s.tokens.size() << ": ";
     t->printTokenVector(s.tokens);
-    std::cout << "\tNumber of iterations: " << s.durations->size << "\n"
+    std::cout << "\tNumber of iterations: " << s.durations->size() << "\n"
             << "\tDurations: " << s.durations->to_string() << "\n"
             << "\tExclusive Durations:" << s.exclusive_durations->to_string() << "\n"
             << "\tTimestamps: " << s.timestamps->to_string() << std::endl;
@@ -81,7 +81,6 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
         }
     }
     pallas_record_leave(&thread_writer, nullptr, get_timestamp(), 0);
-    thread_writer.thread->events[0].timestamps->at(0) = 0;
 
     for (int sequence_number = 0; sequence_number <= MAX_SUBSEQUENCE_NUMBER; sequence_number++) {
         Sequence& s = thread_writer.thread->sequences[sequence_number];
@@ -91,14 +90,14 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
             print_sequence_info(s, thread_writer.thread);
 
             pallas_assert_equals_always(s.tokens.size(), sequence_number + 1);
-            pallas_assert_equals_always(s.durations->size, INNER_LOOP_SIZE * OUTER_LOOP_SIZE);
-            for (size_t i = 0; i < s.durations->size; i++) {
-                auto& t = s.durations->at(i);
+            pallas_assert_equals_always(s.durations->size(), INNER_LOOP_SIZE * OUTER_LOOP_SIZE);
+            for (size_t i = 0; i < s.durations->size(); i++) {
+                auto t = s.durations->at(i);
                 pallas_assert_equals_always(t, s.size() - 1);
             }
-            pallas_assert_equals_always(s.durations->min, s.size() - 1);
-            pallas_assert_equals_always(s.durations->max, s.size() - 1);
-            pallas_assert_equals_always(s.durations->mean, s.size() - 1);
+            pallas_assert_equals_always(s.durations->min_value(), s.size() - 1);
+            pallas_assert_equals_always(s.durations->max_value(), s.size() - 1);
+            pallas_assert_equals_always(s.durations->mean_value(), s.size() - 1);
         } else {
             //      pallas_assert_always(s->tokens.size() == )
             //      pallas_assert_always(s->durations->back() == )
@@ -108,12 +107,12 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
     outer_sequence.durations->final_update_mean();
     outer_sequence.exclusive_durations->final_update_mean();
     print_sequence_info(outer_sequence, thread_writer.thread);
-    pallas_assert_equals_always(outer_sequence.timestamps->size, OUTER_LOOP_SIZE);
+    pallas_assert_equals_always(outer_sequence.timestamps->size(), OUTER_LOOP_SIZE);
     pallas_assert_equals_always(outer_sequence.tokens.size(), MAX_SUBSEQUENCE_NUMBER);
     // theoretical_length = INNER_LOOP_SIZE * sum(i=0;MAX_SUBSEQUENCE_NUMBER) { i +  2 }
     size_t theoretical_length = INNER_LOOP_SIZE * (2 * MAX_SUBSEQUENCE_NUMBER + (MAX_SUBSEQUENCE_NUMBER * (MAX_SUBSEQUENCE_NUMBER - 1) / 2)) - 1;
-    pallas_assert_equals_always(theoretical_length, outer_sequence.durations->min);
-    pallas_assert_equals_always(theoretical_length, outer_sequence.durations->max);
+    pallas_assert_equals_always(theoretical_length, outer_sequence.durations->min_value());
+    pallas_assert_equals_always(theoretical_length, outer_sequence.durations->max_value());
 
     return 0;
 }

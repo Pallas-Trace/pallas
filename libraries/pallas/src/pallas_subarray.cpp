@@ -13,6 +13,7 @@
 #include "pallas/utils/pallas_subarray.h"
 
 extern size_t numberPreRawBytes;
+extern size_t numberRawBytes;
 
 /** Methods Pertaining to the policy manager of the SubArray */
 namespace pallas {
@@ -44,12 +45,13 @@ size_t NoneManager::recommended_capacity(ValueDomain, StoragePolicy policy) cons
 }
 
 AddStatus NoneManager::add(SubArrayBase& subarray, uint64_t val) const {
-    if (subarray.value_count >= subarray.allocated_count) {
+    if (subarray.physical_size >= subarray.allocated_count) {
         return AddStatus::Full;
     }
 
-    subarray.values[subarray.value_count] = val;
+    subarray.values[subarray.physical_size] = val;
     subarray.value_count++;
+    subarray.physical_size++;
     return AddStatus::Ok;
 }
 
@@ -75,7 +77,8 @@ void NoneManager::write_data(SubArrayBase& subarray, FILE* data_file, const Para
     }
 
     numberPreRawBytes += subarray.size() * sizeof(uint64_t);
-    _pallas_compress_write(subarray.values, subarray.allocated_count, data_file, parameter_handler);
+    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(subarray.values, subarray.mem_size(), data_file, parameter_handler);
     subarray.free_values();
 }
 
@@ -85,7 +88,7 @@ void NoneManager::load_data(SubArrayBase& subarray, FILE* data_file, const Param
     }
 
     delete[] subarray.values;
-    subarray.values = _pallas_compress_read(subarray.allocated_count, data_file, parameter_handler);
+    subarray.values = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
 }
 
 } 
@@ -127,6 +130,10 @@ void SubArrayBase::free_values() {
     values = nullptr;
 }
 
+void SubArrayBase::rebuild_manager() {
+    manager = make_manager(value_domain, storage_policy);
+}
+
 uint64_t SubArrayBase::at(size_t pos) const {
     return manager->at(*this, pos);
 }
@@ -149,6 +156,10 @@ StoragePolicy SubArrayBase::policy() const {
 
 size_t SubArrayBase::size() const {
     return value_count;
+}
+
+size_t SubArrayBase::mem_size() const {
+    return physical_size;
 }
 
 size_t SubArrayBase::capacity() const {

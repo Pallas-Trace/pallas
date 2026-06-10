@@ -91,6 +91,7 @@ class SubArrayBase {
     [[nodiscard]] ValueDomain domain() const;
     [[nodiscard]] StoragePolicy policy() const;
     [[nodiscard]] size_t size() const;
+    [[nodiscard]] size_t mem_size() const;
     [[nodiscard]] size_t capacity() const;
     [[nodiscard]] size_t starting_index() const;
     [[nodiscard]] size_t offset() const;
@@ -105,11 +106,12 @@ class SubArrayBase {
     friend class NoneManager;
 
     explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
-    explicit SubArrayBase(FILE* info_file, ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
+    explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
     [[nodiscard]] bool contains(size_t pos) const;
     [[nodiscard]] size_t local_index(size_t pos) const;
     [[nodiscard]] uint64_t* raw_values();
     void free_values();
+    void rebuild_manager();
 
     SubArrayBase* next = nullptr;
     SubArrayBase* prev = nullptr;
@@ -117,6 +119,7 @@ class SubArrayBase {
     StoragePolicy storage_policy = StoragePolicy::None;
     std::unique_ptr<Manager> manager;
     size_t value_count = 0;
+    size_t physical_size = 0;
     size_t allocated_count = DEFAULT_VECTOR_SIZE;
     uint64_t* values = nullptr;
     size_t first_index = 0;
@@ -126,7 +129,7 @@ class SubArrayBase {
 class TimeSubArray : public SubArrayBase {
    public:
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
-    explicit TimeSubArray(FILE* info_file, StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
+    explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
     void write_data(FILE* file, const ParameterHandler* parameter_handler);
@@ -144,7 +147,7 @@ class TimeSubArray : public SubArrayBase {
 class DurationSubArray : public SubArrayBase {
    public:
     explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None, DurationSubArray* previous = nullptr);
-    explicit DurationSubArray(FILE* info_file, StoragePolicy policy = StoragePolicy::None, DurationSubArray* previous = nullptr);
+    explicit DurationSubArray(FILE* info_file, DurationSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
     void write_data(FILE* file, const ParameterHandler* parameter_handler);

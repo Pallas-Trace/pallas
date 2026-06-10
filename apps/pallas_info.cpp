@@ -124,7 +124,7 @@ void info_sequence_header() {
 }
 
 float contention_score(Thread* t, Sequence& s) {
-  pallas_duration_t delta_duration = s.durations->size() * (s.durations->mean - s.durations->min);
+  pallas_duration_t delta_duration = s.durations->size() * (s.durations->mean_value() - s.durations->min_value());
   pallas_duration_t thread_duration = t->getDuration();
   if (delta_duration > thread_duration)
     return -1;
@@ -139,11 +139,11 @@ void info_sequence(Thread* t, int index, bool details = false) {
   std::cout << std::left << "S" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << sequence_name;
   std::cout << std::setw(18) << std::right << s.durations->size();
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->min == UINT64_MAX ? 0 : s.durations->min);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->max == UINT64_MAX ? 0 : s.durations->max);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean * s.durations->size());
-  std::cout << std::setw(18) << std::right << ns2s(s.exclusive_durations->mean == UINT64_MAX ? 0 : s.exclusive_durations->mean * s.exclusive_durations->size);
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->min_value() == UINT64_MAX ? 0 : s.durations->min_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->max_value() == UINT64_MAX ? 0 : s.durations->max_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value() * s.durations->size());
+  std::cout << std::setw(18) << std::right << ns2s(s.exclusive_durations->mean_value() == UINT64_MAX ? 0 : s.exclusive_durations->mean_value() * s.exclusive_durations->size());
   std::cout << std::setw(18) << std::right << s.size();
 
   std::cout << std::setw(18) << std::right << contention_score(t, s);
