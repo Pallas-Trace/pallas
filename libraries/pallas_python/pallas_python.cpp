@@ -90,11 +90,12 @@ void setupEnums(const py::module_ &m) {
             .value("GENERIC", pallas::PALLAS_EVENT_GENERIC)
             .export_values();
 
-    py::enum_<pallas::SubArrayEncoding>(m, "SubArrayEncoding")
-            .value("None", pallas::SubArrayEncoding::None)
-            .value("DeltaTimestamp", pallas::SubArrayEncoding::DeltaTimestamp)
-            .value("DeltaDuration", pallas::SubArrayEncoding::DeltaDuration)
-            .value("MonotoneLossy", pallas::SubArrayEncoding::MonotoneLossy)
+    py::enum_<pallas::StoragePolicy>(m, "SubArrayEncoding")
+            .value("None", pallas::StoragePolicy::None)
+            .value("DeltaTimestamp", pallas::StoragePolicy::Delta)
+            .value("DeltaDuration", pallas::StoragePolicy::Delta)
+            .value("MonotoneLossy", pallas::StoragePolicy::Lossy)
+            .value("DurationLossy", pallas::StoragePolicy::Lossy)
             .export_values();
 }
 
@@ -117,26 +118,18 @@ PYBIND11_MODULE(_core, m) {
             });
 
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
-            .def_property_readonly("size", [](PyLinkedVector self) {
-                return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size;
+            .def_property_readonly("size", [](const PyLinkedVector& self) { return self.size(); })
+            .def_property_readonly("preferred_subarray_encoding", [](const PyLinkedVector& self) {
+                return self.preferred_subarray_encoding();
             })
-            .def_property_readonly("preferred_subarray_encoding", [](PyLinkedVector self) {
-                return self.linked_vector
-                           ? self.linked_vector->getPreferredSubArrayEncoding()
-                           : self.linked_duration_vector->getPreferredSubArrayEncoding();
+            .def_property_readonly("subarray_encodings", [](const PyLinkedVector& self) {
+                return self.subarray_encodings();
             })
-            .def_property_readonly("subarray_encodings", [](PyLinkedVector self) {
-                return self.linked_vector
-                           ? self.linked_vector->getSubArrayEncodings()
-                           : self.linked_duration_vector->getSubArrayEncodings();
-            })
-            .def_property_readonly("loaded_subarray_encodings", [](PyLinkedVector self) {
-                return self.linked_vector
-                           ? self.linked_vector->getLoadedSubArrayEncodings()
-                           : self.linked_duration_vector->getLoadedSubArrayEncodings();
+            .def_property_readonly("loaded_subarray_encodings", [](const PyLinkedVector& self) {
+                return self.loaded_subarray_encodings();
             })
             .def("__getitem__", [](PyLinkedVector self, int i) {
-                return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i);
+                return self.at(i);
             })
             .def("__iter__", [](const PyLinkedVector self) {
                 return PyLinkedVectorIterator{self.linked_vector, self.linked_duration_vector, 0};
@@ -146,11 +139,11 @@ PYBIND11_MODULE(_core, m) {
     py::class_<PyLinkedVectorIterator>(m, "Vector_Iterator", "An iterator over a Pallas custom vector")
             .def("__next__", [](PyLinkedVectorIterator &self) {
                 if (self.linked_vector) {
-                    if (self.index < self.linked_vector->size) {
+                    if (self.index < self.linked_vector->size()) {
                         return self.linked_vector->at(self.index++);
                     }
                 } else {
-                    if (self.index < self.linked_duration_vector->size) {
+                    if (self.index < self.linked_duration_vector->size()) {
                         return self.linked_duration_vector->at(self.index++);
                     }
                 }
@@ -161,7 +154,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("id", [](const PySequence &self) { return self.self->id; })
             .def_property_readonly("tokens", [](const PySequence &self) { return self.self->tokens; })
             .def_property_readonly("content", [](const PySequence &self) { return sequenceGetContent(self); })
-            .def_property_readonly("n_iterations", [](const PySequence &self) { return self.self->durations->size; })
+            .def_property_readonly("n_iterations", [](const PySequence &self) { return self.self->durations->size(); })
             .def_property_readonly("timestamps", [](const PySequence &self) {
                 return PyLinkedVector{self.self->timestamps, nullptr};
             })
@@ -171,9 +164,9 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("exclusive_durations", [](const PySequence &self) {
                 return PyLinkedVector{nullptr, self.self->exclusive_durations};
             })
-            .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max; })
-            .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min; })
-            .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean; })
+            .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max_value(); })
+            .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min_value(); })
+            .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean_value(); })
             .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
             .def("contains", [](const PySequence &self, const PySequence &other) {
                 return doesSequenceContains(self, other.self->id);

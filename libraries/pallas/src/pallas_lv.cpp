@@ -16,7 +16,8 @@ namespace pallas {
 LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy)
     : parameter_handler(p), value_domain(domain), preferred_storage_policy(preferred_policy) {}
 
-LVBase::~LVBase() {
+LVBase::~LVBase() { 
+    free_data();
     auto* current = first;
     while (current != nullptr) {
         auto* next = current->next_subarray();
@@ -40,12 +41,51 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
     return nullptr;
 }
 
+std::vector<StoragePolicy> LVBase::getSubArrayPolicies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(subarray_total);
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        policies.push_back(subarray->policy());
+    }
+    return policies;
+}
+
+std::vector<StoragePolicy> LVBase::getLoadedSubArrayPolicies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(loaded_subarrays.size());
+    for (auto* subarray : loaded_subarrays) {
+        if (subarray != nullptr && subarray->has_values()) {
+            policies.push_back(subarray->policy());
+        }
+    }
+    return policies;
+}
+
 uint64_t LVBase::at(size_t pos) const {
     auto* subarray = const_cast<SubArrayBase*>(find_subarray(pos));
     if (subarray == nullptr) {
         pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
     }
     if (!subarray->has_values()) {
+        if (value_domain == ValueDomain::Timestamp) {
+            auto* time_subarray = static_cast<const TimeSubArray*>(subarray);
+            if (pos == subarray->starting_index()) {
+                return time_subarray->first_value();
+            }
+            if (pos == subarray->starting_index() + subarray->size() - 1) {
+                return time_subarray->last_value();
+            }
+        }
+        while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
+               !parameter_handler.subvector_queue.empty()) {
+            auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
+            parameter_handler.subvector_queue.pop_front();
+            if (temp != nullptr && temp->has_values()) {
+                parameter_handler.loaded_durations_size -= temp->mem_size() * sizeof(uint64_t);
+                temp->free_values();
+                const_cast<LVBase*>(this)->loaded_subarrays.erase(temp);
+            }
+        }
         const_cast<LVBase*>(this)->load_data(subarray);
         const_cast<LVBase*>(this)->loaded_subarrays.insert(subarray);
     }
@@ -71,6 +111,7 @@ uint64_t LVBase::back() const {
 }
 
 uint64_t* LVBase::as_flat_array() const {
+    const_cast<LVBase*>(this)->load_all_data();
     auto* flat_array = new uint64_t[value_count];
     size_t copied_values = 0;
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
@@ -100,6 +141,24 @@ void LVBase::load_all_data() {
             loaded_subarrays.insert(subarray);
         }
     }
+}
+
+void LVBase::free_data() {
+    if (first == nullptr) {
+        return;
+    }
+    auto& queue = parameter_handler.subvector_queue;
+    for (auto* subarray : loaded_subarrays) {
+        auto it = std::find(queue.begin(), queue.end(), subarray);
+        if (it != queue.end()) {
+            queue.erase(it);
+        }
+        if (subarray->has_values()) {
+            parameter_handler.loaded_durations_size -= subarray->mem_size() * sizeof(uint64_t);
+            subarray->free_values();
+        }
+    }
+    loaded_subarrays.clear();
 }
 
 void LVBase::reset_offsets() {
@@ -147,8 +206,70 @@ std::string TimeLV::to_string() const {
     return values_to_string();
 }
 
-std::vector<double> TimeLV::getWeights(pallas_timestamp_t, pallas_timestamp_t) const {
-    return {};
+std::vector<double> TimeLV::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
+    auto output = std::vector<double>();
+    auto* current = static_cast<TimeSubArray*>(first);
+    double sum = 0;
+    // While loop to go through all the SubVectors.
+    // Legend:
+    //   - : Time spent in current vector but NOT in the window
+    //   # : Time spent in current vector AND in the window
+    // We store in output the ratio of # / ( - + # )
+    // i.e. the ratio of time spent in window over duration of current vector
+    while (current != nullptr) {
+        if (current->last_value() < start) {
+            // first_value ... last_value ... [ start ... end ]
+            // --------------------------
+            // Completely outside of the range
+            output.push_back(0.);
+        } else if (end < current->first_value()) {
+            // [ start ... end ] .. first_value ... last_value
+            //                      --------------------------
+            // We're past the boundaries, we can stop searching.
+            break;
+        } else if (start <= current->first_value() && current->last_value() <= end) {
+            // [ start ... first_value ... last_value ... end ]
+            //             ##########################
+            // Completely inside the bounds
+            output.push_back(1.0);
+        } else if (current->first_value() < start && end < current->last_value()) {
+            // first_value ... [ start ... end ] ... last_value
+            // ----------------#################---------------
+            // We have to compute the ratio of the two intervals to "guess" the weight of this vector in the total
+            output.push_back(static_cast<double>(end - start) / (current->last_value() - current->first_value()));
+        } else if (current->first_value() < start && current->last_value() < end) {
+            // first_value ... [ start ... last_value ... end ]
+            // ----------------######################
+            // Same thing except the window ends in the current vector
+            output.push_back(static_cast<double>(current->last_value() - start) / (current->last_value() - current->first_value()));
+        } else if (current->first_value() <= end && end < current->last_value()) {
+            // [ start ... first_value ... end ] ... last_value
+            //             #####################---------------
+            // Same thing except the window starts in the current vector and isn't entirely contained in it.
+            output.push_back(static_cast<double>(end - current->first_value()) / (current->last_value() - current->first_value()));
+        } else {
+            pallas_error("This is not supposed to happen !\n");
+            pallas_error("start=%lu, end=%lu\n", start, end);
+        }
+        sum += output.back();
+        current = static_cast<TimeSubArray*>(current->next_subarray());
+    }
+    // Then we need to normalize the weight vector
+    // UPDATE: We don't actually need to normalize the weight vector
+    //
+    // For example, a vector formatted like this:
+    //          start                   end
+    //          |                         |
+    // A: [......##][########][#######][##......]
+    // B:   [....############]
+    // A would have a non-normalized weight of [ .25, 1, 1, .25 ] -> [ .1, .4, .4, 0.1 ]
+    // B would have a non-normalized weight of [ .75 ] and that's that
+    // if (sum > 1.0) {
+    //     for (auto &i: output) {
+    //         i /= sum;
+    //     }
+    // }
+    return output;
 }
 
 size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
@@ -226,7 +347,7 @@ pallas_duration_t DurationLV::weightedSum(std::vector<double>& weights) const {
     size_t index = 0;
     for (auto* subarray = first; subarray != nullptr && index < weights.size(); subarray = subarray->next_subarray(), ++index) {
         auto* duration_subarray = static_cast<const DurationSubArray*>(subarray);
-        result += static_cast<pallas_duration_t>(weights[index] * duration_subarray->mean_value());
+        result += static_cast<pallas_duration_t>(weights[index] * duration_subarray->mean_value() * duration_subarray->size());
     }
     return result;
 }

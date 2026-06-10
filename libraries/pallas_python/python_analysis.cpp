@@ -196,7 +196,6 @@ py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive &archi
                 }
                 output[i] += count * (count_messages ? 1 : msgLength);
             }
-            event.timestamps->free_data();
         }
     }
     return output_numpy;
@@ -216,10 +215,10 @@ py::object get_sequences_statistics(pallas::Thread &thread) {
         auto &line = test_numpy_array.mutable_at(i);
         line.sequence_id = s.id.id;
         name_list[i] = py::str(s.guessName(&thread));
-        line.min = s.durations->min;
-        line.mean = s.durations->mean;
-        line.max = s.durations->max;
-        line.nb_occurrences = s.durations->size;
+        line.min = s.durations->min_value();
+        line.mean = s.durations->mean_value();
+        line.max = s.durations->max_value();
+        line.nb_occurrences = s.durations->size();
     }
 
 

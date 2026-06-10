@@ -49,6 +49,9 @@ class LVBase {
     [[nodiscard]] size_t subarray_count() const {
         return subarray_total;
     }
+    [[nodiscard]] size_t loaded_subarray_count() const {
+        return loaded_subarrays.size();
+    }
     [[nodiscard]] bool empty() const {
         return value_count == 0;
     }
@@ -65,6 +68,8 @@ class LVBase {
     [[nodiscard]] StoragePolicy getPreferredStoragePolicy() const {
         return preferred_storage_policy;
     }
+    [[nodiscard]] std::vector<StoragePolicy> getSubArrayPolicies() const;
+    [[nodiscard]] std::vector<StoragePolicy> getLoadedSubArrayPolicies() const;
 
     [[nodiscard]] uint64_t at(size_t pos) const;
     [[nodiscard]] uint64_t operator[](size_t pos) const;
@@ -75,6 +80,7 @@ class LVBase {
     [[nodiscard]] std::string values_to_string() const;
 
     void load_all_data();
+    void free_data();
     void reset_offsets();
 
    protected:

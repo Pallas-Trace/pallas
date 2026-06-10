@@ -104,6 +104,7 @@ class SubArrayBase {
    protected:
     friend class Manager;
     friend class NoneManager;
+    friend class LVBase;
 
     explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
     explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
