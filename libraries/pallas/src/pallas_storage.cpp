@@ -754,19 +754,12 @@ void pallas::TimeSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const uint8_t stored_policy = static_cast<uint8_t>(policy());
-    const auto physical_size = mem_size();
-    const auto size = this->size();
     const auto first = first_value();
     const auto last = last_value();
-    const auto subarray_offset = offset();
 
-    _pallas_fwrite(&size, sizeof(size), 1, info_file);
-    _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
-    _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
+    write_common_header(info_file);
     _pallas_fwrite(&first, sizeof(first), 1, info_file);
     _pallas_fwrite(&last, sizeof(last), 1, info_file);
-    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
 }
 
 void pallas::DurationSubArray::write_header(FILE* info_file) const {
@@ -774,23 +767,16 @@ void pallas::DurationSubArray::write_header(FILE* info_file) const {
         return;
     }
 
-    const uint8_t stored_policy = static_cast<uint8_t>(policy());
-    const auto physical_size = mem_size();
-    const auto size = this->size();
     const auto min = min_value();
     const auto max = max_value();
     const auto mean = mean_value();
-    const auto subarray_offset = offset();
 
-    _pallas_fwrite(&size, sizeof(size), 1, info_file);
-    _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
-    _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
+    write_common_header(info_file);
     _pallas_fwrite(&min, sizeof(min), 1, info_file);
     _pallas_fwrite(&max, sizeof(max), 1, info_file);
     _pallas_fwrite(&mean, sizeof(mean), 1, info_file);
     pallas_assert_inferior_equal(mean, max);
     pallas_assert_inferior_equal(min, mean);
-    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
 }
 
 void pallas::TimeLV::write_header(FILE* infoFile) {
@@ -852,12 +838,40 @@ pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArray
       value_domain(domain),
       manager(nullptr),
       values(nullptr) {
+    read_common_header(info_file);
+
+    if (prev != nullptr) {
+        prev->next = this;
+        first_index = prev->first_index + prev->value_count;
+    }
+}
+
+void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
+    if (info_file == nullptr) {
+        return;
+    }
+
+    const auto size = this->size();
+    uint8_t stored_policy = static_cast<uint8_t>(StoragePolicy::None);
+    const auto physical_size = mem_size();
+    const auto subarray_offset = offset();
+
+    stored_policy = static_cast<uint8_t>(policy());
+
+    _pallas_fwrite(&size, sizeof(size), 1, info_file);
+    _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
+    _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
+    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
+}
+
+void pallas::SubArrayBase::read_common_header(FILE* info_file) {
     uint8_t stored_policy = static_cast<uint8_t>(StoragePolicy::None);
     size_t physical_size = 0;
 
     _pallas_fread(&value_count, sizeof(value_count), 1, info_file);
     _pallas_fread(&stored_policy, sizeof(stored_policy), 1, info_file);
     _pallas_fread(&physical_size, sizeof(physical_size), 1, info_file);
+    _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 
     if (stored_policy <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
         storage_policy = static_cast<StoragePolicy>(stored_policy);
@@ -868,17 +882,11 @@ pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArray
     rebuild_manager();
     this->physical_size = physical_size;
     allocated_count = physical_size;
-
-    if (prev != nullptr) {
-        prev->next = this;
-        first_index = prev->first_index + prev->value_count;
-    }
 }
 
 void pallas::TimeSubArray::read_header(FILE* info_file) {
     _pallas_fread(&first_timestamp, sizeof(first_timestamp), 1, info_file);
     _pallas_fread(&last_timestamp, sizeof(last_timestamp), 1, info_file);
-    _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 }
 
 pallas::TimeSubArray::TimeSubArray(FILE* info_file, TimeSubArray* previous)
@@ -900,7 +908,6 @@ void pallas::DurationSubArray::read_header(FILE* info_file) {
     }
     pallas_assert_inferior_equal(mean_duration, max_duration);
     pallas_assert_inferior_equal(min_duration, mean_duration);
-    _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 }
 
 pallas::DurationSubArray::DurationSubArray(FILE* info_file, DurationSubArray* previous)

@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <memory>
 
+#include "pallas/utils/pallas_parameter_handler.h"
+
 #ifndef DEFAULT_VECTOR_SIZE
 #define DEFAULT_VECTOR_SIZE 1000
 #endif
@@ -27,9 +29,8 @@
 #define DEFAULT_SMALL_SIZE 32
 #endif
 
+/** Enum Domain, Policy and LossyPolicy Enums */
 namespace pallas {
-
-class ParameterHandler;
 
 enum class ValueDomain : uint8_t {
     Timestamp = 0,
@@ -52,6 +53,11 @@ enum class AddStatus : uint8_t {
     Outlier = 1,
     Full = 2,
 };
+
+}
+
+/** Manager Class - Handles the Internals of Subarray */
+namespace pallas {
 
 class SubArrayBase;
 
@@ -78,6 +84,10 @@ class NoneManager : public Manager {
     void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const override;
 };
 
+}
+
+/** SubArray - Standalone Implementation of SubArray Class and its children Time and Duration SubArray */
+namespace pallas {
 class SubArrayBase {
    public:
     virtual ~SubArrayBase();
@@ -113,6 +123,8 @@ class SubArrayBase {
     [[nodiscard]] uint64_t* raw_values();
     void free_values();
     void rebuild_manager();
+    void write_common_header(FILE* info_file) const;
+    void read_common_header(FILE* info_file);
 
     SubArrayBase* next = nullptr;
     SubArrayBase* prev = nullptr;
@@ -167,7 +179,7 @@ class DurationSubArray : public SubArrayBase {
     uint64_t mean_duration = 0;
 };
 
-}  // namespace pallas
+}  
 
 #endif
 
