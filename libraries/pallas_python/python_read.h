@@ -42,21 +42,19 @@ struct PyLinkedVector {
         return linked_vector ? linked_vector->size() : linked_duration_vector->size();
     }
 
-    [[nodiscard]] pallas::StoragePolicy preferred_subarray_encoding() const {
+    [[nodiscard]] pallas::StoragePolicy preferred_subarray_policy() const {
         return linked_vector ? linked_vector->getPreferredStoragePolicy()
                              : linked_duration_vector->getPreferredStoragePolicy();
     }
 
-    [[nodiscard]] std::vector<pallas::StoragePolicy> subarray_encodings() const {
-        return std::vector<pallas::StoragePolicy>(
-                linked_vector ? linked_vector->subarray_count() : linked_duration_vector->subarray_count(),
-                preferred_subarray_encoding());
+    [[nodiscard]] std::vector<pallas::StoragePolicy> subarray_policies() const {
+        return linked_vector ? linked_vector->getSubArrayPolicies()
+                             : linked_duration_vector->getSubArrayPolicies();
     }
 
-    [[nodiscard]] std::vector<pallas::StoragePolicy> loaded_subarray_encodings() const {
-        return std::vector<pallas::StoragePolicy>(
-                linked_vector ? linked_vector->loaded_subarray_count() : linked_duration_vector->loaded_subarray_count(),
-                preferred_subarray_encoding());
+    [[nodiscard]] std::vector<pallas::StoragePolicy> loaded_subarray_policies() const {
+        return linked_vector ? linked_vector->getLoadedSubArrayPolicies()
+                             : linked_duration_vector->getLoadedSubArrayPolicies();
     }
 
     [[nodiscard]] uint64_t at(size_t index) const {

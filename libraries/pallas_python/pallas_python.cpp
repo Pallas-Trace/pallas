@@ -90,12 +90,10 @@ void setupEnums(const py::module_ &m) {
             .value("GENERIC", pallas::PALLAS_EVENT_GENERIC)
             .export_values();
 
-    py::enum_<pallas::StoragePolicy>(m, "SubArrayEncoding")
+    py::enum_<pallas::StoragePolicy>(m, "SubArrayPolicy")
             .value("None", pallas::StoragePolicy::None)
-            .value("DeltaTimestamp", pallas::StoragePolicy::Delta)
-            .value("DeltaDuration", pallas::StoragePolicy::Delta)
-            .value("MonotoneLossy", pallas::StoragePolicy::Lossy)
-            .value("DurationLossy", pallas::StoragePolicy::Lossy)
+            .value("Delta", pallas::StoragePolicy::Delta)
+            .value("Lossy", pallas::StoragePolicy::Lossy)
             .export_values();
 }
 
@@ -119,14 +117,14 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
             .def_property_readonly("size", [](const PyLinkedVector& self) { return self.size(); })
-            .def_property_readonly("preferred_subarray_encoding", [](const PyLinkedVector& self) {
-                return self.preferred_subarray_encoding();
+            .def_property_readonly("preferred_subarray_policy", [](const PyLinkedVector& self) {
+                return self.preferred_subarray_policy();
             })
-            .def_property_readonly("subarray_encodings", [](const PyLinkedVector& self) {
-                return self.subarray_encodings();
+            .def_property_readonly("subarray_policies", [](const PyLinkedVector& self) {
+                return self.subarray_policies();
             })
-            .def_property_readonly("loaded_subarray_encodings", [](const PyLinkedVector& self) {
-                return self.loaded_subarray_encodings();
+            .def_property_readonly("loaded_subarray_policies", [](const PyLinkedVector& self) {
+                return self.loaded_subarray_policies();
             })
             .def("__getitem__", [](PyLinkedVector self, int i) {
                 return self.at(i);

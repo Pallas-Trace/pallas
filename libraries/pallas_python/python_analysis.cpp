@@ -196,6 +196,7 @@ py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive &archi
                 }
                 output[i] += count * (count_messages ? 1 : msgLength);
             }
+            event.timestamps->free_data();
         }
     }
     return output_numpy;
