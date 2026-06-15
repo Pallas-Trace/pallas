@@ -344,7 +344,7 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     }
     return new TimeSubArray(preferred_storage_policy,
                             static_cast<TimeSubArray*>(previous),
-                            parameter_handler.getTimeLinearEpsilon());
+                            &parameter_handler);
 }
 
 }
@@ -436,7 +436,9 @@ uint64_t DurationLV::mean_value() const {
 }
 
 SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
-    return new DurationSubArray(preferred_storage_policy, static_cast<DurationSubArray*>(previous));
+    return new DurationSubArray(preferred_storage_policy,
+                                static_cast<DurationSubArray*>(previous),
+                                &parameter_handler);
 }
 
 }  // namespace pallas

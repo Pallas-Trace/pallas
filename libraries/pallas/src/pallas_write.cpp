@@ -202,7 +202,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
         return;
     }
 
-    if (loop->nb_iterations < kHotLoopIterationThreshold) {
+    if (loop->nb_iterations != kHotLoopIterationThreshold) {
         return;
     }
 

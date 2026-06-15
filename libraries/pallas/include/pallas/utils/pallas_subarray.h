@@ -150,6 +150,7 @@ class DurationDeltaManager : public Manager {
 
 class LinearTimeManager : public Manager {
    public:
+    // Overridden base class methods
     [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
     AddStatus add(SubArrayBase& subarray, uint64_t val) override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
@@ -157,37 +158,29 @@ class LinearTimeManager : public Manager {
     void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
     void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
     void on_values_freed(SubArrayBase& subarray) override;
-
+    // Epsilon
     void set_epsilon(uint64_t new_epsilon);
 
    private:
-    enum class SerializedMode : uint64_t {
-        RawPrefixOnly = 0,
-        LinearModel = 1,
-    };
-
-    struct OutlierEntry {
-        size_t logical_index = 0;
-        uint64_t value = 0;
-    };
-
     static constexpr size_t kSeedValueCount = 16;
     static constexpr size_t kOutlierCapacity = 8;
 
     [[nodiscard]] bool model_active() const;
+    [[nodiscard]] size_t representative_capacity() const;
+    [[nodiscard]] size_t outlier_count(const SubArrayBase& subarray) const;
+    [[nodiscard]] uint64_t prediction_from_fit(const uint64_t* fit_values, size_t fit_count, size_t logical_index) const;
     [[nodiscard]] uint64_t predict_value(size_t logical_index) const;
-    [[nodiscard]] const OutlierEntry* find_outlier(size_t logical_index) const;
-    void fit_model(const TimeSubArray& subarray);
+    [[nodiscard]] bool find_outlier(const SubArrayBase& subarray, size_t logical_index, uint64_t& value) const;
+    void fit_model(const TimeSubArray& subarray, size_t fit_count);
+    void sync_model_to_values(SubArrayBase& subarray) const;
+    void refresh_model_from_values(const SubArrayBase& subarray);
+    void activate_prediction_model(TimeSubArray& subarray, size_t fit_count);
     void clear_state();
 
-    SerializedMode serialized_mode = SerializedMode::RawPrefixOnly;
+    bool prediction_model_active = false;
     uint64_t epsilon = 64;
     uint64_t anchor_value = 0;
     double slope = 0.0;
-    size_t raw_prefix_count = 0;
-    std::array<uint64_t, kSeedValueCount> raw_prefix_values{};
-    size_t outlier_count = 0;
-    std::array<OutlierEntry, kOutlierCapacity> outliers{};
 };
 
 [[nodiscard]] inline uint64_t zigzag_encode(int64_t x) {
@@ -261,7 +254,10 @@ class SubArrayBase {
     friend class LinearTimeManager;
     friend class LVBase;
 
-    explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
+    explicit SubArrayBase(ValueDomain domain,
+                          StoragePolicy policy = StoragePolicy::None,
+                          SubArrayBase* previous = nullptr,
+                          const ParameterHandler* parameter_handler = nullptr);
     explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
     [[nodiscard]] bool contains(size_t pos) const;
     [[nodiscard]] size_t local_index(size_t pos) const;
@@ -281,14 +277,16 @@ class SubArrayBase {
     size_t physical_size = 0;
     size_t allocated_count = DEFAULT_VECTOR_SIZE;
     uint64_t* values = nullptr;
-    bool resident = false;
+    const ParameterHandler* configuration = nullptr;
     size_t first_index = 0;
     size_t file_offset = 0;
 };
 
 class TimeSubArray : public SubArrayBase {
    public:
-    explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr, uint64_t linear_epsilon = 64);
+    explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None,
+                          TimeSubArray* previous = nullptr,
+                          const ParameterHandler* parameter_handler = nullptr);
     explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
@@ -309,7 +307,9 @@ class TimeSubArray : public SubArrayBase {
 
 class DurationSubArray : public SubArrayBase {
    public:
-    explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None, DurationSubArray* previous = nullptr);
+    explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None,
+                              DurationSubArray* previous = nullptr,
+                              const ParameterHandler* parameter_handler = nullptr);
     explicit DurationSubArray(FILE* info_file, DurationSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
