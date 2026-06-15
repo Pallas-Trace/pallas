@@ -15,9 +15,12 @@
 #else
 
 #include <cstddef>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <stdexcept>
+#include <vector>
 
 #include "pallas/utils/pallas_parameter_handler.h"
 
@@ -43,6 +46,11 @@ enum class StoragePolicy : uint8_t {
     Lossy = 2,
 };
 
+enum class SubArrayPhase : uint8_t {
+    RuntimeWrite = 0,
+    AnalysisRead = 1,
+};
+
 enum class LossyPolicy : uint8_t {
     Linear = 0,
     NormalSample = 1,
@@ -60,29 +68,162 @@ enum class AddStatus : uint8_t {
 namespace pallas {
 
 class SubArrayBase;
+class TimeSubArray;
 
 class Manager {
    public:
     virtual ~Manager();
 
-    [[nodiscard]] virtual size_t recommended_capacity(ValueDomain domain, StoragePolicy policy) const = 0;
-    virtual AddStatus add(SubArrayBase& subarray, uint64_t val) const = 0;
+    [[nodiscard]] virtual size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const = 0;
+    virtual AddStatus add(SubArrayBase& subarray, uint64_t val) = 0;
 
     [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
     virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
-    virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const = 0;
-    virtual void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const = 0;
+    virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) = 0;
+    virtual void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) = 0;
+    virtual void on_values_freed(SubArrayBase& subarray) = 0;
 };
 
 class NoneManager : public Manager {
    public:
-    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy) const override;
-    AddStatus add(SubArrayBase& subarray, uint64_t val) const override;
+    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) const override;
-    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed(SubArrayBase& subarray) override;
 };
+
+class TimeDeltaManager : public Manager {
+   public:
+    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
+    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
+    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed(SubArrayBase& subarray) override;
+
+   private:
+    struct Checkpoint {
+        size_t logical_index = 0;
+        size_t byte_offset = 0;
+        uint64_t value = 0;
+        uint64_t previous_delta = 0;
+    };
+
+    static constexpr size_t kCheckpointStride = 50;
+    uint8_t* payload = nullptr;
+    size_t payload_bytes = 0;
+    size_t max_payload_bytes = 0;
+    uint64_t previous_delta = 0;
+    std::vector<Checkpoint> checkpoints;
+};
+
+class DurationDeltaManager : public Manager {
+   public:
+    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
+    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
+    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed(SubArrayBase& subarray) override;
+
+   private:
+    struct Checkpoint {
+        size_t logical_index = 0;
+        size_t byte_offset = 0;
+        uint64_t value = 0;
+        int64_t previous_delta = 0;
+    };
+
+    static constexpr size_t kCheckpointStride = 50;
+    uint8_t* payload = nullptr;
+    size_t payload_bytes = 0;
+    size_t max_payload_bytes = 0;
+    uint64_t last_value = 0;
+    int64_t previous_delta = 0;
+    std::vector<Checkpoint> checkpoints;
+};
+
+class LinearTimeManager : public Manager {
+   public:
+    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
+    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
+    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed(SubArrayBase& subarray) override;
+
+    void set_epsilon(uint64_t new_epsilon);
+
+   private:
+    enum class SerializedMode : uint64_t {
+        RawPrefixOnly = 0,
+        LinearModel = 1,
+    };
+
+    struct OutlierEntry {
+        size_t logical_index = 0;
+        uint64_t value = 0;
+    };
+
+    static constexpr size_t kSeedValueCount = 16;
+    static constexpr size_t kOutlierCapacity = 8;
+
+    [[nodiscard]] bool model_active() const;
+    [[nodiscard]] uint64_t predict_value(size_t logical_index) const;
+    [[nodiscard]] const OutlierEntry* find_outlier(size_t logical_index) const;
+    void fit_model(const TimeSubArray& subarray);
+    void clear_state();
+
+    SerializedMode serialized_mode = SerializedMode::RawPrefixOnly;
+    uint64_t epsilon = 64;
+    uint64_t anchor_value = 0;
+    double slope = 0.0;
+    size_t raw_prefix_count = 0;
+    std::array<uint64_t, kSeedValueCount> raw_prefix_values{};
+    size_t outlier_count = 0;
+    std::array<OutlierEntry, kOutlierCapacity> outliers{};
+};
+
+[[nodiscard]] inline uint64_t zigzag_encode(int64_t x) {
+    return (static_cast<uint64_t>(x) << 1) ^ static_cast<uint64_t>(x >> 63);
+}
+
+[[nodiscard]] inline int64_t zigzag_decode(uint64_t x) {
+    return static_cast<int64_t>((x >> 1) ^ static_cast<uint64_t>(-static_cast<int64_t>(x & 1)));
+}
+
+inline void write_varint(uint64_t x, uint8_t*& out) {
+    while (x >= 0x80) {
+        *out++ = static_cast<uint8_t>((x & 0x7f) | 0x80);
+        x >>= 7;
+    }
+    *out++ = static_cast<uint8_t>(x);
+}
+
+[[nodiscard]] inline uint64_t read_varint(const uint8_t*& p, const uint8_t* end) {
+    uint64_t result = 0;
+    int shift = 0;
+    while (p < end) {
+        const uint8_t byte = *p++;
+        result |= static_cast<uint64_t>(byte & 0x7f) << shift;
+
+        if ((byte & 0x80) == 0) {
+            return result;
+        }
+
+        shift += 7;
+        if (shift >= 64) {
+            throw std::runtime_error("varint too long");
+        }
+    }
+    throw std::runtime_error("truncated varint");
+}
 
 }
 
@@ -100,6 +241,7 @@ class SubArrayBase {
 
     [[nodiscard]] ValueDomain domain() const;
     [[nodiscard]] StoragePolicy policy() const;
+    [[nodiscard]] SubArrayPhase phase() const;
     [[nodiscard]] size_t size() const;
     [[nodiscard]] size_t mem_size() const;
     [[nodiscard]] size_t capacity() const;
@@ -114,6 +256,9 @@ class SubArrayBase {
    protected:
     friend class Manager;
     friend class NoneManager;
+    friend class TimeDeltaManager;
+    friend class DurationDeltaManager;
+    friend class LinearTimeManager;
     friend class LVBase;
 
     explicit SubArrayBase(ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr);
@@ -130,18 +275,20 @@ class SubArrayBase {
     SubArrayBase* prev = nullptr;
     ValueDomain value_domain;
     StoragePolicy storage_policy = StoragePolicy::None;
+    SubArrayPhase subarray_phase = SubArrayPhase::RuntimeWrite;
     std::unique_ptr<Manager> manager;
     size_t value_count = 0;
     size_t physical_size = 0;
     size_t allocated_count = DEFAULT_VECTOR_SIZE;
     uint64_t* values = nullptr;
+    bool resident = false;
     size_t first_index = 0;
     size_t file_offset = 0;
 };
 
 class TimeSubArray : public SubArrayBase {
    public:
-    explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr);
+    explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None, TimeSubArray* previous = nullptr, uint64_t linear_epsilon = 64);
     explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
     AddStatus add(uint64_t val) override;
@@ -153,6 +300,9 @@ class TimeSubArray : public SubArrayBase {
     [[nodiscard]] uint64_t last_value() const;
 
    protected:
+    friend class TimeDeltaManager;
+    friend class LinearTimeManager;
+
     uint64_t first_timestamp = 0;
     uint64_t last_timestamp = 0;
 };
@@ -166,7 +316,7 @@ class DurationSubArray : public SubArrayBase {
     void write_data(FILE* file, const ParameterHandler* parameter_handler);
     void write_header(FILE* info_file) const;
     void read_header(FILE* info_file);
-    void update_statistics();
+    void update_statistics(uint64_t current_value);
     void final_update_mean();
 
     [[nodiscard]] uint64_t min_value() const;

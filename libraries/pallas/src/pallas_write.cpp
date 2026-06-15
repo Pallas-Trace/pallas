@@ -32,11 +32,8 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 }
 
 
-#if 0
-static constexpr unsigned kHotLoopIterationThreshold = 100;
+static constexpr unsigned kHotLoopIterationThreshold = RecentValueRingBuffer::kCapacity;
 static constexpr pallas_duration_t kHotLoopMaxDurationThreshold = 300ULL;  // 300 ns per failed poll candidate
-static constexpr SubArrayEncoding kHotLoopTimestampEncoding = SubArrayEncoding::MonotoneLossy;
-static constexpr SubArrayEncoding kHotLoopDurationEncoding = SubArrayEncoding::DeltaDuration;
 
 static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
     if (sequence.tokens.size() != 2) {
@@ -56,25 +53,26 @@ static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread)
            second_event->data.record == PALLAS_EVENT_LEAVE;
 }
 
-static void applyEventTimestampEncodingToToken(Token token, Thread& thread, SubArrayEncoding encoding) {
+static void applyEventTimestampPolicyToToken(Token token, Thread& thread, StoragePolicy policy) {
     switch (token.type) {
     case TypeEvent: {
         auto* event = thread.getEvent(token);
         if (event && event->timestamps) {
-            event->timestamps->setPreferredSubArrayEncoding(encoding);
+            event->timestamps->setPreferredStoragePolicy(policy);
+            event->timestamps->apply_preferred_policy_now();
         }
         return;
     }
     case TypeSequence: {
         auto* sequence = thread.getSequence(token);
         for (const auto child : sequence->tokens) {
-            applyEventTimestampEncodingToToken(child, thread, encoding);
+            applyEventTimestampPolicyToToken(child, thread, policy);
         }
         return;
     }
     case TypeLoop: {
         auto* loop = thread.getLoop(token);
-        applyEventTimestampEncodingToToken(loop->repeated_token, thread, encoding);
+        applyEventTimestampPolicyToToken(loop->repeated_token, thread, policy);
         return;
     }
     default:
@@ -83,15 +81,17 @@ static void applyEventTimestampEncodingToToken(Token token, Thread& thread, SubA
 }
 
 static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
-    sequence.timestamps->setPreferredSubArrayEncoding(kHotLoopTimestampEncoding);
-    sequence.durations->setPreferredSubArrayEncoding(kHotLoopDurationEncoding);
-    sequence.exclusive_durations->setPreferredSubArrayEncoding(kHotLoopDurationEncoding);
+    sequence.timestamps->setPreferredStoragePolicy(StoragePolicy::Lossy);
+    sequence.timestamps->apply_preferred_policy_now();
+    sequence.durations->setPreferredStoragePolicy(StoragePolicy::Delta);
+    sequence.durations->apply_preferred_policy_now();
+    sequence.exclusive_durations->setPreferredStoragePolicy(StoragePolicy::Delta);
+    sequence.exclusive_durations->apply_preferred_policy_now();
 
     for (const auto token : sequence.tokens) {
-        applyEventTimestampEncodingToToken(token, thread, kHotLoopTimestampEncoding);
+        applyEventTimestampPolicyToToken(token, thread, StoragePolicy::Lossy);
     }
 }
-#endif
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
@@ -198,12 +198,11 @@ void ThreadWriter::storeToken(Token t, size_t i) {
 void ThreadWriter::incrementLoop(Loop* loop) {
     pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
     loop->nb_iterations++;
-#if 0
     if (!loop->repeated_token.isValid() || loop->repeated_token.type != TypeSequence) {
         return;
     }
 
-    if (loop->nb_iterations != kHotLoopIterationThreshold) {
+    if (loop->nb_iterations < kHotLoopIterationThreshold) {
         return;
     }
 
@@ -234,7 +233,6 @@ void ThreadWriter::incrementLoop(Loop* loop) {
                loop->nb_iterations,
                static_cast<unsigned long>(max_duration));
     applyHotLoopSequencePolicy(*sequence, *thread);
-#endif
 }
 
 Loop* ThreadWriter::unsquashLoop(Loop* loop) {

@@ -170,6 +170,8 @@ class ParameterHandler {
     LossyPolicy timeLossyPolicy{static_cast<LossyPolicy>(0)};
     /** Lossy policy to use when duration SubArrays are created in lossy mode. */
     LossyPolicy durationLossyPolicy{static_cast<LossyPolicy>(0)};
+    /** Fixed epsilon used by Linear timestamp lossy subarrays. */
+    uint64_t timeLinearEpsilon{64};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -204,6 +206,8 @@ class ParameterHandler {
     [[nodiscard]] LossyPolicy getTimeLossyPolicy() const;
     /** Getter for the active duration lossy policy. */
     [[nodiscard]] LossyPolicy getDurationLossyPolicy() const;
+    /** Getter for the fixed epsilon used by Linear timestamp lossy subarrays. */
+    [[nodiscard]] uint64_t getTimeLinearEpsilon() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 

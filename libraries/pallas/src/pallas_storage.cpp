@@ -836,6 +836,7 @@ void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const 
 pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous)
     : prev(previous),
       value_domain(domain),
+      subarray_phase(SubArrayPhase::AnalysisRead),
       manager(nullptr),
       values(nullptr) {
     read_common_header(info_file);
@@ -1663,6 +1664,7 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fwrite(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
     _pallas_fwrite(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
+    _pallas_fwrite(&timeLinearEpsilon, sizeof(timeLinearEpsilon), 1, file);
 }
 
 pallas::ParameterHandler::ParameterHandler(FILE* file) {
@@ -1680,6 +1682,7 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fread(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
     _pallas_fread(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
+    _pallas_fread(&timeLinearEpsilon, sizeof(timeLinearEpsilon), 1, file);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 

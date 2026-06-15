@@ -13,6 +13,19 @@
 /** Methods Pertaining to base LV class */
 namespace pallas {
 
+void LVBase::evict_loaded_subarrays() {
+    while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
+           !parameter_handler.subvector_queue.empty()) {
+        auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
+        parameter_handler.subvector_queue.pop_front();
+        if (temp != nullptr && temp->has_values()) {
+            parameter_handler.loaded_durations_size -= temp->mem_size() * sizeof(uint64_t);
+            temp->free_values();
+            loaded_subarrays.erase(temp);
+        }
+    }
+}
+
 LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy)
     : parameter_handler(p), value_domain(domain), preferred_storage_policy(preferred_policy) {}
 
@@ -62,6 +75,20 @@ std::vector<StoragePolicy> LVBase::getLoadedSubArrayPolicies() const {
 }
 
 uint64_t LVBase::at(size_t pos) const {
+    if (pos >= value_count) {
+        pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
+    }
+    return operator[](pos);
+}
+
+uint64_t LVBase::operator[](size_t pos) const {
+    uint64_t cached_value = 0;
+    if (recent_values.lookup(pos, cached_value)) {
+        // pallas_log(DebugLevel::Error, "LV recent cache hit: pos=%zu value=%" PRIu64 "\n", pos, cached_value);
+        return cached_value;
+    }
+    // pallas_log(DebugLevel::Error, "LV recent cache miss: pos=%zu\n", pos);
+
     auto* subarray = const_cast<SubArrayBase*>(find_subarray(pos));
     if (subarray == nullptr) {
         pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
@@ -70,30 +97,23 @@ uint64_t LVBase::at(size_t pos) const {
         if (value_domain == ValueDomain::Timestamp) {
             auto* time_subarray = static_cast<const TimeSubArray*>(subarray);
             if (pos == subarray->starting_index()) {
-                return time_subarray->first_value();
+                const auto value = time_subarray->first_value();
+                recent_values.push(pos, value);
+                return value;
             }
             if (pos == subarray->starting_index() + subarray->size() - 1) {
-                return time_subarray->last_value();
+                const auto value = time_subarray->last_value();
+                recent_values.push(pos, value);
+                return value;
             }
         }
-        while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
-               !parameter_handler.subvector_queue.empty()) {
-            auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
-            parameter_handler.subvector_queue.pop_front();
-            if (temp != nullptr && temp->has_values()) {
-                parameter_handler.loaded_durations_size -= temp->mem_size() * sizeof(uint64_t);
-                temp->free_values();
-                const_cast<LVBase*>(this)->loaded_subarrays.erase(temp);
-            }
-        }
+        const_cast<LVBase*>(this)->evict_loaded_subarrays();
         const_cast<LVBase*>(this)->load_data(subarray);
         const_cast<LVBase*>(this)->loaded_subarrays.insert(subarray);
     }
-    return subarray->at(pos);
-}
-
-uint64_t LVBase::operator[](size_t pos) const {
-    return at(pos);
+    const auto value = subarray->at(pos);
+    recent_values.push(pos, value);
+    return value;
 }
 
 uint64_t LVBase::front() const {
@@ -167,6 +187,33 @@ void LVBase::reset_offsets() {
     }
 }
 
+bool LVBase::apply_preferred_policy_now() {
+    if (last == nullptr) {
+        first = create_subarray(nullptr);
+        last = first;
+        subarray_total = 1;
+        return true;
+    }
+
+    if (last->policy() == preferred_storage_policy) {
+        return false;
+    }
+
+    if (last->size() == 0) {
+        auto* previous = last->previous_subarray();
+        delete last;
+        last = create_subarray(previous);
+        if (previous == nullptr) {
+            first = last;
+        }
+        return true;
+    }
+
+    last = create_subarray(last);
+    subarray_total++;
+    return true;
+}
+
 }
 
 /** Methods Pertaining to TimeLV class */
@@ -189,14 +236,16 @@ AddStatus TimeLV::add(uint64_t val) {
         subarray_total = 1;
     }
 
+    const size_t insert_index = value_count;
     auto status = last->add(val);
-    if (status == AddStatus::Full) {
+    if (status == AddStatus::Full || status == AddStatus::Outlier) {
         last = create_subarray(last);
         subarray_total++;
         status = last->add(val);
     }
 
     if (status == AddStatus::Ok) {
+        recent_values.push(insert_index, val);
         value_count++;
     }
     return status;
@@ -289,7 +338,13 @@ size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
 }
 
 SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
-    return new TimeSubArray(preferred_storage_policy, static_cast<TimeSubArray*>(previous));
+    if (preferred_storage_policy == StoragePolicy::Lossy &&
+        parameter_handler.getTimeLossyPolicy() != LossyPolicy::Linear) {
+        pallas_error("Only LossyPolicy::Linear is supported for timestamp subarrays in the standalone LV path.\n");
+    }
+    return new TimeSubArray(preferred_storage_policy,
+                            static_cast<TimeSubArray*>(previous),
+                            parameter_handler.getTimeLinearEpsilon());
 }
 
 }
@@ -314,8 +369,9 @@ AddStatus DurationLV::add(uint64_t val) {
         subarray_total = 1;
     }
 
+    const size_t insert_index = value_count;
     auto status = last->add(val);
-    if (status == AddStatus::Full) {
+    if (status == AddStatus::Full || status == AddStatus::Outlier) {
         static_cast<DurationSubArray*>(last)->final_update_mean();
         last = create_subarray(last);
         subarray_total++;
@@ -323,6 +379,7 @@ AddStatus DurationLV::add(uint64_t val) {
     }
 
     if (status == AddStatus::Ok) {
+        recent_values.push(insert_index, val);
         value_count++;
         min_duration = std::min(min_duration, val);
         max_duration = std::max(max_duration, val);

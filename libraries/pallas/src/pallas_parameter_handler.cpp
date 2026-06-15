@@ -308,6 +308,18 @@ class ConfigFile {
     return ret;
   }
 
+  uint64_t loadTimeLinearEpsilonConfig() {
+    uint64_t value = loadUInt64FromEnv("PALLAS_TIME_LINEAR_EPSILON");
+    if (value == UINT64_MAX && !config.empty() && config.find("timeLinearEpsilon") != config.end()) {
+      value = loadUInt64FromConfig("timeLinearEpsilon");
+    }
+
+    if (value == UINT64_MAX) {
+      return 64;
+    }
+    return value;
+  }
+
   explicit ConfigFile(const std::string& configPath) {
     std::ifstream configFile(configPath);
     if (configFile.is_open()) {
@@ -335,6 +347,7 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   storagePolicy = config.loadStoragePolicyConfig();
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
+  timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -374,6 +387,7 @@ ParameterHandler::ParameterHandler() {
   storagePolicy = config.loadStoragePolicyConfig();
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
+  timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -412,6 +426,10 @@ LossyPolicy ParameterHandler::getDurationLossyPolicy() const {
   return durationLossyPolicy;
 }
 
+uint64_t ParameterHandler::getTimeLinearEpsilon() const {
+  return timeLinearEpsilon;
+}
+
 TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
@@ -427,6 +445,7 @@ std::string ParameterHandler::to_string() const {
   stream << "storagePolicy=" << toString(storagePolicy) << "\n";
   stream << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
   stream << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
+  stream << "timeLinearEpsilon=" << timeLinearEpsilon << "\n";
   return stream.str();
 }
 

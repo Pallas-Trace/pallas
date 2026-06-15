@@ -19,6 +19,7 @@ typedef struct DurationLV {
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <cstdio>
 #include <set>
 #include <string>
@@ -28,6 +29,46 @@ typedef struct DurationLV {
 #include "pallas_subarray.h"
 
 namespace pallas {
+
+class RecentValueRingBuffer {
+   public:
+    static constexpr size_t kCapacity = 64;
+
+    void clear() {
+        next_slot = 0;
+        entry_count = 0;
+    }
+
+    void push(size_t index, uint64_t value) {
+        entries[next_slot] = Entry{index, value};
+        next_slot = (next_slot + 1) % kCapacity;
+        if (entry_count < kCapacity) {
+            entry_count++;
+        }
+    }
+
+    [[nodiscard]] bool lookup(size_t index, uint64_t& value) const {
+        for (size_t i = 0; i < entry_count; ++i) {
+            const size_t offset = (next_slot + kCapacity - 1 - i) % kCapacity;
+            const auto& entry = entries[offset];
+            if (entry.index == index) {
+                value = entry.value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+   private:
+    struct Entry {
+        size_t index = 0;
+        uint64_t value = 0;
+    };
+
+    std::array<Entry, kCapacity> entries{};
+    size_t next_slot = 0;
+    size_t entry_count = 0;
+};
 
 
 /**
@@ -82,6 +123,7 @@ class LVBase {
     void load_all_data();
     void free_data();
     void reset_offsets();
+    bool apply_preferred_policy_now();
 
    protected:
     explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy);
@@ -92,6 +134,7 @@ class LVBase {
                     StoragePolicy preferred_policy,
                     uint8_t abi_version);
 
+    void evict_loaded_subarrays();
     void load_data(SubArrayBase* subarray);
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;
@@ -106,6 +149,7 @@ class LVBase {
     size_t subarray_total = 0;
     bool is_contiguous = false;
     std::set<SubArrayBase*> loaded_subarrays;
+    mutable RecentValueRingBuffer recent_values;
     SubArrayBase* first = nullptr;
     SubArrayBase* last = nullptr;
 };
