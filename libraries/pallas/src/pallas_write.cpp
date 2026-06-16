@@ -33,7 +33,9 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 
 
 static constexpr unsigned kHotLoopIterationThreshold = RecentValueRingBuffer::kCapacity;
-static constexpr pallas_duration_t kHotLoopMaxDurationThreshold = 300ULL;  // 300 ns per failed poll candidate
+static constexpr pallas_duration_t kHotLoopDurationThreshold = 350ULL;
+static constexpr size_t kHotLoopRequiredFractionNumerator = 3;
+static constexpr size_t kHotLoopRequiredFractionDenominator = 4;
 
 static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
     if (sequence.tokens.size() != 2) {
@@ -198,6 +200,10 @@ void ThreadWriter::storeToken(Token t, size_t i) {
 void ThreadWriter::incrementLoop(Loop* loop) {
     pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
     loop->nb_iterations++;
+    if (parameter_handler->shouldOverrideLoopDetection()) {
+        return;
+    }
+
     if (!loop->repeated_token.isValid() || loop->repeated_token.type != TypeSequence) {
         return;
     }
@@ -215,23 +221,28 @@ void ThreadWriter::incrementLoop(Loop* loop) {
         return;
     }
 
-    pallas_duration_t max_duration = 0;
+    size_t qualifying_duration_count = 0;
     const size_t first_duration_index = sequence->durations->size() - kHotLoopIterationThreshold;
     for (size_t i = 0; i < kHotLoopIterationThreshold; ++i) {
         const pallas_duration_t duration = sequence->durations->at(first_duration_index + i);
-        max_duration = (duration > max_duration) ? duration : max_duration;
+        if (duration <= kHotLoopDurationThreshold) {
+            qualifying_duration_count++;
+        }
     }
 
-    if (max_duration > kHotLoopMaxDurationThreshold) {
+    if (qualifying_duration_count * kHotLoopRequiredFractionDenominator <=
+        kHotLoopIterationThreshold * kHotLoopRequiredFractionNumerator) {
         return;
     }
 
     pallas_log(DebugLevel::Debug,
-               "Promoting hot loop L%d/S%d at %u iterations with max_duration=%lu ns\n",
+               "Promoting hot loop L%d/S%d at %u iterations with %zu/%u durations <= %lu ns\n",
                loop->self_id.id,
                loop->repeated_token.id,
                loop->nb_iterations,
-               static_cast<unsigned long>(max_duration));
+               qualifying_duration_count,
+               kHotLoopIterationThreshold,
+               static_cast<unsigned long>(kHotLoopDurationThreshold));
     applyHotLoopSequencePolicy(*sequence, *thread);
 }
 

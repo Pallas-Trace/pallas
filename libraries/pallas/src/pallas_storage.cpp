@@ -552,7 +552,7 @@ size_t numberCompressedBytes = 0;
  * @param src The source array. Contains n elements of 8 bytes (sizeof uint64_t).
  * @param n Number of elements in src.
  * @param file File to write in.
- * @param parameter_handler Handler for the storage options.
+ * @param parameter_handler Handler for the storagecd  options.
  */
 void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
     size_t size = n * sizeof(uint64_t);
@@ -1660,6 +1660,7 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&zstdCompressionLevel, sizeof(zstdCompressionLevel), 1, file);
     _pallas_fwrite(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fwrite(&maxLoopLength, sizeof(maxLoopLength), 1, file);
+    _pallas_fwrite(&overrideLoopDetection, sizeof(overrideLoopDetection), 1, file);
     _pallas_fwrite(&timestampStorage, sizeof(timestampStorage), 1, file);
     _pallas_fwrite(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fwrite(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
@@ -1678,6 +1679,7 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&zstdCompressionLevel, sizeof(zstdCompressionLevel), 1, file);
     _pallas_fread(&loopFindingAlgorithm, sizeof(loopFindingAlgorithm), 1, file);
     _pallas_fread(&maxLoopLength, sizeof(maxLoopLength), 1, file);
+    _pallas_fread(&overrideLoopDetection, sizeof(overrideLoopDetection), 1, file);
     _pallas_fread(&timestampStorage, sizeof(timestampStorage), 1, file);
     _pallas_fread(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fread(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);

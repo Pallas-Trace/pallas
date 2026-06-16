@@ -29,6 +29,9 @@ std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy) 
             if (domain == ValueDomain::Timestamp) {
                 return std::make_unique<LinearTimeManager>();
             }
+            if (domain == ValueDomain::Duration) {
+                return std::make_unique<DurationDeltaManager>();
+            }
             return std::make_unique<NoneManager>();
         case StoragePolicy::Delta:
             if (domain == ValueDomain::Timestamp) {
@@ -974,12 +977,12 @@ TimeSubArray::TimeSubArray(StoragePolicy policy,
 }
 
 AddStatus TimeSubArray::add(uint64_t val) {
-    if (value_count == 0) {
-        first_timestamp = val;
-    }
-
+    const bool is_first_value = (value_count == 0);
     auto status = manager->add(*this, val);
     if (status == AddStatus::Ok) {
+        if (is_first_value) {
+            first_timestamp = val;
+        }
         last_timestamp = val;
     }
     return status;

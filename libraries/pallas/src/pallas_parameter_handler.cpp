@@ -38,6 +38,24 @@ uint64_t loadUInt64FromEnv(const std::string& envName) {
   return UINT64_MAX;
 }
 
+bool loadBoolFromEnv(const std::string& envName, bool default_value) {
+  const char* env_value = getenv(envName.c_str());
+  if (env_value == nullptr) {
+    return default_value;
+  }
+
+  const std::string value(env_value);
+  if (value == "1" || value == "true" || value == "TRUE" || value == "True") {
+    return true;
+  }
+  if (value == "0" || value == "false" || value == "FALSE" || value == "False") {
+    return false;
+  }
+
+  pallas_warn("Invalid boolean in config/env: %s\n", env_value);
+  return default_value;
+}
+
 std::map<CompressionAlgorithm, std::string> CompressionAlgorithmMap = {
   {CompressionAlgorithm::None, "None"},
   {CompressionAlgorithm::ZSTD, "ZSTD"},
@@ -320,6 +338,21 @@ class ConfigFile {
     return value;
   }
 
+  bool loadOverrideLoopDetectionConfig() {
+    bool value = loadBoolFromEnv("PALLAS_OVERRIDE_LOOP_DETECTION", false);
+    if (!value && !config.empty() && config.find("overrideLoopDetection") != config.end()) {
+      const auto& config_value = config["overrideLoopDetection"];
+      if (config_value == "1" || config_value == "true" || config_value == "TRUE" || config_value == "True") {
+        value = true;
+      } else if (config_value == "0" || config_value == "false" || config_value == "FALSE" || config_value == "False") {
+        value = false;
+      } else {
+        pallas_warn("Invalid overrideLoopDetection in config: %s\n", config_value.c_str());
+      }
+    }
+    return value;
+  }
+
   explicit ConfigFile(const std::string& configPath) {
     std::ifstream configFile(configPath);
     if (configFile.is_open()) {
@@ -348,6 +381,7 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
   timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
+  overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -388,6 +422,7 @@ ParameterHandler::ParameterHandler() {
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
   timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
+  overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -412,6 +447,10 @@ EncodingAlgorithm ParameterHandler::getEncodingAlgorithm() const {
 }
 LoopFindingAlgorithm ParameterHandler::getLoopFindingAlgorithm() const {
   return loopFindingAlgorithm;
+}
+
+bool ParameterHandler::shouldOverrideLoopDetection() const {
+  return overrideLoopDetection;
 }
 
 StoragePolicy ParameterHandler::getStoragePolicy() const {
@@ -440,6 +479,7 @@ std::string ParameterHandler::to_string() const {
   stream << "encodingAlgorithm=" << toString(encodingAlgorithm) << "\n";
   stream << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
   stream << "maxLoopLength=" << maxLoopLength << "\n";
+  stream << "overrideLoopDetection=" << (overrideLoopDetection ? "true" : "false") << "\n";
   stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
   stream << "timestampStorageAlgorithm=" << toString(timestampStorage) << "\n";
   stream << "storagePolicy=" << toString(storagePolicy) << "\n";

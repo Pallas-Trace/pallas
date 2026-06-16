@@ -436,7 +436,9 @@ uint64_t DurationLV::mean_value() const {
 }
 
 SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
-    return new DurationSubArray(preferred_storage_policy,
+    const auto effective_policy =
+            (preferred_storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : preferred_storage_policy;
+    return new DurationSubArray(effective_policy,
                                 static_cast<DurationSubArray*>(previous),
                                 &parameter_handler);
 }

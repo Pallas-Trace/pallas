@@ -161,6 +161,8 @@ class ParameterHandler {
     LoopFindingAlgorithm loopFindingAlgorithm{LoopFindingAlgorithmDefault};
     /** The max length the LoopFindingAlgorithm::BasicTruncated will go to.*/
     size_t maxLoopLength{maxLoopLengthDefault};
+    /** Testing override: if true, skip sequence/loop detection entirely. */
+    bool overrideLoopDetection = false;
 
     /** Timestamp storage method. */
     TimestampStorage timestampStorage{TimestampStorageDefault};
@@ -200,6 +202,8 @@ class ParameterHandler {
      * @returns Value of #loopFindingAlgorithm.
      */
     [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
+    /** Getter for the testing override that disables sequence/loop detection. */
+    [[nodiscard]] bool shouldOverrideLoopDetection() const;
     /** Getter for the default SubArray storage policy used for new vectors. */
     [[nodiscard]] StoragePolicy getStoragePolicy() const;
     /** Getter for the active timestamp lossy policy. */
