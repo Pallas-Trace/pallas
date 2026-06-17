@@ -27,7 +27,7 @@ void LVBase::evict_loaded_subarrays() {
 }
 
 LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy)
-    : parameter_handler(p), value_domain(domain), preferred_storage_policy(preferred_policy) {}
+    : parameter_handler(p), value_domain(domain), storage_policy(preferred_policy) {}
 
 LVBase::~LVBase() { 
     free_data();
@@ -131,7 +131,7 @@ uint64_t LVBase::back() const {
 }
 
 uint64_t* LVBase::as_flat_array() const {
-    const_cast<LVBase*>(this)->load_all_data();
+    const_cast<LVBase*>(this)->load_all();
     auto* flat_array = new uint64_t[value_count];
     size_t copied_values = 0;
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
@@ -154,7 +154,7 @@ std::string LVBase::values_to_string() const {
     return stream.str();
 }
 
-void LVBase::load_all_data() {
+void LVBase::load_all() {
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
         if (!subarray->has_values()) {
             load_data(subarray);
@@ -187,7 +187,7 @@ void LVBase::reset_offsets() {
     }
 }
 
-bool LVBase::apply_preferred_policy_now() {
+bool LVBase::apply_storage_policy() {
     if (last == nullptr) {
         first = create_subarray(nullptr);
         last = first;
@@ -195,7 +195,7 @@ bool LVBase::apply_preferred_policy_now() {
         return true;
     }
 
-    if (last->policy() == preferred_storage_policy) {
+    if (last->policy() == storage_policy) {
         return false;
     }
 
@@ -338,11 +338,20 @@ size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
 }
 
 SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
-    if (preferred_storage_policy == StoragePolicy::Lossy &&
-        parameter_handler.getTimeLossyPolicy() != LossyPolicy::Linear) {
-        pallas_error("Only LossyPolicy::Linear is supported for timestamp subarrays in the standalone LV path.\n");
+    if (storage_policy == StoragePolicy::Lossy) {
+        switch (parameter_handler.getTimeLossyPolicy()) {
+            case LossyPolicy::Linear:
+            case LossyPolicy::PLA4:
+            case LossyPolicy::PLA8:
+            case LossyPolicy::PLA16:
+            case LossyPolicy::PLA32:
+                break;
+            case LossyPolicy::NormalSample:
+                pallas_error("LossyPolicy::NormalSample is not supported for timestamp subarrays in the standalone LV path.\n");
+                break;
+        }
     }
-    return new TimeSubArray(preferred_storage_policy,
+    return new TimeSubArray(storage_policy,
                             static_cast<TimeSubArray*>(previous),
                             &parameter_handler);
 }
@@ -437,7 +446,7 @@ uint64_t DurationLV::mean_value() const {
 
 SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
     const auto effective_policy =
-            (preferred_storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : preferred_storage_policy;
+            (storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : storage_policy;
     return new DurationSubArray(effective_policy,
                                 static_cast<DurationSubArray*>(previous),
                                 &parameter_handler);

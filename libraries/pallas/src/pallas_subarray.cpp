@@ -21,12 +21,78 @@ namespace pallas {
 
 namespace {
 
-std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy) {
+constexpr uint8_t kStoragePolicyMask = 0x03;
+
+LossyPolicy default_lossy_policy(ValueDomain domain) {
+    return (domain == ValueDomain::Timestamp) ? LossyPolicy::Linear : LossyPolicy::NormalSample;
+}
+
+LossyPolicy resolve_lossy_policy(ValueDomain domain,
+                                 StoragePolicy policy,
+                                 const ParameterHandler* parameter_handler) {
+    if (policy != StoragePolicy::Lossy) {
+        return default_lossy_policy(domain);
+    }
+    if (parameter_handler == nullptr) {
+        return default_lossy_policy(domain);
+    }
+    return (domain == ValueDomain::Timestamp)
+           ? parameter_handler->getTimeLossyPolicy()
+           : parameter_handler->getDurationLossyPolicy();
+}
+
+}  // namespace
+
+uint8_t encode_subarray_policy_byte(StoragePolicy policy, LossyPolicy lossy_policy) {
+    const auto storage_bits = static_cast<uint8_t>(policy) & kStoragePolicyMask;
+    const auto lossy_bits = static_cast<uint8_t>(lossy_policy) << 2;
+    return static_cast<uint8_t>(storage_bits | lossy_bits);
+}
+
+void decode_subarray_policy_byte(uint8_t encoded_policy,
+                                 StoragePolicy& storage_policy,
+                                 LossyPolicy& lossy_policy,
+                                 ValueDomain domain) {
+    const auto storage_bits = static_cast<uint8_t>(encoded_policy & kStoragePolicyMask);
+    if (storage_bits <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
+        storage_policy = static_cast<StoragePolicy>(storage_bits);
+    } else {
+        storage_policy = StoragePolicy::None;
+    }
+
+    const auto lossy_bits = static_cast<uint8_t>(encoded_policy >> 2);
+    if (storage_policy == StoragePolicy::Lossy &&
+        lossy_bits <= static_cast<uint8_t>(LossyPolicy::PLA32)) {
+        lossy_policy = static_cast<LossyPolicy>(lossy_bits);
+        return;
+    }
+    lossy_policy = default_lossy_policy(domain);
+}
+
+namespace {
+
+std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy, LossyPolicy lossy_policy) {
     switch (policy) {
         case StoragePolicy::None:
             return std::make_unique<NoneManager>();
         case StoragePolicy::Lossy:
             if (domain == ValueDomain::Timestamp) {
+                switch (lossy_policy) {
+                    case LossyPolicy::Linear:
+                        return std::make_unique<LinearTimeManager>();
+                    case LossyPolicy::PLA4:
+                    case LossyPolicy::PLA8:
+                    case LossyPolicy::PLA16:
+                    case LossyPolicy::PLA32:
+                        static bool showed_pla_fallback_warning = false;
+                        if (!showed_pla_fallback_warning) {
+                            pallas_warn("Timestamp PLA lossy policies currently fall back to LinearTimeManager in the standalone LV path.\n");
+                            showed_pla_fallback_warning = true;
+                        }
+                        return std::make_unique<LinearTimeManager>();
+                    case LossyPolicy::NormalSample:
+                        return std::make_unique<LinearTimeManager>();
+                }
                 return std::make_unique<LinearTimeManager>();
             }
             if (domain == ValueDomain::Duration) {
@@ -855,8 +921,9 @@ SubArrayBase::SubArrayBase(ValueDomain domain,
     : prev(previous),
       value_domain(domain),
       storage_policy(policy),
+      lossy_storage_policy(resolve_lossy_policy(domain, policy, parameter_handler)),
       subarray_phase(SubArrayPhase::RuntimeWrite),
-      manager(make_manager(domain, policy)),
+      manager(make_manager(domain, policy, lossy_storage_policy)),
       allocated_count(manager->recommended_capacity(domain, policy, subarray_phase)),
       values(new uint64_t[allocated_count]),
       configuration(parameter_handler) {
@@ -891,7 +958,7 @@ void SubArrayBase::free_values() {
 }
 
 void SubArrayBase::rebuild_manager() {
-    manager = make_manager(value_domain, storage_policy);
+    manager = make_manager(value_domain, storage_policy, lossy_storage_policy);
 }
 
 uint64_t SubArrayBase::at(size_t pos) const {
@@ -912,6 +979,10 @@ ValueDomain SubArrayBase::domain() const {
 
 StoragePolicy SubArrayBase::policy() const {
     return storage_policy;
+}
+
+LossyPolicy SubArrayBase::lossy_policy() const {
+    return lossy_storage_policy;
 }
 
 SubArrayPhase SubArrayBase::phase() const {

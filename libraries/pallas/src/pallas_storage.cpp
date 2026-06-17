@@ -552,7 +552,7 @@ size_t numberCompressedBytes = 0;
  * @param src The source array. Contains n elements of 8 bytes (sizeof uint64_t).
  * @param n Number of elements in src.
  * @param file File to write in.
- * @param parameter_handler Handler for the storagecd  options.
+ * @param parameter_handler Handler for the storage options.
  */
 void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler) {
     size_t size = n * sizeof(uint64_t);
@@ -853,11 +853,13 @@ void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
     }
 
     const auto size = this->size();
-    uint8_t stored_policy = static_cast<uint8_t>(StoragePolicy::None);
+    uint8_t stored_policy = 0;
     const auto physical_size = mem_size();
     const auto subarray_offset = offset();
-
-    stored_policy = static_cast<uint8_t>(policy());
+    // Persist the subarray scheme in one byte:
+    //   - lower 2 bits: StoragePolicy
+    //   - upper 6 bits: LossyPolicy variant when StoragePolicy::Lossy is used
+    stored_policy = encode_subarray_policy_byte(policy(), lossy_policy());
 
     _pallas_fwrite(&size, sizeof(size), 1, info_file);
     _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
@@ -866,7 +868,7 @@ void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
 }
 
 void pallas::SubArrayBase::read_common_header(FILE* info_file) {
-    uint8_t stored_policy = static_cast<uint8_t>(StoragePolicy::None);
+    uint8_t stored_policy = 0;
     size_t physical_size = 0;
 
     _pallas_fread(&value_count, sizeof(value_count), 1, info_file);
@@ -874,11 +876,7 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
     _pallas_fread(&physical_size, sizeof(physical_size), 1, info_file);
     _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 
-    if (stored_policy <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
-        storage_policy = static_cast<StoragePolicy>(stored_policy);
-    } else {
-        storage_policy = StoragePolicy::None;
-    }
+    decode_subarray_policy_byte(stored_policy, storage_policy, lossy_storage_policy, value_domain);
 
     rebuild_manager();
     this->physical_size = physical_size;
@@ -920,7 +918,7 @@ pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, Parameter
                        ValueDomain domain, StoragePolicy preferred_policy, uint8_t abi_version)
     : parameter_handler(p),
       value_domain(domain),
-      preferred_storage_policy(preferred_policy),
+      storage_policy(preferred_policy),
       file_path(value_file_path) {
     _pallas_fread(&value_count, sizeof(value_count), 1, vector_file);
 
@@ -929,7 +927,7 @@ pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, Parameter
         _pallas_fread(&subarray_total, sizeof(subarray_total), 1, vector_file);
         _pallas_fread(&stored_policy, sizeof(stored_policy), 1, vector_file);
         if (stored_policy <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
-            preferred_storage_policy = static_cast<StoragePolicy>(stored_policy);
+            storage_policy = static_cast<StoragePolicy>(stored_policy);
         }
     }
 }
@@ -1115,7 +1113,7 @@ static void storeEvent(pallas::Event& event, const File& eventFile, const File& 
     }
     if (STORE_TIMESTAMPS) {
         if (load_thread) {
-            event.timestamps->load_all_data();
+            event.timestamps->load_all();
             event.timestamps->reset_offsets();
         }
         event.timestamps->write_to_file(eventFile.file, durationFile.file, parameter_handler);
@@ -1168,17 +1166,17 @@ static void storeSequence(pallas::Sequence& sequence, const File& sequenceFile, 
 #endif
     if (STORE_TIMESTAMPS) {
         if (load_thread) {
-            sequence.durations->load_all_data();
+            sequence.durations->load_all();
             sequence.durations->reset_offsets();
         }
         sequence.durations->write_to_file(sequenceFile.file, durationFile.file, parameter_handler);
         if (load_thread) {
-            sequence.exclusive_durations->load_all_data();
+            sequence.exclusive_durations->load_all();
             sequence.exclusive_durations->reset_offsets();
         }
         sequence.exclusive_durations->write_to_file(sequenceFile.file, durationFile.file, parameter_handler);
         if (load_thread) {
-            sequence.timestamps->load_all_data();
+            sequence.timestamps->load_all();
             sequence.timestamps->reset_offsets();
         }
         sequence.timestamps->write_to_file(sequenceFile.file, durationFile.file, parameter_handler);

@@ -163,6 +163,10 @@ StoragePolicy storagePolicyFromString(const std::string& str) {
 std::map<LossyPolicy, std::string> LossyPolicyMap = {
     {LossyPolicy::Linear, "Linear"},
     {LossyPolicy::NormalSample, "NormalSample"},
+    {LossyPolicy::PLA4, "PLA4"},
+    {LossyPolicy::PLA8, "PLA8"},
+    {LossyPolicy::PLA16, "PLA16"},
+    {LossyPolicy::PLA32, "PLA32"},
 };
 
 std::string toString(LossyPolicy policy) {

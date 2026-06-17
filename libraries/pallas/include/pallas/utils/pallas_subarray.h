@@ -54,6 +54,10 @@ enum class SubArrayPhase : uint8_t {
 enum class LossyPolicy : uint8_t {
     Linear = 0,
     NormalSample = 1,
+    PLA4 = 2,
+    PLA8 = 3,
+    PLA16 = 4,
+    PLA32 = 5,
 };
 
 enum class AddStatus : uint8_t {
@@ -61,6 +65,12 @@ enum class AddStatus : uint8_t {
     Outlier = 1,
     Full = 2,
 };
+
+[[nodiscard]] uint8_t encode_subarray_policy_byte(StoragePolicy policy, LossyPolicy lossy_policy);
+void decode_subarray_policy_byte(uint8_t encoded_policy,
+                                 StoragePolicy& storage_policy,
+                                 LossyPolicy& lossy_policy,
+                                 ValueDomain domain);
 
 }
 
@@ -234,6 +244,7 @@ class SubArrayBase {
 
     [[nodiscard]] ValueDomain domain() const;
     [[nodiscard]] StoragePolicy policy() const;
+    [[nodiscard]] LossyPolicy lossy_policy() const;
     [[nodiscard]] SubArrayPhase phase() const;
     [[nodiscard]] size_t size() const;
     [[nodiscard]] size_t mem_size() const;
@@ -271,6 +282,7 @@ class SubArrayBase {
     SubArrayBase* prev = nullptr;
     ValueDomain value_domain;
     StoragePolicy storage_policy = StoragePolicy::None;
+    LossyPolicy lossy_storage_policy = LossyPolicy::Linear;
     SubArrayPhase subarray_phase = SubArrayPhase::RuntimeWrite;
     std::unique_ptr<Manager> manager;
     size_t value_count = 0;

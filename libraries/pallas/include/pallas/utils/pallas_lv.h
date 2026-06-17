@@ -70,17 +70,36 @@ class RecentValueRingBuffer {
     size_t entry_count = 0;
 };
 
-
 /**
  * Common base for the new linked-vector layer.
  *
- * Unlike the legacy linked-vector implementation, this base owns standalone
- * subarrays directly instead of defining a nested subarray hierarchy.
  */
 class LVBase {
+   protected:
+    // Core linked-vector metadata.
+    size_t value_count = 0;     // Number of values stored in the linked vector.
+    size_t reference_count = 0; // Number of objects that refer to this linked vector.
+    size_t subarray_total = 0;  // Total number of subarrays in this linked vector.
+    bool is_contiguous = false; // Whether the current representation is contiguous.
+    ParameterHandler& parameter_handler; // Reference to the parameter handler
+    const char* file_path = nullptr;     // File Path for ???
+
+    // Loaded subarray tracking and recent-value cache.
+    std::set<SubArrayBase*> loaded_subarrays;
+    mutable RecentValueRingBuffer recent_values;
+
+    // Metadata for SubArray
+    ValueDomain value_domain;
+    StoragePolicy storage_policy = StoragePolicy::None;
+    
+
+    SubArrayBase* first = nullptr;
+    SubArrayBase* last = nullptr;
+
    public:
     virtual ~LVBase();
 
+    /** Core methods supported by the old LinkedVector implementation. */
     [[nodiscard]] size_t size() const {
         return value_count;
     }
@@ -99,31 +118,29 @@ class LVBase {
     [[nodiscard]] bool contiguous() const {
         return is_contiguous;
     }
-    [[nodiscard]] ValueDomain domain() const {
-        return value_domain;
-    }
+    void reset_offsets();
 
-    void setPreferredStoragePolicy(StoragePolicy policy) {
-        preferred_storage_policy = policy;
-    }
-    [[nodiscard]] StoragePolicy getPreferredStoragePolicy() const {
-        return preferred_storage_policy;
-    }
-    [[nodiscard]] std::vector<StoragePolicy> getSubArrayPolicies() const;
-    [[nodiscard]] std::vector<StoragePolicy> getLoadedSubArrayPolicies() const;
-
+    /** Value access helpers. */
     [[nodiscard]] uint64_t at(size_t pos) const;
     [[nodiscard]] uint64_t operator[](size_t pos) const;
     [[nodiscard]] uint64_t front() const;
     [[nodiscard]] uint64_t back() const;
-
     [[nodiscard]] uint64_t* as_flat_array() const;
     [[nodiscard]] std::string values_to_string() const;
 
-    void load_all_data();
+    /** TimeLV = Timestamp and DurationLV = Duration. */
+    [[nodiscard]] ValueDomain domain() const {
+        return value_domain;
+    }
+
+    /** Storage and Loading Helpers */
+    void set_storage_policy(StoragePolicy policy) {
+        storage_policy = policy;
+    }
+
+    void load_all();
     void free_data();
-    void reset_offsets();
-    bool apply_preferred_policy_now();
+    bool apply_storage_policy();
 
    protected:
     explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy);
@@ -136,51 +153,61 @@ class LVBase {
 
     void evict_loaded_subarrays();
     void load_data(SubArrayBase* subarray);
+
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;
-    virtual SubArrayBase* create_subarray(SubArrayBase* previous) const = 0;
 
-    ParameterHandler& parameter_handler;
-    ValueDomain value_domain;
-    StoragePolicy preferred_storage_policy = StoragePolicy::None;
-    const char* file_path = nullptr;
-    size_t value_count = 0;
-    size_t reference_count = 0;
-    size_t subarray_total = 0;
-    bool is_contiguous = false;
-    std::set<SubArrayBase*> loaded_subarrays;
-    mutable RecentValueRingBuffer recent_values;
-    SubArrayBase* first = nullptr;
-    SubArrayBase* last = nullptr;
+    virtual SubArrayBase* create_subarray(SubArrayBase* previous) const = 0;
+    
+   #if 0
+    public:
+    /* Temporary Helpers to help post-mortem analysis*/
+    [[nodiscard]] StoragePolicy getPreferredStoragePolicy() const {
+        return storage_policy;
+    }
+    [[nodiscard]] std::vector<StoragePolicy> getSubArrayPolicies() const;
+    [[nodiscard]] std::vector<StoragePolicy> getLoadedSubArrayPolicies() const;
+   #endif
 };
 
 class TimeLV : public LVBase {
    public:
+    // Runtime-write constructors and file-backed reconstruction constructor.
     explicit TimeLV(ParameterHandler& p);
     explicit TimeLV(ParameterHandler& p, StoragePolicy preferred_policy);
     TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
+    // Append one timestamp value to the linked vector.
     AddStatus add(uint64_t val);
 
+    // Timestamp-specific inspection and query helpers.
     [[nodiscard]] std::string to_string() const;
     [[nodiscard]] std::vector<double> getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const;
     [[nodiscard]] size_t getFirstOccurrenceBefore(pallas_timestamp_t ts) const;
+
+    // Header and payload serialization helpers.
     void write_header(FILE* info_file);
     void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
 
    protected:
+    // Create the next timestamp subarray in the chain.
     SubArrayBase* create_subarray(SubArrayBase* previous) const override;
 };
 
 class DurationLV : public LVBase {
    public:
+    // Runtime-write constructors and file-backed reconstruction constructor.
     explicit DurationLV(ParameterHandler& p);
     explicit DurationLV(ParameterHandler& p, StoragePolicy preferred_policy);
     DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
+    // Append one duration value to the linked vector.
     AddStatus add(uint64_t val);
+
+    // Finalize duration statistics once the current subarray stops accepting values.
     void final_update_mean();
 
+    // Duration-specific inspection and aggregate helpers.
     [[nodiscard]] pallas_duration_t weightedSum(std::vector<double>& weights) const;
     [[nodiscard]] pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index) const;
     [[nodiscard]] std::string to_string() const;
@@ -189,12 +216,15 @@ class DurationLV : public LVBase {
     [[nodiscard]] uint64_t max_value() const;
     [[nodiscard]] uint64_t mean_value() const;
 
+    // Header and payload serialization helpers.
     void write_header(FILE* info_file);
     void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
 
    protected:
+    // Create the next duration subarray in the chain.
     SubArrayBase* create_subarray(SubArrayBase* previous) const override;
 
+    // Running duration statistics tracked at the linked-vector level.
     uint64_t min_duration = UINT64_MAX;
     uint64_t max_duration = 0;
     uint64_t mean_duration = 0;

@@ -61,7 +61,7 @@ static void applyEventTimestampPolicyToToken(Token token, Thread& thread, Storag
         auto* event = thread.getEvent(token);
         if (event && event->timestamps) {
             event->timestamps->setPreferredStoragePolicy(policy);
-            event->timestamps->apply_preferred_policy_now();
+            event->timestamps->apply_storage_policy();
         }
         return;
     }
@@ -84,11 +84,11 @@ static void applyEventTimestampPolicyToToken(Token token, Thread& thread, Storag
 
 static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
     sequence.timestamps->setPreferredStoragePolicy(StoragePolicy::Lossy);
-    sequence.timestamps->apply_preferred_policy_now();
+    sequence.timestamps->apply_storage_policy();
     sequence.durations->setPreferredStoragePolicy(StoragePolicy::Delta);
-    sequence.durations->apply_preferred_policy_now();
+    sequence.durations->apply_storage_policy();
     sequence.exclusive_durations->setPreferredStoragePolicy(StoragePolicy::Delta);
-    sequence.exclusive_durations->apply_preferred_policy_now();
+    sequence.exclusive_durations->apply_storage_policy();
 
     for (const auto token : sequence.tokens) {
         applyEventTimestampPolicyToToken(token, thread, StoragePolicy::Lossy);

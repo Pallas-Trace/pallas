@@ -107,13 +107,13 @@ size_t TokenCountMap::getEventCount() const {
 
 void Thread::loadTimestamps() {
     DOFOR(i, nb_events) {
-        events[i].timestamps->load_all_data();
+        events[i].timestamps->load_all();
     }
     DOFOR(i, nb_sequences) {
         auto& s = sequences[i];
-        s.durations->load_all_data();
-        s.exclusive_durations->load_all_data();
-        s.timestamps->load_all_data();
+        s.durations->load_all();
+        s.exclusive_durations->load_all();
+        s.timestamps->load_all();
     }
 }
 
