@@ -19,6 +19,11 @@
 
 namespace pallas {
 
+ParameterHandler::~ParameterHandler() {
+  loaded_durations_size = 0;
+  subvector_queue.clear();
+}
+
 std::string loadStringFromEnv(const std::string& envName) {
   const char* env_value = getenv(envName.c_str());
   if (env_value)

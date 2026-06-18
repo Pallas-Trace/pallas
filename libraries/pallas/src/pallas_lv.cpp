@@ -10,8 +10,25 @@
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_lv.h"
 
-/** Methods Pertaining to base LV class */
+/** Methods Pertaining to LVBase class */
 namespace pallas {
+
+/** Constructor and Destructors */
+
+LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
+    : parameter_handler(p), value_domain(domain), storage_policy(_policy) {}
+
+LVBase::~LVBase() { 
+    free_data();
+    auto* current = first;
+    while (current != nullptr) {
+        auto* next = current->next_subarray();
+        delete current;
+        current = next;
+    }
+}
+
+/** Internal Helpers */
 
 void LVBase::evict_loaded_subarrays() {
     while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
@@ -23,19 +40,6 @@ void LVBase::evict_loaded_subarrays() {
             temp->free_values();
             loaded_subarrays.erase(temp);
         }
-    }
-}
-
-LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy)
-    : parameter_handler(p), value_domain(domain), storage_policy(preferred_policy) {}
-
-LVBase::~LVBase() { 
-    free_data();
-    auto* current = first;
-    while (current != nullptr) {
-        auto* next = current->next_subarray();
-        delete current;
-        current = next;
     }
 }
 
@@ -54,25 +58,7 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
     return nullptr;
 }
 
-std::vector<StoragePolicy> LVBase::getSubArrayPolicies() const {
-    std::vector<StoragePolicy> policies;
-    policies.reserve(subarray_total);
-    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
-        policies.push_back(subarray->policy());
-    }
-    return policies;
-}
-
-std::vector<StoragePolicy> LVBase::getLoadedSubArrayPolicies() const {
-    std::vector<StoragePolicy> policies;
-    policies.reserve(loaded_subarrays.size());
-    for (auto* subarray : loaded_subarrays) {
-        if (subarray != nullptr && subarray->has_values()) {
-            policies.push_back(subarray->policy());
-        }
-    }
-    return policies;
-}
+/** Value Access and Materialization */
 
 uint64_t LVBase::at(size_t pos) const {
     if (pos >= value_count) {
@@ -154,6 +140,28 @@ std::string LVBase::values_to_string() const {
     return stream.str();
 }
 
+/** Data Residency and Memory Management */
+
+std::vector<StoragePolicy> LVBase::get_sub_array_policies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(subarray_total);
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        policies.push_back(subarray->policy());
+    }
+    return policies;
+}
+
+std::vector<StoragePolicy> LVBase::get_loaded_sub_array_policies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(loaded_subarrays.size());
+    for (auto* subarray : loaded_subarrays) {
+        if (subarray != nullptr && subarray->has_values()) {
+            policies.push_back(subarray->policy());
+        }
+    }
+    return policies;
+}
+
 void LVBase::load_all() {
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
         if (!subarray->has_values()) {
@@ -163,18 +171,27 @@ void LVBase::load_all() {
     }
 }
 
+/**
+ * Performance note:
+ * The previous shutdown path tried to erase every loaded subarray from
+ * ParameterHandler::subvector_queue one by one. Since that queue is shared and
+ * each erase required a linear search, cleanup could become quadratic and make
+ * large traces take hours to shut down. During LV teardown we only need to free
+ * the remaining loaded payloads owned by this LV and update the memory counter;
+ * the queue itself is cleared later by ParameterHandler teardown.
+ */
 void LVBase::free_data() {
     if (first == nullptr) {
         return;
     }
-    auto& queue = parameter_handler.subvector_queue;
     for (auto* subarray : loaded_subarrays) {
-        auto it = std::find(queue.begin(), queue.end(), subarray);
-        if (it != queue.end()) {
-            queue.erase(it);
-        }
         if (subarray->has_values()) {
-            parameter_handler.loaded_durations_size -= subarray->mem_size() * sizeof(uint64_t);
+            const size_t subarray_bytes = subarray->mem_size() * sizeof(uint64_t);
+            if (parameter_handler.loaded_durations_size >= subarray_bytes) {
+                parameter_handler.loaded_durations_size -= subarray_bytes;
+            } else {
+                parameter_handler.loaded_durations_size = 0;
+            }
             subarray->free_values();
         }
     }
@@ -186,6 +203,8 @@ void LVBase::reset_offsets() {
         subarray->set_offset(0);
     }
 }
+
+/** Policy and Configuration Control */
 
 bool LVBase::apply_storage_policy() {
     if (last == nullptr) {
@@ -219,15 +238,41 @@ bool LVBase::apply_storage_policy() {
 /** Methods Pertaining to TimeLV class */
 namespace pallas {
 
+/** Constructors */
+
 TimeLV::TimeLV(ParameterHandler& p)
     : TimeLV(p, p.getStoragePolicy()) {}
 
-TimeLV::TimeLV(ParameterHandler& p, StoragePolicy preferred_policy)
-    : LVBase(p, ValueDomain::Timestamp, preferred_policy) {
+TimeLV::TimeLV(ParameterHandler& p, StoragePolicy _policy)
+    : LVBase(p, ValueDomain::Timestamp, _policy) {
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
 }
+
+/** SubArray Creation */
+
+SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
+    // This is only the runtime subarray-dispatch point for TimeLV.
+    // The storage-policy encoding itself is handled separately in the subarray header path.
+    if (storage_policy == StoragePolicy::Lossy) {
+        switch (parameter_handler.getTimeLossyPolicy()) {
+            case LossyPolicy::PLA4:
+            case LossyPolicy::PLA8:
+            case LossyPolicy::PLA16:
+            case LossyPolicy::PLA32:
+                break;
+            case LossyPolicy::NormalSample:
+                pallas_error("LossyPolicy::NormalSample is not supported for timestamp subarrays in the standalone LV path.\n");
+                break;
+        }
+    }
+    return new TimeSubArray(storage_policy,
+                            static_cast<TimeSubArray*>(previous),
+                            &parameter_handler);
+}
+
+/** Value Insertion */
 
 AddStatus TimeLV::add(uint64_t val) {
     if (last == nullptr) {
@@ -250,6 +295,8 @@ AddStatus TimeLV::add(uint64_t val) {
     }
     return status;
 }
+
+/** Queries and Stringification */
 
 std::string TimeLV::to_string() const {
     return values_to_string();
@@ -337,39 +384,36 @@ size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
     return result;
 }
 
-SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
-    if (storage_policy == StoragePolicy::Lossy) {
-        switch (parameter_handler.getTimeLossyPolicy()) {
-            case LossyPolicy::Linear:
-            case LossyPolicy::PLA4:
-            case LossyPolicy::PLA8:
-            case LossyPolicy::PLA16:
-            case LossyPolicy::PLA32:
-                break;
-            case LossyPolicy::NormalSample:
-                pallas_error("LossyPolicy::NormalSample is not supported for timestamp subarrays in the standalone LV path.\n");
-                break;
-        }
-    }
-    return new TimeSubArray(storage_policy,
-                            static_cast<TimeSubArray*>(previous),
-                            &parameter_handler);
-}
-
 }
 
 /** Methods Pertaining to DurationLV class */
 namespace pallas {
 
+/** Constructors */
+
 DurationLV::DurationLV(ParameterHandler& p)
     : DurationLV(p, p.getStoragePolicy()) {}
 
-DurationLV::DurationLV(ParameterHandler& p, StoragePolicy preferred_policy)
-    : LVBase(p, ValueDomain::Duration, preferred_policy) {
+DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
+    : LVBase(p, ValueDomain::Duration, _policy) {
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
 }
+
+/** SubArray Creation */
+
+SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
+    // DurationLV currently keeps the standalone LV path simple by materializing
+    // lossy duration storage through the delta-backed duration subarray path.
+    const auto effective_policy =
+            (storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : storage_policy;
+    return new DurationSubArray(effective_policy,
+                                static_cast<DurationSubArray*>(previous),
+                                &parameter_handler);
+}
+
+/** Value Insertion */
 
 AddStatus DurationLV::add(uint64_t val) {
     if (last == nullptr) {
@@ -380,6 +424,7 @@ AddStatus DurationLV::add(uint64_t val) {
 
     const size_t insert_index = value_count;
     auto status = last->add(val);
+    
     if (status == AddStatus::Full || status == AddStatus::Outlier) {
         static_cast<DurationSubArray*>(last)->final_update_mean();
         last = create_subarray(last);
@@ -397,12 +442,16 @@ AddStatus DurationLV::add(uint64_t val) {
     return status;
 }
 
+/** Aggregate Updates */
+
 void DurationLV::final_update_mean() {
     if (value_count == 0) {
         return;
     }
     mean_duration /= value_count;
 }
+
+/** Queries and Stringification */
 
 pallas_duration_t DurationLV::weightedSum(std::vector<double>& weights) const {
     if (weights.empty()) {
@@ -442,14 +491,6 @@ uint64_t DurationLV::max_value() const {
 
 uint64_t DurationLV::mean_value() const {
     return mean_duration;
-}
-
-SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
-    const auto effective_policy =
-            (storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : storage_policy;
-    return new DurationSubArray(effective_policy,
-                                static_cast<DurationSubArray*>(previous),
-                                &parameter_handler);
 }
 
 }  // namespace pallas

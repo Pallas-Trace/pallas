@@ -143,12 +143,12 @@ class LVBase {
     bool apply_storage_policy();
 
    protected:
-    explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy preferred_policy);
+    explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy);
     explicit LVBase(FILE* vector_file,
                     const char* value_file_path,
                     ParameterHandler& p,
                     ValueDomain domain,
-                    StoragePolicy preferred_policy,
+                    StoragePolicy _policy,
                     uint8_t abi_version);
 
     void evict_loaded_subarrays();
@@ -159,14 +159,14 @@ class LVBase {
 
     virtual SubArrayBase* create_subarray(SubArrayBase* previous) const = 0;
     
-   #if 0
+   #if 1
     public:
     /* Temporary Helpers to help post-mortem analysis*/
-    [[nodiscard]] StoragePolicy getPreferredStoragePolicy() const {
+    [[nodiscard]] StoragePolicy get_storage_policy() const {
         return storage_policy;
     }
-    [[nodiscard]] std::vector<StoragePolicy> getSubArrayPolicies() const;
-    [[nodiscard]] std::vector<StoragePolicy> getLoadedSubArrayPolicies() const;
+    [[nodiscard]] std::vector<StoragePolicy> get_sub_array_policies() const;
+    [[nodiscard]] std::vector<StoragePolicy> get_loaded_sub_array_policies() const;
    #endif
 };
 
@@ -174,7 +174,7 @@ class TimeLV : public LVBase {
    public:
     // Runtime-write constructors and file-backed reconstruction constructor.
     explicit TimeLV(ParameterHandler& p);
-    explicit TimeLV(ParameterHandler& p, StoragePolicy preferred_policy);
+    explicit TimeLV(ParameterHandler& p, StoragePolicy _policy);
     TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     // Append one timestamp value to the linked vector.
@@ -198,7 +198,7 @@ class DurationLV : public LVBase {
    public:
     // Runtime-write constructors and file-backed reconstruction constructor.
     explicit DurationLV(ParameterHandler& p);
-    explicit DurationLV(ParameterHandler& p, StoragePolicy preferred_policy);
+    explicit DurationLV(ParameterHandler& p, StoragePolicy _policy);
     DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     // Append one duration value to the linked vector.

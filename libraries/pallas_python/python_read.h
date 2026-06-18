@@ -43,18 +43,18 @@ struct PyLinkedVector {
     }
 
     [[nodiscard]] pallas::StoragePolicy preferred_subarray_policy() const {
-        return linked_vector ? linked_vector->getPreferredStoragePolicy()
-                             : linked_duration_vector->getPreferredStoragePolicy();
+        return linked_vector ? linked_vector->get_storage_policy()
+                             : linked_duration_vector->get_storage_policy();
     }
 
     [[nodiscard]] std::vector<pallas::StoragePolicy> subarray_policies() const {
-        return linked_vector ? linked_vector->getSubArrayPolicies()
-                             : linked_duration_vector->getSubArrayPolicies();
+        return linked_vector ? linked_vector->get_sub_array_policies()
+                             : linked_duration_vector->get_sub_array_policies();
     }
 
     [[nodiscard]] std::vector<pallas::StoragePolicy> loaded_subarray_policies() const {
-        return linked_vector ? linked_vector->getLoadedSubArrayPolicies()
-                             : linked_duration_vector->getLoadedSubArrayPolicies();
+        return linked_vector ? linked_vector->get_loaded_sub_array_policies()
+                             : linked_duration_vector->get_loaded_sub_array_policies();
     }
 
     [[nodiscard]] uint64_t at(size_t index) const {

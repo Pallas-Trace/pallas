@@ -223,6 +223,7 @@ class ParameterHandler {
     void writeToFile(FILE* file) const;
     void readFromFile(FILE* file);
 
+    ~ParameterHandler();
     ParameterHandler();
     ParameterHandler(const std::string& stringConfig);
     ParameterHandler(FILE* file);

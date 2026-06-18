@@ -52,12 +52,11 @@ enum class SubArrayPhase : uint8_t {
 };
 
 enum class LossyPolicy : uint8_t {
-    Linear = 0,
-    NormalSample = 1,
-    PLA4 = 2,
-    PLA8 = 3,
-    PLA16 = 4,
-    PLA32 = 5,
+    NormalSample = 0,
+    PLA4 = 1,
+    PLA8 = 2,
+    PLA16 = 3,
+    PLA32 = 4,
 };
 
 enum class AddStatus : uint8_t {
