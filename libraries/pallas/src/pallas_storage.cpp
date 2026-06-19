@@ -757,7 +757,7 @@ pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArray
       lossy_storage_policy((domain == ValueDomain::Timestamp) ? DEFAULT_LOSSY_TIME : DEFAULT_LOSSY_DURATION),
       subarray_phase(SubArrayPhase::AnalysisRead),
       manager(nullptr),
-      values(nullptr) {
+      buffer(nullptr) {
     read_common_header(info_file);
 
     if (prev != nullptr) {
@@ -772,19 +772,19 @@ void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
         return;
     }
 
-    const auto size = this->size();
+    const auto value_count = this->size();
     uint8_t stored_policy = 0;
     const auto physical_size = mem_size();
-    const auto subarray_offset = offset();
+    const auto file_offest = offset();
     // Persist the subarray scheme in one byte:
     //   - lower 2 bits: StoragePolicy
     //   - upper 6 bits: LossyPolicy variant when StoragePolicy::Lossy is used
     stored_policy = pack_subarray_flags();
 
-    _pallas_fwrite(&size, sizeof(size), 1, info_file);
+    _pallas_fwrite(&value_count, sizeof(size), 1, info_file);
     _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
     _pallas_fwrite(&physical_size, sizeof(physical_size), 1, info_file);
-    _pallas_fwrite(&subarray_offset, sizeof(subarray_offset), 1, info_file);
+    _pallas_fwrite(&file_offest, sizeof(file_offest), 1, info_file);
 }
 
 // Read the common subarray metadata shared by every linked-vector subarray.
@@ -801,7 +801,6 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
 
     rebuild_manager();
     this->physical_size = physical_size;
-    allocated_count = physical_size;
 }
 
 // Reconstruct the common linked-vector header from the info stream.
@@ -821,6 +820,18 @@ pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, Parameter
             storage_policy = static_cast<StoragePolicy>(stored_policy);
         }
     }
+}
+
+// Write the common linked-vector header shared by TimeLV and DurationLV.
+void pallas::LVBase::write_common_header(FILE* vector_file) const {
+    if (vector_file == nullptr) {
+        return;
+    }
+
+    const auto policy = storage_policy;
+    _pallas_fwrite(&value_count, sizeof(value_count), 1, vector_file);
+    _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, vector_file);
+    _pallas_fwrite(&policy, sizeof(policy), 1, vector_file);
 }
 
 // Load one subarray payload lazily from the linked-vector value stream.
@@ -873,11 +884,7 @@ pallas::TimeSubArray::TimeSubArray(FILE* info_file, TimeSubArray* previous)
 
 // Write the TimeLV header that precedes all timestamp subarray headers.
 void pallas::TimeLV::write_header(FILE* infoFile) {
-    const auto _policy = get_storage_policy();
-
-    _pallas_fwrite(&value_count, sizeof(value_count), 1, infoFile);
-    _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, infoFile);
-    _pallas_fwrite(&_policy, sizeof(_policy), 1, infoFile);
+    write_common_header(infoFile);
 }
 
 // Write the full timestamp linked vector across the info and value streams.
@@ -965,11 +972,7 @@ pallas::DurationSubArray::DurationSubArray(FILE* info_file, DurationSubArray* pr
 
 // Write the DurationLV header that precedes all duration subarray headers.
 void pallas::DurationLV::write_header(FILE* vectorFile) {
-    const auto _policy = get_storage_policy();
-
-    _pallas_fwrite(&value_count, sizeof(value_count), 1, vectorFile);
-    _pallas_fwrite(&subarray_total, sizeof(subarray_total), 1, vectorFile);
-    _pallas_fwrite(&_policy, sizeof(_policy), 1, vectorFile);
+    write_common_header(vectorFile);
     if (value_count == 0) {
         return;
     }

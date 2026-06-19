@@ -151,6 +151,7 @@ class LVBase {
                     StoragePolicy _policy,
                     uint8_t abi_version);
 
+    void write_common_header(FILE* vector_file) const;
     void evict_loaded_subarrays();
     void load_data(SubArrayBase* subarray);
 
