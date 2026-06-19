@@ -779,7 +779,7 @@ void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
     // Persist the subarray scheme in one byte:
     //   - lower 2 bits: StoragePolicy
     //   - upper 6 bits: LossyPolicy variant when StoragePolicy::Lossy is used
-    stored_policy = encode_policy_byte();
+    stored_policy = pack_subarray_flags();
 
     _pallas_fwrite(&size, sizeof(size), 1, info_file);
     _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
@@ -797,7 +797,7 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
     _pallas_fread(&physical_size, sizeof(physical_size), 1, info_file);
     _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 
-    decode_policy_byte(stored_policy);
+    unpack_subarray_flags(stored_policy);
 
     rebuild_manager();
     this->physical_size = physical_size;

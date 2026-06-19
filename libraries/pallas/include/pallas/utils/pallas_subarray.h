@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <new>
 #include <stdexcept>
 #include <vector>
 
@@ -86,7 +87,7 @@ class Manager {
    public:
     virtual ~Manager();
 
-    [[nodiscard]] virtual size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const = 0;
+    [[nodiscard]] virtual size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const = 0;
     virtual AddStatus add(SubArrayBase& subarray, uint64_t val) = 0;
 
     [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
@@ -98,7 +99,7 @@ class Manager {
 
 class NoneManager : public Manager {
    public:
-    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
     AddStatus add(SubArrayBase& subarray, uint64_t val) override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
@@ -107,9 +108,12 @@ class NoneManager : public Manager {
     void on_values_freed(SubArrayBase& subarray) override;
 };
 
-class TimeDeltaManager : public Manager {
+class DeltaManager : public Manager {
    public:
-    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    explicit DeltaManager(ValueDomain value_domain)
+        : dom(value_domain) {}
+
+    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
     AddStatus add(SubArrayBase& subarray, uint64_t val) override;
     [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
     void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
@@ -118,46 +122,45 @@ class TimeDeltaManager : public Manager {
     void on_values_freed(SubArrayBase& subarray) override;
 
    private:
+    union PrevDelta {
+        uint64_t u;
+        int64_t i;
+
+        PrevDelta()
+            : u(0) {}
+    };
+
     struct Checkpoint {
-        size_t logical_index = 0;
-        size_t byte_offset = 0;
-        uint64_t value = 0;
-        uint64_t previous_delta = 0;
+        size_t idx = 0;
+        size_t off = 0;
+        uint64_t val = 0;
+        PrevDelta prev;
+    };
+
+    struct State {
+        uint64_t last = 0;
+        PrevDelta prev;
     };
 
     static constexpr size_t kCheckpointStride = 50;
+    [[nodiscard]] bool is_time_domain() const {
+        return dom == ValueDomain::Timestamp;
+    }
+    AddStatus add_time(SubArrayBase& subarray, uint64_t val);
+    AddStatus add_duration(SubArrayBase& subarray, uint64_t val);
+    [[nodiscard]] uint64_t at_time(const SubArrayBase& subarray, size_t pos) const;
+    [[nodiscard]] uint64_t at_duration(const SubArrayBase& subarray, size_t pos) const;
+    void copy_time_to_array(const SubArrayBase& subarray, uint64_t* given_array) const;
+    void copy_duration_to_array(const SubArrayBase& subarray, uint64_t* given_array) const;
+    void load_time_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler);
+    void load_duration_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler);
+
+    ValueDomain dom;
     uint8_t* payload = nullptr;
-    size_t payload_bytes = 0;
-    size_t max_payload_bytes = 0;
-    uint64_t previous_delta = 0;
-    std::vector<Checkpoint> checkpoints;
-};
-
-class DurationDeltaManager : public Manager {
-   public:
-    [[nodiscard]] size_t recommended_capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
-    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
-    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
-    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
-    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
-    void on_values_freed(SubArrayBase& subarray) override;
-
-   private:
-    struct Checkpoint {
-        size_t logical_index = 0;
-        size_t byte_offset = 0;
-        uint64_t value = 0;
-        int64_t previous_delta = 0;
-    };
-
-    static constexpr size_t kCheckpointStride = 50;
-    uint8_t* payload = nullptr;
-    size_t payload_bytes = 0;
-    size_t max_payload_bytes = 0;
-    uint64_t last_value = 0;
-    int64_t previous_delta = 0;
-    std::vector<Checkpoint> checkpoints;
+    size_t bytes = 0;
+    size_t cap_bytes = 0;
+    State st;
+    std::vector<Checkpoint> cps;
 };
 
 [[nodiscard]] inline uint64_t zigzag_encode(int64_t x) {
@@ -251,15 +254,14 @@ class SubArrayBase {
     [[nodiscard]] LossyPolicy lossy_policy() const;
     [[nodiscard]] SubArrayPhase phase() const;
 
-    [[nodiscard]] uint8_t encode_policy_byte() const;
-    void decode_policy_byte(uint8_t encoded_policy);    
+    [[nodiscard]] uint8_t pack_subarray_flags() const;
+    void unpack_subarray_flags(uint8_t encoded_policy);    
 
    protected:
     /** Access control for managers and LVBase */
     friend class Manager;
     friend class NoneManager;
-    friend class TimeDeltaManager;
-    friend class DurationDeltaManager;
+    friend class DeltaManager;
     friend class LVBase;
 
     /** Construction and File time helpers */
@@ -295,7 +297,7 @@ class TimeSubArray : public SubArrayBase {
     [[nodiscard]] uint64_t last_value() const;
 
    protected:
-    friend class TimeDeltaManager;
+    friend class DeltaManager;
 
     // First and last logical timestamps stored in this subarray.
     uint64_t first_timestamp = 0;
