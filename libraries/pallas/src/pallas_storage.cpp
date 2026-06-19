@@ -754,6 +754,7 @@ uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHan
 pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous)
     : prev(previous),
       value_domain(domain),
+      lossy_storage_policy((domain == ValueDomain::Timestamp) ? DEFAULT_LOSSY_TIME : DEFAULT_LOSSY_DURATION),
       subarray_phase(SubArrayPhase::AnalysisRead),
       manager(nullptr),
       values(nullptr) {
@@ -778,7 +779,7 @@ void pallas::SubArrayBase::write_common_header(FILE* info_file) const {
     // Persist the subarray scheme in one byte:
     //   - lower 2 bits: StoragePolicy
     //   - upper 6 bits: LossyPolicy variant when StoragePolicy::Lossy is used
-    stored_policy = encode_subarray_policy_byte(policy(), lossy_policy());
+    stored_policy = encode_policy_byte();
 
     _pallas_fwrite(&size, sizeof(size), 1, info_file);
     _pallas_fwrite(&stored_policy, sizeof(stored_policy), 1, info_file);
@@ -796,7 +797,7 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
     _pallas_fread(&physical_size, sizeof(physical_size), 1, info_file);
     _pallas_fread(&file_offset, sizeof(file_offset), 1, info_file);
 
-    decode_subarray_policy_byte(stored_policy, storage_policy, lossy_storage_policy, value_domain);
+    decode_policy_byte(stored_policy);
 
     rebuild_manager();
     this->physical_size = physical_size;
@@ -1683,7 +1684,6 @@ void pallas::ParameterHandler::writeToFile(FILE* file) const {
     _pallas_fwrite(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fwrite(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
     _pallas_fwrite(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
-    _pallas_fwrite(&timeLinearEpsilon, sizeof(timeLinearEpsilon), 1, file);
 }
 
 pallas::ParameterHandler::ParameterHandler(FILE* file) {
@@ -1702,7 +1702,6 @@ void pallas::ParameterHandler::readFromFile(FILE* file) {
     _pallas_fread(&storagePolicy, sizeof(storagePolicy), 1, file);
     _pallas_fread(&timeLossyPolicy, sizeof(timeLossyPolicy), 1, file);
     _pallas_fread(&durationLossyPolicy, sizeof(durationLossyPolicy), 1, file);
-    _pallas_fread(&timeLinearEpsilon, sizeof(timeLinearEpsilon), 1, file);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 

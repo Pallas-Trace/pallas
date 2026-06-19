@@ -23,18 +23,16 @@ namespace {
 
 constexpr uint8_t kStoragePolicyMask = 0x03;
 
-LossyPolicy default_lossy_policy(ValueDomain domain) {
-    return (domain == ValueDomain::Timestamp) ? LossyPolicy::Linear : LossyPolicy::NormalSample;
-}
-
 LossyPolicy resolve_lossy_policy(ValueDomain domain,
                                  StoragePolicy policy,
                                  const ParameterHandler* parameter_handler) {
+    const auto default_lossy =
+            (domain == ValueDomain::Timestamp) ? DEFAULT_LOSSY_TIME : DEFAULT_LOSSY_DURATION;
     if (policy != StoragePolicy::Lossy) {
-        return default_lossy_policy(domain);
+        return default_lossy;
     }
     if (parameter_handler == nullptr) {
-        return default_lossy_policy(domain);
+        return default_lossy;
     }
     return (domain == ValueDomain::Timestamp)
            ? parameter_handler->getTimeLossyPolicy()
@@ -43,16 +41,13 @@ LossyPolicy resolve_lossy_policy(ValueDomain domain,
 
 }  // namespace
 
-uint8_t encode_subarray_policy_byte(StoragePolicy policy, LossyPolicy lossy_policy) {
-    const auto storage_bits = static_cast<uint8_t>(policy) & kStoragePolicyMask;
-    const auto lossy_bits = static_cast<uint8_t>(lossy_policy) << 2;
+uint8_t SubArrayBase::encode_policy_byte() const {
+    const auto storage_bits = static_cast<uint8_t>(storage_policy) & kStoragePolicyMask;
+    const auto lossy_bits = static_cast<uint8_t>(lossy_storage_policy) << 2;
     return static_cast<uint8_t>(storage_bits | lossy_bits);
 }
 
-void decode_subarray_policy_byte(uint8_t encoded_policy,
-                                 StoragePolicy& storage_policy,
-                                 LossyPolicy& lossy_policy,
-                                 ValueDomain domain) {
+void SubArrayBase::decode_policy_byte(uint8_t encoded_policy) {
     const auto storage_bits = static_cast<uint8_t>(encoded_policy & kStoragePolicyMask);
     if (storage_bits <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
         storage_policy = static_cast<StoragePolicy>(storage_bits);
@@ -63,10 +58,8 @@ void decode_subarray_policy_byte(uint8_t encoded_policy,
     const auto lossy_bits = static_cast<uint8_t>(encoded_policy >> 2);
     if (storage_policy == StoragePolicy::Lossy &&
         lossy_bits <= static_cast<uint8_t>(LossyPolicy::PLA32)) {
-        lossy_policy = static_cast<LossyPolicy>(lossy_bits);
-        return;
+        lossy_storage_policy = static_cast<LossyPolicy>(lossy_bits);
     }
-    lossy_policy = default_lossy_policy(domain);
 }
 
 namespace {
@@ -78,22 +71,15 @@ std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy, 
         case StoragePolicy::Lossy:
             if (domain == ValueDomain::Timestamp) {
                 switch (lossy_policy) {
-                    case LossyPolicy::Linear:
-                        return std::make_unique<LinearTimeManager>();
                     case LossyPolicy::PLA4:
                     case LossyPolicy::PLA8:
                     case LossyPolicy::PLA16:
                     case LossyPolicy::PLA32:
-                        static bool showed_pla_fallback_warning = false;
-                        if (!showed_pla_fallback_warning) {
-                            pallas_warn("Timestamp PLA lossy policies currently fall back to LinearTimeManager in the standalone LV path.\n");
-                            showed_pla_fallback_warning = true;
-                        }
-                        return std::make_unique<LinearTimeManager>();
+                        return std::make_unique<TimeDeltaManager>();
                     case LossyPolicy::NormalSample:
-                        return std::make_unique<LinearTimeManager>();
+                        return std::make_unique<TimeDeltaManager>();
                 }
-                return std::make_unique<LinearTimeManager>();
+                return std::make_unique<TimeDeltaManager>();
             }
             if (domain == ValueDomain::Duration) {
                 return std::make_unique<DurationDeltaManager>();
@@ -143,7 +129,7 @@ uint64_t NoneManager::at(const SubArrayBase& subarray, size_t pos) const {
     return subarray.values[subarray.local_index(pos)];
 }
 
-void NoneManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+void NoneManager::copy_values(const SubArrayBase& subarray, uint64_t* given_array) const {
     std::memcpy(given_array, subarray.values, subarray.value_count * sizeof(uint64_t));
 }
 
@@ -636,281 +622,6 @@ void DurationDeltaManager::on_values_freed(SubArrayBase&) {
 
 }
 
-/** Methods Pertaining to LinearTimeManager */
-namespace pallas {
-
-size_t LinearTimeManager::representative_capacity() const {
-    return 2 + 2 * kOutlierCapacity;
-}
-
-size_t LinearTimeManager::recommended_capacity(ValueDomain, StoragePolicy, SubArrayPhase) const {
-    return representative_capacity();
-}
-
-void LinearTimeManager::set_epsilon(uint64_t new_epsilon) {
-    epsilon = new_epsilon;
-}
-
-bool LinearTimeManager::model_active() const {
-    return prediction_model_active;
-}
-
-size_t LinearTimeManager::outlier_count(const SubArrayBase& subarray) const {
-    if (!model_active() || subarray.physical_size < 2) {
-        return 0;
-    }
-    return (subarray.physical_size - 2) / 2;
-}
-
-uint64_t LinearTimeManager::prediction_from_fit(const uint64_t* fit_values, size_t fit_count, size_t logical_index) const {
-    if (fit_values == nullptr || fit_count == 0) {
-        return 0;
-    }
-    if (fit_count == 1) {
-        return fit_values[0];
-    }
-
-    long double sum_x = 0.0;
-    long double sum_y = 0.0;
-    long double sum_xx = 0.0;
-    long double sum_xy = 0.0;
-    for (size_t i = 0; i < fit_count; ++i) {
-        const long double x = static_cast<long double>(i);
-        const long double y = static_cast<long double>(fit_values[i]);
-        sum_x += x;
-        sum_y += y;
-        sum_xx += x * x;
-        sum_xy += x * y;
-    }
-
-    const long double n = static_cast<long double>(fit_count);
-    const long double denominator = n * sum_xx - sum_x * sum_x;
-    long double fitted_slope = 0.0;
-    if (denominator != 0.0) {
-        fitted_slope = (n * sum_xy - sum_x * sum_y) / denominator;
-    }
-    if (fitted_slope < 0.0) {
-        fitted_slope = 0.0;
-    }
-
-    const double prediction = static_cast<double>(fit_values[0]) + static_cast<double>(fitted_slope) * static_cast<double>(logical_index);
-    if (prediction <= 0.0) {
-        return 0;
-    }
-    return static_cast<uint64_t>(std::llround(prediction));
-}
-
-uint64_t LinearTimeManager::predict_value(size_t logical_index) const {
-    const double prediction = static_cast<double>(anchor_value) + slope * static_cast<double>(logical_index);
-    if (prediction <= 0.0) {
-        return 0;
-    }
-    return static_cast<uint64_t>(std::llround(prediction));
-}
-
-bool LinearTimeManager::find_outlier(const SubArrayBase& subarray, size_t logical_index, uint64_t& value) const {
-    if (!model_active() || subarray.values == nullptr) {
-        return false;
-    }
-
-    const size_t count = outlier_count(subarray);
-    for (size_t i = 0; i < count; ++i) {
-        const size_t offset = 2 + 2 * i;
-        if (subarray.values[offset] == logical_index) {
-            value = subarray.values[offset + 1];
-            return true;
-        }
-    }
-    return false;
-}
-
-void LinearTimeManager::fit_model(const TimeSubArray& subarray, size_t fit_count) {
-    pallas_assert(subarray.values != nullptr);
-    pallas_assert(fit_count > 0);
-
-    if (fit_count == 1) {
-        anchor_value = subarray.values[0];
-        slope = 0.0;
-        return;
-    }
-
-    long double sum_x = 0.0;
-    long double sum_y = 0.0;
-    long double sum_xx = 0.0;
-    long double sum_xy = 0.0;
-    for (size_t i = 0; i < fit_count; ++i) {
-        const long double x = static_cast<long double>(i);
-        const long double y = static_cast<long double>(subarray.values[i]);
-        sum_x += x;
-        sum_y += y;
-        sum_xx += x * x;
-        sum_xy += x * y;
-    }
-
-    const long double n = static_cast<long double>(fit_count);
-    const long double denominator = n * sum_xx - sum_x * sum_x;
-    long double fitted_slope = 0.0;
-    if (denominator != 0.0) {
-        fitted_slope = (n * sum_xy - sum_x * sum_y) / denominator;
-    }
-    if (fitted_slope < 0.0) {
-        fitted_slope = 0.0;
-    }
-
-    anchor_value = subarray.values[0];
-    slope = static_cast<double>(fitted_slope);
-}
-
-void LinearTimeManager::sync_model_to_values(SubArrayBase& subarray) const {
-    if (subarray.values == nullptr) {
-        return;
-    }
-
-    static_assert(sizeof(double) == sizeof(uint64_t));
-    std::memcpy(&subarray.values[0], &slope, sizeof(slope));
-    subarray.values[1] = anchor_value;
-}
-
-void LinearTimeManager::activate_prediction_model(TimeSubArray& subarray, size_t fit_count) {
-    fit_model(subarray, fit_count);
-    prediction_model_active = true;
-    sync_model_to_values(subarray);
-    subarray.physical_size = 2;
-}
-
-AddStatus LinearTimeManager::add(SubArrayBase& subarray, uint64_t val) {
-    auto& time_subarray = static_cast<TimeSubArray&>(subarray);
-    const size_t logical_index = subarray.value_count;
-
-    if (!model_active()) {
-        if (subarray.value_count < kSeedValueCount) {
-            if (subarray.physical_size >= subarray.allocated_count) {
-                return AddStatus::Full;
-            }
-            subarray.values[subarray.physical_size] = val;
-            subarray.value_count++;
-            subarray.physical_size++;
-            if (subarray.value_count == kSeedValueCount) {
-                activate_prediction_model(time_subarray, kSeedValueCount);
-            }
-            return AddStatus::Ok;
-        }
-
-        activate_prediction_model(time_subarray, std::min(subarray.value_count, kSeedValueCount));
-    }
-
-    const uint64_t predicted_value = predict_value(logical_index);
-    const uint64_t absolute_error =
-            (val >= predicted_value) ? (val - predicted_value) : (predicted_value - val);
-    if (absolute_error <= epsilon) {
-        subarray.value_count++;
-        return AddStatus::Ok;
-    }
-
-    const size_t current_outlier_count = outlier_count(subarray);
-    if (current_outlier_count >= kOutlierCapacity || subarray.physical_size + 2 > subarray.allocated_count) {
-        return AddStatus::Outlier;
-    }
-
-    subarray.values[subarray.physical_size] = logical_index;
-    subarray.values[subarray.physical_size + 1] = val;
-    subarray.physical_size += 2;
-    subarray.value_count++;
-    return AddStatus::Ok;
-}
-
-uint64_t LinearTimeManager::at(const SubArrayBase& subarray, size_t pos) const {
-    if (!subarray.contains(pos)) {
-        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
-                     pos, subarray.first_index, subarray.value_count);
-    }
-
-    const size_t logical_index = subarray.local_index(pos);
-    if (!model_active()) {
-        return prediction_from_fit(subarray.values, subarray.value_count, logical_index);
-    }
-
-    uint64_t outlier_value = 0;
-    if (find_outlier(subarray, logical_index, outlier_value)) {
-        return outlier_value;
-    }
-    return predict_value(logical_index);
-}
-
-void LinearTimeManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
-    if (given_array == nullptr) {
-        return;
-    }
-
-    for (size_t logical_index = 0; logical_index < subarray.size(); ++logical_index) {
-        given_array[logical_index] = at(subarray, subarray.starting_index() + logical_index);
-    }
-}
-
-void LinearTimeManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) {
-    if (data_file == nullptr || parameter_handler == nullptr || subarray.values == nullptr) {
-        return;
-    }
-
-    const long current_offset = std::ftell(data_file);
-    if (current_offset >= 0) {
-        subarray.file_offset = static_cast<size_t>(current_offset);
-    }
-
-    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
-    if (!model_active() && subarray.value_count > 0) {
-        activate_prediction_model(static_cast<TimeSubArray&>(subarray),
-                                  std::min(subarray.value_count, kSeedValueCount));
-    }
-
-    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
-    _pallas_compress_write(subarray.values, subarray.mem_size(), data_file, parameter_handler);
-    subarray.free_values();
-}
-
-// Since double bytes are memcpy, wrapped into a helper
-
-void LinearTimeManager::refresh_model_from_values(const SubArrayBase& subarray) {
-    if (subarray.values == nullptr || subarray.physical_size < 2) {
-        anchor_value = 0;
-        slope = 0.0;
-        return;
-    }
-
-    static_assert(sizeof(double) == sizeof(uint64_t));
-    std::memcpy(&slope, &subarray.values[0], sizeof(slope));
-    anchor_value = subarray.values[1];
-}
-
-void LinearTimeManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
-    if (data_file == nullptr) {
-        return;
-    }
-
-    delete[] subarray.values;
-    clear_state();
-    subarray.values = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
-    
-    prediction_model_active = (subarray.value_count > 0 && subarray.physical_size >= 2);
-    if (prediction_model_active) {
-        refresh_model_from_values(subarray);
-    }
-}
-
-// Clear State clears the anchor and slope value, called before loading data and upon freeing of data 
-
-void LinearTimeManager::clear_state() {
-    prediction_model_active = false;
-    anchor_value = 0;
-    slope = 0.0;
-}
-
-void LinearTimeManager::on_values_freed(SubArrayBase&) {
-    clear_state();
-}
-
-}
-
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
 
@@ -945,7 +656,7 @@ size_t SubArrayBase::local_index(size_t pos) const {
     return pos - first_index;
 }
 
-uint64_t* SubArrayBase::raw_values() {
+uint64_t* SubArrayBase::raw_buffer() {
     return values;
 }
 
@@ -1037,15 +748,7 @@ namespace pallas {
 TimeSubArray::TimeSubArray(StoragePolicy policy,
                            TimeSubArray* previous,
                            const ParameterHandler* parameter_handler)
-    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler) {
-    if (policy == StoragePolicy::Lossy) {
-        auto* linear_manager = dynamic_cast<LinearTimeManager*>(manager.get());
-        pallas_assert(linear_manager != nullptr);
-        if (configuration != nullptr) {
-            linear_manager->set_epsilon(configuration->getTimeLinearEpsilon());
-        }
-    }
-}
+    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
     const bool is_first_value = (value_count == 0);
@@ -1053,6 +756,7 @@ AddStatus TimeSubArray::add(uint64_t val) {
     if (status == AddStatus::Ok) {
         if (is_first_value) {
             first_timestamp = val;
+            last_timestamp = val;
         }
         last_timestamp = val;
     }

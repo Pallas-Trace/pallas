@@ -166,7 +166,6 @@ StoragePolicy storagePolicyFromString(const std::string& str) {
 }
 
 std::map<LossyPolicy, std::string> LossyPolicyMap = {
-    {LossyPolicy::Linear, "Linear"},
     {LossyPolicy::NormalSample, "NormalSample"},
     {LossyPolicy::PLA4, "PLA4"},
     {LossyPolicy::PLA8, "PLA8"},
@@ -302,7 +301,7 @@ class ConfigFile {
   }
 
   LossyPolicy loadTimeLossyPolicyConfig() {
-    LossyPolicy ret = LossyPolicy::Linear;
+    LossyPolicy ret = LossyPolicy::PLA8;
 
     std::string value = loadStringFromEnv("PALLAS_TIME_LOSSY_POLICY");
     if (value.empty() && !config.empty() && config.find("timeLossyPolicy") != config.end()) {
@@ -312,7 +311,7 @@ class ConfigFile {
       ret = lossyPolicyFromString(value);
       if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
         pallas_warn("Invalid TimeLossyPolicy in config: %s\n", value.c_str());
-        ret = LossyPolicy::Linear;
+        ret = LossyPolicy::PLA8;
       }
     }
     return ret;
@@ -333,18 +332,6 @@ class ConfigFile {
       }
     }
     return ret;
-  }
-
-  uint64_t loadTimeLinearEpsilonConfig() {
-    uint64_t value = loadUInt64FromEnv("PALLAS_TIME_LINEAR_EPSILON");
-    if (value == UINT64_MAX && !config.empty() && config.find("timeLinearEpsilon") != config.end()) {
-      value = loadUInt64FromConfig("timeLinearEpsilon");
-    }
-
-    if (value == UINT64_MAX) {
-      return 64;
-    }
-    return value;
   }
 
   bool loadOverrideLoopDetectionConfig() {
@@ -389,7 +376,6 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   storagePolicy = config.loadStoragePolicyConfig();
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
-  timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
   overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
@@ -430,7 +416,6 @@ ParameterHandler::ParameterHandler() {
   storagePolicy = config.loadStoragePolicyConfig();
   timeLossyPolicy = config.loadTimeLossyPolicyConfig();
   durationLossyPolicy = config.loadDurationLossyPolicyConfig();
-  timeLinearEpsilon = config.loadTimeLinearEpsilonConfig();
   overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
@@ -474,10 +459,6 @@ LossyPolicy ParameterHandler::getDurationLossyPolicy() const {
   return durationLossyPolicy;
 }
 
-uint64_t ParameterHandler::getTimeLinearEpsilon() const {
-  return timeLinearEpsilon;
-}
-
 TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
@@ -494,7 +475,6 @@ std::string ParameterHandler::to_string() const {
   stream << "storagePolicy=" << toString(storagePolicy) << "\n";
   stream << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
   stream << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
-  stream << "timeLinearEpsilon=" << timeLinearEpsilon << "\n";
   return stream.str();
 }
 
