@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -52,20 +53,12 @@ void map_swap(thread_token_map& fwd, thread_token_map& rev, uint32_t thread_id, 
     }
 }
 
-uint32_t map_eval(thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
+uint32_t map_eval(const thread_token_map& map, uint32_t thread_id, uint32_t in_id) {
     auto thread_it = map.find(thread_id);
     if (thread_it == map.end())
         return in_id;
     auto it = thread_it->second.find(in_id);
     return (it != thread_it->second.end()) ? it->second : in_id;
-}
-
-uint32_t map_owner(const thread_token_map& rev, uint32_t thread_id, uint32_t current_id) {
-    auto t_it = rev.find(thread_id);
-    if (t_it == rev.end())
-        return current_id;
-    auto id_it = t_it->second.find(current_id);
-    return (id_it != t_it->second.end()) ? id_it->second : current_id;
 }
 
 uint32_t get_event_phys_id(pallas::Thread* t, uint32_t logi_id) {
@@ -254,7 +247,7 @@ void update_loop_tokens(std::vector<pallas::Thread*>& threads,
             }
             pallas::Loop& loop = t->loops[phys_id];
 
-            uint32_t owner = map_owner(loop_rev, t->id, logi_id);
+            uint32_t owner = map_eval(loop_rev, t->id, logi_id);
             auto thread_it = loop_base_tokens.find(t->id);
             if (thread_it == loop_base_tokens.end())
                 continue;
@@ -340,7 +333,7 @@ static void seq_ensure_map_size(pallas::Thread* t, uint32_t logi_id) {
 
 bool seq_cmp(pallas::Sequence& seq1, pallas::Sequence& seq2) {
     if (seq1.hash != seq2.hash) {
-        // NOTE: this was causing issues
+        // NOTE: disabled for now; this was not working properly
         // return false;
     }
     if (seq1.tokens.size() != seq2.tokens.size()) {
@@ -412,7 +405,7 @@ void update_sequence_tokens(std::vector<pallas::Thread*>& threads,
             }
             pallas::Sequence& seq = t->sequences[phys_id];
 
-            uint32_t owner = map_owner(seq_rev, t->id, logi_id);
+            uint32_t owner = map_eval(seq_rev, t->id, logi_id);
             auto thread_it = seq_base_tokens.find(t->id);
             if (thread_it == seq_base_tokens.end())
                 continue;
@@ -533,6 +526,8 @@ int main(int argc, char** argv) {
     auto temp_trace_name = strdup((std::string(temp_dir_name) + "/" + std::string(trace->trace_name)).c_str());
 
     std::cout << "Pallas: Trace File Opened" << std::endl;
+
+    auto algo_start = std::chrono::high_resolution_clock::now();
 
     // loop over StringRef -> String map in GlobalArchive Definition
     for (auto const& [string_ref, string] : trace->definitions.strings) {
@@ -864,9 +859,19 @@ int main(int argc, char** argv) {
         thread->sequence_root = map_eval(thread_seq_map, thread->id, 0);
     }
 
+    auto algo_end = std::chrono::high_resolution_clock::now();
+    auto algo_duration = std::chrono::duration_cast<std::chrono::milliseconds>(algo_end - algo_start).count();
+    std::cout << "[timing] Synchronization Algorithm: " << algo_duration << " ms" << std::endl;
+
+    auto export_start = std::chrono::high_resolution_clock::now();
+
     auto save_name = strdup((std::string(base_dir_name) + "_fin").c_str());
 
     save_thread_copy(trace, archives, threads, save_name);
+
+    auto export_end = std::chrono::high_resolution_clock::now();
+    auto export_duration = std::chrono::duration_cast<std::chrono::milliseconds>(export_end - export_start).count();
+    std::cout << "[timing] Trace Export: " << export_duration << " ms" << std::endl;
 
     return EXIT_SUCCESS;
 }
