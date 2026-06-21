@@ -7,8 +7,8 @@
 #include <sstream>
 
 #include "pallas/pallas.h"
-#include "pallas/pallas_record.h"
 #include "pallas/pallas_archive.h"
+#include "pallas/pallas_record.h"
 
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
@@ -257,11 +257,11 @@ std::string Thread::getTokenString(Token token) const {
 }
 
 pallas_duration_t Thread::getDuration() const {
-  uint32_t phys_id = sequence_id_map[sequence_root];
-  return sequences[phys_id].durations->at(0);
+    uint32_t phys_id = sequence_id_map[sequence_root];
+    return sequences[phys_id].durations->at(0);
 }
 
-pallas_duration_t get_duration(PALLAS(Thread)* t) {
+pallas_duration_t get_duration(PALLAS(Thread) * t) {
     return t->getDuration();
 }
 
@@ -269,7 +269,7 @@ pallas_timestamp_t Thread::getFirstTimestamp() const {
     return first_timestamp;
 }
 
-pallas_timestamp_t get_first_timestamp(PALLAS(Thread)* t) {
+pallas_timestamp_t get_first_timestamp(PALLAS(Thread) * t) {
     return t->getFirstTimestamp();
 }
 
@@ -277,7 +277,7 @@ pallas_timestamp_t Thread::getLastTimestamp() const {
     return getFirstTimestamp() + getDuration();
 }
 
-pallas_timestamp_t get_last_timestamp(PALLAS(Thread)* t) {
+pallas_timestamp_t get_last_timestamp(PALLAS(Thread) * t) {
     return t->getLastTimestamp();
 }
 
@@ -289,7 +289,7 @@ size_t Thread::getEventCount() const {
     return ret;
 }
 
-size_t get_event_count(PALLAS(Thread)* t) {
+size_t get_event_count(PALLAS(Thread) * t) {
     return t->getEventCount();
 }
 
@@ -314,7 +314,7 @@ void Thread::printSequence(pallas::Token token) const {
     printTokenVector(sequence->tokens);
 }
 
-const char* Thread::getRegionStringFromEvent(EventData *e) const {
+const char* Thread::getRegionStringFromEvent(EventData* e) const {
     const Region* region = nullptr;
     RegionRef region_ref;
     const byte* cursor = nullptr;
@@ -335,7 +335,7 @@ const char* Thread::getRegionStringFromEvent(EventData *e) const {
     return region ? archive->getString(region->string_ref)->str : "INVALID_REGION";
 }
 
-std::string Thread::getEventString(EventData *e) const {
+std::string Thread::getEventString(EventData* e) const {
     switch (e->record) {
     case PALLAS_EVENT_ENTER: {
         RegionRef region_ref;
@@ -370,10 +370,8 @@ std::string Thread::getEventString(EventData *e) const {
         uint64_t msgLength;
         pallas_read_mpi_send(e, nullptr, &receiver, &communicator, &msgTag, &msgLength);
         return "MPI_SEND("
-               "dest=" + std::to_string(receiver) +
-               ", comm=" + std::to_string(communicator) +
-               ", tag=" + std::to_string(msgTag) +
-               ", len=" + std::to_string(msgLength) + ")";
+               "dest=" +
+               std::to_string(receiver) + ", comm=" + std::to_string(communicator) + ", tag=" + std::to_string(msgTag) + ", len=" + std::to_string(msgLength) + ")";
     }
     case PALLAS_EVENT_MPI_ISEND: {
         uint32_t receiver;
@@ -385,10 +383,8 @@ std::string Thread::getEventString(EventData *e) const {
         pallas_read_mpi_isend(e, nullptr, &receiver, &communicator, &msgTag, &msgLength, &requestID);
 
         return "MPI_ISEND("
-               "dest=" + std::to_string(receiver) +
-               ", comm=" + std::to_string(communicator) +
-               ", tag=" + std::to_string(msgTag) +
-               ", len=" + std::to_string(msgLength) +
+               "dest=" +
+               std::to_string(receiver) + ", comm=" + std::to_string(communicator) + ", tag=" + std::to_string(msgTag) + ", len=" + std::to_string(msgLength) +
                ", req=" + std::to_string(requestID) + ")";
     }
     case PALLAS_EVENT_MPI_ISEND_COMPLETE: {
@@ -408,10 +404,8 @@ std::string Thread::getEventString(EventData *e) const {
         uint64_t msgLength;
         pallas_read_mpi_recv(e, nullptr, &sender, &communicator, &msgTag, &msgLength);
         return "MPI_RECV("
-               "src=" + std::to_string(sender) +
-               ", comm=" + std::to_string(communicator) +
-               ", tag=" + std::to_string(msgTag) +
-               ", len=" + std::to_string(msgLength) + ")";
+               "src=" +
+               std::to_string(sender) + ", comm=" + std::to_string(communicator) + ", tag=" + std::to_string(msgTag) + ", len=" + std::to_string(msgLength) + ")";
     }
     case PALLAS_EVENT_MPI_IRECV: {
         uint32_t sender;
@@ -421,10 +415,8 @@ std::string Thread::getEventString(EventData *e) const {
         uint64_t requestID;
         pallas_read_mpi_irecv(e, nullptr, &sender, &communicator, &msgTag, &msgLength, &requestID);
         return "MPI_IRECV("
-               "src=" + std::to_string(sender) +
-               ", comm=" + std::to_string(communicator) +
-               ", tag=" + std::to_string(msgTag) +
-               ", len=" + std::to_string(msgLength) +
+               "src=" +
+               std::to_string(sender) + ", comm=" + std::to_string(communicator) + ", tag=" + std::to_string(msgTag) + ", len=" + std::to_string(msgLength) +
                ", tag=" + std::to_string(msgTag) + ")";
     }
     case PALLAS_EVENT_MPI_COLLECTIVE_BEGIN: {
@@ -437,11 +429,8 @@ std::string Thread::getEventString(EventData *e) const {
         uint64_t sizeSent;
         uint64_t sizeReceived;
         pallas_read_mpi_collective_end(e, nullptr, &collectiveOp, &communicator, &root, &sizeSent, &sizeReceived);
-        return "MPI_COLLECTIVE_END(op=" + std::to_string(collectiveOp) +
-               ", comm=" + std::to_string(communicator) +
-               ", root=" + std::to_string(root) +
-               ", sent=" + std::to_string(sizeSent) +
-               ", recv=" + std::to_string(sizeReceived) + ")";
+        return "MPI_COLLECTIVE_END(op=" + std::to_string(collectiveOp) + ", comm=" + std::to_string(communicator) + ", root=" + std::to_string(root) +
+               ", sent=" + std::to_string(sizeSent) + ", recv=" + std::to_string(sizeReceived) + ")";
     }
     case PALLAS_EVENT_OMP_FORK: {
         uint32_t numberOfRequestedThreads;
@@ -513,30 +502,87 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
     auto output = std::map<Token, pallas_duration_t>();
     ThreadReader reader(this->archive, this->id, PALLAS_READ_FLAG_UNROLL_ALL);
     auto current_token = reader.pollCurToken();
+
+    std::vector<Token> active_blocks;
+
+    auto add_slice = [&](pallas_timestamp_t slice_start, pallas_timestamp_t slice_end) {
+        if (active_blocks.empty()) {
+            return;
+        }
+
+        pallas_timestamp_t clipped_start = std::max(slice_start, start);
+        pallas_timestamp_t clipped_end = std::min(slice_end, end);
+
+        if (clipped_start < clipped_end) {
+            output[active_blocks.back()] += pallas_get_duration(clipped_start, clipped_end);
+        }
+    };
+
+    auto pop_block = [&](const Token& tok) {
+        if (!active_blocks.empty() && active_blocks.back() == tok) {
+            active_blocks.pop_back();
+            return;
+        }
+
+        auto it = std::find(active_blocks.rbegin(), active_blocks.rend(), tok);
+        if (it != active_blocks.rend()) {
+            active_blocks.erase(std::next(it).base());
+        }
+    };
+
+    pallas_timestamp_t prev_timestamp = reader.currentState.currentFrame->current_timestamp;
+
     while (current_token.isValid()) {
         pallas_timestamp_t current_timestamp = reader.currentState.currentFrame->current_timestamp;
-        size_t current_count = reader.currentState.currentFrame->tokenCount[current_token];
+        add_slice(prev_timestamp, current_timestamp);
+
+        if (current_token.type == TypeEvent && reader.currentState.current_frame_index > 0) {
+            for (int i = reader.currentState.current_frame_index; i > 0; --i) {
+                const Token& seq_token = reader.getFrameInCallstack(i);
+                if (seq_token.type == TypeLoop) {
+                    continue;
+                }
+
+                auto* seq = getSequence(seq_token);
+                if (seq->type != SEQUENCE_BLOCK) {
+                    continue;
+                }
+
+                bool begins_here = (current_token == seq->tokens.front());
+                bool ends_here = (current_token == seq->tokens.back());
+
+                if (ends_here && !begins_here) {
+                    pop_block(seq_token);
+                }
+            }
+
+            for (int i = 1; i <= reader.currentState.current_frame_index; ++i) {
+                const Token& seq_token = reader.getFrameInCallstack(i);
+                if (seq_token.type == TypeLoop) {
+                    continue;
+                }
+
+                auto* seq = getSequence(seq_token);
+                if (seq->type != SEQUENCE_BLOCK) {
+                    continue;
+                }
+
+                bool begins_here = (current_token == seq->tokens.front());
+                bool ends_here = (current_token == seq->tokens.back());
+
+                if (begins_here && !ends_here) {
+                    active_blocks.push_back(seq_token);
+                }
+            }
+        }
+
+        prev_timestamp = current_timestamp;
         // End exploration if we're outside the boundaries
-        if (end < current_timestamp ) {
+        if (current_timestamp >= end) {
             break;
         }
 
-        // Skip exploration if we're in a Sequence or a Loop we have no interest in.
-        if (current_token.type == TypeSequence) {
-            auto current_sequence = reader.getSequenceOccurrence(current_token, current_count);
-            if (current_sequence.timestamp + current_sequence.duration < start) {
-                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
-                continue;
-            }
-        }
-        if (current_token.type == TypeLoop) {
-            auto current_loop = reader.getLoopOccurrence(current_token, current_count);
-            if (current_loop.timestamp + current_loop.duration < start) {
-                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
-                continue;
-            }
-        }
-
+        current_token = reader.getNextToken();
 
         // We're going to apply the following algorithm
         // Take the following example:
@@ -578,85 +624,26 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         //     sum(duration no spent in other Sequences) IF not in another Sequence
         //     start_m - sum(duration not spent in other Sequences) IF in Sequence_m
         // }
-
-
-        if (current_token.type != TypeEvent || reader.currentState.current_frame_index == 0) {
-            current_token = reader.getNextToken();
-            continue;
-        }
-
-        // Since we're at an Event, we know current_iterable is a Sequence (Loop have to contain Sequence Tokens)
-        auto bottom_sequence = reader.getSequenceOccurrence(
-            reader.getCurIterable(),
-            (reader.currentState.currentFrame - 1)->tokenCount[reader.getCurIterable()]
-            )
-        ;
-        // Check if we're at the start or end of a block Sequence
-        pallas_timestamp_t ts = PALLAS_TIMESTAMP_INVALID;
-        if (bottom_sequence.sequence->type == SEQUENCE_BLOCK) {
-            if (current_token == bottom_sequence.sequence->tokens.front()) {
-                ts = std::max(start, current_timestamp);
-            }
-            if (current_token == bottom_sequence.sequence->tokens.back()) {
-                ts = std::min(end, current_timestamp);
-            }
-        }
-
-        if (ts == PALLAS_TIMESTAMP_INVALID) {
-            current_token = reader.getNextToken();
-            continue;
-        }
-
-
-        for (int i = reader.currentState.current_frame_index; i >= 0; i --) {
-            auto& sequence_token = reader.getFrameInCallstack(i);
-            if (sequence_token.type == TypeLoop) continue;
-            auto* sequence = getSequence(sequence_token);
-            if (sequence->type != SEQUENCE_BLOCK) continue;
-            if (output.find(sequence_token) == output.end()) {
-                output[sequence_token] = 0;
-            }
-
-            output[sequence_token] = ts - output[sequence_token];
-            break; // Break at the first valid sequence
-        }
-
-        current_token = reader.getNextToken();
     }
-    // Then we need to finalise the durations of all the functions that haven't been exited yet.
-    for (int i = reader.currentState.current_frame_index; i > 0; i --) {
-        auto& sequence_token = reader.getFrameInCallstack(i);
-        if (sequence_token.type == TypeLoop) continue;
-        auto* sequence = getSequence(sequence_token);
-        if (sequence->type != SEQUENCE_BLOCK) continue;
-        if (output.find(sequence_token) == output.end()) {
-            pallas_warn("Possible error in getSnapshotViewExact: could not find starting value for S%d\n", sequence_token.id);
-            output[sequence_token] = 0;
-        }
-
-        output[sequence_token] = end - output[sequence_token];
-        break;
-    }
+    add_slice(prev_timestamp, end);
     // We need to reset reader.archive if we don't want to cause to memory issues.
     reader.archive = nullptr;
     return output;
 }
 
-
-
-std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
+std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotViewFast(pallas_timestamp_t start, pallas_timestamp_t end) const {
     pallas_duration_t interval_duration = end - start;
     auto filter = std::vector<Token>();
     for (size_t i = 0; i < nb_sequences; i++) {
-        auto &s = sequences[i];
+        auto& s = sequences[i];
         if (s.type == SEQUENCE_BLOCK) {
             filter.emplace_back(s.id);
         }
     }
 
     auto output = std::map<std::tuple<Token, std::string>, pallas_duration_t>();
-    for (Token &t: filter) {
-        auto *s = getSequence(t);
+    for (Token& t : filter) {
+        auto* s = getSequence(t);
         if (s->type != SEQUENCE_BLOCK)
             continue;
         // s.durations.min here because we don't want to load anything.
@@ -685,12 +672,12 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
     return output;
 }
 
-std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
+std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
     // This code is the exact same as Thread::getSnapshotViewByName
     // Any modifications / fix to this should also be done to the former.
     auto output = std::map<std::tuple<Token, std::string>, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i++) {
-        auto &s = sequences[i];
+        auto& s = sequences[i];
         if (s.type != SEQUENCE_BLOCK)
             continue;
 
@@ -733,10 +720,7 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
                 // Trivial case where it's entirely contained in [start, end]
                 output[sequence_token_name] += s.exclusive_durations->at(start_index);
             } else {
-                pallas_duration_t capped_duration = pallas_get_duration(
-                    std::max(start, start_event_start),
-                    std::min(start_event_end, end)
-                );
+                pallas_duration_t capped_duration = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
                 output[sequence_token_name] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
             }
         }
@@ -751,10 +735,7 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
                     // Trivial case where it's entirely contained in [start, end]
                     output[sequence_token_name] += s.exclusive_durations->at(end_index);
                 } else {
-                    pallas_duration_t capped_duration = pallas_get_duration(
-                        std::max(start, end_event_start),
-                        std::min(end_event_end, end)
-                    );
+                    pallas_duration_t capped_duration = pallas_get_duration(std::max(start, end_event_start), std::min(end_event_end, end));
                     output[sequence_token_name] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
                 }
             }
@@ -768,7 +749,7 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
     // Any modifications / fix to this should also be done to the former.
     auto output = std::map<std::string, pallas_duration_t>();
     for (size_t i = 1; i < nb_sequences; i++) {
-        auto &s = sequences[i];
+        auto& s = sequences[i];
         if (s.type != SEQUENCE_BLOCK)
             continue;
 
@@ -811,12 +792,8 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
                 // Trivial case where it's entirely contained in [start, end]
                 output[sequence_name] += s.exclusive_durations->at(start_index);
             } else {
-                pallas_duration_t capped_duration = pallas_get_duration(
-                    std::max(start, start_event_start),
-                    std::min(start_event_end, end)
-                );
-                output[sequence_name] += (s.exclusive_durations->at(start_index) * capped_duration) /
-                        start_event_duration;
+                pallas_duration_t capped_duration = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
+                output[sequence_name] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
             }
         }
         // Ending event
@@ -830,12 +807,8 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
                     // Trivial case where it's entirely contained in [start, end]
                     output[sequence_name] += s.exclusive_durations->at(end_index);
                 } else {
-                    pallas_duration_t capped_duration = pallas_get_duration(
-                        std::max(start, end_event_start),
-                        std::min(end_event_end, end)
-                    );
-                    output[sequence_name] += (s.exclusive_durations->at(end_index) * capped_duration) /
-                            end_event_duration;
+                    pallas_duration_t capped_duration = pallas_get_duration(std::max(start, end_event_start), std::min(end_event_end, end));
+                    output[sequence_name] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
                 }
             }
         }
@@ -894,7 +867,7 @@ std::string Sequence::guessName(const pallas::Thread* thread) const {
         EventData& data = thread->getEvent(t_start)->data;
         if (data.record == PALLAS_EVENT_ENTER) {
             const char* event_name = thread->getRegionStringFromEvent(&data);
-	          return event_name;
+            return event_name;
         }
         if (data.record == PALLAS_EVENT_THREAD_TEAM_BEGIN || data.record == PALLAS_EVENT_THREAD_BEGIN) {
             return "thread";
