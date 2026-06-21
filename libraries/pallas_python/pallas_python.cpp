@@ -1,13 +1,16 @@
+// clang-format off
 /*
  * Copyright (C) Telecom SudParis
  * See LICENSE in top-level directory.
  */
 #include "pallas_python.h"
 #include "pallas/pallas.h"
+#include "pallas/pallas_archive.h"
 #include "pallas/pallas_read.h"
 #include "python_tokens.h"
 #include "python_read.h"
 #include "python_analysis.h"
+#include "python_quanta.h"
 #include <pybind11/cast.h>
 #include <pybind11/numpy.h>
 
@@ -152,6 +155,9 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max; })
             .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min; })
             .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean; })
+            .def_property_readonly("max_exclusive_duration", [](const PySequence &self) { return self.self->exclusive_durations->max; })
+            .def_property_readonly("min_exclusive_duration", [](const PySequence &self) { return self.self->exclusive_durations->min; })
+            .def_property_readonly("mean_exclusive_duration", [](const PySequence &self) { return self.self->exclusive_durations->mean; })
             .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
             .def("contains", [](const PySequence &self, const PySequence &other) {
                 return doesSequenceContains(self, other.self->id);
@@ -344,7 +350,8 @@ PYBIND11_MODULE(_core, m) {
             .def("get_sequences_statistics", get_sequences_statistics)
             .def("get_mpi_message_list", get_mpi_message_list);
 
-    py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.")
+    auto trace_class = py::class_<pallas::GlobalArchive>(m, "Trace", "A Pallas Trace file.");
+    trace_class
             .def(py::init(&open_trace), "Open a trace file and read its structure.")
             .def_readonly("dir_name", &pallas::GlobalArchive::dir_name)
             .def_readonly("trace_name", &pallas::GlobalArchive::trace_name)
@@ -360,6 +367,9 @@ PYBIND11_MODULE(_core, m) {
             .def("__iter__", [](pallas::GlobalArchive &self) {
                 return new PyTraceIterator{new pallas::MultiThreadReader(self)};
             });
+
+    setup_tokens(m, trace_class);
+    setup_quanta(m, trace_class);
 }
 
 /* -*-

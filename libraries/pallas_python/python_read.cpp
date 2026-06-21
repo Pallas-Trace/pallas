@@ -1,9 +1,9 @@
 #include "python_read.h"
 
-#include <cstdint>
-#include <variant>
 #include <pallas/utils/pallas_storage.h>
 #include <pybind11/pytypes.h>
+#include <cstdint>
+#include <variant>
 #include <vector>
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -90,7 +90,6 @@ pallas::GlobalArchive* open_trace(const std::string& path) {
     return pallas_open_trace(path.c_str());
 }
 
-
 std::vector<PySequence> threadGetSequences(pallas::Thread& self) {
     auto output = std::vector<PySequence>(self.nb_sequences);
     for (size_t i = 0; i < self.nb_sequences; i++) {
@@ -173,7 +172,6 @@ std::vector<PyEvent> threadGetEventsMatching(pallas::Thread& t, pallas::Record r
     return output;
 }
 
-
 std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<pallas::Record> records) {
     auto output = std::vector<PyEvent>();
     for (size_t i = 0; i < t.nb_events; i++) {
@@ -190,68 +188,53 @@ std::vector<PyEvent> threadGetEventsMatchingList(pallas::Thread& t, std::vector<
 py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_reader) {
     switch (t.type) {
     case pallas::TypeEvent: {
-        return py::make_tuple(
-                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                        PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
-                );
+        return py::make_tuple(std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
+                              thread_reader.getCurrentTokenCount(t));
     }
     case pallas::TypeSequence: {
-        return py::make_tuple(
-                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                        PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
-                );
+        return py::make_tuple(std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
+                              thread_reader.getCurrentTokenCount(t));
     }
     case pallas::TypeLoop: {
-        return py::make_tuple(
-                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                        PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
-                );
+        return py::make_tuple(std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
+                              thread_reader.getCurrentTokenCount(t));
     }
     default: {
         // pallas::TypeInvalid
-        return py::make_tuple(
-                std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
-                        pallas::Token()),
-                0
-                );
+        return py::make_tuple(std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(pallas::Token()), 0);
     }
     }
 }
 
 py::array_t<uint64_t> linked_vector_to_numpy(PyLinkedVector& self) {
-    py::capsule free_when_done(&self, [](void* f) {
+    if (self.linked_vector) {
+        py::ssize_t n = self.linked_vector->size;
+        py::array_t<uint64_t> arr(n);
+        auto r = arr.mutable_unchecked<1>();
 
-    });
+        for (py::ssize_t i = 0; i < n; ++i) {
+            r(i) = self.linked_vector->at(i);
+        }
+        return arr;
+    } else if (self.linked_duration_vector) {
+        py::ssize_t n = self.linked_duration_vector->size;
+        py::array_t<uint64_t> arr(n);
+        auto r = arr.mutable_unchecked<1>();
 
-    if (self.linked_vector)
-        return py::array_t<uint64_t>(
-                {self.linked_vector->size},
-                {sizeof(uint64_t)},
-                &self.linked_vector->at(0),
-                free_when_done
-                );
-    else
-        return py::array_t<uint64_t>(
-                {self.linked_duration_vector->size},
-                {sizeof(uint64_t)},
-                &self.linked_duration_vector->at(0),
-                free_when_done
-                );
+        for (py::ssize_t i = 0; i < n; ++i) {
+            r(i) = self.linked_duration_vector->at(i);
+        }
+        return arr;
+    }
+
+    return py::array_t<uint64_t>(0);
 }
 
 std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self) {
     std::vector<py::tuple> res;
     res.reserve(self.currentState.current_frame_index);
     for (int i = 1; i <= self.currentState.current_frame_index; i++) {
-        res.push_back(
-                makePyObjectFromToken(
-                        self.currentState.callstack[i].callstack_iterable,
-                        self
-                        )
-                );
+        res.push_back(makePyObjectFromToken(self.currentState.callstack[i].callstack_iterable, self));
     }
     res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
     return res;
@@ -259,19 +242,25 @@ std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self) {
 
 int get_read_flags_from_bools(bool enter_sequence, bool enter_loop) {
     int flags = PALLAS_READ_FLAG_NONE;
-    if (enter_sequence) { flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE; }
-    if (enter_loop) { flags |= PALLAS_READ_FLAG_UNROLL_LOOP; }
-    if (!flags) { flags = PALLAS_READ_FLAG_NO_UNROLL; }
+    if (enter_sequence) {
+        flags |= PALLAS_READ_FLAG_UNROLL_SEQUENCE;
+    }
+    if (enter_loop) {
+        flags |= PALLAS_READ_FLAG_UNROLL_LOOP;
+    }
+    if (!flags) {
+        flags = PALLAS_READ_FLAG_NO_UNROLL;
+    }
     return flags;
 }
 
-
-py::dict get_attributes(PyEvent &event, size_t occurrence) {
+py::dict get_attributes(PyEvent& event, size_t occurrence) {
     py::dict result;
-    pallas::Archive *archive = event.thread->archive;
-    auto *summary = event.self;
-    pallas::AttributeList *attribute_list;
-    if (event.self->attribute_buffer == nullptr) return result;
+    pallas::Archive* archive = event.thread->archive;
+    auto* summary = event.self;
+    pallas::AttributeList* attribute_list;
+    if (event.self->attribute_buffer == nullptr)
+        return result;
     if (summary->attribute_pos < summary->attribute_buffer_size) {
         attribute_list = (pallas::AttributeList*)&summary->attribute_buffer[summary->attribute_pos];
         while (attribute_list->index < occurrence) { /* move to the next attribute until we reach the needed index */
@@ -286,76 +275,78 @@ py::dict get_attributes(PyEvent &event, size_t occurrence) {
     } else {
         return result;
     }
-    byte *reading_addr = (byte *)attribute_list->attributes;
-    byte *reading_end = (byte *)attribute_list + attribute_list->struct_size;
+    byte* reading_addr = (byte*)attribute_list->attributes;
+    byte* reading_end = (byte*)attribute_list + attribute_list->struct_size;
     for (int i = 0; i < attribute_list->nb_values; i++) {
-        if (reading_addr >= reading_end) break;
-        pallas::AttributeData *data = (pallas::AttributeData *)reading_addr;
+        if (reading_addr >= reading_end)
+            break;
+        pallas::AttributeData* data = (pallas::AttributeData*)reading_addr;
         uint16_t size = data->struct_size;
-        if (size == 0) break;
-        const pallas::Attribute *attribute = archive->getAttribute(data->ref);
+        if (size == 0)
+            break;
+        const pallas::Attribute* attribute = archive->getAttribute(data->ref);
         if (attribute) {
-            const pallas::String *name_str = archive->getString(attribute->name);
+            const pallas::String* name_str = archive->getString(attribute->name);
             if (name_str) {
                 switch (attribute->type) {
-                    case pallas::PALLAS_TYPE_NONE:
+                case pallas::PALLAS_TYPE_NONE:
                     break;
-                    case pallas::PALLAS_TYPE_UINT8: {
+                case pallas::PALLAS_TYPE_UINT8: {
                     uint8_t v = data->value.uint8;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_UINT16: {
+                }
+                case pallas::PALLAS_TYPE_UINT16: {
                     uint16_t v = data->value.uint16;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_UINT32: {
+                }
+                case pallas::PALLAS_TYPE_UINT32: {
                     uint32_t v = data->value.uint32;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_UINT64: {
+                }
+                case pallas::PALLAS_TYPE_UINT64: {
                     uint64_t v = data->value.uint64;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_INT8: {
+                }
+                case pallas::PALLAS_TYPE_INT8: {
                     int8_t v = data->value.int8;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_INT16: {
+                }
+                case pallas::PALLAS_TYPE_INT16: {
                     int16_t v = data->value.int16;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_INT32: {
+                }
+                case pallas::PALLAS_TYPE_INT32: {
                     int32_t v = data->value.int32;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_INT64: {
+                }
+                case pallas::PALLAS_TYPE_INT64: {
                     int64_t v = data->value.int64;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_FLOAT: {
+                }
+                case pallas::PALLAS_TYPE_FLOAT: {
                     float v = data->value.float32;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_DOUBLE: {
+                }
+                case pallas::PALLAS_TYPE_DOUBLE: {
                     double v = data->value.float64;
                     result[name_str->str] = v;
                     break;
-                    }
-                    case pallas::PALLAS_TYPE_STRING: {
-                        const pallas::String *val_str = archive->getString(data->value.string_ref);
-                        if (val_str) result[name_str->str] = val_str->str;
-                    }
-                    break;
-                    default:
+                }
+                case pallas::PALLAS_TYPE_STRING: {
+                    const pallas::String* val_str = archive->getString(data->value.string_ref);
+                    if (val_str)
+                        result[name_str->str] = val_str->str;
+                } break;
+                default:
                     // TODO : Add more attribute types
                     pallas_warn("Attributes of type %d are not yet handled in python\n", (int)attribute->type);
                     break;

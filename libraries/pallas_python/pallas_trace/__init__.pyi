@@ -87,6 +87,27 @@ class Loop:
     @property
     def sequence(self) -> Sequence: ...
 
+class QuantaRes:
+    """
+    Quanta Snapshot view result container.
+    """
+
+    def __len__(self) -> int: ...
+    @property
+    def start_ns(self) -> numpy.typing.NDArray[numpy.uint64]: ...
+    @property
+    def finish_ns(self) -> numpy.typing.NDArray[numpy.uint64]: ...
+    @property
+    def thread_id(self) -> numpy.typing.NDArray[numpy.uint32]: ...
+    @property
+    def token_type(self) -> numpy.typing.NDArray[numpy.uint8]: ...
+    @property
+    def token_id(self) -> numpy.typing.NDArray[numpy.uint32]: ...
+    @property
+    def excl_ns(self) -> numpy.typing.NDArray[numpy.uint64]: ...
+    @property
+    def proportion(self) -> numpy.typing.NDArray[numpy.float32]: ...
+
 class Record:
     """
     Members:
@@ -360,6 +381,12 @@ class Sequence:
     @property
     def min_duration(self) -> int: ...
     @property
+    def max_exclusive_duration(self) -> int: ...
+    @property
+    def mean_exclusive_duration(self) -> int: ...
+    @property
+    def min_exclusive_duration(self) -> int: ...
+    @property
     def n_iterations(self) -> int: ...
     @property
     def timestamps(self) -> Vector: ...
@@ -467,6 +494,19 @@ class Token:
     @property
     def type(self) -> TokenType: ...
 
+class TokenMetaRes:
+    """
+    Token Metadata Result Container
+    """
+
+    def __len__(self) -> int: ...
+    @property
+    def token_type(self) -> numpy.typing.NDArray[numpy.uint8]: ...
+    @property
+    def token_id(self) -> numpy.typing.NDArray[numpy.uint32]: ...
+    @property
+    def display_name(self) -> list[str]: ...
+
 class TokenType:
     """
     Members:
@@ -501,6 +541,8 @@ class TokenType:
     @property
     def value(self) -> int: ...
 
+QuantaMode: typing.TypeAlias = typing.Literal["fast", "balanced", "exact", "exact_old", "exact_new"]
+
 class Trace:
     """
     A Pallas Trace file.
@@ -511,6 +553,21 @@ class Trace:
         Open a trace file and read its structure.
         """
     def __iter__(self) -> Trace_Iterator: ...
+    def tokens(self) -> TokenMetaRes: ...
+    def calc_quanta_base(
+        self,
+        thread_ids: numpy.typing.NDArray[numpy.uint32],
+        bin_edges_ns: numpy.typing.NDArray[numpy.uint64],
+        mode: QuantaMode = "fast",
+        top_k: int = -1,
+    ) -> QuantaRes: ...
+    def compare_exact_impls(
+        self,
+        thread_id: int,
+        bin_edges_ns: numpy.typing.NDArray[numpy.uint64],
+        top_k: int = -1,
+        top_n: int = 12,
+    ) -> dict[str, object]: ...
     @property
     def archives(self) -> list[Archive]: ...
     @property
@@ -529,6 +586,14 @@ class Trace:
     def strings(self) -> dict[int, str]: ...
     @property
     def trace_name(self) -> str: ...
+
+QUANTA_MODE_FAST: typing.Literal["fast"]
+QUANTA_MODE_BALANCED: typing.Literal["balanced"]
+QUANTA_MODE_EXACT: typing.Literal["exact"]
+QUANTA_MODE_EXACT_OLD: typing.Literal["exact_old"]
+QUANTA_MODE_EXACT_NEW: typing.Literal["exact_new"]
+QUANTA_MODE_DEFAULT: typing.Literal["fast"]
+QUANTA_MODES: tuple[QuantaMode, ...]
 
 class Trace_Iterator:
     """

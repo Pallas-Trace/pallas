@@ -1,3 +1,4 @@
+// clang-format off
 #include "python_analysis.h"
 
 #include <iostream>
