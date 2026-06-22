@@ -91,7 +91,8 @@ class LVBase {
     // Metadata for SubArray
     ValueDomain value_domain;
     StoragePolicy storage_policy = StoragePolicy::None;
-    
+    void* hbuffer = nullptr;
+    size_t hbuffer_bytes = 0;
 
     SubArrayBase* first = nullptr;
     SubArrayBase* last = nullptr;
@@ -143,6 +144,8 @@ class LVBase {
     bool apply_storage_policy();
 
    protected:
+    friend class PLAManager;
+
     explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy);
     explicit LVBase(FILE* vector_file,
                     const char* value_file_path,
@@ -151,9 +154,16 @@ class LVBase {
                     StoragePolicy _policy,
                     uint8_t abi_version);
 
+    void ensure_hbuffer(size_t bytes);
     void write_common_header(FILE* vector_file) const;
     void evict_loaded_subarrays();
     void load_data(SubArrayBase* subarray);
+    [[nodiscard]] void* helper_buffer() const {
+        return hbuffer;
+    }
+    [[nodiscard]] size_t helper_buffer_size() const {
+        return hbuffer_bytes;
+    }
 
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;

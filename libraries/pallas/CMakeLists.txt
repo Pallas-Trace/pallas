@@ -31,6 +31,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_log.h
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
+        include/pallas/utils/pallas_pla.h
         include/pallas/utils/pallas_lv.h
         include/pallas/utils/pallas_serialisation.h
         include/pallas/utils/pallas_subarray.h
@@ -46,6 +47,7 @@ target_sources(pallas
         src/pallas_attribute.cpp
         src/pallas_dbg.cpp
         src/pallas_hash.cpp
+        src/pallas_pla.cpp
         src/pallas_lv.cpp
         src/pallas_read.cpp
         src/pallas_storage.cpp

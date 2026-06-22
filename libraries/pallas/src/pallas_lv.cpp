@@ -26,9 +26,24 @@ LVBase::~LVBase() {
         delete current;
         current = next;
     }
+    delete[] static_cast<uint8_t*>(hbuffer);
+    hbuffer = nullptr;
+    hbuffer_bytes = 0;
 }
 
 /** Internal Helpers */
+
+void LVBase::ensure_hbuffer(size_t bytes) {
+    if (bytes == 0) {
+        return;
+    }
+    if (hbuffer != nullptr && hbuffer_bytes >= bytes) {
+        return;
+    }
+    delete[] static_cast<uint8_t*>(hbuffer);
+    hbuffer = new uint8_t[bytes];
+    hbuffer_bytes = bytes;
+}
 
 void LVBase::evict_loaded_subarrays() {
     while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
@@ -121,7 +136,7 @@ uint64_t* LVBase::as_flat_array() const {
     auto* flat_array = new uint64_t[value_count];
     size_t copied_values = 0;
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
-        subarray->copy_to_array(flat_array + copied_values);
+        subarray->copy_values(flat_array + copied_values);
         copied_values += subarray->size();
     }
     return flat_array;
@@ -258,6 +273,8 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     if (storage_policy == StoragePolicy::Lossy) {
         switch (parameter_handler.getTimeLossyPolicy()) {
             case LossyPolicy::PLA4:
+                const_cast<TimeLV*>(this)->ensure_hbuffer(pla_helper_buffer_bytes());
+                break;
             case LossyPolicy::PLA8:
             case LossyPolicy::PLA16:
             case LossyPolicy::PLA32:
@@ -269,7 +286,8 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     }
     return new TimeSubArray(storage_policy,
                             static_cast<TimeSubArray*>(previous),
-                            &parameter_handler);
+                            &parameter_handler,
+                            const_cast<TimeLV*>(this));
 }
 
 /** Value Insertion */
@@ -410,7 +428,8 @@ SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
             (storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : storage_policy;
     return new DurationSubArray(effective_policy,
                                 static_cast<DurationSubArray*>(previous),
-                                &parameter_handler);
+                                &parameter_handler,
+                                const_cast<DurationLV*>(this));
 }
 
 /** Value Insertion */

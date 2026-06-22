@@ -9,6 +9,7 @@
 #pragma once
 
 #include "pallas_timestamp.h"
+#include "pallas/utils/pallas_pla.h"
 
 #ifndef __cplusplus
 #include <stdint.h>
@@ -82,6 +83,7 @@ namespace pallas {
 
 class SubArrayBase;
 class TimeSubArray;
+class LVBase;
 
 class Manager {
    public:
@@ -163,6 +165,33 @@ class DeltaManager : public Manager {
     std::vector<Checkpoint> cps;
 };
 
+class PLAManager : public Manager {
+   public:
+    explicit PLAManager(uint8_t k_max)
+        : k_max(k_max) {}
+
+    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
+    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
+    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
+    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
+    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed(SubArrayBase& subarray) override;
+
+   private:
+    void ensure_staging(SubArrayBase& subarray);
+    void finalize_block(SubArrayBase& subarray);
+    void write_packed_payload(SubArrayBase& subarray);
+    void load_packed_payload(SubArrayBase& subarray);
+    [[nodiscard]] uint64_t interpolate_value(const TimeSubArray& subarray, size_t logical_index) const;
+    void clear_state();
+
+    uint8_t k_max = 0;
+    uint8_t anchor_count = 0;
+    bool compact_ready = false;
+    PLAAnchor anchor_storage[kPLAMaxAnchors]{};
+};
+
 [[nodiscard]] inline uint64_t zigzag_encode(int64_t x) {
     return (static_cast<uint64_t>(x) << 1) ^ static_cast<uint64_t>(x >> 63);
 }
@@ -215,6 +244,8 @@ class SubArrayBase {
     /** Internal Logic Handler and Attached Buffer */
     std::unique_ptr<Manager> manager;
     uint64_t* buffer = nullptr;
+    LVBase* owner_lv = nullptr;
+    bool owns_buffer = true;
 
    public:
     // Storage State Information
@@ -262,13 +293,15 @@ class SubArrayBase {
     friend class Manager;
     friend class NoneManager;
     friend class DeltaManager;
+    friend class PLAManager;
     friend class LVBase;
 
     /** Construction and File time helpers */
     explicit SubArrayBase(ValueDomain domain,
                           StoragePolicy policy = StoragePolicy::None,
                           SubArrayBase* previous = nullptr,
-                          const ParameterHandler* parameter_handler = nullptr);
+                          const ParameterHandler* parameter_handler = nullptr,
+                          LVBase* owner = nullptr);
     explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
     
     
@@ -282,7 +315,8 @@ class TimeSubArray : public SubArrayBase {
     // Runtime-write constructor and file-backed reconstruction constructor.
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None,
                           TimeSubArray* previous = nullptr,
-                          const ParameterHandler* parameter_handler = nullptr);
+                          const ParameterHandler* parameter_handler = nullptr,
+                          LVBase* owner = nullptr);
                           
     explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
@@ -298,6 +332,7 @@ class TimeSubArray : public SubArrayBase {
 
    protected:
     friend class DeltaManager;
+    friend class PLAManager;
 
     // First and last logical timestamps stored in this subarray.
     uint64_t first_timestamp = 0;
@@ -309,7 +344,8 @@ class DurationSubArray : public SubArrayBase {
     // Runtime-write constructor and file-backed reconstruction constructor.
     explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None,
                               DurationSubArray* previous = nullptr,
-                              const ParameterHandler* parameter_handler = nullptr);
+                              const ParameterHandler* parameter_handler = nullptr,
+                              LVBase* owner = nullptr);
     explicit DurationSubArray(FILE* info_file, DurationSubArray* previous = nullptr);
 
     // Duration-specific insertion, file serialization, and statistics helpers.

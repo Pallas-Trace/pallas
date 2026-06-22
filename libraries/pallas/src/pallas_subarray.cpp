@@ -7,9 +7,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <limits>
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_lv.h"
 #include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_subarray.h"
 
@@ -71,11 +73,12 @@ std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy, 
         case StoragePolicy::Lossy:
             if (domain == ValueDomain::Timestamp) {
                 switch (lossy_policy) {
-                    case LossyPolicy::PLA4:
                     case LossyPolicy::PLA8:
                     case LossyPolicy::PLA16:
                     case LossyPolicy::PLA32:
                         return std::make_unique<DeltaManager>(domain);
+                    case LossyPolicy::PLA4:
+                        return std::make_unique<PLAManager>(4);
                     case LossyPolicy::NormalSample:
                         return std::make_unique<DeltaManager>(domain);
                 }
@@ -590,20 +593,331 @@ void DeltaManager::on_values_freed(SubArrayBase&) {
 
 }
 
+/** Methods Pertaining to the PLAManager */
+namespace pallas {
+
+namespace {
+
+size_t pla_index_bytes(uint8_t anchor_count) {
+    return (static_cast<size_t>(anchor_count) * 10 + 7) / 8;
+}
+
+size_t pla_payload_bytes(uint8_t anchor_count) {
+    return sizeof(anchor_count) +
+           static_cast<size_t>(anchor_count) * sizeof(uint64_t) +
+           static_cast<size_t>(anchor_count) * sizeof(int32_t) +
+           pla_index_bytes(anchor_count);
+}
+
+void pack_10bit_indices(const PLAAnchor* anchors, uint8_t anchor_count, uint8_t* out) {
+    size_t bit_offset = 0;
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        const uint16_t idx = anchors[i].idx;
+        for (size_t bit = 0; bit < 10; ++bit) {
+            if ((idx >> bit) & 1U) {
+                out[(bit_offset + bit) / 8] |= static_cast<uint8_t>(1U << ((bit_offset + bit) % 8));
+            }
+        }
+        bit_offset += 10;
+    }
+}
+
+void unpack_10bit_indices(PLAAnchor* anchors, uint8_t anchor_count, const uint8_t* in) {
+    size_t bit_offset = 0;
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        uint16_t idx = 0;
+        for (size_t bit = 0; bit < 10; ++bit) {
+            const uint8_t byte = in[(bit_offset + bit) / 8];
+            if ((byte >> ((bit_offset + bit) % 8)) & 1U) {
+                idx |= static_cast<uint16_t>(1U << bit);
+            }
+        }
+        anchors[i].idx = idx;
+        bit_offset += 10;
+    }
+}
+
+}  // namespace
+
+size_t PLAManager::_capacity(ValueDomain, StoragePolicy, SubArrayPhase) const {
+    return kPLABlockSize;
+}
+
+void PLAManager::ensure_staging(SubArrayBase& subarray) {
+    if (subarray.owner_lv == nullptr) {
+        pallas_error("PLAManager requires an owning LVBase for runtime staging.\n");
+    }
+    subarray.owner_lv->ensure_hbuffer(pla_helper_buffer_bytes());
+    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
+    if (subarray.buffer != workspace.raw) {
+        if (subarray.owns_buffer) {
+            delete[] subarray.buffer;
+        }
+        subarray.buffer = workspace.raw;
+        subarray.owns_buffer = false;
+    }
+}
+
+void PLAManager::clear_state() {
+    compact_ready = false;
+    anchor_count = 0;
+}
+
+void PLAManager::write_packed_payload(SubArrayBase& subarray) {
+    const size_t payload_bytes = pla_payload_bytes(anchor_count);
+    const size_t payload_words = (payload_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+    auto* packed_words = new uint64_t[payload_words]();
+    auto* out = reinterpret_cast<uint8_t*>(packed_words);
+
+    *out++ = anchor_count;
+
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        std::memcpy(out, &anchor_storage[i].val, sizeof(anchor_storage[i].val));
+        out += sizeof(anchor_storage[i].val);
+    }
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        std::memcpy(out, &anchor_storage[i].dprev, sizeof(anchor_storage[i].dprev));
+        out += sizeof(anchor_storage[i].dprev);
+    }
+
+    const size_t index_bytes = pla_index_bytes(anchor_count);
+    std::memset(out, 0, index_bytes);
+    pack_10bit_indices(anchor_storage, anchor_count, out);
+
+    if (subarray.owns_buffer) {
+        delete[] subarray.buffer;
+    }
+    subarray.buffer = packed_words;
+    subarray.owns_buffer = true;
+    subarray.physical_size = payload_words;
+}
+
+void PLAManager::load_packed_payload(SubArrayBase& subarray) {
+    clear_state();
+    auto* in = reinterpret_cast<const uint8_t*>(subarray.buffer);
+    anchor_count = *in++;
+
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        std::memcpy(&anchor_storage[i].val, in, sizeof(anchor_storage[i].val));
+        in += sizeof(anchor_storage[i].val);
+    }
+    for (uint8_t i = 0; i < anchor_count; ++i) {
+        std::memcpy(&anchor_storage[i].dprev, in, sizeof(anchor_storage[i].dprev));
+        in += sizeof(anchor_storage[i].dprev);
+    }
+    unpack_10bit_indices(anchor_storage, anchor_count, in);
+    compact_ready = true;
+}
+
+void PLAManager::finalize_block(SubArrayBase& subarray) {
+    if (compact_ready) {
+        return;
+    }
+    if (subarray.value_count == 0) {
+        clear_state();
+        compact_ready = true;
+        write_packed_payload(subarray);
+        return;
+    }
+    if (subarray.value_count < static_cast<size_t>(k_max) + 2) {
+        pallas_error("PLAManager requires at least %u values before PLA%u compaction, got %lu.\n",
+                     static_cast<unsigned>(k_max + 2),
+                     static_cast<unsigned>(k_max),
+                     subarray.value_count);
+    }
+
+    ensure_staging(subarray);
+    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
+    anchor_count = static_cast<uint8_t>(
+            build_pla4_alpha_block(workspace.raw, subarray.value_count, workspace, anchor_storage, k_max));
+    compact_ready = true;
+    write_packed_payload(subarray);
+}
+
+AddStatus PLAManager::add(SubArrayBase& subarray, uint64_t val) {
+    if (compact_ready) {
+        return AddStatus::Full;
+    }
+    if (subarray.value_count >= kPLABlockSize) {
+        return AddStatus::Full;
+    }
+
+    ensure_staging(subarray);
+    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
+    workspace.raw[subarray.value_count] = val;
+    subarray.value_count++;
+    subarray.physical_size = subarray.value_count;
+    if (subarray.value_count == kPLABlockSize) {
+        finalize_block(subarray);
+    }
+    return AddStatus::Ok;
+}
+
+uint64_t PLAManager::interpolate_value(const TimeSubArray& subarray, size_t logical_index) const {
+    if (!compact_ready) {
+        return 0;
+    }
+    const size_t size = subarray.size();
+    if (size == 0) {
+        return 0;
+    }
+    if (logical_index == 0) {
+        return subarray.first_value();
+    }
+    if (logical_index + 1 >= size) {
+        return subarray.last_value();
+    }
+    if (anchor_count == 0) {
+        const size_t span = size - 1;
+        if (span == 0) {
+            return subarray.first_value();
+        }
+        const int64_t delta = static_cast<int64_t>(subarray.last_value()) - static_cast<int64_t>(subarray.first_value());
+        return static_cast<uint64_t>(static_cast<int64_t>(subarray.first_value()) +
+                                     delta * static_cast<int64_t>(logical_index) / static_cast<int64_t>(span));
+    }
+
+    size_t left = 0;
+    size_t right = anchor_count;
+    while (left < right) {
+        const size_t mid = left + (right - left) / 2;
+        if (anchor_storage[mid].idx <= logical_index) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+
+    size_t segment_begin = 0;
+    uint64_t begin_value = subarray.first_value();
+    size_t segment_end = size - 1;
+    uint64_t end_value = subarray.last_value();
+
+    if (left == 0) {
+        segment_end = anchor_storage[0].idx - 1;
+        end_value = static_cast<uint64_t>(static_cast<int64_t>(anchor_storage[0].val) -
+                                          static_cast<int64_t>(anchor_storage[0].dprev));
+    } else {
+        const auto& current = anchor_storage[left - 1];
+        segment_begin = current.idx;
+        begin_value = current.val;
+        if (left < anchor_count) {
+            const auto& next = anchor_storage[left];
+            segment_end = next.idx - 1;
+            end_value = static_cast<uint64_t>(static_cast<int64_t>(next.val) -
+                                              static_cast<int64_t>(next.dprev));
+        }
+    }
+
+    if (segment_end <= segment_begin) {
+        return begin_value;
+    }
+
+    const int64_t delta = static_cast<int64_t>(end_value) - static_cast<int64_t>(begin_value);
+    const int64_t offset = static_cast<int64_t>(logical_index - segment_begin);
+    const int64_t span = static_cast<int64_t>(segment_end - segment_begin);
+    return static_cast<uint64_t>(static_cast<int64_t>(begin_value) + delta * offset / span);
+}
+
+uint64_t PLAManager::at(const SubArrayBase& subarray, size_t pos) const {
+    if (!subarray.contains(pos)) {
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
+                     pos, subarray.first_index, subarray.value_count);
+    }
+    const size_t local = subarray.local_index(pos);
+    if (!compact_ready) {
+        if (subarray.buffer == nullptr) {
+            pallas_error("PLAManager missing staging buffer for runtime access.\n");
+        }
+        return subarray.buffer[local];
+    }
+    return interpolate_value(static_cast<const TimeSubArray&>(subarray), local);
+}
+
+void PLAManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+    if (given_array == nullptr) {
+        return;
+    }
+    if (!compact_ready) {
+        if (subarray.buffer != nullptr) {
+            std::memcpy(given_array, subarray.buffer, subarray.size() * sizeof(uint64_t));
+        }
+        return;
+    }
+    const auto& time_subarray = static_cast<const TimeSubArray&>(subarray);
+    for (size_t i = 0; i < subarray.size(); ++i) {
+        given_array[i] = interpolate_value(time_subarray, i);
+    }
+}
+
+void PLAManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) {
+    if (data_file == nullptr || parameter_handler == nullptr) {
+        return;
+    }
+    if (!compact_ready) {
+        finalize_block(subarray);
+    }
+    if (subarray.buffer == nullptr) {
+        return;
+    }
+
+    const long current_offset = std::ftell(data_file);
+    if (current_offset >= 0) {
+        subarray.file_offset = static_cast<size_t>(current_offset);
+    }
+
+    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
+    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(subarray.buffer, subarray.mem_size(), data_file, parameter_handler);
+    subarray.free_values();
+}
+
+void PLAManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
+    if (data_file == nullptr) {
+        return;
+    }
+    if (subarray.owns_buffer) {
+        delete[] subarray.buffer;
+    }
+    subarray.buffer = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
+    subarray.owns_buffer = true;
+    load_packed_payload(subarray);
+}
+
+void PLAManager::on_values_freed(SubArrayBase& subarray) {
+    if (!subarray.owns_buffer) {
+        subarray.buffer = nullptr;
+    }
+    clear_state();
+}
+
+}
+
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
 
 SubArrayBase::SubArrayBase(ValueDomain domain,
                            StoragePolicy policy,
                            SubArrayBase* previous,
-                           const ParameterHandler* parameter_handler)
+                           const ParameterHandler* parameter_handler,
+                           LVBase* owner)
     : prev(previous),
       value_domain(domain),
       storage_policy(policy),
       lossy_storage_policy(resolve_lossy_policy(domain, policy, parameter_handler)),
       subarray_phase(SubArrayPhase::RuntimeWrite),
       manager(make_manager(domain, policy, lossy_storage_policy)),
-      buffer(new uint64_t[manager->_capacity(domain, policy, subarray_phase)]) {
+      owner_lv(owner) {
+    if (!(domain == ValueDomain::Timestamp &&
+          policy == StoragePolicy::Lossy &&
+          lossy_storage_policy == LossyPolicy::PLA4 &&
+          owner_lv != nullptr)) {
+        buffer = new uint64_t[manager->_capacity(domain, policy, subarray_phase)];
+        owns_buffer = true;
+    } else {
+        buffer = nullptr;
+        owns_buffer = false;
+    }
     if (prev != nullptr) {
         prev->next = this;
         first_index = prev->first_index + prev->value_count;
@@ -627,7 +941,9 @@ uint64_t* SubArrayBase::raw_buffer() {
 }
 
 void SubArrayBase::free_values() {
-    delete[] buffer;
+    if (owns_buffer) {
+        delete[] buffer;
+    }
     buffer = nullptr;
     if (manager != nullptr) {
         manager->on_values_freed(*this);
@@ -716,8 +1032,9 @@ namespace pallas {
 
 TimeSubArray::TimeSubArray(StoragePolicy policy,
                            TimeSubArray* previous,
-                           const ParameterHandler* parameter_handler)
-    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler) {}
+                           const ParameterHandler* parameter_handler,
+                           LVBase* owner)
+    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler, owner) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
     const bool is_first_value = (value_count == 0);
@@ -751,8 +1068,9 @@ namespace pallas {
 
 DurationSubArray::DurationSubArray(StoragePolicy policy,
                                    DurationSubArray* previous,
-                                   const ParameterHandler* parameter_handler)
-    : SubArrayBase(ValueDomain::Duration, policy, previous, parameter_handler) {}
+                                   const ParameterHandler* parameter_handler,
+                                   LVBase* owner)
+    : SubArrayBase(ValueDomain::Duration, policy, previous, parameter_handler, owner) {}
 
 AddStatus DurationSubArray::add(uint64_t val) {
     auto status = manager->add(*this, val);
