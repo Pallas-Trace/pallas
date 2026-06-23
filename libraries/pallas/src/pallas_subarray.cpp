@@ -3,6 +3,7 @@
  * See LICENSE in top-level directory.
  */
 
+#include <algorithm>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -59,7 +60,7 @@ void SubArrayBase::unpack_subarray_flags(uint8_t encoded_policy) {
 
     const auto lossy_bits = static_cast<uint8_t>(encoded_policy >> 2);
     if (storage_policy == StoragePolicy::Lossy &&
-        lossy_bits <= static_cast<uint8_t>(LossyPolicy::PLA32)) {
+        lossy_bits <= static_cast<uint8_t>(LossyPolicy::Spike32)) {
         lossy_storage_policy = static_cast<LossyPolicy>(lossy_bits);
     }
 }
@@ -84,12 +85,30 @@ std::unique_ptr<Manager> make_manager(SubArrayBase& parent,
                         return std::make_unique<PLAManager>(parent, 32);
                     case LossyPolicy::PLA4:
                         return std::make_unique<PLAManager>(parent, 4);
-                    case LossyPolicy::NormalSample:
+                    case LossyPolicy::Spike4:
+                    case LossyPolicy::Spike8:
+                    case LossyPolicy::Spike16:
+                    case LossyPolicy::Spike32:
                         return std::make_unique<DeltaManager>(parent, domain);
                 }
                 return std::make_unique<DeltaManager>(parent, domain);
             }
             if (domain == ValueDomain::Duration) {
+                switch (lossy_policy) {
+                    case LossyPolicy::Spike4:
+                        return std::make_unique<DurationSpikeManager>(parent, 4);
+                    case LossyPolicy::Spike8:
+                        return std::make_unique<DurationSpikeManager>(parent, 8);
+                    case LossyPolicy::Spike16:
+                        return std::make_unique<DurationSpikeManager>(parent, 16);
+                    case LossyPolicy::Spike32:
+                        return std::make_unique<DurationSpikeManager>(parent, 32);
+                    case LossyPolicy::PLA4:
+                    case LossyPolicy::PLA8:
+                    case LossyPolicy::PLA16:
+                    case LossyPolicy::PLA32:
+                        return std::make_unique<DeltaManager>(parent, domain);
+                }
                 return std::make_unique<DeltaManager>(parent, domain);
             }
             return std::make_unique<NoneManager>(parent);
@@ -892,6 +911,491 @@ void PLAManager::load_data(FILE* data_file, const ParameterHandler& parameter_ha
 }
 
 void PLAManager::on_values_freed() {
+    clear_state();
+}
+
+}
+
+/** Methods Pertaining to the DurationSpikeManager */
+namespace pallas {
+
+namespace {
+
+size_t duration_spike_varint_bytes(uint64_t value) {
+    size_t bytes = 1;
+    while (value >= 0x80) {
+        value >>= 7;
+        ++bytes;
+    }
+    return bytes;
+}
+
+uint64_t splitmix64(uint64_t value) {
+    value += 0x9e3779b97f4a7c15ULL;
+    value = (value ^ (value >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    value = (value ^ (value >> 27)) * 0x94d049bb133111ebULL;
+    return value ^ (value >> 31);
+}
+
+double uniform_unit_from_u64(uint64_t value) {
+    constexpr double kScale = 1.0 / static_cast<double>(1ULL << 53);
+    return static_cast<double>((value >> 11) & ((1ULL << 53) - 1)) * kScale;
+}
+
+struct DurationSpikeCandidate {
+    uint16_t idx = 0;
+    int64_t residual = 0;
+};
+
+double median_from_sorted(double* values, size_t count) {
+    if (count == 0) {
+        return 0.0;
+    }
+    if ((count & 1U) != 0U) {
+        return values[count / 2];
+    }
+    return 0.5 * (values[count / 2 - 1] + values[count / 2]);
+}
+
+double median_from_u64(const uint64_t* values, size_t count) {
+    if (count == 0) {
+        return 0.0;
+    }
+
+    std::array<double, DEFAULT_VECTOR_SIZE> sorted_values{};
+    for (size_t idx = 0; idx < count; ++idx) {
+        sorted_values[idx] = static_cast<double>(values[idx]);
+    }
+    std::sort(sorted_values.begin(), sorted_values.begin() + static_cast<std::ptrdiff_t>(count));
+    return median_from_sorted(sorted_values.data(), count);
+}
+
+double median_from_double_buffer(const double* values, size_t count) {
+    if (count == 0) {
+        return 0.0;
+    }
+
+    std::array<double, DEFAULT_VECTOR_SIZE> sorted_values{};
+    for (size_t idx = 0; idx < count; ++idx) {
+        sorted_values[idx] = values[idx];
+    }
+    std::sort(sorted_values.begin(), sorted_values.begin() + static_cast<std::ptrdiff_t>(count));
+    return median_from_sorted(sorted_values.data(), count);
+}
+
+}
+
+size_t DurationSpikeManager::_capacity() const {
+    return DEFAULT_VECTOR_SIZE;
+}
+
+void DurationSpikeManager::on_subarray_initialized() {
+    clear_state();
+}
+
+void DurationSpikeManager::clear_state() {
+    compact_ready = false;
+    packed_payload_ready = false;
+    baseline_mean = 0;
+    baseline_stddev = 0;
+    exact_count = 0;
+    group_count = 0;
+    exact_spikes = {};
+    spike_groups = {};
+}
+
+size_t DurationSpikeManager::packed_payload_bytes() const {
+    size_t payload_bytes =
+            sizeof(baseline_mean) + sizeof(baseline_stddev) + sizeof(exact_count) + sizeof(group_count);
+
+    payload_bytes += static_cast<size_t>(exact_count) * (sizeof(uint16_t) + sizeof(uint64_t));
+    for (uint8_t group_idx = 0; group_idx < group_count; ++group_idx) {
+        const auto& group = spike_groups[group_idx];
+        payload_bytes += sizeof(group.value) + sizeof(group.index_count);
+
+        uint16_t previous_index = 0;
+        for (uint8_t index_idx = 0; index_idx < group.index_count; ++index_idx) {
+            const uint16_t current_index = group.indices[index_idx];
+            const uint16_t index_delta =
+                    (index_idx == 0) ? current_index : static_cast<uint16_t>(current_index - previous_index);
+            payload_bytes += duration_spike_varint_bytes(index_delta);
+            previous_index = current_index;
+        }
+    }
+    return payload_bytes;
+}
+
+void DurationSpikeManager::write_packed_payload() {
+    const size_t payload_bytes = packed_payload_bytes();
+    const size_t payload_words = (payload_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+    auto* packed_words = new uint64_t[payload_words]();
+    auto* out = reinterpret_cast<uint8_t*>(packed_words);
+
+    std::memcpy(out, &baseline_mean, sizeof(baseline_mean));
+    out += sizeof(baseline_mean);
+    std::memcpy(out, &baseline_stddev, sizeof(baseline_stddev));
+    out += sizeof(baseline_stddev);
+    *out++ = exact_count;
+    *out++ = group_count;
+
+    for (uint8_t exact_idx = 0; exact_idx < exact_count; ++exact_idx) {
+        std::memcpy(out, &exact_spikes[exact_idx].idx, sizeof(exact_spikes[exact_idx].idx));
+        out += sizeof(exact_spikes[exact_idx].idx);
+        std::memcpy(out, &exact_spikes[exact_idx].value, sizeof(exact_spikes[exact_idx].value));
+        out += sizeof(exact_spikes[exact_idx].value);
+    }
+
+    for (uint8_t group_idx = 0; group_idx < group_count; ++group_idx) {
+        const auto& group = spike_groups[group_idx];
+        std::memcpy(out, &group.value, sizeof(group.value));
+        out += sizeof(group.value);
+        *out++ = group.index_count;
+
+        uint16_t previous_index = 0;
+        for (uint8_t index_idx = 0; index_idx < group.index_count; ++index_idx) {
+            const uint16_t current_index = group.indices[index_idx];
+            const uint16_t index_delta =
+                    (index_idx == 0) ? current_index : static_cast<uint16_t>(current_index - previous_index);
+            write_varint(index_delta, out);
+            previous_index = current_index;
+        }
+    }
+
+    delete[] parent.buffer;
+    parent.buffer = packed_words;
+    parent.physical_size = payload_words;
+    packed_payload_ready = true;
+    compact_ready = true;
+}
+
+void DurationSpikeManager::load_packed_payload() {
+    clear_state();
+
+    const auto* in = reinterpret_cast<const uint8_t*>(parent.buffer);
+    const auto* end = in + parent.mem_size() * sizeof(uint64_t);
+    std::memcpy(&baseline_mean, in, sizeof(baseline_mean));
+    in += sizeof(baseline_mean);
+    std::memcpy(&baseline_stddev, in, sizeof(baseline_stddev));
+    in += sizeof(baseline_stddev);
+    exact_count = *in++;
+    group_count = *in++;
+
+    for (uint8_t exact_idx = 0; exact_idx < exact_count; ++exact_idx) {
+        std::memcpy(&exact_spikes[exact_idx].idx, in, sizeof(exact_spikes[exact_idx].idx));
+        in += sizeof(exact_spikes[exact_idx].idx);
+        std::memcpy(&exact_spikes[exact_idx].value, in, sizeof(exact_spikes[exact_idx].value));
+        in += sizeof(exact_spikes[exact_idx].value);
+    }
+
+    for (uint8_t group_idx = 0; group_idx < group_count; ++group_idx) {
+        auto& group = spike_groups[group_idx];
+        std::memcpy(&group.value, in, sizeof(group.value));
+        in += sizeof(group.value);
+        group.index_count = *in++;
+
+        uint16_t previous_index = 0;
+        for (uint8_t index_idx = 0; index_idx < group.index_count; ++index_idx) {
+            const auto index_delta = static_cast<uint16_t>(read_varint(in, end));
+            group.indices[index_idx] =
+                    (index_idx == 0) ? index_delta : static_cast<uint16_t>(previous_index + index_delta);
+            previous_index = group.indices[index_idx];
+        }
+    }
+
+    compact_ready = true;
+    packed_payload_ready = true;
+}
+
+uint64_t DurationSpikeManager::reconstructed_value(size_t logical_index) const {
+    for (uint8_t exact_idx = 0; exact_idx < exact_count; ++exact_idx) {
+        if (exact_spikes[exact_idx].idx == logical_index) {
+            return exact_spikes[exact_idx].value;
+        }
+    }
+
+    for (uint8_t group_idx = 0; group_idx < group_count; ++group_idx) {
+        const auto& group = spike_groups[group_idx];
+        for (uint8_t index_idx = 0; index_idx < group.index_count; ++index_idx) {
+            if (group.indices[index_idx] == logical_index) {
+                return group.value;
+            }
+        }
+    }
+
+    if (baseline_stddev == 0) {
+        return baseline_mean;
+    }
+
+    const uint64_t absolute_index = static_cast<uint64_t>(parent.first_index + logical_index);
+    const uint64_t seed_a = splitmix64(absolute_index ^ baseline_mean ^ static_cast<uint64_t>(baseline_stddev));
+    const uint64_t seed_b = splitmix64(seed_a ^ 0xd6e8feb86659fd93ULL);
+    const double u1 = std::max(1e-12, uniform_unit_from_u64(seed_a));
+    const double u2 = uniform_unit_from_u64(seed_b);
+    const double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+    const double sigma = static_cast<double>(baseline_stddev);
+    const double mean = static_cast<double>(baseline_mean);
+    const double low = mean - 3.0 * sigma;
+    const double high = mean + 3.0 * sigma;
+    const double sampled = std::min(std::max(mean + sigma * z, low), high);
+    return static_cast<uint64_t>(std::max(0.0, std::round(sampled)));
+}
+
+void DurationSpikeManager::finalize_block() {
+    // Stage 0: Reset any prior decoded state and handle the empty-block case.
+    clear_state();
+    if (parent.value_count == 0 || parent.buffer == nullptr) {
+        compact_ready = true;
+        packed_payload_ready = true;
+        write_packed_payload();
+        return;
+    }
+
+    const size_t value_count = parent.value_count;
+    const auto* raw_values = parent.buffer;
+
+    // Stage 1: Build a robust initial baseline and derive the spike threshold.
+    const double initial_baseline = median_from_u64(raw_values, value_count);
+
+    std::array<double, DEFAULT_VECTOR_SIZE> abs_residuals{};
+    for (size_t idx = 0; idx < value_count; ++idx) {
+        abs_residuals[idx] = std::abs(static_cast<double>(raw_values[idx]) - initial_baseline);
+    }
+    const double median_abs_residual = median_from_double_buffer(abs_residuals.data(), value_count);
+    const double spike_threshold = std::max(kMinSpikeResidual, 3.0 * median_abs_residual);
+
+    // Stage 2: Gather and sort the strongest positive residual spike candidates.
+    std::array<DurationSpikeCandidate, DEFAULT_VECTOR_SIZE> all_candidates{};
+    size_t all_candidate_count = 0;
+    for (size_t idx = 0; idx < value_count; ++idx) {
+        const int64_t residual =
+                static_cast<int64_t>(raw_values[idx]) - static_cast<int64_t>(std::llround(initial_baseline));
+        if (static_cast<double>(residual) >= spike_threshold) {
+            all_candidates[all_candidate_count++] = {
+                    static_cast<uint16_t>(idx),
+                    residual,
+            };
+        }
+    }
+
+    std::sort(
+            all_candidates.begin(),
+            all_candidates.begin() + static_cast<std::ptrdiff_t>(all_candidate_count),
+            [](const DurationSpikeCandidate& lhs, const DurationSpikeCandidate& rhs) {
+                return lhs.residual > rhs.residual;
+            });
+
+    const size_t candidate_count = std::min(static_cast<size_t>(k_max), all_candidate_count);
+    const uint8_t exact_target =
+            static_cast<uint8_t>(std::min(candidate_count, static_cast<size_t>(std::min<uint8_t>(kMaxExactSpikes, std::max<uint8_t>(2, k_max / 2)))));
+
+    // Stage 3: Preserve the top spike candidates exactly.
+    std::array<bool, DEFAULT_VECTOR_SIZE> selected_positions{};
+    exact_count = exact_target;
+    for (uint8_t exact_idx = 0; exact_idx < exact_count; ++exact_idx) {
+        const auto& candidate = all_candidates[exact_idx];
+        exact_spikes[exact_idx].idx = candidate.idx;
+        exact_spikes[exact_idx].value = raw_values[candidate.idx];
+        selected_positions[candidate.idx] = true;
+    }
+
+    std::array<bool, DEFAULT_VECTOR_SIZE> candidate_used{};
+    for (size_t candidate_idx = 0; candidate_idx < candidate_count; ++candidate_idx) {
+        if (candidate_idx < exact_count) {
+            candidate_used[candidate_idx] = true;
+        }
+    }
+
+    // Stage 4: Cluster the remaining candidates into grouped spike buckets.
+    group_count = 0;
+    for (size_t candidate_idx = exact_count; candidate_idx < candidate_count && group_count < kMaxSpikeGroups; ++candidate_idx) {
+        if (candidate_used[candidate_idx]) {
+            continue;
+        }
+
+        const auto& seed = all_candidates[candidate_idx];
+        const double tolerance = std::max(
+                kAbsoluteGroupTolerance,
+                std::abs(static_cast<double>(seed.residual)) * kRelativeGroupTolerance);
+
+        std::array<uint16_t, 64> group_positions{};
+        std::array<size_t, 64> group_candidate_indices{};
+        size_t group_member_count = 0;
+        int64_t residual_sum = 0;
+
+        for (size_t inner_idx = candidate_idx; inner_idx < candidate_count; ++inner_idx) {
+            if (candidate_used[inner_idx]) {
+                continue;
+            }
+            const auto& candidate = all_candidates[inner_idx];
+            if (std::abs(static_cast<double>(candidate.residual - seed.residual)) <= tolerance) {
+                if (group_member_count < group_positions.size()) {
+                    group_positions[group_member_count++] = candidate.idx;
+                    group_candidate_indices[group_member_count - 1] = inner_idx;
+                    residual_sum += candidate.residual;
+                }
+            }
+        }
+
+        if (group_member_count < kMinGroupSize) {
+            continue;
+        }
+
+        std::sort(group_positions.begin(), group_positions.begin() + static_cast<std::ptrdiff_t>(group_member_count));
+        auto& group = spike_groups[group_count];
+        group.index_count = static_cast<uint8_t>(group_member_count);
+        group.value = static_cast<uint64_t>(
+                static_cast<int64_t>(std::llround(initial_baseline)) +
+                static_cast<int64_t>(std::llround(static_cast<double>(residual_sum) / static_cast<double>(group_member_count))));
+
+        for (size_t member_idx = 0; member_idx < group_member_count; ++member_idx) {
+            group.indices[member_idx] = group_positions[member_idx];
+            candidate_used[group_candidate_indices[member_idx]] = true;
+            selected_positions[group_positions[member_idx]] = true;
+        }
+        ++group_count;
+    }
+
+    // Stage 5: Fit the clipped baseline model on values not claimed by spikes.
+    std::array<double, DEFAULT_VECTOR_SIZE> baseline_values{};
+    size_t baseline_value_count = 0;
+    for (size_t idx = 0; idx < value_count; ++idx) {
+        if (!selected_positions[idx]) {
+            baseline_values[baseline_value_count++] = static_cast<double>(raw_values[idx]);
+        }
+    }
+
+    if (baseline_value_count == 0) {
+        baseline_mean = static_cast<uint64_t>(std::max(0.0, std::round(initial_baseline)));
+        baseline_stddev = 0;
+        write_packed_payload();
+        return;
+    }
+
+    const double robust_center = median_from_double_buffer(baseline_values.data(), baseline_value_count);
+    std::array<double, DEFAULT_VECTOR_SIZE> abs_deviations{};
+    for (size_t idx = 0; idx < baseline_value_count; ++idx) {
+        abs_deviations[idx] = std::abs(baseline_values[idx] - robust_center);
+    }
+    const double mad = median_from_double_buffer(abs_deviations.data(), baseline_value_count);
+    const double robust_sigma = 1.4826 * mad;
+    const double clip_radius = std::max(kBaselineMinClipRadius, robust_sigma * kBaselineClipSigma);
+
+    double clipped_sum = 0.0;
+    size_t clipped_count = 0;
+    for (size_t idx = 0; idx < baseline_value_count; ++idx) {
+        if (std::abs(baseline_values[idx] - robust_center) <= clip_radius) {
+            clipped_sum += baseline_values[idx];
+            ++clipped_count;
+        }
+    }
+    if (clipped_count == 0) {
+        for (size_t idx = 0; idx < baseline_value_count; ++idx) {
+            clipped_sum += baseline_values[idx];
+        }
+        clipped_count = baseline_value_count;
+    }
+
+    const double mean_value = clipped_sum / static_cast<double>(clipped_count);
+    double variance = 0.0;
+    if (clipped_count > 1) {
+        for (size_t idx = 0; idx < baseline_value_count; ++idx) {
+            if (std::abs(baseline_values[idx] - robust_center) <= clip_radius || baseline_value_count == clipped_count) {
+                const double centered = baseline_values[idx] - mean_value;
+                variance += centered * centered;
+            }
+        }
+        variance /= static_cast<double>(clipped_count);
+    }
+
+    // Stage 6: Materialize the compact payload header and spike sections.
+    baseline_mean = static_cast<uint64_t>(std::max(0.0, std::round(mean_value)));
+    baseline_stddev = static_cast<uint32_t>(std::max(0.0, std::round(std::sqrt(std::max(0.0, variance)))));
+    write_packed_payload();
+}
+
+AddStatus DurationSpikeManager::add(uint64_t val) {
+    if (compact_ready) {
+        return AddStatus::Full;
+    }
+    if (parent.physical_size >= _capacity()) {
+        return AddStatus::Full;
+    }
+
+    parent.buffer[parent.physical_size] = val;
+    parent.value_count++;
+    parent.physical_size++;
+    if (parent.value_count == _capacity()) {
+        finalize_block();
+    }
+    return AddStatus::Ok;
+}
+
+uint64_t DurationSpikeManager::at(size_t pos) const {
+    if (!parent.contains(pos)) {
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
+                     pos, parent.first_index, parent.value_count);
+    }
+    if (packed_payload_ready) {
+        return reconstructed_value(parent.local_index(pos));
+    }
+    return parent.buffer[parent.local_index(pos)];
+}
+
+void DurationSpikeManager::copy_to_array(uint64_t* given_array) const {
+    if (given_array == nullptr) {
+        return;
+    }
+    if (packed_payload_ready) {
+        for (size_t logical_index = 0; logical_index < parent.size(); ++logical_index) {
+            given_array[logical_index] = reconstructed_value(logical_index);
+        }
+        return;
+    }
+    if (parent.buffer == nullptr) {
+        return;
+    }
+    std::memcpy(given_array, parent.buffer, parent.value_count * sizeof(uint64_t));
+}
+
+void DurationSpikeManager::write_data(FILE* data_file, const ParameterHandler* parameter_handler) {
+    if (data_file == nullptr || parameter_handler == nullptr || parent.buffer == nullptr) {
+        return;
+    }
+    if (!compact_ready) {
+        finalize_block();
+    }
+
+    if (packed_payload_ready) {
+        write_packed_payload();
+    }
+
+    const long current_offset = std::ftell(data_file);
+    if (current_offset >= 0) {
+        parent.file_offset = static_cast<size_t>(current_offset);
+    }
+
+    numberPreRawBytes += parent.size() * sizeof(uint64_t);
+    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+    parent.free_values();
+}
+
+void DurationSpikeManager::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+    if (data_file == nullptr) {
+        return;
+    }
+
+    clear_state();
+    delete[] parent.buffer;
+    parent.buffer = _pallas_compress_read(parent.mem_size(), data_file, parameter_handler);
+    if (parent.mem_size() < _capacity()) {
+        load_packed_payload();
+        return;
+    }
+    compact_ready = true;
+}
+
+void DurationSpikeManager::on_values_freed() {
     clear_state();
 }
 

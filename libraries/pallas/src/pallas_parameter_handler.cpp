@@ -166,11 +166,14 @@ StoragePolicy storagePolicyFromString(const std::string& str) {
 }
 
 std::map<LossyPolicy, std::string> LossyPolicyMap = {
-    {LossyPolicy::NormalSample, "NormalSample"},
     {LossyPolicy::PLA4, "PLA4"},
     {LossyPolicy::PLA8, "PLA8"},
     {LossyPolicy::PLA16, "PLA16"},
     {LossyPolicy::PLA32, "PLA32"},
+    {LossyPolicy::Spike4, "Spike4"},
+    {LossyPolicy::Spike8, "Spike8"},
+    {LossyPolicy::Spike16, "Spike16"},
+    {LossyPolicy::Spike32, "Spike32"},
 };
 
 std::string toString(LossyPolicy policy) {
@@ -318,7 +321,7 @@ class ConfigFile {
   }
 
   LossyPolicy loadDurationLossyPolicyConfig() {
-    LossyPolicy ret = LossyPolicy::NormalSample;
+    LossyPolicy ret = LossyPolicy::Spike8;
 
     std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_POLICY");
     if (value.empty() && !config.empty() && config.find("durationLossyPolicy") != config.end()) {
@@ -328,7 +331,7 @@ class ConfigFile {
       ret = lossyPolicyFromString(value);
       if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
         pallas_warn("Invalid DurationLossyPolicy in config: %s\n", value.c_str());
-        ret = LossyPolicy::NormalSample;
+        ret = LossyPolicy::Spike8;
       }
     }
     return ret;

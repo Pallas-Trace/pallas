@@ -60,15 +60,18 @@ enum class SubArrayPhase : uint8_t {
 };
 
 enum class LossyPolicy : uint8_t {
-    NormalSample = 0,
-    PLA4 = 1,
-    PLA8 = 2,
-    PLA16 = 3,
-    PLA32 = 4,
+    PLA4 = 0,
+    PLA8 = 1,
+    PLA16 = 2,
+    PLA32 = 3,
+    Spike4 = 4,
+    Spike8 = 5,
+    Spike16 = 6,
+    Spike32 = 7,
 };
 
 constexpr LossyPolicy DEFAULT_LOSSY_TIME = LossyPolicy::PLA8;
-constexpr LossyPolicy DEFAULT_LOSSY_DURATION = LossyPolicy::NormalSample;
+constexpr LossyPolicy DEFAULT_LOSSY_DURATION = LossyPolicy::Spike8;
 
 enum class AddStatus : uint8_t {
     Ok = 0,
@@ -83,6 +86,7 @@ namespace pallas {
 
 class SubArrayBase;
 class TimeSubArray;
+class DurationSubArray;
 class LVBase;
 
 class Manager {
@@ -203,6 +207,59 @@ class PLAManager : public Manager {
     PLAAnchor anchor_storage[kPLAMaxAnchors]{};
 };
 
+class DurationSpikeManager : public Manager {
+   public:
+    DurationSpikeManager(SubArrayBase& parent, uint8_t k_max)
+        : Manager(parent), k_max(k_max) {}
+
+    [[nodiscard]] size_t _capacity() const override;
+    AddStatus add(uint64_t val) override;
+    [[nodiscard]] uint64_t at(size_t pos) const override;
+    void copy_to_array(uint64_t* given_array) const override;
+    void write_data(FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_subarray_initialized() override;
+    void on_values_freed() override;
+
+   private:
+    struct ExactSpike {
+        uint16_t idx = 0;
+        uint64_t value = 0;
+    };
+
+    struct SpikeGroup {
+        uint64_t value = 0;
+        uint8_t index_count = 0;
+        std::array<uint16_t, 64> indices{};
+    };
+
+    static constexpr uint8_t kMaxExactSpikes = 8;
+    static constexpr uint8_t kMaxSpikeGroups = 4;
+    static constexpr uint8_t kMinGroupSize = 2;
+    static constexpr double kRelativeGroupTolerance = 0.20;
+    static constexpr double kAbsoluteGroupTolerance = 96.0;
+    static constexpr double kMinSpikeResidual = 64.0;
+    static constexpr double kBaselineClipSigma = 2.5;
+    static constexpr double kBaselineMinClipRadius = 32.0;
+
+    void finalize_block();
+    void clear_state();
+    void write_packed_payload();
+    void load_packed_payload();
+    [[nodiscard]] size_t packed_payload_bytes() const;
+    [[nodiscard]] uint64_t reconstructed_value(size_t logical_index) const;
+
+    bool compact_ready = false;
+    bool packed_payload_ready = false;
+    uint8_t k_max = 0;
+    uint64_t baseline_mean = 0;
+    uint32_t baseline_stddev = 0;
+    uint8_t exact_count = 0;
+    uint8_t group_count = 0;
+    std::array<ExactSpike, kMaxExactSpikes> exact_spikes{};
+    std::array<SpikeGroup, kMaxSpikeGroups> spike_groups{};
+};
+
 [[nodiscard]] inline uint64_t zigzag_encode(int64_t x) {
     return (static_cast<uint64_t>(x) << 1) ^ static_cast<uint64_t>(x >> 63);
 }
@@ -304,6 +361,7 @@ class SubArrayBase {
     friend class NoneManager;
     friend class DeltaManager;
     friend class PLAManager;
+    friend class DurationSpikeManager;
     friend class LVBase;
 
     /** Construction and File time helpers */
@@ -343,6 +401,7 @@ class TimeSubArray : public SubArrayBase {
    protected:
     friend class DeltaManager;
     friend class PLAManager;
+    friend class DurationSpikeManager;
 
     // First and last logical timestamps stored in this subarray.
     uint64_t first_timestamp = 0;

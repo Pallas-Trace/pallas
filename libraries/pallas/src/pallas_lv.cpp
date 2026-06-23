@@ -279,8 +279,11 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
             case LossyPolicy::PLA16:
             case LossyPolicy::PLA32:
                 break;
-            case LossyPolicy::NormalSample:
-                pallas_error("LossyPolicy::NormalSample is not supported for timestamp subarrays in the standalone LV path.\n");
+            case LossyPolicy::Spike4:
+            case LossyPolicy::Spike8:
+            case LossyPolicy::Spike16:
+            case LossyPolicy::Spike32:
+                pallas_error("Spike lossy policies are not supported for timestamp subarrays in the standalone LV path.\n");
                 break;
         }
     }
