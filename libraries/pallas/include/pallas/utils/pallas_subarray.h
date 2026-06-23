@@ -87,41 +87,50 @@ class LVBase;
 
 class Manager {
    public:
+    explicit Manager(SubArrayBase& parent)
+        : parent(parent) {}
     virtual ~Manager();
 
-    [[nodiscard]] virtual size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const = 0;
-    virtual AddStatus add(SubArrayBase& subarray, uint64_t val) = 0;
+    [[nodiscard]] virtual size_t _capacity() const = 0;
+    virtual AddStatus add(uint64_t val) = 0;
 
-    [[nodiscard]] virtual uint64_t at(const SubArrayBase& subarray, size_t pos) const = 0;
-    virtual void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const = 0;
-    virtual void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) = 0;
-    virtual void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) = 0;
-    virtual void on_values_freed(SubArrayBase& subarray) = 0;
+    [[nodiscard]] virtual uint64_t at(size_t pos) const = 0;
+    virtual void copy_to_array(uint64_t* given_array) const = 0;
+    virtual void write_data(FILE* data_file, const ParameterHandler* parameter_handler) = 0;
+    virtual void load_data(FILE* data_file, const ParameterHandler& parameter_handler) = 0;
+    virtual void on_subarray_initialized();
+    virtual void on_values_freed() = 0;
+
+   protected:
+    SubArrayBase& parent;
 };
 
 class NoneManager : public Manager {
    public:
-    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
-    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
-    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
-    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
-    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
-    void on_values_freed(SubArrayBase& subarray) override;
+    explicit NoneManager(SubArrayBase& parent)
+        : Manager(parent) {}
+
+    [[nodiscard]] size_t _capacity() const override;
+    AddStatus add(uint64_t val) override;
+    [[nodiscard]] uint64_t at(size_t pos) const override;
+    void copy_to_array(uint64_t* given_array) const override;
+    void write_data(FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed() override;
 };
 
 class DeltaManager : public Manager {
    public:
-    explicit DeltaManager(ValueDomain value_domain)
-        : dom(value_domain) {}
+    DeltaManager(SubArrayBase& parent, ValueDomain value_domain)
+        : Manager(parent), dom(value_domain) {}
 
-    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
-    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
-    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
-    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
-    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
-    void on_values_freed(SubArrayBase& subarray) override;
+    [[nodiscard]] size_t _capacity() const override;
+    AddStatus add(uint64_t val) override;
+    [[nodiscard]] uint64_t at(size_t pos) const override;
+    void copy_to_array(uint64_t* given_array) const override;
+    void write_data(FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_values_freed() override;
 
    private:
     union PrevDelta {
@@ -148,14 +157,14 @@ class DeltaManager : public Manager {
     [[nodiscard]] bool is_time_domain() const {
         return dom == ValueDomain::Timestamp;
     }
-    AddStatus add_time(SubArrayBase& subarray, uint64_t val);
-    AddStatus add_duration(SubArrayBase& subarray, uint64_t val);
-    [[nodiscard]] uint64_t at_time(const SubArrayBase& subarray, size_t pos) const;
-    [[nodiscard]] uint64_t at_duration(const SubArrayBase& subarray, size_t pos) const;
-    void copy_time_to_array(const SubArrayBase& subarray, uint64_t* given_array) const;
-    void copy_duration_to_array(const SubArrayBase& subarray, uint64_t* given_array) const;
-    void load_time_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler);
-    void load_duration_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler);
+    AddStatus add_time(uint64_t val);
+    AddStatus add_duration(uint64_t val);
+    [[nodiscard]] uint64_t at_time(size_t pos) const;
+    [[nodiscard]] uint64_t at_duration(size_t pos) const;
+    void copy_time_to_array(uint64_t* given_array) const;
+    void copy_duration_to_array(uint64_t* given_array) const;
+    void load_time_data(FILE* data_file, const ParameterHandler& parameter_handler);
+    void load_duration_data(FILE* data_file, const ParameterHandler& parameter_handler);
 
     ValueDomain dom;
     uint8_t* payload = nullptr;
@@ -167,28 +176,30 @@ class DeltaManager : public Manager {
 
 class PLAManager : public Manager {
    public:
-    explicit PLAManager(uint8_t k_max)
-        : k_max(k_max) {}
+    PLAManager(SubArrayBase& parent, uint8_t k_max)
+        : Manager(parent), k_max(k_max) {}
 
-    [[nodiscard]] size_t _capacity(ValueDomain domain, StoragePolicy policy, SubArrayPhase phase) const override;
-    AddStatus add(SubArrayBase& subarray, uint64_t val) override;
-    [[nodiscard]] uint64_t at(const SubArrayBase& subarray, size_t pos) const override;
-    void copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const override;
-    void write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) override;
-    void load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) override;
-    void on_values_freed(SubArrayBase& subarray) override;
+    [[nodiscard]] size_t _capacity() const override;
+    AddStatus add(uint64_t val) override;
+    [[nodiscard]] uint64_t at(size_t pos) const override;
+    void copy_to_array(uint64_t* given_array) const override;
+    void write_data(FILE* data_file, const ParameterHandler* parameter_handler) override;
+    void load_data(FILE* data_file, const ParameterHandler& parameter_handler) override;
+    void on_subarray_initialized() override;
+    void on_values_freed() override;
 
    private:
-    void ensure_staging(SubArrayBase& subarray);
-    void finalize_block(SubArrayBase& subarray);
-    void write_packed_payload(SubArrayBase& subarray);
-    void load_packed_payload(SubArrayBase& subarray);
+    void ensure_staging();
+    void finalize_block();
+    void write_packed_payload();
+    void load_packed_payload();
     [[nodiscard]] uint64_t interpolate_value(const TimeSubArray& subarray, size_t logical_index) const;
     void clear_state();
 
     uint8_t k_max = 0;
     uint8_t anchor_count = 0;
     bool compact_ready = false;
+    GammaBlockStats stats{};
     PLAAnchor anchor_storage[kPLAMaxAnchors]{};
 };
 
@@ -244,8 +255,7 @@ class SubArrayBase {
     /** Internal Logic Handler and Attached Buffer */
     std::unique_ptr<Manager> manager;
     uint64_t* buffer = nullptr;
-    LVBase* owner_lv = nullptr;
-    bool owns_buffer = true;
+    LVBase* parent_lv = nullptr;
 
    public:
     // Storage State Information
@@ -301,7 +311,7 @@ class SubArrayBase {
                           StoragePolicy policy = StoragePolicy::None,
                           SubArrayBase* previous = nullptr,
                           const ParameterHandler* parameter_handler = nullptr,
-                          LVBase* owner = nullptr);
+                          LVBase* parent = nullptr);
     explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
     
     
@@ -316,7 +326,7 @@ class TimeSubArray : public SubArrayBase {
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None,
                           TimeSubArray* previous = nullptr,
                           const ParameterHandler* parameter_handler = nullptr,
-                          LVBase* owner = nullptr);
+                          LVBase* parent = nullptr);
                           
     explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
@@ -345,7 +355,7 @@ class DurationSubArray : public SubArrayBase {
     explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None,
                               DurationSubArray* previous = nullptr,
                               const ParameterHandler* parameter_handler = nullptr,
-                              LVBase* owner = nullptr);
+                              LVBase* parent = nullptr);
     explicit DurationSubArray(FILE* info_file, DurationSubArray* previous = nullptr);
 
     // Duration-specific insertion, file serialization, and statistics helpers.

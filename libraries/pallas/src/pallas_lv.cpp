@@ -273,7 +273,7 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     if (storage_policy == StoragePolicy::Lossy) {
         switch (parameter_handler.getTimeLossyPolicy()) {
             case LossyPolicy::PLA4:
-                const_cast<TimeLV*>(this)->ensure_hbuffer(pla_helper_buffer_bytes());
+                const_cast<TimeLV*>(this)->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
                 break;
             case LossyPolicy::PLA8:
             case LossyPolicy::PLA16:

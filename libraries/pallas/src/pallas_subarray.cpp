@@ -66,129 +66,136 @@ void SubArrayBase::unpack_subarray_flags(uint8_t encoded_policy) {
 
 namespace {
 
-std::unique_ptr<Manager> make_manager(ValueDomain domain, StoragePolicy policy, LossyPolicy lossy_policy) {
+std::unique_ptr<Manager> make_manager(SubArrayBase& parent,
+                                      ValueDomain domain,
+                                      StoragePolicy policy,
+                                      LossyPolicy lossy_policy) {
     switch (policy) {
         case StoragePolicy::None:
-            return std::make_unique<NoneManager>();
+            return std::make_unique<NoneManager>(parent);
         case StoragePolicy::Lossy:
             if (domain == ValueDomain::Timestamp) {
                 switch (lossy_policy) {
                     case LossyPolicy::PLA8:
+                        return std::make_unique<PLAManager>(parent, 8);
                     case LossyPolicy::PLA16:
+                        return std::make_unique<PLAManager>(parent, 16);
                     case LossyPolicy::PLA32:
-                        return std::make_unique<DeltaManager>(domain);
+                        return std::make_unique<PLAManager>(parent, 32);
                     case LossyPolicy::PLA4:
-                        return std::make_unique<PLAManager>(4);
+                        return std::make_unique<PLAManager>(parent, 4);
                     case LossyPolicy::NormalSample:
-                        return std::make_unique<DeltaManager>(domain);
+                        return std::make_unique<DeltaManager>(parent, domain);
                 }
-                return std::make_unique<DeltaManager>(domain);
+                return std::make_unique<DeltaManager>(parent, domain);
             }
             if (domain == ValueDomain::Duration) {
-                return std::make_unique<DeltaManager>(domain);
+                return std::make_unique<DeltaManager>(parent, domain);
             }
-            return std::make_unique<NoneManager>();
+            return std::make_unique<NoneManager>(parent);
         case StoragePolicy::Delta:
             if (domain == ValueDomain::Timestamp) {
-                return std::make_unique<DeltaManager>(domain);
+                return std::make_unique<DeltaManager>(parent, domain);
             }
             if (domain == ValueDomain::Duration) {
-                return std::make_unique<DeltaManager>(domain);
+                return std::make_unique<DeltaManager>(parent, domain);
             }
-            return std::make_unique<NoneManager>();
+            return std::make_unique<NoneManager>(parent);
     }
 
-    return std::make_unique<NoneManager>();
+    return std::make_unique<NoneManager>(parent);
 }
 
 }  // namespace
 
 Manager::~Manager() = default;
 
+void Manager::on_subarray_initialized() {}
+
 }
 
 /** Methods Peratining to NoneManger Class */
 namespace pallas {
 
-size_t NoneManager::_capacity(ValueDomain, StoragePolicy, SubArrayPhase) const {
+size_t NoneManager::_capacity() const {
     return DEFAULT_VECTOR_SIZE;
 }
 
-AddStatus NoneManager::add(SubArrayBase& subarray, uint64_t val) {
-    if (subarray.physical_size >= subarray.capacity()) {
+AddStatus NoneManager::add(uint64_t val) {
+    if (parent.physical_size >= parent.capacity()) {
         return AddStatus::Full;
     }
 
-    subarray.buffer[subarray.physical_size] = val;
-    subarray.value_count++;
-    subarray.physical_size++;
+    parent.buffer[parent.physical_size] = val;
+    parent.value_count++;
+    parent.physical_size++;
     return AddStatus::Ok;
 }
 
-uint64_t NoneManager::at(const SubArrayBase& subarray, size_t pos) const {
-    if (!subarray.contains(pos)) {
-        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, subarray.first_index, subarray.value_count);
+uint64_t NoneManager::at(size_t pos) const {
+    if (!parent.contains(pos)) {
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, parent.first_index, parent.value_count);
     }
-    return subarray.buffer[subarray.local_index(pos)];
+    return parent.buffer[parent.local_index(pos)];
 }
 
-void NoneManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
-    std::memcpy(given_array, subarray.buffer, subarray.value_count * sizeof(uint64_t));
+void NoneManager::copy_to_array(uint64_t* given_array) const {
+    std::memcpy(given_array, parent.buffer, parent.value_count * sizeof(uint64_t));
 }
 
-void NoneManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) {
-    if (data_file == nullptr || parameter_handler == nullptr || subarray.buffer == nullptr) {
+void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_handler) {
+    if (data_file == nullptr || parameter_handler == nullptr || parent.buffer == nullptr) {
         return;
     }
 
     const long current_offset = std::ftell(data_file);
     if (current_offset >= 0) {
-        subarray.file_offset = static_cast<size_t>(current_offset);
+        parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
-    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
-    _pallas_compress_write(subarray.buffer, subarray.mem_size(), data_file, parameter_handler);
-    subarray.free_values();
+    numberPreRawBytes += parent.size() * sizeof(uint64_t);
+    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+    parent.free_values();
 }
 
-void NoneManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
+void NoneManager::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
     if (data_file == nullptr) {
         return;
     }
 
-    delete[] subarray.buffer;
-    subarray.buffer = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
+    delete[] parent.buffer;
+    parent.buffer = _pallas_compress_read(parent.mem_size(), data_file, parameter_handler);
 }
 
-void NoneManager::on_values_freed(SubArrayBase&) {}
+void NoneManager::on_values_freed() {}
 } 
 
 /** Methods Pertaining to the DeltaManager (Time and Duration) */
 namespace pallas {
 
-size_t DeltaManager::_capacity(ValueDomain, StoragePolicy, SubArrayPhase) const {
+size_t DeltaManager::_capacity() const {
     return DEFAULT_VECTOR_SIZE;
 }
 
-AddStatus DeltaManager::add(SubArrayBase& subarray, uint64_t val) {
-    return is_time_domain() ? add_time(subarray, val) : add_duration(subarray, val);
+AddStatus DeltaManager::add(uint64_t val) {
+    return is_time_domain() ? add_time(val) : add_duration(val);
 }
 
-AddStatus DeltaManager::add_time(SubArrayBase& subarray, uint64_t val) {
-    auto& time_subarray = static_cast<TimeSubArray&>(subarray);
+AddStatus DeltaManager::add_time(uint64_t val) {
+    auto& time_subarray = static_cast<TimeSubArray&>(parent);
     if (cap_bytes == 0) {
-        cap_bytes = subarray.capacity() * sizeof(uint64_t);
+        cap_bytes = parent.capacity() * sizeof(uint64_t);
     }
     if (payload == nullptr) {
-        payload = reinterpret_cast<uint8_t*>(subarray.buffer);
+        payload = reinterpret_cast<uint8_t*>(parent.buffer);
     }
 
     uint64_t encoded_value = 0;
     uint64_t next_previous_delta = st.prev.u;
-    if (subarray.value_count == 0) {
+    if (parent.value_count == 0) {
         encoded_value = val;
-    } else if (subarray.value_count == 1) {
+    } else if (parent.value_count == 1) {
         pallas_assert_inferior_equal(time_subarray.last_timestamp, val);
         const uint64_t current_delta = val - time_subarray.last_timestamp;
         encoded_value = current_delta;
@@ -214,10 +221,10 @@ AddStatus DeltaManager::add_time(SubArrayBase& subarray, uint64_t val) {
     std::memcpy(payload + bytes, packet, packet_bytes);
     bytes = next_payload_bytes;
     st.prev.u = next_previous_delta;
-    subarray.value_count++;
-    subarray.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+    parent.value_count++;
+    parent.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
 
-    const size_t logical_index = subarray.value_count - 1;
+    const size_t logical_index = parent.value_count - 1;
     if (logical_index % kCheckpointStride == 0) {
         Checkpoint checkpoint{};
         checkpoint.idx = logical_index;
@@ -229,19 +236,19 @@ AddStatus DeltaManager::add_time(SubArrayBase& subarray, uint64_t val) {
     return AddStatus::Ok;
 }
 
-AddStatus DeltaManager::add_duration(SubArrayBase& subarray, uint64_t val) {
+AddStatus DeltaManager::add_duration(uint64_t val) {
     if (cap_bytes == 0) {
-        cap_bytes = subarray.capacity() * sizeof(uint64_t);
+        cap_bytes = parent.capacity() * sizeof(uint64_t);
     }
     if (payload == nullptr) {
-        payload = reinterpret_cast<uint8_t*>(subarray.buffer);
+        payload = reinterpret_cast<uint8_t*>(parent.buffer);
     }
 
     uint64_t encoded_value = 0;
     int64_t next_previous_delta = st.prev.i;
-    if (subarray.value_count == 0) {
+    if (parent.value_count == 0) {
         encoded_value = val;
-    } else if (subarray.value_count == 1) {
+    } else if (parent.value_count == 1) {
         const int64_t current_delta =
                 static_cast<int64_t>(val) - static_cast<int64_t>(st.last);
         encoded_value = zigzag_encode(current_delta);
@@ -267,10 +274,10 @@ AddStatus DeltaManager::add_duration(SubArrayBase& subarray, uint64_t val) {
     bytes = next_payload_bytes;
     st.last = val;
     st.prev.i = next_previous_delta;
-    subarray.value_count++;
-    subarray.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+    parent.value_count++;
+    parent.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
 
-    const size_t logical_index = subarray.value_count - 1;
+    const size_t logical_index = parent.value_count - 1;
     if (logical_index % kCheckpointStride == 0) {
         Checkpoint checkpoint{};
         checkpoint.idx = logical_index;
@@ -282,29 +289,29 @@ AddStatus DeltaManager::add_duration(SubArrayBase& subarray, uint64_t val) {
     return AddStatus::Ok;
 }
 
-uint64_t DeltaManager::at(const SubArrayBase& subarray, size_t pos) const {
-    if (subarray.phase() == SubArrayPhase::AnalysisRead) {
-        if (!subarray.contains(pos)) {
+uint64_t DeltaManager::at(size_t pos) const {
+    if (parent.phase() == SubArrayPhase::AnalysisRead) {
+        if (!parent.contains(pos)) {
             pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
-                         pos, subarray.first_index, subarray.value_count);
+                         pos, parent.first_index, parent.value_count);
         }
-        return subarray.buffer[subarray.local_index(pos)];
+        return parent.buffer[parent.local_index(pos)];
     }
 
-    if (!subarray.contains(pos)) {
+    if (!parent.contains(pos)) {
         pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
-                     pos, subarray.first_index, subarray.value_count);
+                     pos, parent.first_index, parent.value_count);
     }
-    if (payload == nullptr || subarray.buffer == nullptr) {
+    if (payload == nullptr || parent.buffer == nullptr) {
         pallas_warn("DeltaManager::at cannot decode without payload.\n");
         return 0;
     }
 
-    return is_time_domain() ? at_time(subarray, pos) : at_duration(subarray, pos);
+    return is_time_domain() ? at_time(pos) : at_duration(pos);
 }
 
-uint64_t DeltaManager::at_time(const SubArrayBase& subarray, size_t pos) const {
-    const size_t target_index = subarray.local_index(pos);
+uint64_t DeltaManager::at_time(size_t pos) const {
+    const size_t target_index = parent.local_index(pos);
     const uint8_t* begin = payload;
     const uint8_t* end = begin + bytes;
     const Checkpoint* checkpoint = nullptr;
@@ -354,8 +361,8 @@ uint64_t DeltaManager::at_time(const SubArrayBase& subarray, size_t pos) const {
     return current_value;
 }
 
-uint64_t DeltaManager::at_duration(const SubArrayBase& subarray, size_t pos) const {
-    const size_t target_index = subarray.local_index(pos);
+uint64_t DeltaManager::at_duration(size_t pos) const {
+    const size_t target_index = parent.local_index(pos);
     const uint8_t* begin = payload;
     const uint8_t* end = begin + bytes;
     const Checkpoint* checkpoint = nullptr;
@@ -404,38 +411,38 @@ uint64_t DeltaManager::at_duration(const SubArrayBase& subarray, size_t pos) con
     return current_value;
 }
 
-void DeltaManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
-    if (subarray.phase() == SubArrayPhase::AnalysisRead) {
-        if (given_array != nullptr && subarray.buffer != nullptr) {
-            std::memcpy(given_array, subarray.buffer, subarray.size() * sizeof(uint64_t));
+void DeltaManager::copy_to_array(uint64_t* given_array) const {
+    if (parent.phase() == SubArrayPhase::AnalysisRead) {
+        if (given_array != nullptr && parent.buffer != nullptr) {
+            std::memcpy(given_array, parent.buffer, parent.size() * sizeof(uint64_t));
         }
         return;
     }
 
-    if (given_array == nullptr || payload == nullptr || subarray.buffer == nullptr) {
+    if (given_array == nullptr || payload == nullptr || parent.buffer == nullptr) {
         return;
     }
 
     if (is_time_domain()) {
-        copy_time_to_array(subarray, given_array);
+        copy_time_to_array(given_array);
     } else {
-        copy_duration_to_array(subarray, given_array);
+        copy_duration_to_array(given_array);
     }
 }
 
-void DeltaManager::copy_time_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+void DeltaManager::copy_time_to_array(uint64_t* given_array) const {
     const uint8_t* cursor = payload;
     const uint8_t* end = payload + bytes;
-    if (subarray.size() == 0) {
+    if (parent.size() == 0) {
         return;
     }
 
     given_array[0] = read_varint(cursor, end);
-    if (subarray.size() >= 2) {
+    if (parent.size() >= 2) {
         uint64_t current_previous_delta = read_varint(cursor, end);
         given_array[1] = given_array[0] + current_previous_delta;
 
-        for (size_t logical_index = 2; logical_index < subarray.size(); ++logical_index) {
+        for (size_t logical_index = 2; logical_index < parent.size(); ++logical_index) {
             const int64_t delta_of_delta = zigzag_decode(read_varint(cursor, end));
             const uint64_t current_delta =
                     static_cast<uint64_t>(static_cast<int64_t>(current_previous_delta) + delta_of_delta);
@@ -445,19 +452,19 @@ void DeltaManager::copy_time_to_array(const SubArrayBase& subarray, uint64_t* gi
     }
 }
 
-void DeltaManager::copy_duration_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+void DeltaManager::copy_duration_to_array(uint64_t* given_array) const {
     const uint8_t* cursor = payload;
     const uint8_t* end = payload + bytes;
-    if (subarray.size() == 0) {
+    if (parent.size() == 0) {
         return;
     }
 
     given_array[0] = read_varint(cursor, end);
-    if (subarray.size() >= 2) {
+    if (parent.size() >= 2) {
         int64_t current_previous_delta = zigzag_decode(read_varint(cursor, end));
         given_array[1] = static_cast<uint64_t>(static_cast<int64_t>(given_array[0]) + current_previous_delta);
 
-        for (size_t logical_index = 2; logical_index < subarray.size(); ++logical_index) {
+        for (size_t logical_index = 2; logical_index < parent.size(); ++logical_index) {
             const int64_t delta_of_delta = zigzag_decode(read_varint(cursor, end));
             const int64_t current_delta = current_previous_delta + delta_of_delta;
             given_array[logical_index] =
@@ -467,40 +474,40 @@ void DeltaManager::copy_duration_to_array(const SubArrayBase& subarray, uint64_t
     }
 }
 
-void DeltaManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) {
-    if (data_file == nullptr || parameter_handler == nullptr || subarray.buffer == nullptr) {
+void DeltaManager::write_data(FILE* data_file, const ParameterHandler* parameter_handler) {
+    if (data_file == nullptr || parameter_handler == nullptr || parent.buffer == nullptr) {
         return;
     }
 
     const long current_offset = std::ftell(data_file);
     if (current_offset >= 0) {
-        subarray.file_offset = static_cast<size_t>(current_offset);
+        parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
-    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
-    _pallas_compress_write(subarray.buffer, subarray.mem_size(), data_file, parameter_handler);
-    subarray.free_values();
+    numberPreRawBytes += parent.size() * sizeof(uint64_t);
+    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+    parent.free_values();
 }
 
-void DeltaManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
+void DeltaManager::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
     if (data_file == nullptr) {
         return;
     }
 
-    delete[] subarray.buffer;
+    delete[] parent.buffer;
     if (is_time_domain()) {
-        load_time_data(subarray, data_file, parameter_handler);
+        load_time_data(data_file, parameter_handler);
     } else {
-        load_duration_data(subarray, data_file, parameter_handler);
+        load_duration_data(data_file, parameter_handler);
     }
 }
 
-void DeltaManager::load_time_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
-    if (subarray.phase() == SubArrayPhase::AnalysisRead) {
-        const size_t packed_word_count = subarray.mem_size();
+void DeltaManager::load_time_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+    if (parent.phase() == SubArrayPhase::AnalysisRead) {
+        const size_t packed_word_count = parent.mem_size();
         uint64_t* packed_values = _pallas_compress_read(packed_word_count, data_file, parameter_handler);
-        const size_t logical_value_count = subarray.size();
+        const size_t logical_value_count = parent.size();
         uint64_t* decoded_values = new uint64_t[logical_value_count];
 
         if (logical_value_count > 0) {
@@ -523,8 +530,8 @@ void DeltaManager::load_time_data(SubArrayBase& subarray, FILE* data_file, const
         }
 
         delete[] packed_values;
-        subarray.buffer = decoded_values;
-        subarray.physical_size = logical_value_count;
+        parent.buffer = decoded_values;
+        parent.physical_size = logical_value_count;
         payload = nullptr;
         bytes = 0;
         cap_bytes = 0;
@@ -533,19 +540,19 @@ void DeltaManager::load_time_data(SubArrayBase& subarray, FILE* data_file, const
         return;
     }
 
-    subarray.buffer = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
-    payload = reinterpret_cast<uint8_t*>(subarray.buffer);
+    parent.buffer = _pallas_compress_read(parent.mem_size(), data_file, parameter_handler);
+    payload = reinterpret_cast<uint8_t*>(parent.buffer);
     if (cap_bytes == 0) {
-        cap_bytes = subarray.capacity() * sizeof(uint64_t);
+        cap_bytes = parent.capacity() * sizeof(uint64_t);
     }
-    bytes = subarray.mem_size() * sizeof(uint64_t);
+    bytes = parent.mem_size() * sizeof(uint64_t);
 }
 
-void DeltaManager::load_duration_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
-    if (subarray.phase() == SubArrayPhase::AnalysisRead) {
-        const size_t packed_word_count = subarray.mem_size();
+void DeltaManager::load_duration_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+    if (parent.phase() == SubArrayPhase::AnalysisRead) {
+        const size_t packed_word_count = parent.mem_size();
         uint64_t* packed_values = _pallas_compress_read(packed_word_count, data_file, parameter_handler);
-        const size_t logical_value_count = subarray.size();
+        const size_t logical_value_count = parent.size();
         uint64_t* decoded_values = new uint64_t[logical_value_count];
 
         if (logical_value_count > 0) {
@@ -568,8 +575,8 @@ void DeltaManager::load_duration_data(SubArrayBase& subarray, FILE* data_file, c
         }
 
         delete[] packed_values;
-        subarray.buffer = decoded_values;
-        subarray.physical_size = logical_value_count;
+        parent.buffer = decoded_values;
+        parent.physical_size = logical_value_count;
         payload = nullptr;
         bytes = 0;
         cap_bytes = 0;
@@ -578,15 +585,15 @@ void DeltaManager::load_duration_data(SubArrayBase& subarray, FILE* data_file, c
         return;
     }
 
-    subarray.buffer = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
-    payload = reinterpret_cast<uint8_t*>(subarray.buffer);
+    parent.buffer = _pallas_compress_read(parent.mem_size(), data_file, parameter_handler);
+    payload = reinterpret_cast<uint8_t*>(parent.buffer);
     if (cap_bytes == 0) {
-        cap_bytes = subarray.capacity() * sizeof(uint64_t);
+        cap_bytes = parent.capacity() * sizeof(uint64_t);
     }
-    bytes = subarray.mem_size() * sizeof(uint64_t);
+    bytes = parent.mem_size() * sizeof(uint64_t);
 }
 
-void DeltaManager::on_values_freed(SubArrayBase&) {
+void DeltaManager::on_values_freed() {
     payload = nullptr;
     bytes = 0;
 }
@@ -639,31 +646,32 @@ void unpack_10bit_indices(PLAAnchor* anchors, uint8_t anchor_count, const uint8_
 
 }  // namespace
 
-size_t PLAManager::_capacity(ValueDomain, StoragePolicy, SubArrayPhase) const {
+size_t PLAManager::_capacity() const {
     return kPLABlockSize;
 }
 
-void PLAManager::ensure_staging(SubArrayBase& subarray) {
-    if (subarray.owner_lv == nullptr) {
-        pallas_error("PLAManager requires an owning LVBase for runtime staging.\n");
+void PLAManager::ensure_staging() {
+    if (parent.parent_lv == nullptr) {
+        pallas_error("PLAManager requires a parent LVBase for PLA scratch staging.\n");
     }
-    subarray.owner_lv->ensure_hbuffer(pla_helper_buffer_bytes());
-    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
-    if (subarray.buffer != workspace.raw) {
-        if (subarray.owns_buffer) {
-            delete[] subarray.buffer;
-        }
-        subarray.buffer = workspace.raw;
-        subarray.owns_buffer = false;
+    parent.parent_lv->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
+    stats = GammaBlockStats::bind(parent.parent_lv->helper_buffer());
+}
+
+void PLAManager::on_subarray_initialized() {
+    if (parent.parent_lv == nullptr) {
+        return;
     }
+    ensure_staging();
 }
 
 void PLAManager::clear_state() {
     compact_ready = false;
     anchor_count = 0;
+    stats = GammaBlockStats{};
 }
 
-void PLAManager::write_packed_payload(SubArrayBase& subarray) {
+void PLAManager::write_packed_payload() {
     const size_t payload_bytes = pla_payload_bytes(anchor_count);
     const size_t payload_words = (payload_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
     auto* packed_words = new uint64_t[payload_words]();
@@ -684,17 +692,14 @@ void PLAManager::write_packed_payload(SubArrayBase& subarray) {
     std::memset(out, 0, index_bytes);
     pack_10bit_indices(anchor_storage, anchor_count, out);
 
-    if (subarray.owns_buffer) {
-        delete[] subarray.buffer;
-    }
-    subarray.buffer = packed_words;
-    subarray.owns_buffer = true;
-    subarray.physical_size = payload_words;
+    delete[] parent.buffer;
+    parent.buffer = packed_words;
+    parent.physical_size = payload_words;
 }
 
-void PLAManager::load_packed_payload(SubArrayBase& subarray) {
+void PLAManager::load_packed_payload() {
     clear_state();
-    auto* in = reinterpret_cast<const uint8_t*>(subarray.buffer);
+    auto* in = reinterpret_cast<const uint8_t*>(parent.buffer);
     anchor_count = *in++;
 
     for (uint8_t i = 0; i < anchor_count; ++i) {
@@ -709,46 +714,48 @@ void PLAManager::load_packed_payload(SubArrayBase& subarray) {
     compact_ready = true;
 }
 
-void PLAManager::finalize_block(SubArrayBase& subarray) {
+void PLAManager::finalize_block() {
     if (compact_ready) {
         return;
     }
-    if (subarray.value_count == 0) {
+    if (parent.value_count == 0) {
         clear_state();
         compact_ready = true;
-        write_packed_payload(subarray);
+        write_packed_payload();
         return;
     }
-    if (subarray.value_count < static_cast<size_t>(k_max) + 2) {
-        pallas_error("PLAManager requires at least %u values before PLA%u compaction, got %lu.\n",
-                     static_cast<unsigned>(k_max + 2),
-                     static_cast<unsigned>(k_max),
-                     subarray.value_count);
+    if (parent.value_count < static_cast<size_t>(k_max) + 2) {
+        anchor_count = static_cast<uint8_t>(
+                build_all_interior_anchor_block(parent.buffer,
+                                                parent.value_count,
+                                                anchor_storage,
+                                                kPLAMaxAnchors));
+        compact_ready = true;
+        write_packed_payload();
+        return;
     }
 
-    ensure_staging(subarray);
-    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
     anchor_count = static_cast<uint8_t>(
-            build_pla4_alpha_block(workspace.raw, subarray.value_count, workspace, anchor_storage, k_max));
+            (k_max == 4)
+                    ? build_pla4_alpha_block(parent.buffer, parent.value_count, stats, anchor_storage, k_max)
+                    : build_gamma_anchor_block(parent.buffer, parent.value_count, stats, anchor_storage, k_max));
     compact_ready = true;
-    write_packed_payload(subarray);
+    write_packed_payload();
 }
 
-AddStatus PLAManager::add(SubArrayBase& subarray, uint64_t val) {
+AddStatus PLAManager::add(uint64_t val) {
     if (compact_ready) {
         return AddStatus::Full;
     }
-    if (subarray.value_count >= kPLABlockSize) {
+    if (parent.value_count >= kPLABlockSize) {
         return AddStatus::Full;
     }
 
-    ensure_staging(subarray);
-    auto workspace = bind_pla_workspace(subarray.owner_lv->helper_buffer());
-    workspace.raw[subarray.value_count] = val;
-    subarray.value_count++;
-    subarray.physical_size = subarray.value_count;
-    if (subarray.value_count == kPLABlockSize) {
-        finalize_block(subarray);
+    parent.buffer[parent.value_count] = val;
+    parent.value_count++;
+    parent.physical_size = parent.value_count;
+    if (parent.value_count == kPLABlockSize) {
+        finalize_block();
     }
     return AddStatus::Ok;
 }
@@ -762,12 +769,15 @@ uint64_t PLAManager::interpolate_value(const TimeSubArray& subarray, size_t logi
         return 0;
     }
     if (logical_index == 0) {
+        // First value
         return subarray.first_value();
     }
     if (logical_index + 1 >= size) {
+        // Last value
         return subarray.last_value();
     }
     if (anchor_count == 0) {
+        // Worse case fallback
         const size_t span = size - 1;
         if (span == 0) {
             return subarray.first_value();
@@ -778,7 +788,7 @@ uint64_t PLAManager::interpolate_value(const TimeSubArray& subarray, size_t logi
     }
 
     size_t left = 0;
-    size_t right = anchor_count;
+    size_t right = anchor_count; // Binary Search on Anchors
     while (left < right) {
         const size_t mid = left + (right - left) / 2;
         if (anchor_storage[mid].idx <= logical_index) {
@@ -819,75 +829,69 @@ uint64_t PLAManager::interpolate_value(const TimeSubArray& subarray, size_t logi
     return static_cast<uint64_t>(static_cast<int64_t>(begin_value) + delta * offset / span);
 }
 
-uint64_t PLAManager::at(const SubArrayBase& subarray, size_t pos) const {
-    if (!subarray.contains(pos)) {
+uint64_t PLAManager::at(size_t pos) const {
+    if (!parent.contains(pos)) {
         pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n",
-                     pos, subarray.first_index, subarray.value_count);
+                     pos, parent.first_index, parent.value_count);
     }
-    const size_t local = subarray.local_index(pos);
+    const size_t local = parent.local_index(pos);
     if (!compact_ready) {
-        if (subarray.buffer == nullptr) {
+        if (parent.buffer == nullptr) {
             pallas_error("PLAManager missing staging buffer for runtime access.\n");
         }
-        return subarray.buffer[local];
+        return parent.buffer[local];
     }
-    return interpolate_value(static_cast<const TimeSubArray&>(subarray), local);
+    return interpolate_value(static_cast<const TimeSubArray&>(parent), local);
 }
 
-void PLAManager::copy_to_array(const SubArrayBase& subarray, uint64_t* given_array) const {
+void PLAManager::copy_to_array(uint64_t* given_array) const {
     if (given_array == nullptr) {
         return;
     }
     if (!compact_ready) {
-        if (subarray.buffer != nullptr) {
-            std::memcpy(given_array, subarray.buffer, subarray.size() * sizeof(uint64_t));
+        if (parent.buffer != nullptr) {
+            std::memcpy(given_array, parent.buffer, parent.size() * sizeof(uint64_t));
         }
         return;
     }
-    const auto& time_subarray = static_cast<const TimeSubArray&>(subarray);
-    for (size_t i = 0; i < subarray.size(); ++i) {
+    const auto& time_subarray = static_cast<const TimeSubArray&>(parent);
+    for (size_t i = 0; i < parent.size(); ++i) {
         given_array[i] = interpolate_value(time_subarray, i);
     }
 }
 
-void PLAManager::write_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler* parameter_handler) {
+void PLAManager::write_data(FILE* data_file, const ParameterHandler* parameter_handler) {
     if (data_file == nullptr || parameter_handler == nullptr) {
         return;
     }
     if (!compact_ready) {
-        finalize_block(subarray);
+        finalize_block();
     }
-    if (subarray.buffer == nullptr) {
+    if (parent.buffer == nullptr) {
         return;
     }
 
     const long current_offset = std::ftell(data_file);
     if (current_offset >= 0) {
-        subarray.file_offset = static_cast<size_t>(current_offset);
+        parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += subarray.size() * sizeof(uint64_t);
-    numberRawBytes += subarray.mem_size() * sizeof(uint64_t);
-    _pallas_compress_write(subarray.buffer, subarray.mem_size(), data_file, parameter_handler);
-    subarray.free_values();
+    numberPreRawBytes += parent.size() * sizeof(uint64_t);
+    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+    parent.free_values();
 }
 
-void PLAManager::load_data(SubArrayBase& subarray, FILE* data_file, const ParameterHandler& parameter_handler) {
+void PLAManager::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
     if (data_file == nullptr) {
         return;
     }
-    if (subarray.owns_buffer) {
-        delete[] subarray.buffer;
-    }
-    subarray.buffer = _pallas_compress_read(subarray.mem_size(), data_file, parameter_handler);
-    subarray.owns_buffer = true;
-    load_packed_payload(subarray);
+    delete[] parent.buffer;
+    parent.buffer = _pallas_compress_read(parent.mem_size(), data_file, parameter_handler);
+    load_packed_payload();
 }
 
-void PLAManager::on_values_freed(SubArrayBase& subarray) {
-    if (!subarray.owns_buffer) {
-        subarray.buffer = nullptr;
-    }
+void PLAManager::on_values_freed() {
     clear_state();
 }
 
@@ -900,24 +904,17 @@ SubArrayBase::SubArrayBase(ValueDomain domain,
                            StoragePolicy policy,
                            SubArrayBase* previous,
                            const ParameterHandler* parameter_handler,
-                           LVBase* owner)
+                           LVBase* parent)
     : prev(previous),
       value_domain(domain),
       storage_policy(policy),
       lossy_storage_policy(resolve_lossy_policy(domain, policy, parameter_handler)),
       subarray_phase(SubArrayPhase::RuntimeWrite),
-      manager(make_manager(domain, policy, lossy_storage_policy)),
-      owner_lv(owner) {
-    if (!(domain == ValueDomain::Timestamp &&
-          policy == StoragePolicy::Lossy &&
-          lossy_storage_policy == LossyPolicy::PLA4 &&
-          owner_lv != nullptr)) {
-        buffer = new uint64_t[manager->_capacity(domain, policy, subarray_phase)];
-        owns_buffer = true;
-    } else {
-        buffer = nullptr;
-        owns_buffer = false;
-    }
+      manager(nullptr),
+      parent_lv(parent) {
+    manager = make_manager(*this, domain, policy, lossy_storage_policy);
+    buffer = new uint64_t[manager->_capacity()];
+    manager->on_subarray_initialized();
     if (prev != nullptr) {
         prev->next = this;
         first_index = prev->first_index + prev->value_count;
@@ -941,21 +938,20 @@ uint64_t* SubArrayBase::raw_buffer() {
 }
 
 void SubArrayBase::free_values() {
-    if (owns_buffer) {
-        delete[] buffer;
-    }
+    delete[] buffer;
     buffer = nullptr;
     if (manager != nullptr) {
-        manager->on_values_freed(*this);
+        manager->on_values_freed();
     }
 }
 
 void SubArrayBase::rebuild_manager() {
-    manager = make_manager(value_domain, storage_policy, lossy_storage_policy);
+    manager = make_manager(*this, value_domain, storage_policy, lossy_storage_policy);
+    manager->on_subarray_initialized();
 }
 
 uint64_t SubArrayBase::at(size_t pos) const {
-    return manager->at(*this, pos);
+    return manager->at(pos);
 }
 
 uint64_t SubArrayBase::operator[](size_t pos) const {
@@ -963,7 +959,7 @@ uint64_t SubArrayBase::operator[](size_t pos) const {
 }
 
 void SubArrayBase::copy_values(uint64_t* given_array) const {
-    manager->copy_to_array(*this, given_array);
+    manager->copy_to_array(given_array);
 }
 
 ValueDomain SubArrayBase::domain() const {
@@ -994,7 +990,7 @@ size_t SubArrayBase::capacity() const {
     if (manager == nullptr) {
         return DEFAULT_VECTOR_SIZE;
     }
-    return manager->_capacity(value_domain, storage_policy, subarray_phase);
+    return manager->_capacity();
 }
 
 size_t SubArrayBase::starting_index() const {
@@ -1022,7 +1018,7 @@ void SubArrayBase::set_offset(size_t offset) {
 }
 
 void SubArrayBase::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
-    manager->load_data(*this, data_file, parameter_handler);
+    manager->load_data(data_file, parameter_handler);
 }
 
 }
@@ -1033,12 +1029,12 @@ namespace pallas {
 TimeSubArray::TimeSubArray(StoragePolicy policy,
                            TimeSubArray* previous,
                            const ParameterHandler* parameter_handler,
-                           LVBase* owner)
-    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler, owner) {}
+                           LVBase* parent)
+    : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler, parent) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
     const bool is_first_value = (value_count == 0);
-    auto status = manager->add(*this, val);
+    auto status = manager->add(val);
     if (status == AddStatus::Ok) {
         if (is_first_value) {
             first_timestamp = val;
@@ -1050,7 +1046,7 @@ AddStatus TimeSubArray::add(uint64_t val) {
 }
 
 void TimeSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
-    manager->write_data(*this, file, parameter_handler);
+    manager->write_data(file, parameter_handler);
 }
 
 uint64_t TimeSubArray::first_value() const {
@@ -1069,11 +1065,11 @@ namespace pallas {
 DurationSubArray::DurationSubArray(StoragePolicy policy,
                                    DurationSubArray* previous,
                                    const ParameterHandler* parameter_handler,
-                                   LVBase* owner)
-    : SubArrayBase(ValueDomain::Duration, policy, previous, parameter_handler, owner) {}
+                                   LVBase* parent)
+    : SubArrayBase(ValueDomain::Duration, policy, previous, parameter_handler, parent) {}
 
 AddStatus DurationSubArray::add(uint64_t val) {
-    auto status = manager->add(*this, val);
+    auto status = manager->add(val);
     if (status == AddStatus::Ok) {
         update_statistics(val);
     }
@@ -1081,7 +1077,7 @@ AddStatus DurationSubArray::add(uint64_t val) {
 }
 
 void DurationSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
-    manager->write_data(*this, file, parameter_handler);
+    manager->write_data(file, parameter_handler);
 }
 
 void DurationSubArray::update_statistics(uint64_t current_value) {

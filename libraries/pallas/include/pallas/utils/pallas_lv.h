@@ -138,6 +138,9 @@ class LVBase {
     void set_storage_policy(StoragePolicy policy) {
         storage_policy = policy;
     }
+    void setPreferredStoragePolicy(StoragePolicy policy) {
+        set_storage_policy(policy);
+    }
 
     void load_all();
     void free_data();
