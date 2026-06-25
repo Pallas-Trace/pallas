@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <mutex>
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -121,12 +123,13 @@ Loop* ThreadWriter::createLoop(Token sequence_id) {
 
     pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%" PRIu32 " containing S%d\n", logi_id, sequence_id.id);
 
-    Loop& l = thread->loops[phys_id];
-    l.nb_iterations = 1;
-    l.nb_occurrences = 1;
-    l.repeated_token = sequence_id;
-    l.self_id = PALLAS_LOOP_ID(logi_id);
-    return &l;
+    pallas_assert(phys_id < thread->nb_allocated_loops);
+    Loop *l = &thread->loops[phys_id];
+    l->nb_iterations = 1;
+    l->nb_occurrences = 1;
+    l->repeated_token = sequence_id;
+    l->self_id = PALLAS_LOOP_ID(logi_id);
+    return l;
 }
 
 void ThreadWriter::storeTimestamp(Event* es, pallas_timestamp_t ts) {
@@ -173,15 +176,18 @@ void ThreadWriter::incrementLoop(Loop* loop) {
     loop->nb_iterations++;
 }
 
-Loop* ThreadWriter::unsquashLoop(Loop* loop) {
+Loop* ThreadWriter::unsquashLoop(TokenId loopid) {
+    Loop *loop = &thread->loops[thread->loop_id_map[loopid]];
     pallas_assert(loop->nb_occurrences > 1);
     Loop* newLoop = createLoop(loop->repeated_token);
+    loop = &thread->loops[thread->loop_id_map[loopid]];
     loop->nb_occurrences --;
     newLoop->nb_iterations = loop->nb_iterations;
     return newLoop;
 }
 
-Loop* ThreadWriter::squashLoop(Loop* loop) {
+Loop* ThreadWriter::squashLoop(TokenId loopid) {
+    Loop *loop = &thread->loops[thread->loop_id_map[loopid]];
     for (size_t logi_id = 0; logi_id < thread->loop_id_map.size(); logi_id++) {
         uint32_t phys_id = thread->loop_id_map[logi_id];
         if (phys_id == PALLAS_INDEX_INVALID || logi_id == loop->self_id.id) {
@@ -291,12 +297,12 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     // Then we increment the loop. We also use this opportunity to check for duplicates
 
     if (loop->nb_occurrences > 1) {
-        loop = unsquashLoop(loop);
+        loop = unsquashLoop(loop->self_id.id);
         curTokenSeq.back() = loop->self_id;
     }
     incrementLoop(loop);
     auto old_loop = loop->self_id;
-    loop = squashLoop(loop);
+    loop = squashLoop(loop->self_id.id);
     if (old_loop != loop->self_id) {
         // We Got Squashed
         curTokenSeq.pop_back();
@@ -323,12 +329,12 @@ void ThreadWriter::checkLoopBefore() {
         pallas_log(DebugLevel::Debug, "checkLoopBefore: Last token was the sequence from L%d: S%d\n",
             loop->self_id.id, loop->repeated_token.id);
         if (loop->nb_occurrences > 1) {
-            loop = unsquashLoop(loop);
+            loop = unsquashLoop(loop->self_id.id);
             curTokenSeq[cur_index - 1] = loop->self_id;
         }
         incrementLoop(loop);
         auto old_loop = loop->self_id;
-        loop = squashLoop(loop);
+        loop = squashLoop(loop->self_id.id);
         if (old_loop != loop->self_id) {
             // We Got Squashed
             curTokenSeq.resize(cur_index - 1);

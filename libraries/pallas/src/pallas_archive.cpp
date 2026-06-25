@@ -612,6 +612,9 @@ const pallas::String* pallas_archive_get_string(pallas::Archive* archive, pallas
 const pallas::Region* pallas_archive_get_region(pallas::Archive* archive, pallas::RegionRef region_ref) {
   return archive->getRegion(region_ref);
 }
+int pallas_archive_get_nb_regions(PALLAS(Archive) * archive) {
+    return archive->definitions.regions.size();
+}
 const pallas::Attribute* pallas_archive_get_attribute(pallas::Archive* archive, pallas::AttributeRef attribute_ref) {
   return archive->getAttribute(attribute_ref);
 }
