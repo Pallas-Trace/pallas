@@ -283,7 +283,7 @@ class LinkedDurationVector {
 
     // NOTE:
     // rectify file names in write_to_file
-    // 
+    //
     /**
      * Writes the vector to the given files.
      * If size >= 4, we do the following:
@@ -440,7 +440,7 @@ class LinkedDurationVector {
     /** Returns an array of size #size containing a copy of the values in this vector.*/
     [[nodiscard]] uint64_t* as_flat_array();
 
-    // NOTE: 
+    // NOTE:
     // fix comments
     /** Max element stored in the vector. */
     uint64_t min = UINT64_MAX;

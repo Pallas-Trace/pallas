@@ -587,6 +587,7 @@ extern const struct PALLAS(String) * pallas_archive_get_string(PALLAS(Archive) *
  * have a match, or nullptr if it doesn't have a match in the global_archive.
  */
 extern const struct PALLAS(Region) * pallas_archive_get_region(PALLAS(Archive) * archive, PALLAS(RegionRef) region_ref);
+extern int pallas_archive_get_nb_regions(PALLAS(Archive) * archive);
 
 /**
  * Getter for a Attribute from its id.
