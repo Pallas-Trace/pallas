@@ -81,18 +81,15 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
         this->thread_trace->printSequence(root_token);
     }
 
-    if (this->thread_trace->getSequence(root_token)->size() != 0) {
+    if (this->thread_trace->getSequence(root_token)->size() == 0) {
+        pallas_warn("Thread %s is empty\n", this->thread_trace->getName());
+    } else {
         // And initialize the callstack
         // ie set the cursor on the first event
         this->currentState.current_frame_index = 0;
         this->currentState.currentFrame = &currentState.callstack[0];
         this->currentState.currentFrame->callstack_iterable = root_token;
         this->currentState.currentFrame->current_timestamp = this->thread_trace->first_timestamp;
-        // Enter main sequence
-        enterBlock();
-    }
-    else {
-        pallas_warn("Thread %s is empty\n", this->thread_trace->getName());
     }
 }
 
@@ -200,7 +197,7 @@ bool ThreadReader::isEndOfCurrentBlock() const {
     return isEndOfBlock(current_index, current_iterable_token);
 }
 bool ThreadReader::isEndOfTrace() const {
-    return currentState.current_frame_index == 0;
+    return currentState.current_frame_index == 0 && isEndOfCurrentBlock();
 }
 
 pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
@@ -417,7 +414,7 @@ Token ThreadReader::pollPrevToken(int flags) const {
 
 bool ThreadReader::moveToNextToken(int flags) {
     // Check if we've reached the end of the trace
-    if (currentState.current_frame_index == 0) {
+    if (isEndOfTrace()) {
         pallas_log(DebugLevel::Debug, "End of trace %d!\n", __LINE__);
         return false;
     }
@@ -492,7 +489,7 @@ bool ThreadReader::moveToNextTokenInBlock() {
 }
 
 bool ThreadReader::moveToPrevToken(int flags) {
-    // Check if we've reached the end of the trace
+    // Check if we've reached the beginning of the trace
     if (currentState.current_frame_index < 0) {
         pallas_log(DebugLevel::Debug, "End of trace %d!\n", __LINE__);
         return false;
