@@ -1365,7 +1365,7 @@ void DurationSpikeManager::write_data(FILE* data_file, const ParameterHandler* p
         finalize_block();
     }
 
-    if (packed_payload_ready) {
+    if (compact_ready && !packed_payload_ready) {
         write_packed_payload();
     }
 

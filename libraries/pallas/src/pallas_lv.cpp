@@ -425,11 +425,9 @@ DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
 /** SubArray Creation */
 
 SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
-    // DurationLV currently keeps the standalone LV path simple by materializing
-    // lossy duration storage through the delta-backed duration subarray path.
-    const auto effective_policy =
-            (storage_policy == StoragePolicy::Lossy) ? StoragePolicy::Delta : storage_policy;
-    return new DurationSubArray(effective_policy,
+    // Let SubArrayBase resolve the active duration lossy variant from the
+    // parameter handler so Spike4/8/16/32 can instantiate their manager.
+    return new DurationSubArray(storage_policy,
                                 static_cast<DurationSubArray*>(previous),
                                 &parameter_handler,
                                 const_cast<DurationLV*>(this));
