@@ -67,6 +67,16 @@ void record_subarray_write_metrics(BmarkFamily family,
             raw_bytes,
             static_cast<uint64_t>(end_offset - start_offset));
 }
+
+void record_subarray_error_metrics(BmarkFamily family,
+                                   const uint64_t* exact_values,
+                                   const uint64_t* observed_values,
+                                   size_t value_count) {
+    if (family == BmarkFamily::Unknown) {
+        return;
+    }
+    bmark_note_error_values(family, exact_values, observed_values, value_count);
+}
 #endif
 
 }  // namespace
@@ -207,6 +217,7 @@ void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_
 #ifdef BMARK
     const auto family =
             (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_error_metrics(family, parent.buffer, parent.buffer, parent.size());
     record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
 #endif
     parent.free_values();
@@ -276,6 +287,9 @@ AddStatus DeltaManager::add_time(uint64_t val) {
     st.prev.u = next_previous_delta;
     parent.value_count++;
     parent.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+#ifdef BMARK
+    shadow_values.push_back(val);
+#endif
 
     const size_t logical_index = parent.value_count - 1;
     if (logical_index % kCheckpointStride == 0) {
@@ -329,6 +343,9 @@ AddStatus DeltaManager::add_duration(uint64_t val) {
     st.prev.i = next_previous_delta;
     parent.value_count++;
     parent.physical_size = (bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
+#ifdef BMARK
+    shadow_values.push_back(val);
+#endif
 
     const size_t logical_index = parent.value_count - 1;
     if (logical_index % kCheckpointStride == 0) {
@@ -543,9 +560,21 @@ void DeltaManager::write_data(FILE* data_file, const ParameterHandler* parameter
     numberRawBytes += raw_bytes;
     _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
 #ifdef BMARK
-    const auto family =
-            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
-    record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+    std::vector<uint64_t> reconstructed_values(parent.size());
+    if (parent.size() > 0) {
+        copy_to_array(reconstructed_values.data());
+        const auto family = (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family()
+                                                          : BmarkFamily::Unknown;
+        if (shadow_values.size() == parent.size()) {
+            record_subarray_error_metrics(
+                    family, shadow_values.data(), reconstructed_values.data(), parent.size());
+        }
+        record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+    } else {
+        const auto family = (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family()
+                                                          : BmarkFamily::Unknown;
+        record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+    }
 #endif
     parent.free_values();
 }
@@ -656,6 +685,9 @@ void DeltaManager::load_duration_data(FILE* data_file, const ParameterHandler& p
 void DeltaManager::on_values_freed() {
     payload = nullptr;
     bytes = 0;
+#ifdef BMARK
+    shadow_values.clear();
+#endif
 }
 
 }
@@ -791,6 +823,13 @@ void PLAManager::finalize_block() {
                                                 anchor_storage,
                                                 kPLAMaxAnchors));
         compact_ready = true;
+#ifdef BMARK
+        std::vector<uint64_t> reconstructed_values(parent.size());
+        copy_to_array(reconstructed_values.data());
+        const auto family =
+                (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+        record_subarray_error_metrics(family, parent.buffer, reconstructed_values.data(), parent.size());
+#endif
         write_packed_payload();
         return;
     }
@@ -800,6 +839,13 @@ void PLAManager::finalize_block() {
                     ? build_pla4_alpha_block(parent.buffer, parent.value_count, stats, anchor_storage, k_max)
                     : build_gamma_anchor_block(parent.buffer, parent.value_count, stats, anchor_storage, k_max));
     compact_ready = true;
+#ifdef BMARK
+    std::vector<uint64_t> reconstructed_values(parent.size());
+    copy_to_array(reconstructed_values.data());
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_error_metrics(family, parent.buffer, reconstructed_values.data(), parent.size());
+#endif
     write_packed_payload();
 }
 
@@ -1315,6 +1361,15 @@ void DurationSpikeManager::finalize_block() {
     if (baseline_value_count == 0) {
         baseline_mean = static_cast<uint64_t>(std::max(0.0, std::round(initial_baseline)));
         baseline_stddev = 0;
+#ifdef BMARK
+        std::vector<uint64_t> reconstructed_values(value_count);
+        for (size_t idx = 0; idx < value_count; ++idx) {
+            reconstructed_values[idx] = reconstructed_value(idx);
+        }
+        const auto family =
+                (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+        record_subarray_error_metrics(family, raw_values, reconstructed_values.data(), value_count);
+#endif
         write_packed_payload();
         return;
     }
@@ -1358,6 +1413,15 @@ void DurationSpikeManager::finalize_block() {
     // Stage 6: Materialize the compact payload header and spike sections.
     baseline_mean = static_cast<uint64_t>(std::max(0.0, std::round(mean_value)));
     baseline_stddev = static_cast<uint32_t>(std::max(0.0, std::round(std::sqrt(std::max(0.0, variance)))));
+#ifdef BMARK
+    std::vector<uint64_t> reconstructed_values(value_count);
+    for (size_t idx = 0; idx < value_count; ++idx) {
+        reconstructed_values[idx] = reconstructed_value(idx);
+    }
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_error_metrics(family, raw_values, reconstructed_values.data(), value_count);
+#endif
     write_packed_payload();
 }
 

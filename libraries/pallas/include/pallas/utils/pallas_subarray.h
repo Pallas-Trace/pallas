@@ -176,6 +176,9 @@ class DeltaManager : public Manager {
     size_t cap_bytes = 0;
     State st;
     std::vector<Checkpoint> cps;
+#ifdef BMARK
+    std::vector<uint64_t> shadow_values;
+#endif
 };
 
 class PLAManager : public Manager {

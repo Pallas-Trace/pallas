@@ -7,6 +7,7 @@
 
 #include "pallas/utils/pallas_bmark.h"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -31,6 +32,11 @@ uint64_t now_ns() {
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                     BenchmarkClock::now().time_since_epoch())
                     .count());
+}
+
+uint64_t abs_error(uint64_t exact_value, uint64_t observed_value) {
+    return (exact_value >= observed_value) ? (exact_value - observed_value)
+                                           : (observed_value - exact_value);
 }
 
 BmarkFamilyStats* family_stats(BmarkThreadStats& stats, BmarkFamily family) {
@@ -122,6 +128,9 @@ void BmarkFamilyStats::accumulate(const BmarkFamilyStats& other) {
     at_calls += other.at_calls;
     operator_ns += other.operator_ns;
     operator_calls += other.operator_calls;
+    max_abs_error = std::max(max_abs_error, other.max_abs_error);
+    sum_abs_error += other.sum_abs_error;
+    nonzero_error_count += other.nonzero_error_count;
 }
 
 void BmarkThreadStats::clear() {
@@ -149,12 +158,12 @@ BmarkScopedTimer::~BmarkScopedTimer() {
 }
 
 void bmark_note_write_call(BmarkFamily family, uint64_t logical_value_count) {
+    static_cast<void>(logical_value_count);
     auto* stats = family_stats(g_bmark_thread_stats, family);
     if (stats == nullptr) {
         return;
     }
     stats->write_calls++;
-    stats->value_count += logical_value_count;
 }
 
 void bmark_note_subarray_write(BmarkFamily family,
@@ -169,6 +178,26 @@ void bmark_note_subarray_write(BmarkFamily family,
     stats->raw_bytes += raw_bytes;
     stats->compressed_bytes += compressed_bytes;
     stats->subarray_writes++;
+}
+
+void bmark_note_error_values(BmarkFamily family,
+                             const uint64_t* exact_values,
+                             const uint64_t* observed_values,
+                             size_t value_count) {
+    auto* stats = family_stats(g_bmark_thread_stats, family);
+    if (stats == nullptr || exact_values == nullptr || observed_values == nullptr) {
+        return;
+    }
+
+    stats->value_count += value_count;
+    for (size_t idx = 0; idx < value_count; ++idx) {
+        const uint64_t current_abs_error = abs_error(exact_values[idx], observed_values[idx]);
+        stats->max_abs_error = std::max(stats->max_abs_error, current_abs_error);
+        stats->sum_abs_error += current_abs_error;
+        if (current_abs_error != 0) {
+            stats->nonzero_error_count++;
+        }
+    }
 }
 
 void bmark_flush_thread_stats(Archive* archive) {
@@ -205,7 +234,8 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
     std::filesystem::create_directories(archive_dir);
     std::ofstream out(archive_dir / "archive_benchmark.csv", std::ios::trunc);
     out << "archive_id,family,pre_raw_bytes,raw_bytes,compressed_bytes,write_ns,write_calls,"
-           "subarray_writes,value_count,add_ns,add_calls,at_ns,at_calls,operator_ns,operator_calls\n";
+           "subarray_writes,value_count,max_abs_error,sum_abs_error,nonzero_error_count,add_ns,"
+           "add_calls,at_ns,at_calls,operator_ns,operator_calls\n";
 
     const BmarkFamily families[] = {
             BmarkFamily::EventTimestamps,
@@ -218,9 +248,10 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
         out << archive->id << ',' << family_name(family) << ',' << stats.pre_raw_bytes << ','
             << stats.raw_bytes << ',' << stats.compressed_bytes << ',' << stats.write_ns << ','
             << stats.write_calls << ',' << stats.subarray_writes << ',' << stats.value_count
-            << ',' << stats.add_ns << ',' << stats.add_calls << ',' << stats.at_ns << ','
-            << stats.at_calls << ',' << stats.operator_ns << ',' << stats.operator_calls
-            << '\n';
+            << ',' << stats.max_abs_error << ',' << stats.sum_abs_error << ','
+            << stats.nonzero_error_count << ',' << stats.add_ns << ',' << stats.add_calls
+            << ',' << stats.at_ns << ',' << stats.at_calls << ',' << stats.operator_ns << ','
+            << stats.operator_calls << '\n';
     }
 }
 

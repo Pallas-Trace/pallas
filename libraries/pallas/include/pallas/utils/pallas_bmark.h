@@ -2,6 +2,7 @@
 
 #ifdef BMARK
 
+#include <cstddef>
 #include <cstdint>
 
 namespace pallas {
@@ -37,6 +38,9 @@ struct BmarkFamilyStats {
     uint64_t at_calls = 0;
     uint64_t operator_ns = 0;
     uint64_t operator_calls = 0;
+    uint64_t max_abs_error = 0;
+    uint64_t sum_abs_error = 0;
+    uint64_t nonzero_error_count = 0;
 
     void accumulate(const BmarkFamilyStats& other);
 };
@@ -67,6 +71,10 @@ void bmark_note_subarray_write(BmarkFamily family,
                                uint64_t pre_raw_bytes,
                                uint64_t raw_bytes,
                                uint64_t compressed_bytes);
+void bmark_note_error_values(BmarkFamily family,
+                             const uint64_t* exact_values,
+                             const uint64_t* observed_values,
+                             size_t value_count);
 void bmark_flush_thread_stats(Archive* archive);
 void bmark_reset_thread_stats();
 void bmark_write_archive_csv(const Archive* archive, const char* root_path);
@@ -74,4 +82,3 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path);
 }  // namespace pallas
 
 #endif
-
