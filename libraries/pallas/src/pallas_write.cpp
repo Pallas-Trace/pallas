@@ -89,9 +89,9 @@ static void applyEventTimestampPolicyToToken(Token token, Thread& thread, Storag
 static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
     sequence.timestamps->setPreferredStoragePolicy(StoragePolicy::Lossy);
     sequence.timestamps->apply_storage_policy();
-    sequence.durations->setPreferredStoragePolicy(StoragePolicy::Delta);
+    sequence.durations->setPreferredStoragePolicy(StoragePolicy::Lossy);
     sequence.durations->apply_storage_policy();
-    sequence.exclusive_durations->setPreferredStoragePolicy(StoragePolicy::Delta);
+    sequence.exclusive_durations->setPreferredStoragePolicy(StoragePolicy::Lossy);
     sequence.exclusive_durations->apply_storage_policy();
 
     for (const auto token : sequence.tokens) {
