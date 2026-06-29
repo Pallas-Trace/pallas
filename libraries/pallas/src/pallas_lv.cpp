@@ -6,6 +6,10 @@
 #include <algorithm>
 #include <sstream>
 
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
+
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_lv.h"
@@ -76,6 +80,9 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
 /** Value Access and Materialization */
 
 uint64_t LVBase::at(size_t pos) const {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::At);
+#endif
     if (pos >= value_count) {
         pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
     }
@@ -83,6 +90,9 @@ uint64_t LVBase::at(size_t pos) const {
 }
 
 uint64_t LVBase::operator[](size_t pos) const {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Operator);
+#endif
     uint64_t cached_value = 0;
     if (recent_values.lookup(pos, cached_value)) {
         // pallas_log(DebugLevel::Error, "LV recent cache hit: pos=%zu value=%" PRIu64 "\n", pos, cached_value);
@@ -296,6 +306,9 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
 /** Value Insertion */
 
 AddStatus TimeLV::add(uint64_t val) {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
+#endif
     if (last == nullptr) {
         first = create_subarray(nullptr);
         last = first;
@@ -436,6 +449,9 @@ SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
 /** Value Insertion */
 
 AddStatus DurationLV::add(uint64_t val) {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
+#endif
     if (last == nullptr) {
         first = create_subarray(nullptr);
         last = first;

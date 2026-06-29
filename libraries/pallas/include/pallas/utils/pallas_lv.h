@@ -25,6 +25,10 @@ typedef struct DurationLV {
 #include <string>
 #include <vector>
 
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
+
 #include "pallas_parameter_handler.h"
 #include "pallas_subarray.h"
 
@@ -93,6 +97,9 @@ class LVBase {
     StoragePolicy storage_policy = StoragePolicy::None;
     void* hbuffer = nullptr;
     size_t hbuffer_bytes = 0;
+#ifdef BMARK
+    BmarkFamily benchmark_family = BmarkFamily::Unknown;
+#endif
 
     SubArrayBase* first = nullptr;
     SubArrayBase* last = nullptr;
@@ -145,6 +152,15 @@ class LVBase {
     void load_all();
     void free_data();
     bool apply_storage_policy();
+
+#ifdef BMARK
+    void set_bmark_family(BmarkFamily family) {
+        benchmark_family = family;
+    }
+    [[nodiscard]] BmarkFamily get_bmark_family() const {
+        return benchmark_family;
+    }
+#endif
 
    protected:
     friend class PLAManager;

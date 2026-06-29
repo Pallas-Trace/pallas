@@ -12,6 +12,10 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
+
 #include "pallas/utils/pallas_lv.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
@@ -115,6 +119,11 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
             thread->sequences[i].durations = new DurationLV(*parameter_handler);
             thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
             thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
+#ifdef BMARK
+            thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
+            thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
+            thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
+#endif
         }
     }
 
@@ -674,6 +683,9 @@ void ThreadWriter::threadClose() {
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
     mainSequence.timestamps->add(thread->first_timestamp);
     thread->store(thread->archive->dir_name, parameter_handler);
+#ifdef BMARK
+    bmark_flush_thread_stats(thread->archive);
+#endif
 }
 ThreadWriter::~ThreadWriter() {
     delete[] sequence_stack;
@@ -688,6 +700,9 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     pallas_log(DebugLevel::Debug, "ThreadWriter(%u)::open\n", thread_id);
     parameter_handler = new ParameterHandler();
+#ifdef BMARK
+    bmark_reset_thread_stats();
+#endif
     if (a.global_archive) {
         a.global_archive->parameter_handler = parameter_handler;
     }
@@ -713,6 +728,11 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
         thread->sequences[i].durations = new DurationLV(*parameter_handler);
         thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
         thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
+#ifdef BMARK
+        thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
+        thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
+        thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
+#endif
     }
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -767,6 +787,9 @@ TokenId ThreadWriter::getEventId(EventData* e) {
 
     auto* new_event = new (&thread->events[index]) Event(index, *e);
     new_event->timestamps = new TimeLV(*parameter_handler);
+#ifdef BMARK
+    new_event->timestamps->set_bmark_family(BmarkFamily::EventTimestamps);
+#endif
 
     // In-place initialisation
     thread->hashToEvent[hash].push_back(index);

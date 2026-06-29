@@ -28,6 +28,7 @@ set(PALLAS_HEADERS
         include/pallas/pallas_record.h
 )
 set(PALLAS_UTILS_HEADERS
+        include/pallas/utils/pallas_bmark.h
         include/pallas/utils/pallas_log.h
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
@@ -45,6 +46,7 @@ target_sources(pallas
         src/pallas.cpp
         src/pallas_archive.cpp
         src/pallas_attribute.cpp
+        src/pallas_bmark.cpp
         src/pallas_dbg.cpp
         src/pallas_hash.cpp
         src/pallas_pla.cpp

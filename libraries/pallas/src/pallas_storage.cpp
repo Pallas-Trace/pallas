@@ -26,6 +26,10 @@
 
 #include "pallas/pallas.h"
 
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
+
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"
@@ -889,6 +893,10 @@ void pallas::TimeLV::write_header(FILE* infoFile) {
 
 // Write the full timestamp linked vector across the info and value streams.
 void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
+#ifdef BMARK
+    BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
+    bmark_note_write_call(get_bmark_family(), size());
+#endif
     write_header(infoFile);
 
     for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
@@ -990,6 +998,10 @@ void pallas::DurationLV::write_header(FILE* vectorFile) {
 
 // Write the full duration linked vector across the info and value streams.
 void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
+#ifdef BMARK
+    BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
+    bmark_note_write_call(get_bmark_family(), size());
+#endif
     write_header(vectorFile);
     if (value_count == 0) {
         return;
@@ -1159,6 +1171,9 @@ static void readEvent(pallas::Event& event,
         eventFile.read(event.attribute_buffer, sizeof(byte), event.attribute_buffer_size);
     }
     event.timestamps = new pallas::TimeLV(eventFile.file, durationFileName, parameter_handler, abi_version);
+#ifdef BMARK
+    event.timestamps->set_bmark_family(pallas::BmarkFamily::EventTimestamps);
+#endif
     event.nb_occurrences = event.timestamps->size();
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
 }
@@ -1217,6 +1232,11 @@ static void readSequence(pallas::Sequence& sequence, const File& sequenceFile, c
         sequence.durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
         sequence.exclusive_durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
         sequence.timestamps = new pallas::TimeLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+#ifdef BMARK
+        sequence.durations->set_bmark_family(pallas::BmarkFamily::SequenceDurations);
+        sequence.exclusive_durations->set_bmark_family(pallas::BmarkFamily::SequenceExclusiveDurations);
+        sequence.timestamps->set_bmark_family(pallas::BmarkFamily::SequenceTimestamps);
+#endif
     }
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size());
 }
@@ -1658,6 +1678,10 @@ void pallasStoreArchive(pallas::Archive* archive, const char* path, const pallas
     storeLocations(archive->locations, file);
     storeMetadata(archive->metadata, file);
     file.close();
+
+#ifdef BMARK
+    bmark_write_archive_csv(archive, path);
+#endif
 }
 
 static char* pallas_archive_filename(pallas::GlobalArchive* archive, pallas::LocationGroupId id) {

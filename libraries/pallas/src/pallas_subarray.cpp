@@ -10,6 +10,10 @@
 #include <cmath>
 #include <limits>
 
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
+
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_lv.h"
@@ -41,6 +45,29 @@ LossyPolicy resolve_lossy_policy(ValueDomain domain,
            ? parameter_handler->getTimeLossyPolicy()
            : parameter_handler->getDurationLossyPolicy();
 }
+
+#ifdef BMARK
+void record_subarray_write_metrics(BmarkFamily family,
+                                   FILE* data_file,
+                                   long start_offset,
+                                   uint64_t pre_raw_bytes,
+                                   uint64_t raw_bytes) {
+    if (data_file == nullptr || start_offset < 0 || family == BmarkFamily::Unknown) {
+        return;
+    }
+
+    const long end_offset = std::ftell(data_file);
+    if (end_offset < start_offset) {
+        return;
+    }
+
+    bmark_note_subarray_write(
+            family,
+            pre_raw_bytes,
+            raw_bytes,
+            static_cast<uint64_t>(end_offset - start_offset));
+}
+#endif
 
 }  // namespace
 
@@ -172,9 +199,16 @@ void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_
         parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += parent.size() * sizeof(uint64_t);
-    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    const auto pre_raw_bytes = static_cast<uint64_t>(parent.size() * sizeof(uint64_t));
+    const auto raw_bytes = static_cast<uint64_t>(parent.mem_size() * sizeof(uint64_t));
+    numberPreRawBytes += pre_raw_bytes;
+    numberRawBytes += raw_bytes;
     _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+#ifdef BMARK
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+#endif
     parent.free_values();
 }
 
@@ -503,9 +537,16 @@ void DeltaManager::write_data(FILE* data_file, const ParameterHandler* parameter
         parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += parent.size() * sizeof(uint64_t);
-    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    const auto pre_raw_bytes = static_cast<uint64_t>(parent.size() * sizeof(uint64_t));
+    const auto raw_bytes = static_cast<uint64_t>(parent.mem_size() * sizeof(uint64_t));
+    numberPreRawBytes += pre_raw_bytes;
+    numberRawBytes += raw_bytes;
     _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+#ifdef BMARK
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+#endif
     parent.free_values();
 }
 
@@ -895,9 +936,16 @@ void PLAManager::write_data(FILE* data_file, const ParameterHandler* parameter_h
         parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += parent.size() * sizeof(uint64_t);
-    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    const auto pre_raw_bytes = static_cast<uint64_t>(parent.size() * sizeof(uint64_t));
+    const auto raw_bytes = static_cast<uint64_t>(parent.mem_size() * sizeof(uint64_t));
+    numberPreRawBytes += pre_raw_bytes;
+    numberRawBytes += raw_bytes;
     _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+#ifdef BMARK
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+#endif
     parent.free_values();
 }
 
@@ -1374,9 +1422,16 @@ void DurationSpikeManager::write_data(FILE* data_file, const ParameterHandler* p
         parent.file_offset = static_cast<size_t>(current_offset);
     }
 
-    numberPreRawBytes += parent.size() * sizeof(uint64_t);
-    numberRawBytes += parent.mem_size() * sizeof(uint64_t);
+    const auto pre_raw_bytes = static_cast<uint64_t>(parent.size() * sizeof(uint64_t));
+    const auto raw_bytes = static_cast<uint64_t>(parent.mem_size() * sizeof(uint64_t));
+    numberPreRawBytes += pre_raw_bytes;
+    numberRawBytes += raw_bytes;
     _pallas_compress_write(parent.buffer, parent.mem_size(), data_file, parameter_handler);
+#ifdef BMARK
+    const auto family =
+            (parent.parent_lv != nullptr) ? parent.parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+    record_subarray_write_metrics(family, data_file, current_offset, pre_raw_bytes, raw_bytes);
+#endif
     parent.free_values();
 }
 
