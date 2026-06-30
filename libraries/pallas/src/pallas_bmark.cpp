@@ -11,6 +11,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -130,6 +131,7 @@ void BmarkFamilyStats::accumulate(const BmarkFamilyStats& other) {
     operator_calls += other.operator_calls;
     max_abs_error = std::max(max_abs_error, other.max_abs_error);
     sum_abs_error += other.sum_abs_error;
+    sum_squared_abs_error += other.sum_squared_abs_error;
     nonzero_error_count += other.nonzero_error_count;
 }
 
@@ -194,6 +196,8 @@ void bmark_note_error_values(BmarkFamily family,
         const uint64_t current_abs_error = abs_error(exact_values[idx], observed_values[idx]);
         stats->max_abs_error = std::max(stats->max_abs_error, current_abs_error);
         stats->sum_abs_error += current_abs_error;
+        const double abs_error_value = static_cast<double>(current_abs_error);
+        stats->sum_squared_abs_error += abs_error_value * abs_error_value;
         if (current_abs_error != 0) {
             stats->nonzero_error_count++;
         }
@@ -233,9 +237,10 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
             std::filesystem::path(root_path) / ("archive_" + std::to_string(archive->id));
     std::filesystem::create_directories(archive_dir);
     std::ofstream out(archive_dir / "archive_benchmark.csv", std::ios::trunc);
+    out << std::fixed << std::setprecision(6);
     out << "archive_id,family,pre_raw_bytes,raw_bytes,compressed_bytes,write_ns,write_calls,"
-           "subarray_writes,value_count,max_abs_error,sum_abs_error,nonzero_error_count,add_ns,"
-           "add_calls,at_ns,at_calls,operator_ns,operator_calls\n";
+           "subarray_writes,value_count,max_abs_error,sum_abs_error,sum_squared_abs_error,"
+           "nonzero_error_count,add_ns,add_calls,at_ns,at_calls,operator_ns,operator_calls\n";
 
     const BmarkFamily families[] = {
             BmarkFamily::EventTimestamps,
@@ -249,9 +254,10 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
             << stats.raw_bytes << ',' << stats.compressed_bytes << ',' << stats.write_ns << ','
             << stats.write_calls << ',' << stats.subarray_writes << ',' << stats.value_count
             << ',' << stats.max_abs_error << ',' << stats.sum_abs_error << ','
-            << stats.nonzero_error_count << ',' << stats.add_ns << ',' << stats.add_calls
-            << ',' << stats.at_ns << ',' << stats.at_calls << ',' << stats.operator_ns << ','
-            << stats.operator_calls << '\n';
+            << stats.sum_squared_abs_error << ',' << stats.nonzero_error_count << ','
+            << stats.add_ns << ',' << stats.add_calls << ',' << stats.at_ns << ','
+            << stats.at_calls << ',' << stats.operator_ns << ',' << stats.operator_calls
+            << '\n';
     }
 }
 

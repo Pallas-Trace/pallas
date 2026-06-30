@@ -40,6 +40,7 @@ struct BmarkFamilyStats {
     uint64_t operator_calls = 0;
     uint64_t max_abs_error = 0;
     uint64_t sum_abs_error = 0;
+    double sum_squared_abs_error = 0.0;
     uint64_t nonzero_error_count = 0;
 
     void accumulate(const BmarkFamilyStats& other);
