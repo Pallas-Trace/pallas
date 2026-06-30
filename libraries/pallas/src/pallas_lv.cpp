@@ -17,6 +17,52 @@
 /** Methods Pertaining to LVBase class */
 namespace pallas {
 
+const SubArrayBase* RecentSubArrayCache::lookup(size_t index, uint64_t& probes) const {
+    for (auto& entry : entries) {
+        if (entry.subarray == nullptr) {
+            continue;
+        }
+        probes++;
+        const size_t begin = entry.subarray->starting_index();
+        const size_t end = begin + entry.subarray->size();
+        if (index >= begin && index < end) {
+            entry.hits++;
+            entry.generation = ++generation;
+            return entry.subarray;
+        }
+    }
+    return nullptr;
+}
+
+void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
+    if (subarray == nullptr) {
+        return;
+    }
+
+    Entry* best = nullptr;
+    for (auto& entry : entries) {
+        if (entry.subarray == subarray) {
+            entry.hits++;
+            entry.generation = ++generation;
+            return;
+        }
+        if (entry.subarray == nullptr) {
+            best = &entry;
+            break;
+        }
+        if (best == nullptr || entry.hits < best->hits ||
+            (entry.hits == best->hits && entry.generation < best->generation)) {
+            best = &entry;
+        }
+    }
+
+    if (best != nullptr) {
+        best->subarray = subarray;
+        best->hits = 1;
+        best->generation = ++generation;
+    }
+}
+
 /** Constructor and Destructors */
 
 LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
@@ -49,13 +95,26 @@ void LVBase::ensure_hbuffer(size_t bytes) {
     hbuffer_bytes = bytes;
 }
 
+void LVBase::rebuild_subarray_index() {
+    subarray_index.clear();
+    subarray_index.reserve(subarray_total);
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        subarray_index.push_back(subarray);
+    }
+    recent_subarrays.clear();
+}
+
 void LVBase::evict_loaded_subarrays() {
     while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
            !parameter_handler.subvector_queue.empty()) {
         auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
         parameter_handler.subvector_queue.pop_front();
         if (temp != nullptr && temp->has_values()) {
-            parameter_handler.loaded_durations_size -= temp->mem_size() * sizeof(uint64_t);
+            const auto evicted_bytes = static_cast<uint64_t>(temp->mem_size() * sizeof(uint64_t));
+            parameter_handler.loaded_durations_size -= evicted_bytes;
+#ifdef BMARK
+            bmark_note_subarray_evict(temp->get_bmark_family(), evicted_bytes);
+#endif
             temp->free_values();
             loaded_subarrays.erase(temp);
         }
@@ -67,13 +126,43 @@ SubArrayBase* LVBase::find_subarray(size_t pos) {
 }
 
 const SubArrayBase* LVBase::find_subarray(size_t pos) const {
-    for (auto* subarray = last; subarray != nullptr; subarray = subarray->previous_subarray()) {
+    uint64_t steps = 0;
+    if (const auto* cached = recent_subarrays.lookup(pos, steps)) {
+#ifdef BMARK
+        bmark_note_find_subarray(benchmark_family, steps);
+#endif
+        return cached;
+    }
+
+    if (subarray_index.empty() && first != nullptr) {
+        const_cast<LVBase*>(this)->rebuild_subarray_index();
+    }
+
+    size_t left = 0;
+    size_t right = subarray_index.size();
+    while (left < right) {
+        steps++;
+        const size_t mid = left + (right - left) / 2;
+        const auto* subarray = subarray_index[mid];
         const size_t begin = subarray->starting_index();
         const size_t end = begin + subarray->size();
-        if (pos >= begin && pos < end) {
-            return subarray;
+        if (pos < begin) {
+            right = mid;
+            continue;
         }
+        if (pos >= end) {
+            left = mid + 1;
+            continue;
+        }
+        recent_subarrays.remember(subarray_index[mid]);
+#ifdef BMARK
+        bmark_note_find_subarray(benchmark_family, steps);
+#endif
+        return subarray;
     }
+#ifdef BMARK
+    bmark_note_find_subarray(benchmark_family, steps);
+#endif
     return nullptr;
 }
 
@@ -95,9 +184,15 @@ uint64_t LVBase::operator[](size_t pos) const {
 #endif
     uint64_t cached_value = 0;
     if (recent_values.lookup(pos, cached_value)) {
+#ifdef BMARK
+        bmark_note_recent_value_lookup(benchmark_family, true);
+#endif
         // pallas_log(DebugLevel::Error, "LV recent cache hit: pos=%zu value=%" PRIu64 "\n", pos, cached_value);
         return cached_value;
     }
+#ifdef BMARK
+    bmark_note_recent_value_lookup(benchmark_family, false);
+#endif
     // pallas_log(DebugLevel::Error, "LV recent cache miss: pos=%zu\n", pos);
 
     auto* subarray = const_cast<SubArrayBase*>(find_subarray(pos));
@@ -120,6 +215,10 @@ uint64_t LVBase::operator[](size_t pos) const {
         }
         const_cast<LVBase*>(this)->evict_loaded_subarrays();
         const_cast<LVBase*>(this)->load_data(subarray);
+#ifdef BMARK
+        const auto loaded_bytes = static_cast<uint64_t>(subarray->mem_size() * sizeof(uint64_t));
+        bmark_note_subarray_load(benchmark_family, loaded_bytes, loaded_bytes);
+#endif
         const_cast<LVBase*>(this)->loaded_subarrays.insert(subarray);
     }
     const auto value = subarray->at(pos);
@@ -236,6 +335,7 @@ bool LVBase::apply_storage_policy() {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
+        rebuild_subarray_index();
         return true;
     }
 
@@ -250,11 +350,13 @@ bool LVBase::apply_storage_policy() {
         if (previous == nullptr) {
             first = last;
         }
+        rebuild_subarray_index();
         return true;
     }
 
     last = create_subarray(last);
     subarray_total++;
+    rebuild_subarray_index();
     return true;
 }
 
@@ -273,6 +375,7 @@ TimeLV::TimeLV(ParameterHandler& p, StoragePolicy _policy)
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
+    rebuild_subarray_index();
 }
 
 /** SubArray Creation */
@@ -313,6 +416,7 @@ AddStatus TimeLV::add(uint64_t val) {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
+        rebuild_subarray_index();
     }
 
     const size_t insert_index = value_count;
@@ -320,6 +424,7 @@ AddStatus TimeLV::add(uint64_t val) {
     if (status == AddStatus::Full || status == AddStatus::Outlier) {
         last = create_subarray(last);
         subarray_total++;
+        rebuild_subarray_index();
         status = last->add(val);
     }
 
@@ -433,6 +538,7 @@ DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
+    rebuild_subarray_index();
 }
 
 /** SubArray Creation */
@@ -456,6 +562,7 @@ AddStatus DurationLV::add(uint64_t val) {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
+        rebuild_subarray_index();
     }
 
     const size_t insert_index = value_count;
@@ -465,6 +572,7 @@ AddStatus DurationLV::add(uint64_t val) {
         static_cast<DurationSubArray*>(last)->final_update_mean();
         last = create_subarray(last);
         subarray_total++;
+        rebuild_subarray_index();
         status = last->add(val);
     }
 

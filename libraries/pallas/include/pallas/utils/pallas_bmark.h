@@ -38,6 +38,15 @@ struct BmarkFamilyStats {
     uint64_t at_calls = 0;
     uint64_t operator_ns = 0;
     uint64_t operator_calls = 0;
+    uint64_t recent_value_hits = 0;
+    uint64_t recent_value_misses = 0;
+    uint64_t find_subarray_calls = 0;
+    uint64_t find_subarray_steps = 0;
+    uint64_t subarray_loads = 0;
+    uint64_t subarray_load_bytes = 0;
+    uint64_t subarray_decompressed_bytes = 0;
+    uint64_t subarray_evictions = 0;
+    uint64_t subarray_evicted_bytes = 0;
     uint64_t max_abs_error = 0;
     uint64_t sum_abs_error = 0;
     double sum_squared_abs_error = 0.0;
@@ -72,6 +81,10 @@ void bmark_note_subarray_write(BmarkFamily family,
                                uint64_t pre_raw_bytes,
                                uint64_t raw_bytes,
                                uint64_t compressed_bytes);
+void bmark_note_recent_value_lookup(BmarkFamily family, bool hit);
+void bmark_note_find_subarray(BmarkFamily family, uint64_t steps);
+void bmark_note_subarray_load(BmarkFamily family, uint64_t load_bytes, uint64_t decompressed_bytes);
+void bmark_note_subarray_evict(BmarkFamily family, uint64_t evicted_bytes);
 void bmark_note_error_values(BmarkFamily family,
                              const uint64_t* exact_values,
                              const uint64_t* observed_values,

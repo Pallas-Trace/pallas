@@ -129,6 +129,15 @@ void BmarkFamilyStats::accumulate(const BmarkFamilyStats& other) {
     at_calls += other.at_calls;
     operator_ns += other.operator_ns;
     operator_calls += other.operator_calls;
+    recent_value_hits += other.recent_value_hits;
+    recent_value_misses += other.recent_value_misses;
+    find_subarray_calls += other.find_subarray_calls;
+    find_subarray_steps += other.find_subarray_steps;
+    subarray_loads += other.subarray_loads;
+    subarray_load_bytes += other.subarray_load_bytes;
+    subarray_decompressed_bytes += other.subarray_decompressed_bytes;
+    subarray_evictions += other.subarray_evictions;
+    subarray_evicted_bytes += other.subarray_evicted_bytes;
     max_abs_error = std::max(max_abs_error, other.max_abs_error);
     sum_abs_error += other.sum_abs_error;
     sum_squared_abs_error += other.sum_squared_abs_error;
@@ -180,6 +189,46 @@ void bmark_note_subarray_write(BmarkFamily family,
     stats->raw_bytes += raw_bytes;
     stats->compressed_bytes += compressed_bytes;
     stats->subarray_writes++;
+}
+
+void bmark_note_recent_value_lookup(BmarkFamily family, bool hit) {
+    auto* stats = family_stats(g_bmark_thread_stats, family);
+    if (stats == nullptr) {
+        return;
+    }
+    if (hit) {
+        stats->recent_value_hits++;
+        return;
+    }
+    stats->recent_value_misses++;
+}
+
+void bmark_note_find_subarray(BmarkFamily family, uint64_t steps) {
+    auto* stats = family_stats(g_bmark_thread_stats, family);
+    if (stats == nullptr) {
+        return;
+    }
+    stats->find_subarray_calls++;
+    stats->find_subarray_steps += steps;
+}
+
+void bmark_note_subarray_load(BmarkFamily family, uint64_t load_bytes, uint64_t decompressed_bytes) {
+    auto* stats = family_stats(g_bmark_thread_stats, family);
+    if (stats == nullptr) {
+        return;
+    }
+    stats->subarray_loads++;
+    stats->subarray_load_bytes += load_bytes;
+    stats->subarray_decompressed_bytes += decompressed_bytes;
+}
+
+void bmark_note_subarray_evict(BmarkFamily family, uint64_t evicted_bytes) {
+    auto* stats = family_stats(g_bmark_thread_stats, family);
+    if (stats == nullptr) {
+        return;
+    }
+    stats->subarray_evictions++;
+    stats->subarray_evicted_bytes += evicted_bytes;
 }
 
 void bmark_note_error_values(BmarkFamily family,
@@ -236,11 +285,16 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
     const auto archive_dir =
             std::filesystem::path(root_path) / ("archive_" + std::to_string(archive->id));
     std::filesystem::create_directories(archive_dir);
-    std::ofstream out(archive_dir / "archive_benchmark.csv", std::ios::trunc);
-    out << std::fixed << std::setprecision(6);
-    out << "archive_id,family,pre_raw_bytes,raw_bytes,compressed_bytes,write_ns,write_calls,"
-           "subarray_writes,value_count,max_abs_error,sum_abs_error,sum_squared_abs_error,"
-           "nonzero_error_count,add_ns,add_calls,at_ns,at_calls,operator_ns,operator_calls\n";
+    std::ofstream archive_out(archive_dir / "archive_benchmark.csv", std::ios::trunc);
+    std::ofstream perf_out(archive_dir / "perf_benchmark.csv", std::ios::trunc);
+    archive_out << std::fixed << std::setprecision(6);
+    perf_out << std::fixed << std::setprecision(6);
+    archive_out << "archive_id,family,pre_raw_bytes,raw_bytes,compressed_bytes,write_ns,write_calls,"
+                   "subarray_writes,value_count,add_ns,add_calls,at_ns,at_calls,operator_ns,operator_calls,"
+                   "max_abs_error,sum_abs_error,sum_squared_abs_error,nonzero_error_count\n";
+    perf_out << "archive_id,family,value_count,recent_value_hits,recent_value_misses,"
+                "find_subarray_calls,find_subarray_steps,subarray_loads,subarray_load_bytes,"
+                "subarray_decompressed_bytes,subarray_evictions,subarray_evicted_bytes\n";
 
     const BmarkFamily families[] = {
             BmarkFamily::EventTimestamps,
@@ -250,14 +304,19 @@ void bmark_write_archive_csv(const Archive* archive, const char* root_path) {
     };
     for (const auto family : families) {
         const auto& stats = *family_stats(aggregate, family);
-        out << archive->id << ',' << family_name(family) << ',' << stats.pre_raw_bytes << ','
-            << stats.raw_bytes << ',' << stats.compressed_bytes << ',' << stats.write_ns << ','
-            << stats.write_calls << ',' << stats.subarray_writes << ',' << stats.value_count
-            << ',' << stats.max_abs_error << ',' << stats.sum_abs_error << ','
-            << stats.sum_squared_abs_error << ',' << stats.nonzero_error_count << ','
-            << stats.add_ns << ',' << stats.add_calls << ',' << stats.at_ns << ','
-            << stats.at_calls << ',' << stats.operator_ns << ',' << stats.operator_calls
-            << '\n';
+        archive_out << archive->id << ',' << family_name(family) << ',' << stats.pre_raw_bytes << ','
+                    << stats.raw_bytes << ',' << stats.compressed_bytes << ',' << stats.write_ns << ','
+                    << stats.write_calls << ',' << stats.subarray_writes << ',' << stats.value_count
+                    << ',' << stats.add_ns << ',' << stats.add_calls << ',' << stats.at_ns << ','
+                    << stats.at_calls << ',' << stats.operator_ns << ',' << stats.operator_calls << ','
+                    << stats.max_abs_error << ',' << stats.sum_abs_error << ','
+                    << stats.sum_squared_abs_error << ',' << stats.nonzero_error_count << '\n';
+        perf_out << archive->id << ',' << family_name(family) << ',' << stats.value_count << ','
+                 << stats.recent_value_hits << ',' << stats.recent_value_misses << ','
+                 << stats.find_subarray_calls << ',' << stats.find_subarray_steps << ','
+                 << stats.subarray_loads << ',' << stats.subarray_load_bytes << ','
+                 << stats.subarray_decompressed_bytes << ',' << stats.subarray_evictions << ','
+                 << stats.subarray_evicted_bytes << '\n';
     }
 }
 

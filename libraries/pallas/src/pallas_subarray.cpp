@@ -239,7 +239,7 @@ void NoneManager::on_values_freed() {}
 namespace pallas {
 
 size_t DeltaManager::_capacity() const {
-    return DEFAULT_VECTOR_SIZE;
+    return VECTOR_SIZE_2048;
 }
 
 AddStatus DeltaManager::add(uint64_t val) {
@@ -1056,7 +1056,7 @@ double median_from_u64(const uint64_t* values, size_t count) {
         return 0.0;
     }
 
-    std::array<double, DEFAULT_VECTOR_SIZE> sorted_values{};
+    std::array<double, VECTOR_SIZE_2048> sorted_values{};
     for (size_t idx = 0; idx < count; ++idx) {
         sorted_values[idx] = static_cast<double>(values[idx]);
     }
@@ -1069,7 +1069,7 @@ double median_from_double_buffer(const double* values, size_t count) {
         return 0.0;
     }
 
-    std::array<double, DEFAULT_VECTOR_SIZE> sorted_values{};
+    std::array<double, VECTOR_SIZE_2048> sorted_values{};
     for (size_t idx = 0; idx < count; ++idx) {
         sorted_values[idx] = values[idx];
     }
@@ -1080,7 +1080,7 @@ double median_from_double_buffer(const double* values, size_t count) {
 }
 
 size_t DurationSpikeManager::_capacity() const {
-    return DEFAULT_VECTOR_SIZE;
+    return VECTOR_SIZE_2048;
 }
 
 void DurationSpikeManager::on_subarray_initialized() {
@@ -1250,7 +1250,7 @@ void DurationSpikeManager::finalize_block() {
     // Stage 1: Build a robust initial baseline and derive the spike threshold.
     const double initial_baseline = median_from_u64(raw_values, value_count);
 
-    std::array<double, DEFAULT_VECTOR_SIZE> abs_residuals{};
+    std::array<double, VECTOR_SIZE_2048> abs_residuals{};
     for (size_t idx = 0; idx < value_count; ++idx) {
         abs_residuals[idx] = std::abs(static_cast<double>(raw_values[idx]) - initial_baseline);
     }
@@ -1258,7 +1258,7 @@ void DurationSpikeManager::finalize_block() {
     const double spike_threshold = std::max(kMinSpikeResidual, 3.0 * median_abs_residual);
 
     // Stage 2: Gather and sort the strongest positive residual spike candidates.
-    std::array<DurationSpikeCandidate, DEFAULT_VECTOR_SIZE> all_candidates{};
+    std::array<DurationSpikeCandidate, VECTOR_SIZE_2048> all_candidates{};
     size_t all_candidate_count = 0;
     for (size_t idx = 0; idx < value_count; ++idx) {
         const int64_t residual =
@@ -1283,7 +1283,7 @@ void DurationSpikeManager::finalize_block() {
             static_cast<uint8_t>(std::min(candidate_count, static_cast<size_t>(std::min<uint8_t>(kMaxExactSpikes, std::max<uint8_t>(2, k_max / 2)))));
 
     // Stage 3: Preserve the top spike candidates exactly.
-    std::array<bool, DEFAULT_VECTOR_SIZE> selected_positions{};
+    std::array<bool, VECTOR_SIZE_2048> selected_positions{};
     exact_count = exact_target;
     for (uint8_t exact_idx = 0; exact_idx < exact_count; ++exact_idx) {
         const auto& candidate = all_candidates[exact_idx];
@@ -1292,7 +1292,7 @@ void DurationSpikeManager::finalize_block() {
         selected_positions[candidate.idx] = true;
     }
 
-    std::array<bool, DEFAULT_VECTOR_SIZE> candidate_used{};
+    std::array<bool, VECTOR_SIZE_2048> candidate_used{};
     for (size_t candidate_idx = 0; candidate_idx < candidate_count; ++candidate_idx) {
         if (candidate_idx < exact_count) {
             candidate_used[candidate_idx] = true;
@@ -1350,7 +1350,7 @@ void DurationSpikeManager::finalize_block() {
     }
 
     // Stage 5: Fit the clipped baseline model on values not claimed by spikes.
-    std::array<double, DEFAULT_VECTOR_SIZE> baseline_values{};
+    std::array<double, VECTOR_SIZE_2048> baseline_values{};
     size_t baseline_value_count = 0;
     for (size_t idx = 0; idx < value_count; ++idx) {
         if (!selected_positions[idx]) {
@@ -1375,7 +1375,7 @@ void DurationSpikeManager::finalize_block() {
     }
 
     const double robust_center = median_from_double_buffer(baseline_values.data(), baseline_value_count);
-    std::array<double, DEFAULT_VECTOR_SIZE> abs_deviations{};
+    std::array<double, VECTOR_SIZE_2048> abs_deviations{};
     for (size_t idx = 0; idx < baseline_value_count; ++idx) {
         abs_deviations[idx] = std::abs(baseline_values[idx] - robust_center);
     }
@@ -1639,6 +1639,12 @@ bool SubArrayBase::has_values() const {
 void SubArrayBase::set_offset(size_t offset) {
     file_offset = offset;
 }
+
+#ifdef BMARK
+BmarkFamily SubArrayBase::get_bmark_family() const {
+    return (parent_lv != nullptr) ? parent_lv->get_bmark_family() : BmarkFamily::Unknown;
+}
+#endif
 
 void SubArrayBase::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
     manager->load_data(data_file, parameter_handler);

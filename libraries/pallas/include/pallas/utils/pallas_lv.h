@@ -74,6 +74,31 @@ class RecentValueRingBuffer {
     size_t entry_count = 0;
 };
 
+class RecentSubArrayCache {
+   public:
+    static constexpr size_t kCapacity = 8;
+
+    void clear() {
+        generation = 0;
+        for (auto& entry : entries) {
+            entry = {};
+        }
+    }
+
+    [[nodiscard]] const SubArrayBase* lookup(size_t index, uint64_t& probes) const;
+    void remember(SubArrayBase* subarray) const;
+
+   private:
+    struct Entry {
+        SubArrayBase* subarray = nullptr;
+        uint32_t hits = 0;
+        uint64_t generation = 0;
+    };
+
+    mutable std::array<Entry, kCapacity> entries{};
+    mutable uint64_t generation = 0;
+};
+
 /**
  * Common base for the new linked-vector layer.
  *
@@ -91,6 +116,8 @@ class LVBase {
     // Loaded subarray tracking and recent-value cache.
     std::set<SubArrayBase*> loaded_subarrays;
     mutable RecentValueRingBuffer recent_values;
+    mutable RecentSubArrayCache recent_subarrays;
+    mutable std::vector<SubArrayBase*> subarray_index;
 
     // Metadata for SubArray
     ValueDomain value_domain;
@@ -174,6 +201,7 @@ class LVBase {
                     uint8_t abi_version);
 
     void ensure_hbuffer(size_t bytes);
+    void rebuild_subarray_index();
     void write_common_header(FILE* vector_file) const;
     void evict_loaded_subarrays();
     void load_data(SubArrayBase* subarray);

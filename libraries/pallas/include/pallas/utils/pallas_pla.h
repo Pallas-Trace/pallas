@@ -12,7 +12,7 @@
 
 namespace pallas {
 
-constexpr size_t kPLABlockSize = 1000;
+constexpr size_t kPLABlockSize = 2048;
 constexpr size_t kPLAMaxAnchors = 32;
 
 enum class CandidateState : uint8_t {

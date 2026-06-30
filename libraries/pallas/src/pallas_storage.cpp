@@ -920,6 +920,7 @@ pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, Parameter
                 first = last;
             }
         }
+        rebuild_subarray_index();
         return;
     }
 
@@ -933,6 +934,7 @@ pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, Parameter
         loaded_values += last->size();
         subarray_total++;
     }
+    rebuild_subarray_index();
 }
 
 /** Duration linked-vector storage methods. */
@@ -1042,6 +1044,7 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
                 first = last;
             }
         }
+        rebuild_subarray_index();
         return;
     }
 
@@ -1055,6 +1058,7 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
         loaded_values += last->size();
         subarray_total++;
     }
+    rebuild_subarray_index();
 }
 
 /**************** Storage Functions ****************/

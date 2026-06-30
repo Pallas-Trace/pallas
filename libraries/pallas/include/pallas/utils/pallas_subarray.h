@@ -25,6 +25,9 @@
 #include <vector>
 
 #include "pallas/utils/pallas_parameter_handler.h"
+#ifdef BMARK
+#include "pallas/utils/pallas_bmark.h"
+#endif
 
 #ifndef DEFAULT_VECTOR_SIZE
 #define DEFAULT_VECTOR_SIZE 1000
@@ -326,6 +329,9 @@ class SubArrayBase {
     [[nodiscard]] size_t starting_index() const;
     [[nodiscard]] size_t offset() const;
     void set_offset(size_t offset);
+#ifdef BMARK
+    [[nodiscard]] BmarkFamily get_bmark_family() const;
+#endif
     
     // SubArray API Buffer Management, Manager 
     virtual ~SubArrayBase();
