@@ -206,6 +206,8 @@ PYBIND11_MODULE(_core, m) {
             })
             .def_property_readonly("events", [](pallas::Thread &self) { return threadGetEvents(self); })
             .def_property_readonly("sequences", [](pallas::Thread &self) { return threadGetSequences(self); })
+            // TODO Add a getSequencesByName
+            // TODO Why do some functions use camelCase and others use snake_case ????
             .def_property_readonly("loops", [](pallas::Thread &self) { return threadGetLoops(self); })
             .def("get_events_from_record", threadGetEventsMatching)
             .def("get_events_from_record", threadGetEventsMatchingList)
