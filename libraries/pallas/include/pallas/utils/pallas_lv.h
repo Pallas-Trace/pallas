@@ -201,6 +201,7 @@ class LVBase {
                     uint8_t abi_version);
 
     void ensure_hbuffer(size_t bytes);
+    void append_subarray_index(SubArrayBase* subarray);
     void rebuild_subarray_index();
     void write_common_header(FILE* vector_file) const;
     void evict_loaded_subarrays();

@@ -39,7 +39,7 @@ void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
         return;
     }
 
-    Entry* best = nullptr;
+    Entry* eviction_candidate = nullptr;
     for (auto& entry : entries) {
         if (entry.subarray == subarray) {
             entry.hits++;
@@ -47,19 +47,19 @@ void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
             return;
         }
         if (entry.subarray == nullptr) {
-            best = &entry;
+            eviction_candidate = &entry;
             break;
         }
-        if (best == nullptr || entry.hits < best->hits ||
-            (entry.hits == best->hits && entry.generation < best->generation)) {
-            best = &entry;
+        if (eviction_candidate == nullptr || entry.hits < eviction_candidate->hits ||
+            (entry.hits == eviction_candidate->hits && entry.generation < eviction_candidate->generation)) {
+            eviction_candidate = &entry;
         }
     }
 
-    if (best != nullptr) {
-        best->subarray = subarray;
-        best->hits = 1;
-        best->generation = ++generation;
+    if (eviction_candidate != nullptr) {
+        eviction_candidate->subarray = subarray;
+        eviction_candidate->hits = 1;
+        eviction_candidate->generation = ++generation;
     }
 }
 
@@ -93,6 +93,13 @@ void LVBase::ensure_hbuffer(size_t bytes) {
     delete[] static_cast<uint8_t*>(hbuffer);
     hbuffer = new uint8_t[bytes];
     hbuffer_bytes = bytes;
+}
+
+void LVBase::append_subarray_index(SubArrayBase* subarray) {
+    if (subarray == nullptr) {
+        return;
+    }
+    subarray_index.push_back(subarray);
 }
 
 void LVBase::rebuild_subarray_index() {
@@ -335,7 +342,7 @@ bool LVBase::apply_storage_policy() {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
-        rebuild_subarray_index();
+        append_subarray_index(last);
         return true;
     }
 
@@ -356,7 +363,7 @@ bool LVBase::apply_storage_policy() {
 
     last = create_subarray(last);
     subarray_total++;
-    rebuild_subarray_index();
+    append_subarray_index(last);
     return true;
 }
 
@@ -375,7 +382,7 @@ TimeLV::TimeLV(ParameterHandler& p, StoragePolicy _policy)
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
-    rebuild_subarray_index();
+    append_subarray_index(last);
 }
 
 /** SubArray Creation */
@@ -416,7 +423,7 @@ AddStatus TimeLV::add(uint64_t val) {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
-        rebuild_subarray_index();
+        append_subarray_index(last);
     }
 
     const size_t insert_index = value_count;
@@ -424,7 +431,7 @@ AddStatus TimeLV::add(uint64_t val) {
     if (status == AddStatus::Full || status == AddStatus::Outlier) {
         last = create_subarray(last);
         subarray_total++;
-        rebuild_subarray_index();
+        append_subarray_index(last);
         status = last->add(val);
     }
 
@@ -538,7 +545,7 @@ DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
-    rebuild_subarray_index();
+    append_subarray_index(last);
 }
 
 /** SubArray Creation */
@@ -562,7 +569,7 @@ AddStatus DurationLV::add(uint64_t val) {
         first = create_subarray(nullptr);
         last = first;
         subarray_total = 1;
-        rebuild_subarray_index();
+        append_subarray_index(last);
     }
 
     const size_t insert_index = value_count;
@@ -572,7 +579,7 @@ AddStatus DurationLV::add(uint64_t val) {
         static_cast<DurationSubArray*>(last)->final_update_mean();
         last = create_subarray(last);
         subarray_total++;
-        rebuild_subarray_index();
+        append_subarray_index(last);
         status = last->add(val);
     }
 

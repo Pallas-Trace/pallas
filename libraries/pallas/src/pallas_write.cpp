@@ -36,10 +36,10 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
 }
 
 
-static constexpr unsigned kHotLoopIterationThreshold = RecentValueRingBuffer::kCapacity;
-static constexpr pallas_duration_t kHotLoopDurationThreshold = 350ULL;
-static constexpr size_t kHotLoopRequiredFractionNumerator = 3;
-static constexpr size_t kHotLoopRequiredFractionDenominator = 4;
+static constexpr unsigned kHotLoopIters = RecentValueRingBuffer::kCapacity;
+static constexpr pallas_duration_t kHotLoopDurNs = 350ULL;
+static constexpr size_t kHotLoopMinFracNum = 3;
+static constexpr size_t kHotLoopMinFracDen = 4;
 
 static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
     if (sequence.tokens.size() != 2) {
@@ -217,30 +217,36 @@ void ThreadWriter::incrementLoop(Loop* loop) {
         return;
     }
 
-    if (loop->nb_iterations != kHotLoopIterationThreshold) {
+    if (loop->nb_iterations != kHotLoopIters) {
         return;
     }
 
     auto* sequence = thread->getSequence(loop->repeated_token);
-    if (sequence == nullptr || sequence->durations == nullptr || sequence->durations->size() < kHotLoopIterationThreshold) {
+    if (sequence == nullptr || sequence->durations == nullptr || sequence->durations->size() < kHotLoopIters) {
         return;
     }
 
-    if (!isSimpleEnterLeaveSequence(*sequence, *thread)) {
-        return;
-    }
+    #if 0
+        // Keep the old shape filter around for reference. We intentionally disable
+        // it for now because short hot loops may span 2, 3, or 4 events, not just
+        // a simple ENTER/LEAVE pair, and we still want those loops to trigger the
+        // lossy promotion heuristic.
+        if (!isSimpleEnterLeaveSequence(*sequence, *thread)) {
+            return;
+        }
+    #endif
 
     size_t qualifying_duration_count = 0;
-    const size_t first_duration_index = sequence->durations->size() - kHotLoopIterationThreshold;
-    for (size_t i = 0; i < kHotLoopIterationThreshold; ++i) {
+    const size_t first_duration_index = sequence->durations->size() - kHotLoopIters;
+    for (size_t i = 0; i < kHotLoopIters; ++i) {
         const pallas_duration_t duration = sequence->durations->at(first_duration_index + i);
-        if (duration <= kHotLoopDurationThreshold) {
+        if (duration <= kHotLoopDurNs) {
             qualifying_duration_count++;
         }
     }
 
-    if (qualifying_duration_count * kHotLoopRequiredFractionDenominator <=
-        kHotLoopIterationThreshold * kHotLoopRequiredFractionNumerator) {
+    if (qualifying_duration_count * kHotLoopMinFracDen <=
+        kHotLoopIters * kHotLoopMinFracNum) {
         return;
     }
 
@@ -250,8 +256,8 @@ void ThreadWriter::incrementLoop(Loop* loop) {
                loop->repeated_token.id,
                loop->nb_iterations,
                qualifying_duration_count,
-               kHotLoopIterationThreshold,
-               static_cast<unsigned long>(kHotLoopDurationThreshold));
+               kHotLoopIters,
+               static_cast<unsigned long>(kHotLoopDurNs));
     applyHotLoopSequencePolicy(*sequence, *thread);
 }
 
