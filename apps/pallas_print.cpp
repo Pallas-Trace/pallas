@@ -350,16 +350,16 @@ void printTrace(pallas::GlobalArchive& trace) {
     }
 }
 
-static std::string structure_indent[MAX_CALLSTACK_DEPTH];
+static std::string structure_indent[64]; // Arbitrary default since too much indent wouldn't display properly anyways
 std::string getCurrentIndent(const pallas::ThreadReader& tr) {
-  if (tr.currentState.current_frame_index <= 1) {
+  if (tr.currentState.current_frame_index <= 0) {
     return "";
   }
   const auto t = tr.pollCurToken();
   std::string current_indent;
   bool isLastOfSeq = tr.isEndOfCurrentBlock();
-  structure_indent[tr.currentState.current_frame_index - 2] = (isLastOfSeq ? "╰" : "├");
-    DOFOR(i, tr.currentState.current_frame_index - 1) {
+  structure_indent[tr.currentState.current_frame_index - 1] = (isLastOfSeq ? "╰" : "├");
+    DOFOR(i, tr.currentState.current_frame_index) {
       current_indent += structure_indent[i];
     }
     if (t.type != pallas::TypeEvent) {
@@ -373,7 +373,7 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
     } else {
       current_indent += "─";
     }
-    structure_indent[tr.currentState.current_frame_index - 2] = isLastOfSeq ? " " : "│";
+    structure_indent[tr.currentState.current_frame_index - 1] = isLastOfSeq ? " " : "│";
     return current_indent;
 }
 

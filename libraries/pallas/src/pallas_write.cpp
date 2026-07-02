@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <mutex>
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -101,7 +103,8 @@ static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
     if (array_len == 1 && token_array->type == TypeSequence) {
-        return thread->sequences[token_array->id];
+        uint32_t phys_id = thread->sequence_id_map[token_array->id];
+        return thread->sequences[phys_id];
     }
     // First match it in the thread
     uint32_t hash = hash32_Token(token_array, array_len, SEED);
@@ -127,9 +130,15 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         }
     }
 
-    const auto index = thread->nb_sequences++;
-    const auto sid = PALLAS_SEQUENCE_ID(index);
-    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%lu\n", index);
+    uint32_t phys_id = thread->nb_sequences++;
+    uint32_t logi_id = phys_id;
+    if (logi_id >= thread->sequence_id_map.size()) {
+        thread->sequence_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->sequence_id_map[logi_id] = phys_id;
+    const auto sid = PALLAS_SEQUENCE_ID(logi_id);
+
+    pallas_log(DebugLevel::Debug, "getOrCreateSequenceFromArray: \tSequence not found. Adding it with id=S%" PRIu32 "\n", logi_id);
 
     Sequence* s = thread->getSequence(sid);
     s->tokens.resize(array_len);
@@ -137,7 +146,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     auto& sequencesWithSameHash = thread->hashToSequence[hash];
     s->hash = hash;
     s->id = sid;
-    sequencesWithSameHash.push_back(index);
+    sequencesWithSameHash.push_back(logi_id);
     if (s->tokens[0].type != TypeEvent || thread->getEvent(s->tokens[0])->data.record != PALLAS_EVENT_ENTER) {
         s->type = SEQUENCE_LOOP;
     }
@@ -156,15 +165,24 @@ Loop* ThreadWriter::createLoop(Token sequence_id) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of loops for thread writer %p's thread trace, cur=%lu\n", this, thread->nb_allocated_loops);
         doubleMemorySpaceConstructor(thread->loops, thread->nb_allocated_loops);
     }
-    size_t index = thread->nb_loops++;
-    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%lu containing S%d\n", index, sequence_id.id);
 
-    Loop& l = thread->loops[index];
-    l.nb_iterations = 1;
-    l.nb_occurrences = 1;
-    l.repeated_token = sequence_id;
-    l.self_id = PALLAS_LOOP_ID(index);
-    return &l;
+    uint32_t phys_id = thread->nb_loops++;
+    uint32_t logi_id = phys_id;
+
+    if (logi_id >= thread->loop_id_map.size()) {
+        thread->loop_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->loop_id_map[logi_id] = phys_id;
+
+    pallas_log(DebugLevel::Debug, "createLoop:\tLoop not found. Adding it with id=L%" PRIu32 " containing S%d\n", logi_id, sequence_id.id);
+
+    pallas_assert(phys_id < thread->nb_allocated_loops);
+    Loop *l = &thread->loops[phys_id];
+    l->nb_iterations = 1;
+    l->nb_occurrences = 1;
+    l->repeated_token = sequence_id;
+    l->self_id = PALLAS_LOOP_ID(logi_id);
+    return l;
 }
 
 void ThreadWriter::storeTimestamp(Event* es, pallas_timestamp_t ts) {
@@ -261,25 +279,31 @@ void ThreadWriter::incrementLoop(Loop* loop) {
     applyHotLoopSequencePolicy(*sequence, *thread);
 }
 
-Loop* ThreadWriter::unsquashLoop(Loop* loop) {
+Loop* ThreadWriter::unsquashLoop(TokenId loopid) {
+    Loop *loop = &thread->loops[thread->loop_id_map[loopid]];
     pallas_assert(loop->nb_occurrences > 1);
     Loop* newLoop = createLoop(loop->repeated_token);
+    loop = &thread->loops[thread->loop_id_map[loopid]];
     loop->nb_occurrences --;
     newLoop->nb_iterations = loop->nb_iterations;
     return newLoop;
 }
 
-Loop* ThreadWriter::squashLoop(Loop* loop) {
-    for (size_t i = 0; i < loop->self_id.id; i++) {
-        auto& otherLoop = thread->loops[i];
+Loop* ThreadWriter::squashLoop(TokenId loopid) {
+    Loop *loop = &thread->loops[thread->loop_id_map[loopid]];
+    for (size_t logi_id = 0; logi_id < thread->loop_id_map.size(); logi_id++) {
+        uint32_t phys_id = thread->loop_id_map[logi_id];
+        if (phys_id == PALLAS_INDEX_INVALID || logi_id == loop->self_id.id) {
+            continue;
+        }
+
+        auto& otherLoop = thread->loops[phys_id];
         if (otherLoop.repeated_token == loop->repeated_token && otherLoop.nb_iterations == loop->nb_iterations) {
             otherLoop.nb_occurrences ++;
-            // Reinitialize the old loop
-            if (loop->self_id.id == thread->nb_loops - 1) {
-                thread->nb_loops--;
-            } else {
-                pallas_warn("Could not delete L%d after squashing\n", loop->self_id.id);
-            }
+            thread->loop_id_map[loop->self_id.id] = PALLAS_INDEX_INVALID;
+
+            // NOTE: removed physical compaction for now, recheck later
+
             pallas_log(DebugLevel::Debug, "squashLoop: L%d => L%d\n", loop->self_id.id, otherLoop.self_id.id);
             loop->repeated_token = Token();
             loop->self_id = Token();
@@ -374,12 +398,12 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     // Then we increment the loop. We also use this opportunity to check for duplicates
 
     if (loop->nb_occurrences > 1) {
-        loop = unsquashLoop(loop);
+        loop = unsquashLoop(loop->self_id.id);
         curTokenSeq.back() = loop->self_id;
     }
     incrementLoop(loop);
     auto old_loop = loop->self_id;
-    loop = squashLoop(loop);
+    loop = squashLoop(loop->self_id.id);
     if (old_loop != loop->self_id) {
         // We Got Squashed
         curTokenSeq.pop_back();
@@ -406,12 +430,12 @@ void ThreadWriter::checkLoopBefore() {
         pallas_log(DebugLevel::Debug, "checkLoopBefore: Last token was the sequence from L%d: S%d\n",
             loop->self_id.id, loop->repeated_token.id);
         if (loop->nb_occurrences > 1) {
-            loop = unsquashLoop(loop);
+            loop = unsquashLoop(loop->self_id.id);
             curTokenSeq[cur_index - 1] = loop->self_id;
         }
         incrementLoop(loop);
         auto old_loop = loop->self_id;
-        loop = squashLoop(loop);
+        loop = squashLoop(loop->self_id.id);
         if (old_loop != loop->self_id) {
             // We Got Squashed
             curTokenSeq.resize(cur_index - 1);
@@ -469,7 +493,8 @@ void ThreadWriter::findSequence(size_t n) {
             auto& sequencesWithSameHash = thread->hashToSequence[hash];
             if (!sequencesWithSameHash.empty()) {
                 for (const auto sid : sequencesWithSameHash) {
-                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[sid].tokens.data(), thread->sequences[sid].size())) {
+                    uint32_t phys_id = thread->sequence_id_map[sid];
+                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[phys_id].tokens.data(), thread->sequences[phys_id].size())) {
                         found_sequence_id = sid;
                         break;
                     }
@@ -627,11 +652,11 @@ void ThreadWriter::recordExitFunction() {
     const auto  [computed_duration, computed_exclusive_duration] = getLastSequenceDuration(sequence, 0);
 #ifdef DEBUG
     const pallas_duration_t sequence_duration = last_timestamp - sequence_start_timestamp[cur_depth];
-    pallas_log(DebugLevel::Debug, "Computed duration = %lu\nSequence duration = %lu\n", computed_duration, sequence_duration);
+    pallas_log(DebugLevel::Debug, "Computed duration = %" PRIu64 "\nSequence duration = %" PRIu64 "\n", computed_duration, sequence_duration);
     pallas_assert(computed_duration == sequence_duration);
 #endif
 
-    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%lu\n", thread->getTokenString(sequence.id).c_str(), sequence_start_timestamp[cur_depth]);
+    pallas_log(DebugLevel::Debug, "Exiting function, closing %s, start=%" PRIu64 "\n", thread->getTokenString(sequence.id).c_str(), sequence_start_timestamp[cur_depth]);
     sequence.timestamps->add(sequence_start_timestamp[cur_depth]);
     sequence.exclusive_durations->add(computed_exclusive_duration);
     sequence.durations->add(computed_duration);
@@ -657,9 +682,9 @@ size_t ThreadWriter::storeEvent(enum EventType event_type, TokenId event_id, pal
 
     Token token = Token(TypeEvent, event_id);
 
-    Event* es = &thread->events[event_id];
+    Event* es = &thread->events[thread->event_id_map[event_id]];
     size_t occurrence_index = es->nb_occurrences++;
-    pallas_log(DebugLevel::Debug, "storeEvent: %s @ %lu\n", thread->getTokenString(token).c_str(), ts);
+    pallas_log(DebugLevel::Debug, "storeEvent: %s @ %" PRIu64 "\n", thread->getTokenString(token).c_str(), ts);
     storeTimestamp(es, ts);
     storeToken(token, occurrence_index);
 
@@ -678,7 +703,7 @@ void ThreadWriter::threadClose() {
         recordExitFunction();
     }
     // Then we need to store the main sequence
-    auto& mainSequence = thread->sequences[0];
+    auto& mainSequence = thread->sequences[thread->sequence_id_map[thread->sequence_root]];
     mainSequence.tokens = sequence_stack[0];
     if (mainSequence.tokens.size() != 0) {
         pallas_log(DebugLevel::Debug, "Last sequence token: (%d.%d)\n", mainSequence.tokens.back().type, mainSequence.tokens.back().id);
@@ -734,12 +759,14 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
         thread->sequences[i].durations = new DurationLV(*parameter_handler);
         thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
         thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
-#ifdef BMARK
-        thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
-        thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
-        thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
-#endif
+    #ifdef BMARK
+            thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
+            thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
+            thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
+    #endif
     }
+    thread->sequence_id_map.resize(1);
+    thread->sequence_id_map[thread->sequence_root] = 0;
 
     thread->hashToSequence = std::unordered_map<uint32_t, std::vector<TokenId>>();
     thread->hashToEvent = std::unordered_map<uint32_t, std::vector<TokenId>>();
@@ -754,8 +781,8 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     index_stack = new std::vector<size_t>[max_depth];
 
     // We need to initialize the main Sequence (Sequence 0)
-    auto& mainSequence = thread->sequences[0];
-    mainSequence.id = PALLAS_SEQUENCE_ID(0);
+    auto& mainSequence = thread->sequences[thread->sequence_id_map[thread->sequence_root]];
+    mainSequence.id = PALLAS_SEQUENCE_ID(thread->sequence_id_map[thread->sequence_root]);
     thread->nb_sequences = 1;
 
     last_timestamp = PALLAS_TIMESTAMP_INVALID;
@@ -776,7 +803,8 @@ TokenId ThreadWriter::getEventId(EventData* e) {
             pallas_log(DebugLevel::Debug, "Found more than one event with the same hash: %lu\n", eventWithSameHash.size());
         }
         for (const auto eid : eventWithSameHash) {
-            if (memcmp(e, &thread->events[eid].data, e->event_size) == 0) {
+            uint32_t phys_id = thread->event_id_map[eid];
+            if (memcmp(e, &thread->events[phys_id].data, e->event_size) == 0) {
                 pallas_log(DebugLevel::Debug, "getEventId: \t found with id=%u\n", eid);
                 return eid;
             }
@@ -788,19 +816,26 @@ TokenId ThreadWriter::getEventId(EventData* e) {
         doubleMemorySpaceConstructor(thread->events, thread->nb_allocated_events);
     }
 
-    TokenId index = thread->nb_events++;
-    pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", index);
+    TokenId logi_id = thread->nb_events;
+    uint32_t phys_id = thread->nb_events++;
 
-    auto* new_event = new (&thread->events[index]) Event(index, *e);
+    if (logi_id >= thread->event_id_map.size()) {
+        thread->event_id_map.resize(logi_id + 1, PALLAS_INDEX_INVALID);
+    }
+    thread->event_id_map[logi_id] = phys_id;
+
+    pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", logi_id);
+
+    auto* new_event = new (&thread->events[phys_id]) Event(logi_id, *e);
     new_event->timestamps = new TimeLV(*parameter_handler);
 #ifdef BMARK
     new_event->timestamps->set_bmark_family(BmarkFamily::EventTimestamps);
 #endif
 
     // In-place initialisation
-    thread->hashToEvent[hash].push_back(index);
+    thread->hashToEvent[hash].push_back(logi_id);
 
-    return index;
+    return logi_id;
 }
 
 std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(const Sequence& sequence, size_t offset) const {

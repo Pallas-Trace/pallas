@@ -13,6 +13,8 @@
 #include "pallas/pallas_write.h"
 
 #include <pallas/utils/pallas_log.h>
+#include "pallas/utils/pthread_barrier_wrapper.h"
+
 
 static GlobalArchive * trace = NULL;
 static Archive * archive = NULL;

@@ -105,7 +105,7 @@ int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) 
     ((end_time.tv_sec - start_time.tv_sec) * 1000000000 + (end_time.tv_nsec - start_time.tv_nsec)) / NUM_HASHED;
   printf("Counted a total of %d collisions out of %d hits = %f%%\n", count_collision, NUM_HASHED,
          (count_collision * 100.0) / NUM_HASHED);
-  printf("%lu ns/hash\n", time_per_hash);
+  printf("%" PRIu64 " ns/hash\n", time_per_hash);
 
   uint32_t max_index = 0;
   for (unsigned int index : collision_indexes) {

@@ -9,6 +9,7 @@
 #include "python_read.h"
 #include "python_analysis.h"
 #include <pybind11/cast.h>
+#include <pybind11/detail/common.h>
 #include <pybind11/numpy.h>
 
 namespace py = pybind11;
@@ -214,10 +215,12 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("starting_timestamp",
                                    [](const pallas::Thread &self) { return self.first_timestamp; })
             .def_property_readonly("finish_timestamp", [](const pallas::Thread &self) {
-                return (self.first_timestamp + self.sequences[0].durations->at(0));
+                return (self.first_timestamp + self.sequences[self.sequence_id_map[self.sequence_root]].durations->at(0));
             })
             .def_property_readonly("events", [](pallas::Thread &self) { return threadGetEvents(self); })
             .def_property_readonly("sequences", [](pallas::Thread &self) { return threadGetSequences(self); })
+            // TODO Add a getSequencesByName
+            // TODO Why do some functions use camelCase and others use snake_case ????
             .def_property_readonly("loops", [](pallas::Thread &self) { return threadGetLoops(self); })
             .def("get_events_from_record", threadGetEventsMatching)
             .def("get_events_from_record", threadGetEventsMatchingList)
@@ -229,7 +232,8 @@ PYBIND11_MODULE(_core, m) {
             .def("getSnapshotViewFast", &pallas::Thread::getSnapshotViewFast)
             .def("__iter__", [](const pallas::Thread &self) {
                 return new PyThreadIterator{
-                    new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL)
+                    new pallas::ThreadReader(self.archive, self.id, PALLAS_READ_FLAG_UNROLL_ALL),
+                    true
                 };
             })
             .def("reader", [](const pallas::Thread &self) {
@@ -238,10 +242,18 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyThreadIterator>(m, "Thread_Iterator", "An iterator over the thread.")
             .def("__next__", [](PyThreadIterator &self) {
-                bool out = self.inner->moveToNextToken();
                 pallas::Token t;
+                if (self.is_first_event) {
+                    self.is_first_event = false;
+                    t = self.inner->pollCurToken();
+                    return makePyObjectFromToken(t, *self.inner);
+                }
+                bool out = self.inner->moveToNextToken();
                 while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
                     out = self.inner->moveToNextToken();
+                    if (!out) {
+                        throw py::stop_iteration();
+                    }
                 }
                 if (out) {
                     if (!t.isValid()) {
@@ -258,6 +270,9 @@ PYBIND11_MODULE(_core, m) {
                 pallas::Token t;
                 while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
                     out = self.inner->moveToNextToken();
+                    if (!out) {
+                        throw py::stop_iteration();
+                    }
                 }
                 if (out) {
                     if (!t.isValid()) {

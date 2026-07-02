@@ -5,6 +5,7 @@
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
+#include <cstddef>
 #include "pallas/pallas_record.h"
 
 #include "pallas/utils/pallas_dbg.h"
@@ -523,6 +524,10 @@ pallas::Thread* pallas_archive_get_thread(pallas::Archive* archive, pallas::Thre
   return archive->getThread(thread_id);
 };
 
+pallas::Archive* pallas_global_archive_get_archive(pallas::GlobalArchive* archive, pallas::LocationGroupId archive_id) {
+  return archive->getArchive(archive_id);
+};
+
 const pallas::LocationGroup* pallas_archive_get_location_group(pallas::GlobalArchive* archive, pallas::LocationGroupId location_group) {
   return archive->getLocationGroup(location_group);
 };
@@ -603,19 +608,22 @@ extern void pallas_archive_define_location(pallas::Archive* archive, pallas::Thr
   archive->defineLocation(id, name, parent);
 };
 
-const pallas::String* pallas_archive_get_string(pallas::GlobalArchive* archive, pallas::StringRef string_ref) {
+const pallas::String* pallas_archive_get_string(pallas::Archive* archive, pallas::StringRef string_ref) {
   return archive->getString(string_ref);
 }
-const pallas::Region* pallas_archive_get_region(pallas::GlobalArchive* archive, pallas::RegionRef region_ref) {
+const pallas::Region* pallas_archive_get_region(pallas::Archive* archive, pallas::RegionRef region_ref) {
   return archive->getRegion(region_ref);
 }
-const pallas::Attribute* pallas_archive_get_attribute(pallas::GlobalArchive* archive, pallas::AttributeRef attribute_ref) {
+int pallas_archive_get_nb_regions(PALLAS(Archive) * archive) {
+    return archive->definitions.regions.size();
+}
+const pallas::Attribute* pallas_archive_get_attribute(pallas::Archive* archive, pallas::AttributeRef attribute_ref) {
   return archive->getAttribute(attribute_ref);
 }
-const pallas::Group* pallas_archive_get_group(pallas::GlobalArchive* archive, pallas::GroupRef group_ref) {
+const pallas::Group* pallas_archive_get_group(pallas::Archive* archive, pallas::GroupRef group_ref) {
   return archive->getGroup(group_ref);
 }
-const pallas::Comm* pallas_archive_get_communicator(pallas::GlobalArchive* archive, pallas::CommRef comm_ref) {
+const pallas::Comm* pallas_archive_get_communicator(pallas::Archive* archive, pallas::CommRef comm_ref) {
   return archive->getComm(comm_ref);
 }
 
@@ -625,6 +633,20 @@ void pallas_global_archive_add_metadata(pallas::GlobalArchive* archive, const ch
 
 void pallas_archive_add_metadata(pallas::GlobalArchive* archive, const char* key, const char * value) {
     archive->add_metadata(key, value);
+}
+
+const char *pallas_global_archive_get_metadata(pallas::GlobalArchive* archive, const char* key) {
+    if (archive->metadata.contains(key)) {
+        return archive->metadata[key].c_str();
+    }
+    return NULL;
+}
+
+const char *pallas_archive_get_metadata(pallas::Archive* archive, const char* key) {
+    if (archive->metadata.contains(key)) {
+        return archive->metadata[key].c_str();
+    }
+    return NULL;
 }
 /* -*-
   mode: c++;
