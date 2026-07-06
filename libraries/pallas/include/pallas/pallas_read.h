@@ -111,6 +111,8 @@ typedef struct Cursor {
     /** Pointer to the current CallstackFrame in callstack. */
   CallstackFrame *currentFrame;
 
+  bool read_ended;
+
     /** Callstack. */
   size_t callstack_capacity;
   CallstackFrame *callstack;
