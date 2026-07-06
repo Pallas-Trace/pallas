@@ -32,6 +32,7 @@ Cursor::Cursor() {
     callstack_capacity = DEFAULT_CALLSTACK_DEPTH;
     callstack = new CallstackFrame[callstack_capacity]();
     currentFrame = callstack;
+    read_ended = false;
 }
 
 Cursor::~Cursor() {
@@ -49,6 +50,7 @@ Cursor::Cursor(const Cursor& other) {
         callstack[i].current_timestamp = other.callstack[i].current_timestamp;
     }
     currentFrame = &callstack[current_frame_index];
+    read_ended = other.read_ended;
 }
 Cursor& Cursor::operator=(const Cursor& other) {
     current_frame_index = other.current_frame_index;
@@ -61,6 +63,7 @@ Cursor& Cursor::operator=(const Cursor& other) {
         callstack[i].current_timestamp = other.callstack[i].current_timestamp;
     }
     currentFrame = &callstack[current_frame_index];
+    read_ended = other.read_ended;
     return *this;
 }
 
@@ -197,7 +200,7 @@ bool ThreadReader::isEndOfCurrentBlock() const {
     return isEndOfBlock(current_index, current_iterable_token);
 }
 bool ThreadReader::isEndOfTrace() const {
-    return currentState.current_frame_index == 0 && isEndOfCurrentBlock();
+    return currentState.read_ended;
 }
 
 pallas_duration_t ThreadReader::getLoopDuration(Token loop_id) const {
@@ -554,6 +557,8 @@ Token ThreadReader::getNextToken(int flags) {
         flags = pallas_read_flag;
     if (!moveToNextToken(flags))
         return Token();
+    if (isEndOfTrace())
+        return Token();
     return pollCurToken();
 }
 Token ThreadReader::getPrevToken(int flags) {
@@ -614,6 +619,10 @@ void ThreadReader::leaveBlock() {
 
     if (debugLevel >= DebugLevel::Debug && currentState.current_frame_index >= 0) {
         pallas_assert(getCurIterable().isIterable());
+    }
+
+    if (currentState.current_frame_index == 0) {
+        currentState.read_ended = true;
     }
 }
 
