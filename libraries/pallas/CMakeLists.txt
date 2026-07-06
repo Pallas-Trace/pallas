@@ -33,7 +33,7 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
         include/pallas/utils/pallas_pla.h
-        include/pallas/utils/pallas_lv.h
+        include/pallas/utils/pallas_linked_vector.h
         include/pallas/utils/pallas_serialisation.h
         include/pallas/utils/pallas_subarray.h
         include/pallas/utils/pallas_storage.h
@@ -50,7 +50,7 @@ target_sources(pallas
         src/pallas_dbg.cpp
         src/pallas_hash.cpp
         src/pallas_pla.cpp
-        src/pallas_lv.cpp
+        src/pallas_linked_vector.cpp
         src/pallas_read.cpp
         src/pallas_storage.cpp
         src/pallas_subarray.cpp

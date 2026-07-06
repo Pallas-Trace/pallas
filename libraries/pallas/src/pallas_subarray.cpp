@@ -16,7 +16,7 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
-#include "pallas/utils/pallas_lv.h"
+#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_subarray.h"
 

@@ -35,7 +35,7 @@
 #include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas/utils/pallas_serialisation.h"
 #include "pallas/utils/pallas_storage.h"
-#include "pallas/utils/pallas_lv.h"
+#include "pallas/utils/pallas_linked_vector.h"
 
 short STORE_TIMESTAMPS = 1;
 static short STORE_HASHING = 0;
@@ -1160,7 +1160,7 @@ static void storeEvent(pallas::Event& event,
                                     const File& durationFile,
                                     const pallas::ParameterHandler* parameter_handler,
                                     bool load_thread) {
-    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size);
+    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
 
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
         pallas::EventData dummy{};
@@ -1254,7 +1254,7 @@ static void storeSequence(pallas::Sequence& sequence,
                                 const pallas::ParameterHandler* parameter_handler,
                                 bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
-               sequence.id.id, sequence.size(), sequence.durations->size);
+               sequence.id.id, sequence.size(), sequence.durations->size());
 
     if (sequence.id.type == pallas::TypeInvalid) {
         sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);

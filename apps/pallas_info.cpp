@@ -104,7 +104,7 @@ void info_event(Thread* t, int index) {
   std::cout << std::left << "E" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << t->getEventString(&e->data);
   if (e->timestamps) {
-    std::cout << std::setw(20) << std::right << e->timestamps->size;
+    std::cout << std::setw(20) << std::right << e->timestamps->size();
   }
   std::cout << std::endl;
 }
@@ -144,12 +144,14 @@ void info_sequence(Thread* t, int index, bool details = false) {
     std::cout << std::endl;
     return;
   }
-  std::cout << std::setw(18) << std::right << s.durations->size;
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->min == UINT64_MAX ? 0 : s.durations->min);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->max == UINT64_MAX ? 0 : s.durations->max);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean * s.durations->size);
-  std::cout << std::setw(18) << std::right << ns2s(s.exclusive_durations->mean == UINT64_MAX ? 0 : s.exclusive_durations->mean * s.exclusive_durations->size);
+  std::cout << std::setw(18) << std::right << s.durations->size();
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->min_value() == UINT64_MAX ? 0 : s.durations->min_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->max_value() == UINT64_MAX ? 0 : s.durations->max_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value() * s.durations->size());
+  std::cout << std::setw(18) << std::right
+            << ns2s(s.exclusive_durations->mean_value() == UINT64_MAX ? 0
+                                                                       : s.exclusive_durations->mean_value() * s.exclusive_durations->size());
   std::cout << std::setw(18) << std::right << s.size();
 
   std::cout << std::setw(18) << std::right << contention_score(t, s);
@@ -302,13 +304,16 @@ void info_global_archive(GlobalArchive* archive) {
     printf("\t# Archives: %d\n", archive->nb_archives);
   }
 
+  const auto* parameter_handler = archive->parameter_handler;
   std::cout << "\nConfiguration:\n"
-            << "\tCompression Algorithm: " << toString(archive->parameter_handler->compressionAlgorithm) << "\n"
-            << "\tEncoding algorithm: " << toString(archive->parameter_handler->encodingAlgorithm) << "\n"
-            << "\tLoop-finding algorithm: " << toString(archive->parameter_handler->loopFindingAlgorithm) << "\n"
-            << "\tMax loop length: " << archive->parameter_handler->maxLoopLength << "\n"
-            << "\tZSTD compression level: " << archive->parameter_handler->zstdCompressionLevel << "\n"
-            << "\tTimestamp storage: " << toString(archive->parameter_handler->timestampStorage) << "\n";
+            << "\tCompression Algorithm: " << toString(parameter_handler->getCompressionAlgorithm()) << "\n"
+            << "\tEncoding algorithm: " << toString(parameter_handler->getEncodingAlgorithm()) << "\n"
+            << "\tLoop-finding algorithm: " << toString(parameter_handler->getLoopFindingAlgorithm()) << "\n";
+  if (parameter_handler->getLoopFindingAlgorithm() == LoopFindingAlgorithm::BasicTruncated) {
+    std::cout << "\tMax loop length: " << parameter_handler->getMaxLoopLength() << "\n";
+  }
+  std::cout << "\tZSTD compression level: " << static_cast<unsigned>(parameter_handler->getZstdCompressionLevel()) << "\n"
+            << "\tTimestamp storage: " << toString(parameter_handler->getTimestampStorage()) << "\n";
 
   if (cmd & show_definitions) {
     info_definitions(archive->definitions);
