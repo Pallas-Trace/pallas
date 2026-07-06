@@ -1,76 +1,296 @@
-# Overview
+# Linked Vectors
 
-## Motivation
+## Purpose
 
-This page explains the idea behind linked vectors in Pallas.
+Linked vectors are the runtime containers used for long metric streams in Pallas.
 
-The goal here is to first describe what a linked vector is at a conceptual level,
-Why Pallas uses it, how it is implemented and what problems it is meant to solve.
+- event timestamps
+- sequence timestamps
+- inclusive durations
+- exclusive durations
 
+Construction happens in `pallas_write.cpp:104`, `pallas_write.cpp:759`, and
+`pallas_write.cpp:830`.
 
-## What Is A Linked Vector?
+## Mental Model
 
-A linked vector is the internal container used by Pallas to store long streams of
-performance values associated with a grammatical token such as timestamps and durations.
+```terminal
+Logical view seen by callers
+  value[0] value[1] value[2] value[3] value[4] ...
 
-It should be presented as a structure that behaves like a logical vector from the
-outside, while internally organizing values in smaller pieces instead of treating
-the whole stream as one single flat block. This separation is useful because the
-internal implementation can then be optimized for storage cost, memory usage,
-loading behavior, and access time without changing the logical interface.
-
-```text
-Logical view:
-  [ v0 | v1 | v2 | v3 | v4 | v5 | v6 | v7 | ... ]
-
-High Level Physical view:
-  [ v0 | v1 | v2 ] <-> [ v3 | v4 ] <-> [ v5 | v6 | v7 ] <-> ...
+Physical view used internally
+  +-----------+    +-----------+    +-----------+
+  | SubArray0 | -> | SubArray1 | -> | SubArray2 | -> ...
+  +-----------+    +-----------+    +-----------+
+     0..511           512..1023        1024..1535
 ```
 
-This section should explain the main intuition before discussing any detailed
-storage or runtime mechanisms.
+The public contract stays vector-like:
 
-## Why Does Pallas Need It?
+- `add(value)` appends one logical value
+- `at(i)` reads one logical value with bounds checks
+- `operator[](i)` reads one logical value on the fast path
 
-Pallas needs linked vectors because performance data does not behave like small,
-fixed-size metadata.
+The storage layout behind that contract is free to change.
 
-- traces can contain very large value streams, so a single flat allocation quickly becomes awkward to grow and manage
-- values are mostly appended during writing, so the container should make tail growth cheap and predictable
-- values are often accessed by position during reading, so the logical interface should still feel like a vector
-- memory usage matters, so old chunks should be easier to compress, unload, and reload than one giant contiguous block
-- file-backed storage matters, so the in-memory layout should cooperate with incremental writing and on-demand reads
+## Why This Exists
 
-# Linked Vector Internals
+Pallas does not want one giant flat array per metric stream.
 
-- High-level purpose of linked vectors in Pallas
-- Why Pallas does not store these value streams as one flat contiguous vector
-- Logical view versus physical view
-- Core responsibilities of `LVBase`
-- Specialized roles of `TimeLV` and `DurationLV`
-- Append-oriented growth and the runtime write path
-- What a `SubArray` represents
-- The metadata carried by a `SubArray`
-- Logical indices versus physical storage layout
-- How subarrays are linked together
-- Why the vector also keeps an auxiliary lookup structure
-- High-level indexed lookup path
-- The role of the recent-subarray cache
+- writes are append-heavy
+- traces can contain millions of values
+- older chunks may be written out and reloaded later
+- different chunks may use different internal encodings
+- reads still need index-based access
+
+## Main Types
+
+```terminal
+LVBase
+├── TimeLV
+└── DurationLV
+
+SubArrayBase
+├── TimeSubArray
+└── DurationSubArray
+```
+
+`LVBase` is declared in `pallas_linked_vector.h:106`.
+`SubArrayBase` is declared in `pallas_subarray.h:308`.
+
+---
+
+## Logical And Physical View
+
+### Logical
+
+The rest of the runtime sees one ordered stream.
+
+```terminal
+timestamps = [ t0 t1 t2 t3 t4 ... ]
+durations  = [ d0 d1 d2 d3 d4 ... ]
+```
+
+### Physical
+
+The implementation stores that stream in pieces.
+
+```terminal
+LVBase
+  first -------------------------------> last
+    |                                     |
+    v                                     v
+  [Sub0] <-> [Sub1] <-> [Sub2] <-> ... <-> [SubN]
+```
+
+Each piece is a `SubArrayBase`-derived object.
+
+### Why The Split Matters
+
+- append can stay local to the tail subarray
+- old subarrays can be unloaded without deleting the structure
+- read path can locate one chunk, then decode locally
+- codec-specific logic stays below the vector interface
+
+## Core Responsibilities of `LVBase`
+
+`LVBase` is the common container API used by `TimeLV` and `DurationLV`.
+
+- owns `first`, `last`, `value_count`, and `subarray_index`
+- serves `add()`, `at()`, `operator[]`, `front()`, and `back()`
+- tracks loaded subarrays and recent-access helpers
+- owns `hbuffer` in `pallas_linked_vector.h:125` for codec scratch space
+- writes the common linked-vector header in `pallas_storage.cpp:830`
+
+In the write path, `ThreadWriter::getOrCreateSequenceFromArray()` in
+`pallas_write.cpp:104` creates:
+
+- `TimeLV` for `sequence.timestamps`
+- `DurationLV` for `sequence.durations`
+- `DurationLV` for `sequence.exclusive_durations`
+
+## Specialized Roles of `TimeLV` and `DurationLV`
+
+Both inherit `LVBase`, but they fix different value domains.
+
+- `TimeLV` sets `ValueDomain::Timestamp` in `pallas_linked_vector.cpp:380`
+- `DurationLV` sets `ValueDomain::Duration` in `pallas_linked_vector.cpp:543`
+
+That domain choice drives subarray type, manager choice, and codec behavior.
+
+### `TimeLV`
+
+- used for timestamp streams
+- creates `TimeSubArray`
+- exposes timestamp helpers such as `getWeights()` and `getFirstOccurrenceBefore()`
+- relies mainly on common vector metadata plus timestamp subarray headers
+
+### `DurationLV`
+
+- used for duration streams
+- creates `DurationSubArray`
+- keeps linked-vector stats: `min_duration`, `max_duration`, `mean_duration`
+- writes extra duration metadata in `pallas_storage.cpp:984`
+
+### Common + Specialized Headers
+
+```terminal
+LVBase header
+  value_count
+  subarray_total
+  storage_policy
+
+then
+
+TimeLV
+  no extra vector-level fields
+
+DurationLV
+  min_duration
+  max_duration
+  mean_duration
+```
+
+Reconstruction follows the same split in `pallas_storage.cpp:910` and
+`pallas_storage.cpp:1020`.
+
+## Auxiliary Lookup Structures
+
+Indexed reads should not linearly walk the full subarray chain on every access.
+
+- `subarray_index` in `pallas_linked_vector.h:120` stores subarray pointers in
+  logical order so `LVBase::find_subarray()` can use binary search as the main
+  lookup path.
+- `recent_subarrays` in `pallas_linked_vector.h:119` is a tiny hot cache for
+  recently used chunks, which helps when analysis code performs repeated local or
+  sequential accesses.
+- `recent_values` in `pallas_linked_vector.h:118` is a small ring buffer for very
+  recent logical values, avoiding repeated decode work on immediate re-reads.
+
+```terminal
+read(i)
+  -> recent value ring buffer?
+  -> recent subarray cache?
+  -> binary search in subarray_index?
+  -> decode inside one subarray
+```
+
+These structures exist to make read-heavy analysis faster, especially when access
+patterns are local, sequential, or otherwise likely to punish naive pointer chasing.
+
+---
+
+## What a `SubArray` Represents
+
+A `SubArray` is one physical chunk of one logical stream.
+
+- it is not a separate vector
+- it covers a bounded logical range
+- it is the unit of storage, loading, and eviction
+- it is also the unit that owns one active manager
+
+```terminal
+Linked vector:
+  [ logical stream ......................................... ]
+
+Broken into chunks:
+  [Sub0] [Sub1] [Sub2] [Sub3] ...
+```
+
+## The Metadata Carried by a `SubArray`
+
+Important `SubArrayBase` metadata lives in `pallas_subarray.h:311`.
+
+### Position
+
+- `first_index`: where this chunk starts in the logical stream
+- `value_count`: how many logical values it currently covers
+
+### Storage
+
+- `physical_size`: current in-memory payload size
+- `file_offset`: where the persisted payload lives in the data file
+- `subarray_phase`: runtime-write vs file-backed state
+
+### Policy
+
+- `storage_policy`: `None`, `Delta`, or generic `Lossy`
+- `lossy_storage_policy`: resolved lossy variant
+- `manager`: object that performs encode/decode logic
+
+### Links
+
+- `next` / `prev`: chain neighboring subarrays
+- `parent_lv`: points back to the owning `LVBase`
+
+### Domain-Specific Examples
+
+- `TimeSubArray` adds `first_timestamp` and `last_timestamp`
+- `DurationSubArray` adds `min_duration`, `max_duration`, and `mean_duration`
+
+---
+
+## What a Manager Is Conceptually
+
+The base `Manager` class in `pallas_subarray.h:95` is the object that actually
+decides how a subarray behaves.
+
+```terminal
+LVBase
+  -> SubArrayBase
+       - logical range
+       - buffer
+       - file offset
+       - links
+       - policy tags
+       -> Manager
+            - add()
+            - at()
+            - write_data()
+            - load_data()
+```
+
+From a design point of view, `SubArrayBase` is mostly a shell that owns placement
+metadata and one buffer, while the `Manager` controls what happens to that data.
+
+- `SubArrayBase` forwards append, indexed reads, serialization, and reload work
+- `Manager` implements the storage-policy-specific logic behind that contract
+- this is what allows `None`, `Delta`, `PLA`, and `DurationSpike` to share one
+  common subarray shape while changing encoding and decoding behavior underneath
+
+In short, subarrays own the data region; managers decide how that region is filled,
+interpreted, persisted, and reconstructed.
+
 - When and why a new subarray is created
-- What a manager is conceptually
+
 - Why manager logic is separated from vector logic
+
 - Manager families: `None`, `Delta`, `PLA`, and `DurationSpike`
+
 - How manager selection depends on value domain and storage policy
+
 - Generic lossy policy versus domain-specific codec resolution
+
 - Differences between timestamp storage and duration storage
+
 - How duration statistics are maintained and exposed
+
 - How subarray payloads are written to disk
+
 - What belongs in metadata headers versus data files
+
 - On-demand loading of subarray payloads
+
 - Eviction and freeing of loaded payloads
+
 - Why subarray structure remains alive even after payload unloading
+
 - Interaction between linked vectors and archive or thread storage code
+
 - Runtime policy changes and policy application
+
 - Hot-loop promotion in the write path
+
 - Benchmarking hooks around vector and subarray operations
+
 - Known limitations and non-goals of the current design
