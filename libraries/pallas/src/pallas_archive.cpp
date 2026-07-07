@@ -289,35 +289,45 @@ Archive* GlobalArchive::getArchiveFromLocation(ThreadId location_id) const {
   return nullptr;
 }
 
-void GlobalArchive::addString(StringRef string_ref, const char* string) {
+StringRef GlobalArchive::addString(StringRef string_ref, const char* string) {
   pthread_mutex_lock(&lock);
+  for (; definitions.getString(string_ref) == nullptr; string_ref++) {}
   definitions.addString(string_ref, string);
   pthread_mutex_unlock(&lock);
+  return string_ref;
 }
 
-void GlobalArchive::addRegion(RegionRef region_ref, StringRef name_ref) {
+RegionRef GlobalArchive::addRegion(RegionRef region_ref, StringRef name_ref) {
   pthread_mutex_lock(&lock);
+  for (; definitions.getString(region_ref) == nullptr; region_ref++) {}
   definitions.addRegion(region_ref, name_ref);
   pthread_mutex_unlock(&lock);
+  return region_ref;
 }
 
-void GlobalArchive::addAttribute(AttributeRef attribute_ref, StringRef name_ref, StringRef description_ref, pallas_type_t type) {
+AttributeRef GlobalArchive::addAttribute(AttributeRef attribute_ref, StringRef name_ref, StringRef description_ref, pallas_type_t type) {
   pthread_mutex_lock(&lock);
+  for (; definitions.getString(attribute_ref) == nullptr; attribute_ref++) {}
   definitions.addAttribute(attribute_ref, name_ref, description_ref, type);
   pthread_mutex_unlock(&lock);
+  return attribute_ref;
 }
 
-void GlobalArchive::addGroup(GroupRef group_ref, StringRef name, GroupType group_type, Paradigm
+GroupRef GlobalArchive::addGroup(GroupRef group_ref, StringRef name, GroupType group_type, Paradigm
                              paradigm, uint32_t number_of_members, const uint64_t* members) {
   pthread_mutex_lock(&lock);
+  for (; definitions.getString(group_ref) == nullptr; group_ref++) {}
   definitions.addGroup(group_ref, name, group_type, paradigm, number_of_members, members);
   pthread_mutex_unlock(&lock);
+  return group_ref;
 }
 
-void GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, CommRef parent) {
+CommRef GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, CommRef parent) {
   pthread_mutex_lock(&lock);
+  for (; definitions.getString(comm_ref) == nullptr; comm_ref++) {}
   definitions.addComm(comm_ref, name, group, parent);
   pthread_mutex_unlock(&lock);
+  return comm_ref;
 }
 
 GlobalArchive::~GlobalArchive() {

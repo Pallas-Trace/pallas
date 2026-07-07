@@ -177,35 +177,35 @@ typedef struct GlobalArchive {
      * Error if the given pallas::StringRef is already in use.
      * Locks and unlocks the mutex for that operation.
      */
-    void addString(StringRef, const char*);
+    StringRef addString(StringRef, const char*);
 
     /**
      * Creates a new Region and adds it to that GlobalArchive.
      * Error if the given pallas::RegionRef is already in use.
      * Locks and unlocks the mutex for that operation.
      */
-    void addRegion(RegionRef, StringRef);
+    RegionRef addRegion(RegionRef, StringRef);
 
     /**
      * Creates a new Attribute and adds it to that GlobalArchive.
      * Error if the given pallas::AttributeRef is already in use.
      * Locks and unlocks the mutex for that operation.
      */
-    void addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
+    AttributeRef addAttribute(AttributeRef, StringRef, StringRef, pallas_type_t);
 
     /**
      * Creates a new Group and adds it to that GlobalArchive.
      * Error if the given pallas::GroupRef is already in use.
      * Locks and unlocks the mutex for that operation.
      */
-    void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
+    GroupRef addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
 
     /**
      * Creates a new Comm and adds it to that GlobalArchive.
      * Error if the given pallas::CommRef is already in use.
      * Locks and unlocks the mutex for that operation.
      */
-    void addComm(CommRef, StringRef, GroupRef, CommRef);
+    CommRef addComm(CommRef, StringRef, GroupRef, CommRef);
 
     /**
      * Create a GlobalArchive. Does not read or write anything in the given .
