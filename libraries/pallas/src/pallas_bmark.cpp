@@ -24,8 +24,11 @@ namespace {
 
 using BenchmarkClock = std::chrono::steady_clock;
 
+/** Thread-local benchmark counters updated directly by the current writer or reader thread. */
 thread_local BmarkThreadStats g_bmark_thread_stats{};
+/** Global mutex protecting archive-level benchmark aggregation shared across threads. */
 std::mutex g_bmark_mutex;
+/** Archive-keyed aggregate used to merge thread-local benchmark counters at archive scope. */
 std::unordered_map<const Archive*, BmarkThreadStats> g_bmark_archive_stats;
 
 uint64_t now_ns() {
