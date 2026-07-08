@@ -81,12 +81,37 @@ void record_subarray_error_metrics(BmarkFamily family,
 
 }  // namespace
 
+/**
+ * @brief Pack the SubArray storage-policy header into one persisted byte.
+ *
+ * On disk the policy byte is laid out as:
+ * @code
+ *   bit index:  7 6 5 4 3 2 1 0
+ *               +-----------+---+
+ *               | lossy id  |sp |
+ *               +-----------+---+
+ *
+ *   sp bits:
+ *     00 -> StoragePolicy::None
+ *     01 -> StoragePolicy::Delta
+ *     10 -> StoragePolicy::Lossy
+ *
+ *   lossy id bits:
+ *     valid only when `sp == StoragePolicy::Lossy`
+ *     stores the `LossyPolicy` enum value in the upper 6 bits
+ * @endcode
+ *
+ * This keeps the common SubArray header compact while still preserving both
+ * the coarse storage family and the concrete lossy variant needed to rebuild
+ * the right manager during analysis-time reconstruction.
+ */
 uint8_t SubArrayBase::pack_subarray_flags() const {
     const auto storage_bits = static_cast<uint8_t>(storage_policy) & kStoragePolicyMask;
     const auto lossy_bits = static_cast<uint8_t>(lossy_storage_policy) << 2;
     return static_cast<uint8_t>(storage_bits | lossy_bits);
 }
 
+/** @brief Decode the packed one-byte storage-policy header produced by `pack_subarray_flags()`. */
 void SubArrayBase::unpack_subarray_flags(uint8_t encoded_policy) {
     const auto storage_bits = static_cast<uint8_t>(encoded_policy & kStoragePolicyMask);
     if (storage_bits <= static_cast<uint8_t>(StoragePolicy::Lossy)) {
@@ -1529,12 +1554,12 @@ SubArrayBase::SubArrayBase(ValueDomain domain,
                            const ParameterHandler* parameter_handler,
                            LVBase* parent)
     : prev(previous),
+      manager(nullptr),
+      parent_lv(parent),
       value_domain(domain),
       storage_policy(policy),
       lossy_storage_policy(resolve_lossy_policy(domain, policy, parameter_handler)),
-      subarray_phase(SubArrayPhase::RuntimeWrite),
-      manager(nullptr),
-      parent_lv(parent) {
+      subarray_phase(SubArrayPhase::RuntimeWrite) {
     manager = make_manager(*this, domain, policy, lossy_storage_policy);
     buffer = new uint64_t[manager->_capacity()];
     manager->on_subarray_initialized();
