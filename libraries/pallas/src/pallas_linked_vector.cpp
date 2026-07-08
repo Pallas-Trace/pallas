@@ -68,7 +68,19 @@ void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
 LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
     : parameter_handler(p), value_domain(domain), storage_policy(_policy) {}
 
-LVBase::~LVBase() { 
+/*
+ * NOTE:
+ * I intentionally make teardown faster by letting LVBase directly free the
+ * loaded SubArray payloads it owns, instead of asking
+ * ParameterHandler::subvector_queue to search for and erase those references
+ * one by one. This relies on the current lifecycle assumption that LVBase
+ * teardown only happens at the end, after analysis is done, so queue entries
+ * referring to those subarrays may temporarily dangle until the queue itself is
+ * destroyed shortly afterwards. If the API later grows a need for mid-lifetime
+ * LV cleanup, we should reintroduce a separate destruction path that uses the
+ * older queue-synchronized logic.
+ */
+LVBase::~LVBase() {
     free_data();
     auto* current = first;
     while (current != nullptr) {
