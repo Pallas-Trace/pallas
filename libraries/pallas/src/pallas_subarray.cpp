@@ -271,6 +271,20 @@ AddStatus DeltaManager::add(uint64_t val) {
     return is_time_domain() ? add_time(val) : add_duration(val);
 }
 
+/**
+ * @brief Append one timestamp into the packed delta payload.
+ *
+ * The timestamp codec uses a small prefix-style scheme:
+ * @code
+ *   logical value 0 : store absolute timestamp as varint
+ *   logical value 1 : store first delta          as varint
+ *   logical value 2+: store delta-of-delta       as zigzag(varint)
+ * @endcode
+ *
+ * Each encoded item is first staged in a local `packet[10]` buffer, which is large enough for the worst-case 64-bit 
+ * varint, and then copied into the SubArray payload if capacity still permits. Periodic checkpoints record the
+ * reconstructed logical value plus the decoder state needed to resume random access without replaying the whole prefix.
+ */
 AddStatus DeltaManager::add_time(uint64_t val) {
     auto& time_subarray = static_cast<TimeSubArray&>(parent);
     if (cap_bytes == 0) {
@@ -328,6 +342,7 @@ AddStatus DeltaManager::add_time(uint64_t val) {
     return AddStatus::Ok;
 }
 
+/** @brief Signed-duration variant of `add_time()`, using zigzag-coded signed deltas. */
 AddStatus DeltaManager::add_duration(uint64_t val) {
     if (cap_bytes == 0) {
         cap_bytes = parent.capacity() * sizeof(uint64_t);
@@ -405,6 +420,13 @@ uint64_t DeltaManager::at(size_t pos) const {
     return is_time_domain() ? at_time(pos) : at_duration(pos);
 }
 
+/**
+ * @brief Decode one timestamp value from the packed delta payload.
+ *
+ * Random access does not restart from the beginning of the SubArray unless it has to. The decoder
+ * first finds the nearest checkpoint whose logical index is at or before the target, restores the 
+ * saved value and previous-delta state, then replays only the remaining suffix packets up to `target_index`.
+ */
 uint64_t DeltaManager::at_time(size_t pos) const {
     const size_t target_index = parent.local_index(pos);
     const uint8_t* begin = payload;
@@ -456,6 +478,7 @@ uint64_t DeltaManager::at_time(size_t pos) const {
     return current_value;
 }
 
+/** @brief Signed-duration variant of `at_time()`, replaying the signed delta stream from the nearest checkpoint. */
 uint64_t DeltaManager::at_duration(size_t pos) const {
     const size_t target_index = parent.local_index(pos);
     const uint8_t* begin = payload;
@@ -788,6 +811,21 @@ void PLAManager::clear_state() {
     stats = GammaBlockStats{};
 }
 
+/**
+ * @brief Pack the compact PLA anchor representation back into the SubArray buffer.
+ *
+ * The packed layout is:
+ * @code
+ *   [anchor_count]
+ *   [anchor values...]
+ *   [anchor dprev values...]
+ *   [10-bit packed anchor indices...]
+ * @endcode
+ *
+ * The 10-bit index packing is the non-obvious part here: anchor positions are
+ * dense enough to fit in 10 bits for one PLA block, so `pack_10bit_indices()`
+ * reduces the metadata footprint without changing reconstruction semantics.
+ */
 void PLAManager::write_packed_payload() {
     const size_t payload_bytes = pla_payload_bytes(anchor_count);
     const size_t payload_words = (payload_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
@@ -831,6 +869,14 @@ void PLAManager::load_packed_payload() {
     compact_ready = true;
 }
 
+/**
+ * @brief Perform the delayed PLA compaction step for one full timestamp block.
+ *
+ * This manager is only pseudo-online: `add()` stores raw values until the SubArray-sized block is available, then
+ * this routine selects anchors and rewrites the raw block into the compact PLA form. Small blocks fall back to a
+ * simple all-interior-anchor path, while larger blocks use the specialised PLA-4 or gamma-anchor builders 
+ * before serialising the compact payload.
+ */
 void PLAManager::finalize_block() {
     if (compact_ready) {
         return;
@@ -1144,6 +1190,20 @@ size_t DurationSpikeManager::packed_payload_bytes() const {
     return payload_bytes;
 }
 
+/**
+ * @brief Pack the duration baseline-and-spikes model into the SubArray buffer.
+ *
+ * The compact layout is:
+ * @code
+ *   [baseline_mean][baseline_stddev][exact_count][group_count]
+ *   [exact spike entries: (idx, value)...]
+ *   [group entries: value, count, delta-coded indices...]
+ * @endcode
+ *
+ * Group member indices are stored as varint-coded deltas inside each group so
+ * that repeated spike locations cost much less than storing every logical value
+ * exactly.
+ */
 void DurationSpikeManager::write_packed_payload() {
     const size_t payload_bytes = packed_payload_bytes();
     const size_t payload_words = (payload_bytes + sizeof(uint64_t) - 1) / sizeof(uint64_t);
@@ -1259,6 +1319,22 @@ uint64_t DurationSpikeManager::reconstructed_value(size_t logical_index) const {
     return static_cast<uint64_t>(std::max(0.0, std::round(sampled)));
 }
 
+/**
+ * @brief Fit the lossy duration model for one full SubArray block.
+ *
+ * The fitting pipeline is staged on purpose:
+ * @code
+ *   1. estimate a robust baseline from the median
+ *   2. mark strong positive residuals as spike candidates
+ *   3. keep the strongest candidates exactly
+ *   4. cluster similar remaining spikes into grouped buckets
+ *   5. fit a clipped baseline mean/stddev on the non-spike remainder
+ *   6. emit the compact payload and, under BMARK, compare reconstruction error
+ * @endcode
+ *
+ * This is the main post-processing step that turns the pseudo-online raw block
+ * into the compact baseline-plus-exceptions representation used at read time.
+ */
 void DurationSpikeManager::finalize_block() {
     // Stage 0: Reset any prior decoded state and handle the empty-block case.
     clear_state();

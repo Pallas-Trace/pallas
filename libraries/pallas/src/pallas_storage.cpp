@@ -757,11 +757,11 @@ uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHan
 // Reconstruct the common subarray shell from the linked-vector info stream.
 pallas::SubArrayBase::SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous)
     : prev(previous),
+      manager(nullptr),
+      buffer(nullptr),
       value_domain(domain),
       lossy_storage_policy((domain == ValueDomain::Timestamp) ? DEFAULT_LOSSY_TIME : DEFAULT_LOSSY_DURATION),
-      subarray_phase(SubArrayPhase::AnalysisRead),
-      manager(nullptr),
-      buffer(nullptr) {
+      subarray_phase(SubArrayPhase::AnalysisRead) {
     read_common_header(info_file);
 
     if (prev != nullptr) {
@@ -811,9 +811,9 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
 pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, ParameterHandler& p,
                        ValueDomain domain, StoragePolicy _policy, uint8_t abi_version)
     : parameter_handler(p),
+      file_path(value_file_path),
       value_domain(domain),
-      storage_policy(_policy),
-      file_path(value_file_path) {
+      storage_policy(_policy) {
     _pallas_fread(&value_count, sizeof(value_count), 1, vector_file);
 
     if (abi_version >= 18) {
