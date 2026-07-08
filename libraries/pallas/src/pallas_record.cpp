@@ -67,8 +67,8 @@ void pallas_record_singleton(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, record);
     push_data(&e, arg_array, args_n_bytes);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -85,9 +85,9 @@ void pallas_record_enter(ThreadWriter *thread_writer,
 
     push_data(&e, &region_ref, sizeof(region_ref));
 
-    TokenId e_id = thread_writer->getEventId(&e);
+    TokenId e_id = thread_writer->get_event_id(&e);
 
-    thread_writer->storeEvent(PALLAS_BLOCK_START, e_id, time, attribute_list);
+    thread_writer->store_event(PALLAS_BLOCK_START, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -112,8 +112,8 @@ void pallas_record_leave(ThreadWriter *thread_writer,
 
     push_data(&e, &region_ref, sizeof(region_ref));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_END, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -136,8 +136,8 @@ void pallas_record_thread_begin(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_BEGIN);
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_START, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_START, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -157,8 +157,8 @@ void pallas_record_thread_end(ThreadWriter *thread_writer,
 
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_END);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_END, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -178,8 +178,8 @@ void pallas_record_thread_team_begin(ThreadWriter *thread_writer,
 
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_TEAM_BEGIN);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_START, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_START, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -199,8 +199,8 @@ void pallas_record_thread_team_end(ThreadWriter *thread_writer,
 
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_TEAM_END);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_END, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -221,8 +221,8 @@ void pallas_record_thread_fork(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_FORK);
     push_data(&e, &numberOfRequestedThreads, sizeof(numberOfRequestedThreads));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_START, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_START, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -242,8 +242,8 @@ void pallas_record_thread_join(ThreadWriter *thread_writer,
                                pallas_timestamp_t time) {
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_JOIN);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_END, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -272,8 +272,8 @@ void pallas_record_mpi_send(ThreadWriter *thread_writer,
     push_data(&e, &msgTag, sizeof(msgTag));
     push_data(&e, &msgLength, sizeof(msgLength));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -314,8 +314,8 @@ void pallas_record_mpi_isend(ThreadWriter *thread_writer,
     push_data(&e, &msgLength, sizeof(msgLength));
     push_data(&e, &requestID, sizeof(requestID));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -352,8 +352,8 @@ void pallas_record_mpi_isend_complete(ThreadWriter *thread_writer,
 
     push_data(&e, &requestID, sizeof(requestID));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -381,8 +381,8 @@ void pallas_record_mpi_irecv_request(ThreadWriter *thread_writer,
 
     push_data(&e, &requestID, sizeof(requestID));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -416,8 +416,8 @@ void pallas_record_mpi_recv(ThreadWriter *thread_writer,
     push_data(&e, &msgTag, sizeof(msgTag));
     push_data(&e, &msgLength, sizeof(msgLength));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -458,8 +458,8 @@ void pallas_record_mpi_irecv(ThreadWriter *thread_writer,
     push_data(&e, &msgLength, sizeof(msgLength));
     push_data(&e, &requestID, sizeof(requestID));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -492,8 +492,8 @@ void pallas_record_mpi_collective_begin(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_MPI_COLLECTIVE_BEGIN);
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -526,8 +526,8 @@ void pallas_record_mpi_collective_end(ThreadWriter *thread_writer,
     push_data(&e, &sizeSent, sizeof(sizeSent));
     push_data(&e, &sizeReceived, sizeof(sizeReceived));
 
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -560,8 +560,8 @@ void pallas_record_omp_fork(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_FORK);
     push_data(&e, &numberOfRequestedThreads, sizeof(numberOfRequestedThreads));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_START, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_START, e_id, time, attribute_list);
 
     pallas_recursion_shield--;
 }
@@ -586,8 +586,8 @@ void pallas_record_omp_join(ThreadWriter *thread_writer,
     pallas_recursion_shield++;
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_JOIN);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_BLOCK_END, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -609,8 +609,8 @@ void pallas_record_omp_acquire_lock(ThreadWriter *thread_writer,
     init_event(&e, PALLAS_EVENT_OMP_ACQUIRE_LOCK);
     push_data(&e, &lockID, sizeof(lockID));
     //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -637,10 +637,10 @@ void pallas_record_thread_acquire_lock(ThreadWriter *thread_writer,
     init_event(&e, PALLAS_EVENT_THREAD_ACQUIRE_LOCK);
     push_data(&e, &lockID, sizeof(lockID));
     //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
-    TokenId e_id = thread_writer->getEventId(&e);
+    TokenId e_id = thread_writer->get_event_id(&e);
     // TODO We are currently discarding the "OTF2 PARADIGM" argument from OTF2
     //      And I'm not sure this is a good idea.
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -668,8 +668,8 @@ void pallas_record_thread_release_lock(ThreadWriter *thread_writer,
     init_event(&e, PALLAS_EVENT_THREAD_RELEASE_LOCK);
     push_data(&e, &lockID, sizeof(lockID));
     //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -697,8 +697,8 @@ void pallas_record_omp_release_lock(ThreadWriter *thread_writer,
     init_event(&e, PALLAS_EVENT_OMP_RELEASE_LOCK);
     push_data(&e, &lockID, sizeof(lockID));
     //push_data(&e, &acquisitionOrder, sizeof(acquisitionOrder));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -724,8 +724,8 @@ void pallas_record_omp_task_create(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_TASK_CREATE);
     push_data(&e, &taskID, sizeof(taskID));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -748,8 +748,8 @@ void pallas_record_omp_task_switch(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_TASK_SWITCH);
     push_data(&e, &taskID, sizeof(taskID));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -772,8 +772,8 @@ void pallas_record_omp_task_complete(ThreadWriter *thread_writer,
     EventData e;
     init_event(&e, PALLAS_EVENT_OMP_TASK_COMPLETE);
     push_data(&e, &taskID, sizeof(taskID));
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -794,8 +794,8 @@ void pallas_record_thread_task_create(ThreadWriter *thread_writer,
     pallas_recursion_shield++;
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_TASK_CREATE);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -813,8 +813,8 @@ void pallas_record_thread_task_switch(ThreadWriter *thread_writer,
     pallas_recursion_shield++;
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_TASK_SWITCH);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 
@@ -832,8 +832,8 @@ void pallas_record_thread_task_complete(ThreadWriter *thread_writer,
     pallas_recursion_shield++;
     EventData e;
     init_event(&e, PALLAS_EVENT_THREAD_TASK_COMPLETE);
-    TokenId e_id = thread_writer->getEventId(&e);
-    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attribute_list);
+    TokenId e_id = thread_writer->get_event_id(&e);
+    thread_writer->store_event(PALLAS_SINGLETON, e_id, time, attribute_list);
     pallas_recursion_shield--;
 }
 

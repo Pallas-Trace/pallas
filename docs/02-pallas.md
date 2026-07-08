@@ -322,7 +322,7 @@ Once the execution is finished, you need to write the Threads, Archives and Glob
 ```cpp
 int main() {
     /** End of Execution **/
-    threadWriter.threadClose();
+    threadWriter.thread_close();
     mainProcess.store();
     globalArchive.store();
 }

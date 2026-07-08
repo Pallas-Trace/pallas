@@ -43,7 +43,7 @@ typedef struct ThreadWriter {
      * Returns the inclusive and exclusive block duration / block duration for the offset-th last given Sequence.
      * The Sequence's token need to be in curIndexSeq for this to work out.
      */
-    [[nodiscard]] std::array<pallas_duration_t, 2> getLastSequenceDuration(const Sequence& sequence, size_t offset = 0) const;
+    [[nodiscard]] std::array<pallas_duration_t, 2> get_last_sequence_duration(const Sequence& sequence, size_t offset = 0) const;
     /** Finds a Loop in the current Sequence using a basic quadratic algorithm.
      *
      * For each correct possible loop length, this algorithm tries two things:
@@ -54,26 +54,26 @@ typedef struct ThreadWriter {
      *       - Example: E1 E2 E3 E1 E2 E3 -> L0. L0 = 2 * S1 = E1 E2 E3
      * @param maxLoopLength The maximum loop length that we try to find.
      */
-    void findLoopBasic(size_t maxLoopLength);
+    void find_loop_basic(size_t maxLoopLength);
     /** Checks the loop right before the last token for any repetitions. */
-    void checkLoopBefore();
+    void check_loop_before();
 
     /** Tries to find a Loop in the current array of tokens.  */
-    void findLoop();
+    void find_loop();
     /** Tries to find and replace the last n tokens in the grammar sequence. */
-    void findSequence(size_t n);
+    void find_sequence(size_t n);
     /** Creates a Loop from a repeating sequence, and returns a pointer to it.
      * Does not change the current array of tokens. Loop is initialized at 2.
      * */
-    [[nodiscard]] Loop* createLoop(Token sequence_id);
+    [[nodiscard]] Loop* create_loop(Token sequence_id);
     /** Increments the counter of loop by 1. */
-    void incrementLoop(Loop *loop);
+    void increment_loop(Loop *loop);
     /** Duplicates the given loop. The new loop has nb_occurrences set to 1, the old loop has it decreased by 1. */
-    [[nodiscard]] Loop* unsquashLoop(TokenId loopid);
+    [[nodiscard]] Loop* unsquash_loop(TokenId loopid);
     /** Checks all the over loops to see if one is strictly similar.
      * If so, removes this loop, increment the other's nb_occurrences by 1, and returns it.
      */
-    [[nodiscard]] Loop* squashLoop(TokenId loopid);
+    [[nodiscard]] Loop* squash_loop(TokenId loopid);
     /** Create a Loop and change the current array of token to reflect that.
      *
      * For example, replaces `[E1, E2, E3, E4, E1, E2, E3, E4]` with `[L1]`,
@@ -82,27 +82,27 @@ typedef struct ThreadWriter {
      * @param index_first_iteration Starting index of the first iteration of the loop.
      * @param index_second_iteration Starting index of the second iteration of the loop.
      */
-    void replaceTokensInLoop(int loop_len, size_t index_first_iteration, size_t index_second_iteration);
+    void replace_tokens_in_loop(int loop_len, size_t index_first_iteration, size_t index_second_iteration);
     /** Returns a reference to the current sequence of Tokens being written. */
-    [[nodiscard]] std::vector<Token>& getCurrentTokenSequence() const { return sequence_stack[cur_depth]; };
+    [[nodiscard]] std::vector<Token>& get_current_token_sequence() const { return sequence_stack[cur_depth]; };
     /** Returns a reference to the indexes of the current sequence of Tokens being written. */
-    [[nodiscard]] std::vector<size_t>& getCurrentIndexSequence() const { return index_stack[cur_depth]; };
+    [[nodiscard]] std::vector<size_t>& get_current_index_sequence() const { return index_stack[cur_depth]; };
     /** Stores the timestamp in the given Event. */
-    void storeTimestamp(Event* es, pallas_timestamp_t ts);
+    void store_timestamp(Event* es, pallas_timestamp_t ts);
     /** Stores the attribute list in the given Event. */
-    void storeAttributeList(Event* es, AttributeList* attribute_list, size_t occurrence_index);
+    void store_attribute_list(Event* es, AttributeList* attribute_list, size_t occurrence_index);
     /** Stores t in the current sequence's stack, and i in the current sequence's index stack, then tries to find a Loop.*/
-    void storeToken(Token t, size_t i);
+    void store_token(Token t, size_t i);
     /** Move up the callstack and create a new Sequence. */
-    void recordEnterFunction();
+    void record_enter_function();
     /** Close a Sequence and move down the callstack. */
-    void recordExitFunction();
+    void record_exit_function();
     /** Search for a sequence_id that matches the given array as a Sequence.
      * If none of the registered sequence match, register a new Sequence.
      */
-    [[nodiscard]] Sequence &getOrCreateSequenceFromArray(Token *token_array, size_t array_len);
+    [[nodiscard]] Sequence &get_or_create_sequence_from_array(Token *token_array, size_t array_len);
     /** Returns the current timestamp. */
-    [[nodiscard]] pallas_timestamp_t getTimestamp();
+    [[nodiscard]] pallas_timestamp_t get_timestamp();
     /** Returns t if it's valid, of the current timestamp. */
     [[nodiscard]] pallas_timestamp_t timestamp(pallas_timestamp_t t);
 
@@ -116,11 +116,11 @@ typedef struct ThreadWriter {
     /** Returns the ID corresponding to the given EventData.
      * If there isn't already one, creates a corresponding Event.
      */
-    [[nodiscard]] TokenId getEventId(EventData* e);
+    [[nodiscard]] TokenId get_event_id(EventData* e);
     [[nodiscard]] ThreadWriter(Archive& archive, ThreadId thread_id);
-    void threadClose();
+    void thread_close();
     /** Creates the new Event and stores it. Returns the occurrence index of that new Event. */
-    size_t storeEvent(enum EventType event_type, TokenId event_id, pallas_timestamp_t ts, struct AttributeList* attribute_list);
+    size_t store_event(enum EventType event_type, TokenId event_id, pallas_timestamp_t ts, struct AttributeList* attribute_list);
     ~ThreadWriter();
 #endif
 } ThreadWriter;

@@ -41,16 +41,16 @@ int main(int argc, char **argv __attribute__((unused))) {
     GlobalArchive trace(dummyTraceName.c_str(), dummyTraceName.c_str());
     Archive archive(trace, 0);
     ThreadWriter thread_writer(archive, 0);
-    archive.defineLocation(0, 0, 0);
+    archive.define_location(0, 0, 0);
 
     /* Start recording some events.*/
 
     pallas_log(DebugLevel::Normal, "\tLoading definitions and logging E0 ... E%d\n", MAX_EVENT-1);
     for (int eid = 0; eid < MAX_EVENT; eid++) {
 #ifdef HAS_FORMAT
-        archive.addString(eid, std::format("dummyEvent{}", eid).c_str());
+        archive.add_string(eid, std::format("dummyEvent{}", eid).c_str());
 #else
-        trace.addString(eid, "dummyEvent");
+        trace.add_string(eid, "dummyEvent");
 #endif
         pallas_record_generic(&thread_writer, nullptr, get_timestamp(), eid);
     }
@@ -102,9 +102,9 @@ int main(int argc, char **argv __attribute__((unused))) {
     pallas_log(DebugLevel::Normal, "\tAdding a dummy event\n");
     /* Now start recording one more event and then loop again. */
 #ifdef HAS_FORMAT
-    archive.addString(MAX_EVENT, std::format("dummyEvent{}", MAX_EVENT).c_str());
+    archive.add_string(MAX_EVENT, std::format("dummyEvent{}", MAX_EVENT).c_str());
 #else
-    trace.addString(MAX_EVENT, "dummyEvent");
+    trace.add_string(MAX_EVENT, "dummyEvent");
 #endif
     pallas_record_generic(&thread_writer, nullptr, get_timestamp(), MAX_EVENT);
 
@@ -147,7 +147,7 @@ int main(int argc, char **argv __attribute__((unused))) {
     pallas_assert_always(firstLoop.nb_occurrences == 2);
 
 
-    thread_writer.threadClose();
+    thread_writer.thread_close();
     archive.store(thread_writer.parameter_handler);
     trace.store(thread_writer.parameter_handler);
     // TODO Find a way for the test to clean this trace

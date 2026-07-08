@@ -101,7 +101,7 @@ std::map<uint64_t, uint64_t> get_message_size_histogram(pallas::GlobalArchive &t
 std::map<uint64_t, uint64_t> get_message_size_histogram_local(pallas::Archive &archive, bool count_data_amount) {
     std::map<uint64_t, uint64_t> output;
     for (auto &loc: archive.locations) {
-        auto *thread = archive.getThread(loc.id);
+        auto *thread = archive.get_thread(loc.id);
         for (size_t i = 0; i < thread->nb_events; i++) {
             auto &event = thread->events[i];
             if (!IS_MPI_COMM(event)) {
@@ -168,7 +168,7 @@ py::array_t<uint64_t> get_communication_over_time_archive(pallas::Archive &archi
     uint64_t *output = (uint64_t *) output_numpy.request().ptr;
     std::memset(output, 0, sizeof(uint64_t) * n_bins);
     for (auto &loc: archive.locations) {
-        auto *thread = archive.getThread(loc.id);
+        auto *thread = archive.get_thread(loc.id);
         for (size_t eid = 0; eid < thread->nb_events; eid++) {
             auto &event = thread->events[eid];
             if (!IS_MPI_COMM(event)) {
@@ -447,7 +447,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
     pallas_duration_t duration = last_timestamp - first_timestamp;
 
     pallas::MultiThreadReader reader = pallas::MultiThreadReader(trace);
-    for (auto t = reader.pollCurToken(); t != pallas::INVALID_TOKEN; t = reader.getNextToken()) {
+    for (auto t = reader.poll_current_token(); t != pallas::INVALID_TOKEN; t = reader.get_next_token()) {
         if (t.type != pallas::TypeEvent) {
             continue;
         }
@@ -458,7 +458,7 @@ py::object get_mpi_message_list(pallas::GlobalArchive &trace) {
         }
         auto *cur_reader = reader.current_reader;
         auto lgid = reader.current_reader->archive->id;
-        auto data = cur_reader->getEventOccurrence(t, cur_reader->getCurrentTokenCount(t));
+        auto data = cur_reader->get_event_occurrence(t, cur_reader->get_current_token_count(t));
         // static uint progress_counter = 0;
         // if (progress_counter == 0) {
         //     float percent = (static_cast<float>(data.timestamp - first_timestamp) * 100) / (float) duration;

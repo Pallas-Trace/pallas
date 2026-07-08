@@ -48,9 +48,9 @@ static inline void print_sequence_info(Sequence& s, Thread* t) {
 int main(int argc __attribute__((unused)), char** argv __attribute__((unused))) {
     /* Make a dummy archive and a dummy thread writer. */
     Archive archive("sequence_duration_trace", 0);
-    archive.addString(0, "main_thread");
-    archive.defineLocation(0, 0, 0);
-    archive.addRegion(0, 0);
+    archive.add_string(0, "main_thread");
+    archive.define_location(0, 0, 0);
+    archive.add_region(0, 0);
     ThreadWriter thread_writer(archive, 0);
 
     /* Here's what we're going to do: we'll define some sequences as the following:

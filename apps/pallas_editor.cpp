@@ -78,10 +78,10 @@ int main(int argc, char** argv) {
             auto* a = trace->getArchive(lg.id);
             for (auto& loc : a->locations) {
                 std::cout << "\tReading thread " << loc.id << " @ " << a->dir_name << std::endl;
-                auto* t = a->getThread(loc.id);
+                auto* t = a->get_thread(loc.id);
                 std::cout << "\tCompressing thread " << t->id << " @ " << a->dir_name << std::endl;
                 t->store(newDirName, &new_parameter_handler, true);
-                a->freeThread(loc.id);
+                a->free_thread(loc.id);
             }
             std::cout << "Writing archive " << lg.id << " @ " << trace->dir_name << std::endl;
             a->store(newDirName, &new_parameter_handler);

@@ -65,7 +65,7 @@ static void printEvent(const pallas::Thread* thread, const pallas::Token token, 
 
 bool isReadingOver(const std::vector<pallas::ThreadReader>& readers) {
   for (const auto& reader : readers) {
-    if (!reader.isEndOfTrace()) {
+    if (!reader.is_end_of_trace()) {
       return false;
     }
   }
@@ -230,7 +230,7 @@ void printCSVBulk(pallas::ThreadReader* readers, size_t n) {
   for (size_t i = 0; i < n; i ++) {
     auto& reader = readers[i];
     std::map<pallas::Sequence*, std::string> sequence_names;
-    reader.guessSequencesNames(sequence_names);
+    reader.guess_sequences_names(sequence_names);
 
     // iterate over the sequences (ignoring sequence 0), and dump their timestamps
     for(int i=1; i<reader.thread_trace->nb_sequences; i++) {
@@ -268,11 +268,11 @@ void printThread(pallas::Thread *thread) {
     _print_timestamp_header();
     _print_duration_header();
     std::cout << std::endl;
-    for (auto current_token = reader.pollCurToken();
+    for (auto current_token = reader.poll_current_token();
          current_token != pallas::INVALID_TOKEN;
-         current_token = reader.getNextToken()) {
+         current_token = reader.get_next_token()) {
         if (current_token.type == pallas::TypeEvent) {
-            auto event = reader.getEventOccurrence(current_token,reader.getCurrentTokenCount(current_token));
+            auto event = reader.get_event_occurrence(current_token,reader.get_current_token_count(current_token));
             pallas_assert_inferior_equal(last_timestamp, event.timestamp);
             pallas_assert_equals(event.timestamp, reader.currentState.currentFrame->current_timestamp);
             last_timestamp = event.timestamp;
@@ -334,17 +334,17 @@ void printTrace(pallas::GlobalArchive& trace) {
         return;
     }
 
-    for (auto token = reader.pollCurToken(); token != pallas::INVALID_TOKEN; token = reader.getNextToken()) {
+    for (auto token = reader.poll_current_token(); token != pallas::INVALID_TOKEN; token = reader.get_next_token()) {
         auto cur_reader = reader.current_reader;
         if (token.type == pallas::TypeEvent) {
             if (flamegraph) {
-                auto e = cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token));
+                auto e = cur_reader->get_event_occurrence(token, cur_reader->get_current_token_count(token));
                 printFlame(threads_data, cur_reader, e);
             } else if (csv) {
-                auto e = cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token));
+                auto e = cur_reader->get_event_occurrence(token, cur_reader->get_current_token_count(token));
                 printCSV(threads_data, cur_reader, e);
             } else {
-                printEvent(cur_reader->thread_trace, token, cur_reader->getEventOccurrence(token, cur_reader->getCurrentTokenCount(token)));
+                printEvent(cur_reader->thread_trace, token, cur_reader->get_event_occurrence(token, cur_reader->get_current_token_count(token)));
             }
         }
     }
@@ -355,9 +355,9 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
   if (tr.currentState.current_frame_index <= 0) {
     return "";
   }
-  const auto t = tr.pollCurToken();
+  const auto t = tr.poll_current_token();
   std::string current_indent;
-  bool isLastOfSeq = tr.isEndOfCurrentBlock();
+  bool isLastOfSeq = tr.is_end_of_current_block();
   structure_indent[tr.currentState.current_frame_index - 1] = (isLastOfSeq ? "╰" : "├");
     DOFOR(i, tr.currentState.current_frame_index) {
       current_indent += structure_indent[i];
@@ -380,18 +380,18 @@ std::string getCurrentIndent(const pallas::ThreadReader& tr) {
 void printThreadStructure(pallas::ThreadReader& tr) {
     std::cout << "--- Thread " << tr.thread_trace->id << "(" << tr.thread_trace->getName() << ")" << " ---" << std::endl;
     size_t last_timestamp = 0;
-    auto current_token = tr.pollCurToken();
+    auto current_token = tr.poll_current_token();
     while (true) {
         std::cout << getCurrentIndent(tr) << std::left << std::setw(15 - ((tr.currentState.current_frame_index <= 1) ? 0 : tr.currentState.current_frame_index))
                   << tr.thread_trace->getTokenString(current_token) << "";
         if (current_token.type == pallas::TypeEvent) {
-            auto occ = tr.getEventOccurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            auto occ = tr.get_event_occurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
             pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
             pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
             last_timestamp = occ.timestamp;
             printEvent(tr.thread_trace, current_token, occ);
         } else if (current_token.type == pallas::TypeSequence) {
-            auto occ = tr.getSequenceOccurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
+            auto occ = tr.get_sequence_occurrence(current_token, tr.currentState.currentFrame->tokenCount[current_token]);
             pallas_assert_inferior_equal(last_timestamp, occ.timestamp);
             pallas_assert_equals(occ.timestamp, tr.currentState.currentFrame->current_timestamp);
             last_timestamp = occ.timestamp;
@@ -405,14 +405,14 @@ void printThreadStructure(pallas::ThreadReader& tr) {
             std::cout << std::endl;
         } else if (current_token.type == pallas::TypeLoop) {
             if (show_durations) {
-                auto d = tr.getLoopDuration(current_token);
+                auto d = tr.get_loop_duration(current_token);
                 std::cout << std::setw(21) << "";
                 std::cout.precision(9);
                 std::cout << std::right << std::setw(21) << std::fixed << d / 1e9;
             }
             std::cout << std::endl;
         }
-        auto next_token = tr.getNextToken();
+        auto next_token = tr.get_next_token();
         if (!next_token.isValid())
             break;
         current_token = next_token;

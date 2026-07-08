@@ -44,7 +44,7 @@ static pthread_barrier_t bench_stop;
 static StringRef registerString(GlobalArchive& trace, const std::string& str) {
     static std::atomic<StringRef> next_ref = 0;
     StringRef ref = next_ref++;
-    trace.addString(ref, str.c_str());
+    trace.add_string(ref, str.c_str());
     return ref;
 }
 
@@ -77,7 +77,7 @@ void* worker(void* arg) {
     std::ostringstream os;
     os << "thread_" << threadID;
     StringRef threadNameRef = registerString(*archive.global_archive, os.str());
-    archive.defineLocation(threadID, threadNameRef, processID);
+    archive.define_location(threadID, threadNameRef, processID);
     archive.add_metadata("ThreadTest", "42");
 
     ThreadWriter threadWriter(archive, threadID);
@@ -121,7 +121,7 @@ void* worker(void* arg) {
     pthread_mutex_lock(&archive.lock);
     std::cout << "T#" << threadID << ": " << nb_events << " events in " << duration / 1e9 << "s -> " << duration_per_event << " ns per event" << std::endl;
     pthread_mutex_unlock(&archive.lock);
-    threadWriter.threadClose();
+    threadWriter.thread_close();
     return nullptr;
 }
 
@@ -195,7 +195,7 @@ int main(int argc, char** argv) {
 
     processID = 0;
     processName = registerString(globalArchive, "Main process");
-    globalArchive.defineLocationGroup(processID, processName, processID);
+    globalArchive.define_location_group(processID, processName, processID);
     Archive mainProcess(globalArchive, 0);
     mainProcess.global_archive = &globalArchive;
 
@@ -206,7 +206,7 @@ int main(int argc, char** argv) {
         os.clear();
         strings.push_back(registerString(globalArchive, region_names.back()));
         regions.push_back(strings.back());
-        globalArchive.addRegion(regions.back(), strings.back());
+        globalArchive.add_region(regions.back(), strings.back());
     }
 
     std::vector<pthread_t> threadID;

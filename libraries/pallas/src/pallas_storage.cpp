@@ -1885,14 +1885,14 @@ void pallas::GlobalArchive::freeArchive(pallas::LocationGroupId archiveId) {
  * Getter for a Thread from its id. Loads it from a file if need be.
  * @returns First Thread matching the given pallas::ThreadId, or nullptr if it doesn't have a match.
  */
-pallas::Thread* pallas::Archive::getThread(ThreadId thread_id) {
+pallas::Thread* pallas::Archive::get_thread(ThreadId thread_id) {
   for (int i = 0; i < nb_threads; i++) {
     if (threads[i] && threads[i]->id == thread_id)
       return threads[i];
   }
   pallas_log(pallas::DebugLevel::Verbose, "Loading Thread %d in Archive %d\n", thread_id, id);
   auto* thread = new Thread();
-  auto location = getLocation(thread_id);
+  auto location = get_location(thread_id);
   if (location == nullptr) {
     pallas_warn("Archive::getThread(%u): could not find matching Location\n", thread_id);
     return nullptr;
@@ -1909,14 +1909,14 @@ pallas::Thread* pallas::Archive::getThread(ThreadId thread_id) {
   return nullptr;
 }
 
-pallas::Thread* pallas::Archive::getThreadAt(size_t index) {
+pallas::Thread* pallas::Archive::get_thread_at(size_t index) {
   if (index >= nb_threads) {
     return nullptr;
   }
-  return getThread(locations[index].id);
+  return get_thread(locations[index].id);
 }
 
-void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
+void pallas::Archive::free_thread(pallas::ThreadId thread_id) {
     pallas_log(DebugLevel::Debug, "{%p}.freeThread(%d)\n", this, thread_id);
     for (int i = 0; i < nb_threads; i++) {
         if (threads[i] && threads[i]->id == thread_id) {
@@ -1926,7 +1926,7 @@ void pallas::Archive::freeThread(pallas::ThreadId thread_id) {
     }
 };
 
-void pallas::Archive::freeThreadAt(size_t i) {
+void pallas::Archive::free_thread_at(size_t i) {
     pallas_log(DebugLevel::Debug, "{%p}.freeThreadAt(%lu)\n",this, i);
   if (i < nb_threads) {
     delete threads[i];

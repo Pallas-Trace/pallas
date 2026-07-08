@@ -166,7 +166,7 @@ pallas::ThreadReader* _get_next_global_event(OTF2_Reader* reader, OTF2_GlobalEvt
     if(reader->thread_readers[i]) {
       pallas::ThreadReader *tr = reader->thread_readers[i];
 
-      if(tr->isEndOfTrace())
+      if(tr->is_end_of_trace())
 	continue;
       if(tr->currentState.currentFrame->current_timestamp < min_timestamp) {
 	min_timestamp = tr->currentState.currentFrame->current_timestamp;
@@ -181,9 +181,9 @@ pallas::ThreadReader* _get_next_global_event(OTF2_Reader* reader, OTF2_GlobalEvt
 OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtReader *evtReader) {
     pallas::ThreadReader *thread_reader = _get_next_global_event(reader, evtReader);
 
-    auto token = thread_reader->pollCurToken();
+    auto token = thread_reader->poll_current_token();
     if (token.type == pallas::TypeEvent) {
-        const pallas::EventOccurrence e = thread_reader->getEventOccurrence(token, thread_reader->getCurrentTokenCount(token));
+        const pallas::EventOccurrence e = thread_reader->get_event_occurrence(token, thread_reader->get_current_token_count(token));
 
         pallas::Record event_type = e.event->record;
         pallas::AttributeList * attribute_list;
@@ -237,8 +237,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_ISEND:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiIsend_callback) {
-                        
-                        
+
+
                         uint32_t receiver;
                         uint32_t communicator;
                         uint32_t msgTag;
@@ -265,8 +265,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_ISEND_COMPLETE:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiIsendComplete_callback) {
-                        
-                        
+
+
                         uint64_t requestID;
                         pallas_read_mpi_isend_complete(e.event, &attribute_list,
                                                        &requestID);
@@ -281,8 +281,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_IRECV_REQUEST:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiIrecvRequest_callback) {
-                        
-                        
+
+
                         uint64_t requestID;
                         pallas_read_mpi_irecv_request(e.event, &attribute_list,
                                                       &requestID);
@@ -297,8 +297,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_RECV:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiRecv_callback) {
-                        
-                        
+
+
                         uint32_t sender;
                         uint32_t communicator;
                         uint32_t msgTag;
@@ -322,8 +322,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_IRECV:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiIrecv_callback) {
-                        
-                        
+
+
                         uint32_t sender;
                         uint32_t communicator;
                         uint32_t msgTag;
@@ -358,8 +358,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_COLLECTIVE_BEGIN:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiCollectiveBegin_callback) {
-                        
-                        
+
+
                         pallas_read_mpi_collective_begin(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiCollectiveBegin_callback(
                             thread_reader->thread_trace->id,
@@ -371,8 +371,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_MPI_COLLECTIVE_END:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_MpiCollectiveEnd_callback) {
-                        
-                        
+
+
                         uint32_t collectiveOp;
                         uint32_t communicator;
                         uint32_t root;
@@ -399,8 +399,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_FORK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpFork_callback) {
-                        
-                        
+
+
                         uint32_t numberOfRequestedThreads;
                         pallas_read_omp_fork(e.event, &attribute_list,
                                              &numberOfRequestedThreads);
@@ -415,8 +415,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_JOIN:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpJoin_callback) {
-                        
-                        
+
+
                         pallas_read_omp_join(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpJoin_callback(
                             thread_reader->thread_trace->id,
@@ -428,8 +428,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_ACQUIRE_LOCK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpAcquireLock_callback) {
-                        
-                        
+
+
                         uint32_t lockID;
                         uint32_t acquisitionOrder;
                         pallas_read_omp_acquire_lock(e.event, &attribute_list,
@@ -446,8 +446,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_RELEASE_LOCK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpReleaseLock_callback) {
-                        
-                        
+
+
                         uint32_t lockID;
                         uint32_t acquisitionOrder;
                         pallas_read_omp_release_lock(e.event, &attribute_list,
@@ -464,8 +464,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_TASK_CREATE:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpTaskCreate_callback) {
-                        
-                        
+
+
                         uint64_t taskID;
                         pallas_read_omp_task_create(e.event, &attribute_list,
                                                     &taskID);
@@ -480,8 +480,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_TASK_SWITCH:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpTaskSwitch_callback) {
-                        
-                        
+
+
                         uint64_t taskID;
                         pallas_read_omp_task_switch(e.event, &attribute_list,
                                                     &taskID);
@@ -496,8 +496,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_OMP_TASK_COMPLETE:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_OmpTaskComplete_callback) {
-                        
-                        
+
+
                         uint64_t taskID;
                         pallas_read_omp_task_complete(e.event, &attribute_list,
                                                       &taskID);
@@ -528,8 +528,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_FORK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadFork_callback) {
-                        
-                        
+
+
                         uint32_t numberOfRequestedThreads;
                         pallas_read_thread_fork(e.event, &attribute_list,
                                                 &numberOfRequestedThreads);
@@ -545,8 +545,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_JOIN:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadJoin_callback) {
-                        
-                        
+
+
                         pallas_read_thread_join(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadJoin_callback(
                             thread_reader->thread_trace->id,
@@ -559,8 +559,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_TEAM_BEGIN:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTeamBegin_callback) {
-                        
-                        
+
+
                         pallas_read_thread_team_begin(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTeamBegin_callback(
                             thread_reader->thread_trace->id,
@@ -573,8 +573,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_TEAM_END:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTeamEnd_callback) {
-                        
-                        
+
+
                         pallas_read_thread_team_end(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTeamEnd_callback(
                             thread_reader->thread_trace->id,
@@ -587,8 +587,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_ACQUIRE_LOCK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadAcquireLock_callback) {
-                        
-                        
+
+
                         uint32_t lockID;
                         uint32_t acquisitionOrder;
                         pallas_read_thread_acquire_lock(e.event, &attribute_list,
@@ -606,8 +606,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_RELEASE_LOCK:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadReleaseLock_callback) {
-                        
-                        
+
+
                         uint32_t lockID;
                         uint32_t acquisitionOrder;
                         pallas_read_thread_release_lock(e.event, &attribute_list,
@@ -625,8 +625,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_TASK_CREATE:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskCreate_callback) {
-                        
-                        
+
+
                         pallas_read_thread_task_create(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskCreate_callback(
                             thread_reader->thread_trace->id,
@@ -641,8 +641,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_TASK_SWITCH:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskSwitch_callback) {
-                        
-                        
+
+
                         pallas_read_thread_task_switch(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskSwitch_callback(
                             thread_reader->thread_trace->id,
@@ -657,8 +657,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
                 case pallas::PALLAS_EVENT_THREAD_TASK_COMPLETE:
                     if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskComplete_callback) {
-                        
-                        
+
+
                         pallas_read_thread_task_complete(e.event, &attribute_list);
                         evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadTaskComplete_callback(
                             thread_reader->thread_trace->id,
@@ -700,7 +700,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
             case pallas::PALLAS_EVENT_THREAD_WAIT:
                 if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadWait_callback) {
-                    
+
                     NOT_IMPLEMENTED;
                     evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadWait_callback(
                         thread_reader->thread_trace->id,
@@ -714,8 +714,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 
             case pallas::PALLAS_EVENT_THREAD_END:
                 if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadEnd_callback) {
-                    
-                    
+
+
                     pallas_read_thread_end(e.event, &attribute_list);
                     evtReader->callbacks.OTF2_GlobalEvtReaderCallback_ThreadEnd_callback(
                         thread_reader->thread_trace->id,
@@ -795,7 +795,7 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
 #define STRINGIFY(str) #str
                 if (evtReader->callbacks.OTF2_GlobalEvtReaderCallback_Unknown_callback) {
                     pallas_warn("Unsupported event: %s\n", STRINGIFY(PALLAS_EVENT_GENERIC));
-                    
+
                     pallas::StringRef name;
                     pallas_read_generic(e.event, &attribute_list, &name);
                     evtReader->callbacks.OTF2_GlobalEvtReaderCallback_Unknown_callback(thread_reader->thread_trace->id,
@@ -809,8 +809,8 @@ OTF2_ErrorCode OTF2_Reader_ReadGlobalEvent(OTF2_Reader *reader, OTF2_GlobalEvtRe
         }
     } // todo: else ?
 
-    if (!thread_reader->getNextToken(PALLAS_READ_FLAG_UNROLL_ALL).isValid()) {
-        pallas_assert(thread_reader->isEndOfTrace());
+    if (!thread_reader->get_next_token(PALLAS_READ_FLAG_UNROLL_ALL).isValid()) {
+        pallas_assert(thread_reader->is_end_of_trace());
     }
 
     return OTF2_SUCCESS;

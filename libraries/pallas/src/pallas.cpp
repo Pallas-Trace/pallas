@@ -330,9 +330,9 @@ const char* Thread::getRegionStringFromEvent(EventData *e) const {
     default:
         return "INVALID_EVENT";
     }
-    region = archive->getRegion(region_ref);
+    region = archive->get_region(region_ref);
 
-    return region ? archive->getString(region->string_ref)->str : "INVALID_REGION";
+    return region ? archive->get_string(region->string_ref)->str : "INVALID_REGION";
 }
 
 std::string Thread::getEventString(EventData *e) const {
@@ -501,7 +501,7 @@ std::string Thread::getEventString(EventData *e) const {
     case PALLAS_EVENT_GENERIC: {
         StringRef eventNameRef;
         pallas_read_generic(e, nullptr, &eventNameRef);
-        auto eventName = archive->getString(eventNameRef);
+        auto eventName = archive->get_string(eventNameRef);
         return eventName->str;
     }
     default:
@@ -512,7 +512,7 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
     // We will read the whole trace "smartly"
     auto output = std::map<Token, pallas_duration_t>();
     ThreadReader reader(this->archive, this->id, PALLAS_READ_FLAG_UNROLL_ALL);
-    auto current_token = reader.pollCurToken();
+    auto current_token = reader.poll_current_token();
     while (current_token.isValid()) {
         pallas_timestamp_t current_timestamp = reader.currentState.currentFrame->current_timestamp;
         size_t current_count = reader.currentState.currentFrame->tokenCount[current_token];
@@ -523,16 +523,16 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
         // Skip exploration if we're in a Sequence or a Loop we have no interest in.
         if (current_token.type == TypeSequence) {
-            auto current_sequence = reader.getSequenceOccurrence(current_token, current_count);
+            auto current_sequence = reader.get_sequence_occurrence(current_token, current_count);
             if (current_sequence.timestamp + current_sequence.duration < start) {
-                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
+                current_token = reader.get_next_token(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
             }
         }
         if (current_token.type == TypeLoop) {
-            auto current_loop = reader.getLoopOccurrence(current_token, current_count);
+            auto current_loop = reader.get_loop_occurrence(current_token, current_count);
             if (current_loop.timestamp + current_loop.duration < start) {
-                current_token = reader.getNextToken(PALLAS_READ_FLAG_NO_UNROLL);
+                current_token = reader.get_next_token(PALLAS_READ_FLAG_NO_UNROLL);
                 continue;
             }
         }
@@ -581,14 +581,14 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
 
 
         if (current_token.type != TypeEvent || reader.currentState.current_frame_index == 0) {
-            current_token = reader.getNextToken();
+            current_token = reader.get_next_token();
             continue;
         }
 
         // Since we're at an Event, we know current_iterable is a Sequence (Loop have to contain Sequence Tokens)
-        auto bottom_sequence = reader.getSequenceOccurrence(
-            reader.getCurIterable(),
-            (reader.currentState.currentFrame - 1)->tokenCount[reader.getCurIterable()]
+        auto bottom_sequence = reader.get_sequence_occurrence(
+            reader.get_current_iterable(),
+            (reader.currentState.currentFrame - 1)->tokenCount[reader.get_current_iterable()]
             )
         ;
         // Check if we're at the start or end of a block Sequence
@@ -603,13 +603,13 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
         }
 
         if (ts == PALLAS_TIMESTAMP_INVALID) {
-            current_token = reader.getNextToken();
+            current_token = reader.get_next_token();
             continue;
         }
 
 
         for (int i = reader.currentState.current_frame_index; i >= 0; i --) {
-            auto& sequence_token = reader.getFrameInCallstack(i);
+            auto& sequence_token = reader.get_frame_in_callstack(i);
             if (sequence_token.type == TypeLoop) continue;
             auto* sequence = getSequence(sequence_token);
             if (sequence->type != SEQUENCE_BLOCK) continue;
@@ -621,11 +621,11 @@ std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp
             break; // Break at the first valid sequence
         }
 
-        current_token = reader.getNextToken();
+        current_token = reader.get_next_token();
     }
     // Then we need to finalise the durations of all the functions that haven't been exited yet.
     for (int i = reader.currentState.current_frame_index; i > 0; i --) {
-        auto& sequence_token = reader.getFrameInCallstack(i);
+        auto& sequence_token = reader.get_frame_in_callstack(i);
         if (sequence_token.type == TypeLoop) continue;
         auto* sequence = getSequence(sequence_token);
         if (sequence->type != SEQUENCE_BLOCK) continue;
@@ -874,7 +874,7 @@ Thread::~Thread() {
 }
 
 const char* Thread::getName() const {
-    return archive->getString(archive->getLocation(id)->name)->str;
+    return archive->get_string(archive->get_location(id)->name)->str;
 }
 
 Group::~Group() {

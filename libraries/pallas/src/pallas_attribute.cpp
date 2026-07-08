@@ -15,9 +15,9 @@
 
 namespace pallas {
 void Thread::printAttribute(AttributeRef ref) const {
-  const Attribute* attr = archive->getAttribute(ref);
+  const Attribute* attr = archive->get_attribute(ref);
   if (attr) {
-    const String* attr_string = archive->getString(attr->name);
+    const String* attr_string = archive->get_string(attr->name);
     if (attr_string) {
       printf("\"%s\" <%d>", attr_string->str, ref);
       return;
@@ -44,7 +44,7 @@ static enum AttributeType _guess_attribute_size(const AttributeData* attr) {
 }
 
 void Thread::printString(StringRef string_ref) const {
-  auto* str = archive->getString(string_ref);
+  auto* str = archive->get_string(string_ref);
   if (str)
     printf("%s <%d>", str->str, string_ref);
   else
@@ -52,7 +52,7 @@ void Thread::printString(StringRef string_ref) const {
 }
 
 void Thread::printAttributeRef(AttributeRef attribute_ref) const {
-  auto* attr = archive->getAttribute(attribute_ref);
+  auto* attr = archive->get_attribute(attribute_ref);
   if (attr)
     printf("attribute <%d>", attribute_ref);
   else
@@ -60,25 +60,25 @@ void Thread::printAttributeRef(AttributeRef attribute_ref) const {
 }
 
 void Thread::printCommRef(CommRef comm_ref) const {
-    auto* comm = archive->getComm(comm_ref);
+    auto* comm = archive->get_comm(comm_ref);
     if (comm) {
-        auto* name = archive->getString(comm->name);
+        auto* name = archive->get_string(comm->name);
         printf("Comm %s %d <%d>", name->str, comm->group, comm_ref);
     } else
         printf("INVALID_COMM <%d>", comm_ref);
 }
 
 void Thread::printGroupRef(GroupRef group_ref) const {
-    auto* group = archive->getGroup(group_ref);
+    auto* group = archive->get_group(group_ref);
     if (group) {
-        auto* name = archive->getString(group->name);
+        auto* name = archive->get_string(group->name);
         printf("Group %s <%d>", name->str, group_ref);
     } else
         printf("INVALID_GROUP <%d>", group_ref);
 }
 
 void Thread::printLocation(Ref location_ref) const {
-  auto* attr = archive->getLocation(location_ref);
+  auto* attr = archive->get_location(location_ref);
   if (attr)
     printf("location <%d>", location_ref);
   else
@@ -86,7 +86,7 @@ void Thread::printLocation(Ref location_ref) const {
 }
 
 void Thread::printRegion(Ref region_ref) const {
-  auto* attr = archive->getRegion(region_ref);
+  auto* attr = archive->get_region(region_ref);
   if (attr)
     printf("region <%d>", region_ref);
   else
@@ -224,9 +224,9 @@ void Thread::printAttribute(const struct AttributeData* attr) const {
   const char* attr_string = "INVALID";
   enum AttributeType type = _guess_attribute_size(attr);
 
-  auto* a = archive->getAttribute(attr->ref);
+  auto* a = archive->get_attribute(attr->ref);
   if (a) {
-    auto* str = archive->getString(a->name);
+    auto* str = archive->get_string(a->name);
     if (str) {
       attr_string = str->str;
     }

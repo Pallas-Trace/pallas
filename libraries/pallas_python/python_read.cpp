@@ -15,7 +15,7 @@
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
     auto vector = std::vector<pallas::Thread*>();
     for (size_t i = 0; i < archive.nb_threads; ++i) {
-        vector.push_back(archive.getThreadAt(i));
+        vector.push_back(archive.get_thread_at(i));
     }
     return vector;
 }
@@ -23,7 +23,7 @@ std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
 std::map<pallas::StringRef, std::string> Archive_get_strings(pallas::Archive& archive) {
     auto map = std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : archive.definitions.strings) {
-        map.insert(std::pair(key, archive.getString(r.string_ref)->str));
+        map.insert(std::pair(key, archive.get_string(r.string_ref)->str));
     }
     return map;
 }
@@ -31,7 +31,7 @@ std::map<pallas::StringRef, std::string> Archive_get_strings(pallas::Archive& ar
 std::map<pallas::ThreadId, PyLocation> Archive_get_locations(pallas::Archive& archive) {
     auto map = std::map<pallas::ThreadId, PyLocation>();
     for (auto& loc : archive.locations) {
-        map.insert(std::pair(loc.id, PyLocation{loc.id, archive.getString(loc.name)->str, archive.getLocationGroup(loc.parent)}));
+        map.insert(std::pair(loc.id, PyLocation{loc.id, archive.get_string(loc.name)->str, archive.get_location_group(loc.parent)}));
     }
     return map;
 }
@@ -39,7 +39,7 @@ std::map<pallas::ThreadId, PyLocation> Archive_get_locations(pallas::Archive& ar
 std::map<pallas::RegionRef, PyRegion> Archive_get_regions(pallas::Archive& archive) {
     auto map = std::map<pallas::RegionRef, PyRegion>();
     for (auto& [key, r] : archive.definitions.regions) {
-        map.insert(std::pair(key, PyRegion{r.region_ref, archive.getString(r.string_ref)->str}));
+        map.insert(std::pair(key, PyRegion{r.region_ref, archive.get_string(r.string_ref)->str}));
     }
     return map;
 }
@@ -58,7 +58,7 @@ std::map<pallas::ThreadId, PyLocation> Trace_get_locations(pallas::GlobalArchive
 std::map<pallas::LocationGroupId, PyLocationGroup> Trace_get_location_groups(pallas::GlobalArchive& trace) {
     auto map = std::map<pallas::LocationGroupId, PyLocationGroup>();
     for (auto& lg : trace.location_groups) {
-        map.insert(std::pair(lg.id, PyLocationGroup{lg.id, trace.getString(lg.name)->str, trace.getLocationGroup(lg.parent)}));
+        map.insert(std::pair(lg.id, PyLocationGroup{lg.id, trace.get_string(lg.name)->str, trace.getLocationGroup(lg.parent)}));
     }
     return map;
 }
@@ -66,7 +66,7 @@ std::map<pallas::LocationGroupId, PyLocationGroup> Trace_get_location_groups(pal
 std::map<pallas::StringRef, std::string> Trace_get_strings(pallas::GlobalArchive& trace) {
     auto map = std::map<pallas::StringRef, std::string>();
     for (auto& [key, r] : trace.definitions.strings) {
-        map.insert(std::pair(key, trace.getString(r.string_ref)->str));
+        map.insert(std::pair(key, trace.get_string(r.string_ref)->str));
     }
     return map;
 }
@@ -74,7 +74,7 @@ std::map<pallas::StringRef, std::string> Trace_get_strings(pallas::GlobalArchive
 std::map<pallas::RegionRef, PyRegion> Trace_get_regions(pallas::GlobalArchive& trace) {
     auto map = std::map<pallas::RegionRef, PyRegion>();
     for (auto& [key, r] : trace.definitions.regions) {
-        map.insert(std::pair(key, PyRegion{r.region_ref, trace.getString(r.string_ref)->str}));
+        map.insert(std::pair(key, PyRegion{r.region_ref, trace.get_string(r.string_ref)->str}));
     }
     return map;
 }
@@ -195,21 +195,21 @@ py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_re
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PyEvent{thread_reader.thread_trace->getEvent(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
+                thread_reader.get_current_token_count(t)
                 );
     }
     case pallas::TypeSequence: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PySequence{thread_reader.thread_trace->getSequence(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
+                thread_reader.get_current_token_count(t)
                 );
     }
     case pallas::TypeLoop: {
         return py::make_tuple(
                 std::variant<PyEvent, PySequence, PyLoop, pallas::Token>(
                         PyLoop{thread_reader.thread_trace->getLoop(t), thread_reader.thread_trace}),
-                thread_reader.getCurrentTokenCount(t)
+                thread_reader.get_current_token_count(t)
                 );
     }
     default: {
@@ -255,7 +255,7 @@ std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self) {
                         )
                 );
     }
-    res.push_back(makePyObjectFromToken(self.pollCurToken(), self));
+    res.push_back(makePyObjectFromToken(self.poll_current_token(), self));
     return res;
 }
 
@@ -292,9 +292,9 @@ py::dict get_attributes(PyEvent &event, size_t occurrence) {
         pallas::AttributeData *data = (pallas::AttributeData *)reading_addr;
         uint16_t size = data->struct_size;
         if (size == 0) break;
-        const pallas::Attribute *attribute = archive->getAttribute(data->ref);
+        const pallas::Attribute *attribute = archive->get_attribute(data->ref);
         if (attribute) {
-            const pallas::String *name_str = archive->getString(attribute->name);
+            const pallas::String *name_str = archive->get_string(attribute->name);
             if (name_str) {
                 switch (attribute->type) {
                     case pallas::PALLAS_TYPE_NONE:
@@ -350,7 +350,7 @@ py::dict get_attributes(PyEvent &event, size_t occurrence) {
                     break;
                     }
                     case pallas::PALLAS_TYPE_STRING: {
-                        const pallas::String *val_str = archive->getString(data->value.string_ref);
+                        const pallas::String *val_str = archive->get_string(data->value.string_ref);
                         if (val_str) result[name_str->str] = val_str->str;
                     }
                     break;

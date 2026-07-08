@@ -232,12 +232,12 @@ PYBIND11_MODULE(_core, m) {
                 pallas::Token t;
                 if (self.is_first_event) {
                     self.is_first_event = false;
-                    t = self.inner->pollCurToken();
+                    t = self.inner->poll_current_token();
                     return makePyObjectFromToken(t, *self.inner);
                 }
-                bool out = self.inner->moveToNextToken();
-                while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
-                    out = self.inner->moveToNextToken();
+                bool out = self.inner->move_to_next_token();
+                while (t = self.inner->poll_current_token(), t.type != pallas::TypeEvent) {
+                    out = self.inner->move_to_next_token();
                     if (!out) {
                         throw py::stop_iteration();
                     }
@@ -253,10 +253,10 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<PyTraceIterator>(m, "Trace_Iterator", "An iterator over the trace.")
             .def("__next__", [](PyTraceIterator &self) {
-                bool out = self.inner->moveToNextToken();
+                bool out = self.inner->move_to_next_token();
                 pallas::Token t;
-                while (t = self.inner->pollCurToken(), t.type != pallas::TypeEvent) {
-                    out = self.inner->moveToNextToken();
+                while (t = self.inner->poll_current_token(), t.type != pallas::TypeEvent) {
+                    out = self.inner->move_to_next_token();
                     if (!out) {
                         throw py::stop_iteration();
                     }
@@ -273,24 +273,24 @@ PYBIND11_MODULE(_core, m) {
 
     py::class_<pallas::ThreadReader>(m, "ThreadReader", "A helper structure to read a thread")
             .def_property_readonly("callstack", &thread_reader_get_callstack)
-            .def("moveToNextToken", [](pallas::ThreadReader &self, bool enter_sequence = true, bool enter_loop = true) {
+            .def("move_to_next_token", [](pallas::ThreadReader &self, bool enter_sequence = true, bool enter_loop = true) {
                 int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
-                self.moveToNextToken(flags);
+                self.move_to_next_token(flags);
             })
-            .def("pollCurToken", [](pallas::ThreadReader &self) {
-                return makePyObjectFromToken(self.pollCurToken(), self);
+            .def("poll_current_token", [](pallas::ThreadReader &self) {
+                return makePyObjectFromToken(self.poll_current_token(), self);
             })
-            .def("enterIfStartOfBlock",
+            .def("enter_if_start_of_block",
                  [](pallas::ThreadReader &self, bool enter_sequence = true, bool enter_loop = true) {
                      int flags = get_read_flags_from_bools(enter_sequence, enter_loop);
-                     return self.enterIfStartOfBlock(flags);
+                     return self.enter_if_start_of_block(flags);
                  })
-            .def("exitIfEndOfBlock", [](pallas::ThreadReader &self, bool exit_sequence = true, bool exit_loop = true) {
+            .def("exit_if_end_of_block", [](pallas::ThreadReader &self, bool exit_sequence = true, bool exit_loop = true) {
                 int flags = get_read_flags_from_bools(exit_sequence, exit_loop);
-                return self.exitIfEndOfBlock(flags);
+                return self.exit_if_end_of_block(flags);
             })
-            .def("isEndOfCurrentBlock", &pallas::ThreadReader::isEndOfCurrentBlock)
-            .def("isEndOfTrace", &pallas::ThreadReader::isEndOfTrace);
+            .def("is_end_of_current_block", &pallas::ThreadReader::is_end_of_current_block)
+            .def("is_end_of_trace", &pallas::ThreadReader::is_end_of_trace);
 
     py::class_<PyLocationGroup>(m, "LocationGroup", "A group of Pallas locations. Usually means a process.")
             .def_readonly("id", &PyLocationGroup::id)

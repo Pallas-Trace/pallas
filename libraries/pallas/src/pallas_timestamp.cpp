@@ -9,7 +9,7 @@
 
 #define NANOSECONDS(timestamp) std::chrono::duration_cast<std::chrono::nanoseconds>(timestamp).count()
 
-pallas_timestamp_t pallas::ThreadWriter::getTimestamp() {
+pallas_timestamp_t pallas::ThreadWriter::get_timestamp() {
   Timepoint start = std::chrono::high_resolution_clock::now();
   if (NANOSECONDS(firstTimestamp.time_since_epoch()) == 0) {
     firstTimestamp = start;
@@ -19,7 +19,7 @@ pallas_timestamp_t pallas::ThreadWriter::getTimestamp() {
 
 pallas_timestamp_t pallas::ThreadWriter::timestamp(pallas_timestamp_t t) {
   if (t == PALLAS_TIMESTAMP_INVALID)
-    return getTimestamp();
+    return get_timestamp();
   return t;
 }
 

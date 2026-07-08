@@ -263,14 +263,14 @@ void info_definitions(Definition& definitions) {
   if (!definitions.regions.empty()) {
     printf("\tRegions {.nb_regions: %zu } :\n", definitions.regions.size());
     for (auto& [regionRef, region] : definitions.regions) {
-      printf("\t\t%d: %s\n", region.region_ref, definitions.getString(region.string_ref)->str);
+      printf("\t\t%d: %s\n", region.region_ref, definitions.get_string(region.string_ref)->str);
     }
   }
 
   if (!definitions.groups.empty()) {
     printf("\tGroups {.nb_groups: %zu } :\n", definitions.groups.size());
     for (auto& [groupRef, group] : definitions.groups) {
-        auto name = definitions.getString(group.name);
+        auto name = definitions.get_string(group.name);
       printf("\t\t%d: '%s' [", group.group_ref, (name) ? name->str : "INVALID");
       for (uint32_t i = 0; i < group.numberOfMembers; i++) {
         printf("%s%u", i > 0 ? ", " : "", group.members[i]);
@@ -282,7 +282,7 @@ void info_definitions(Definition& definitions) {
   if (!definitions.comms.empty()) {
     printf("\tComms {.nb_comms: %zu } :\n", definitions.comms.size());
     for (auto& [commRef, comm] : definitions.comms) {
-        auto name = definitions.getString(comm.name);
+        auto name = definitions.get_string(comm.name);
       printf("\t\t%d: '%s' (group, %d, parent: %d) \n", comm.comm_ref, (name) ? name->str : "INVALID", comm.group, comm.parent);
     }
   }
@@ -315,7 +315,7 @@ void info_global_archive(GlobalArchive* archive) {
     if (!archive->location_groups.empty()) {
       printf("\tLocation_groups {.nb_lg: %zu }:\n", archive->location_groups.size());
       for (auto& locationGroup : archive->location_groups) {
-        printf("\t\t%d: %s", locationGroup.id, archive->getString(locationGroup.name)->str);
+        printf("\t\t%d: %s", locationGroup.id, archive->get_string(locationGroup.name)->str);
         if (locationGroup.parent != PALLAS_LOCATION_GROUP_ID_INVALID)
           printf(", parent: %d", locationGroup.parent);
         printf("\n");
@@ -325,7 +325,7 @@ void info_global_archive(GlobalArchive* archive) {
     if (!archive->getLocationList().empty()) {
       printf("\tLocations {.nb_loc: %zu }:\n", archive->getLocationList().size());
       for (auto location : archive->getLocationList()) {
-        printf("\t\t%d: %s, parent: %d\n", location.id, archive->getArchive(location.parent)->getString(location.name)->str, location.parent);
+        printf("\t\t%d: %s, parent: %d\n", location.id, archive->getArchive(location.parent)->get_string(location.name)->str, location.parent);
       }
     }
   }
@@ -335,7 +335,7 @@ void info_global_archive(GlobalArchive* archive) {
 
 static bool _archiveContainsThread(Archive* archive, int thread_id) {
   for (int i = 0; i < archive->nb_threads; i++) {
-    auto thread = archive->getThreadAt(i);
+    auto thread = archive->get_thread_at(i);
     if (thread->id == thread_id)
       return true;
   }
@@ -356,7 +356,7 @@ void info_archive(Archive* archive) {
   }
 
   std::cout << std::setw(15) << std::left << archive->id;
-  std::cout << std::setw(20) << std::left << archive->getName();
+  std::cout << std::setw(20) << std::left << archive->get_name();
   std::cout << std::setw(15) << std::right << archive->nb_threads;
   std::cout << std::endl;
 }
@@ -371,7 +371,7 @@ void info_archive_definition(Archive* archive) {
     if (!archive->location_groups.empty()) {
       printf("\tLocation_groups {.nb_lg: %zu }:\n", archive->location_groups.size());
       for (auto& locationGroup : archive->location_groups) {
-        printf("\t\t%d: %s", locationGroup.id, archive->getString(locationGroup.name)->str);
+        printf("\t\t%d: %s", locationGroup.id, archive->get_string(locationGroup.name)->str);
         if (locationGroup.parent != PALLAS_LOCATION_GROUP_ID_INVALID)
           printf(", parent: %d", locationGroup.parent);
         printf("\n");
@@ -381,7 +381,7 @@ void info_archive_definition(Archive* archive) {
     if (!archive->locations.empty()) {
       printf("\tLocations {.nb_loc: %zu }:\n", archive->locations.size());
       for (auto location : archive->locations) {
-        printf("\t\t%d: %s, parent: %d\n", location.id, archive->getString(location.name)->str, location.parent);
+        printf("\t\t%d: %s, parent: %d\n", location.id, archive->get_string(location.name)->str, location.parent);
       }
     }
   }
@@ -427,7 +427,7 @@ void info_threads(Archive *archive) {
 
     if (archive->threads) {
         for (int i = 0; i < archive->nb_threads; i++) {
-            auto thread = archive->getThreadAt(i);
+            auto thread = archive->get_thread_at(i);
             info_thread_summary(thread);
         }
     }
@@ -459,7 +459,7 @@ void info_trace(GlobalArchive *trace) {
         for (auto &lg: trace->location_groups) {
             auto* archive = trace->getArchive(lg.id);
             for (auto& l: archive->locations) {
-                if (auto * thread = archive->getThread(l.id))
+                if (auto * thread = archive->get_thread(l.id))
                     info_thread(thread);
             }
             trace->freeArchive(lg.id);

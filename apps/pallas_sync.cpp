@@ -664,7 +664,7 @@ int main(int argc, char** argv) {
     archives.push_back(a);
     for (auto& loc : a->locations) {
       loc.name = string_ref_lookup[loc.name];
-      auto* t = a->getThread(loc.id);
+      auto* t = a->get_thread(loc.id);
       thread_id_lookup[loc.id] = threads.size();
       threads.push_back(t);
 
