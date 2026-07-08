@@ -129,6 +129,14 @@ void SubArrayBase::unpack_subarray_flags(uint8_t encoded_policy) {
 
 namespace {
 
+/**
+ * @brief Factory that selects the concrete manager attached to one SubArray.
+ *
+ * The choice depends on the logical value domain, the coarse `StoragePolicy`,
+ * and, for lossy paths, the resolved `LossyPolicy` variant. This keeps manager
+ * selection in one place for both runtime-created and file-reconstructed
+ * SubArrays.
+ */
 std::unique_ptr<Manager> make_manager(SubArrayBase& parent,
                                       ValueDomain domain,
                                       StoragePolicy policy,
