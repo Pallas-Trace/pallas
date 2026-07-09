@@ -1,14 +1,13 @@
 from dataclasses import dataclass
 from collections import OrderedDict
-from typing import Optional, Literal
+from typing import Optional, Literal, TypeAlias
 
 import numpy as np
 
-DataFidelity = Literal["fast", "balanced", "exact"]
+FidelityMode:       TypeAlias = Literal["fast", "balanced", "exact"]
+OccurrenceMode:     TypeAlias = Literal["all", "first", "last", "nth", "median"]
+TokenMode:          TypeAlias = Literal["raw", "named"]
 
-OccurrenceMode = Literal["all", "first", "last", "nth", "median"]
-
-TokenMode = Literal["raw", "category"]
 CATEGORY_TOKEN_TYPE = 3
 
 # Data Storage Cache structure
@@ -68,14 +67,14 @@ class TokenSummary:
 
 @dataclass(frozen=True)
 class TraceSummary:
-    fidelity:           DataFidelity
+    fidelity:           FidelityMode
     tokens:             tuple[TokenSummary, ...]
     top_tokens:         tuple[str, ...]
 
 @dataclass(frozen=True)
 class SummaryQuery:
     thread_ids:         tuple[int, ...]
-    fidelity:           DataFidelity = "fast"
+    fidelity:           FidelityMode = "fast"
     token_mode:         TokenMode = "raw"
     top_k:              int = 32
     block_only:         bool = False
@@ -86,7 +85,7 @@ class SummaryQuery:
 
 @dataclass
 class QuantaBundle:
-    fidelity:           DataFidelity
+    fidelity:           FidelityMode
     start_ns:           np.ndarray      # int64
     end_ns:             np.ndarray      # int64
     thread_id:          np.ndarray      # int64
@@ -99,11 +98,11 @@ class QuantaBundle:
 class QuantaQuery:
     thread_ids:         tuple[int, ...]
     bin_edges_ns:       tuple[int, ...]
-    fidelity:           DataFidelity = "fast"
+    fidelity:           FidelityMode = "fast"
     token_mode:         TokenMode = "raw"
     top_k:              Optional[int] = None
 
-def empty_quanta_bundle(fidelity: DataFidelity) -> QuantaBundle:
+def empty_quanta_bundle(fidelity: FidelityMode) -> QuantaBundle:
     empty_i64 = np.array([], dtype=np.int64)
     empty_u8 = np.array([], dtype=np.uint8)
     empty_f64 = np.array([], dtype=np.float64)
@@ -118,7 +117,7 @@ def empty_quanta_bundle(fidelity: DataFidelity) -> QuantaBundle:
         proportion  = empty_f64,
     )
 
-def normalize_quanta_result(raw, fidelity: DataFidelity) -> QuantaBundle:
+def normalize_quanta_result(raw, fidelity: FidelityMode) -> QuantaBundle:
     n = len(raw.start_ns)
     if n == 0:
         return empty_quanta_bundle(fidelity)
@@ -168,7 +167,7 @@ def canonicalize_quanta_query(query: QuantaQuery) -> QuantaQuery:
 
 @dataclass
 class SpanBundle:
-    fidelity:           DataFidelity
+    fidelity:           FidelityMode
     thread_id:          np.ndarray      # int64
     token_type:         np.ndarray      # uint8
     token_id:           np.ndarray      # int64
@@ -184,12 +183,12 @@ class SpanQuery:
     thread_ids:         tuple[int, ...]
     t0_ns:              int
     t1_ns:              int
-    fidelity:           DataFidelity = "fast"
+    fidelity:           FidelityMode = "fast"
     token_mode:         TokenMode = "raw"
     max_depth:          Optional[int] = None
     token:              Optional[tuple[int, int]] = None
 
-def empty_span_bundle(fidelity: DataFidelity) -> SpanBundle:
+def empty_span_bundle(fidelity: FidelityMode) -> SpanBundle:
     empty_i64 = np.array([], dtype=np.int64)
     empty_u8 = np.array([], dtype=np.uint8)
     return SpanBundle(
@@ -207,7 +206,7 @@ def empty_span_bundle(fidelity: DataFidelity) -> SpanBundle:
 
 def normalize_span_rows(
     rows: list[tuple[int, int, int, int, int, int, int, int, int]],
-    fidelity: DataFidelity,
+    fidelity: FidelityMode,
 ) -> SpanBundle:
     if not rows:
         return empty_span_bundle(fidelity)
@@ -236,7 +235,7 @@ def normalize_span_rows(
         excl_ns     = excl_ns[order],
     )
 
-def subset_span_bundle(bundle: SpanBundle, keep: np.ndarray, fidelity: DataFidelity) -> SpanBundle:
+def subset_span_bundle(bundle: SpanBundle, keep: np.ndarray, fidelity: FidelityMode) -> SpanBundle:
     return SpanBundle(
         fidelity    = fidelity,
         thread_id   = bundle.thread_id[keep],
@@ -268,7 +267,7 @@ def canonicalize_span_query(query: SpanQuery) -> SpanQuery:
 class OccurrenceQuery:
     thread_ids:         tuple[int, ...]
     token:              tuple[int, int]
-    fidelity:           DataFidelity = "exact"
+    fidelity:           FidelityMode = "exact"
     token_mode:         TokenMode = "raw"
     t0_ns:              Optional[int] = None
     t1_ns:              Optional[int] = None
@@ -304,7 +303,7 @@ class NodeRef:
 @dataclass(frozen=True)
 class SubtreeQuery:
     root:               NodeRef
-    fidelity:           DataFidelity = "fast"
+    fidelity:           FidelityMode = "fast"
     max_depth:          Optional[int] = None
     normalize_time:     bool = False
 
@@ -354,7 +353,6 @@ def canonicalize_histogram_query(query: SnapshotHistogramQuery) -> SnapshotHisto
 
 def as_token_key(token_type: int, token_id: int) -> str:
     return f"{token_type}:{token_id}"
-
 
 def token_int_id(tok) -> int:
     try:

@@ -8,7 +8,7 @@ from bokeh.models.widgets.tables import DataTable, TableColumn
 
 from adapters.summary_adapter import SequenceSummaryDisplayModel
 
-class SequenceSummaryDiffView:
+class SummaryView:
     def __init__(self, width: int = 360, height: int = 240) -> None:
         self.width = width
         self.height = height

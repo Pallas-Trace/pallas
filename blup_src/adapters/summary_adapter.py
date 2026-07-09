@@ -1,10 +1,9 @@
-# adapters/sequence_summary_diff_adapter.py
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable
 
-from data_model import DataFidelity, SummaryQuery, as_token_key, TokenMode, SnapshotHistogramQuery
+from data_model import FidelityMode, SummaryQuery, as_token_key, TokenMode, SnapshotHistogramQuery
 from trace_session import TraceSession
 
 
@@ -103,7 +102,7 @@ class SequenceSummaryDiffAdapter:
         self,
         *,
         token_mode: TokenMode,
-        fidelity: DataFidelity = "fast",
+        fidelity: FidelityMode = "fast",
         top_k: int = 32,
         active_thread_names: tuple[str, ...] = (),
     ) -> tuple[SequenceSummaryDiffRow, ...]:

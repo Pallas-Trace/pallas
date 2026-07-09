@@ -18,7 +18,7 @@ from bokeh.models.ranges import Range1d
 from bokeh.models.widgets.inputs import TextInput
 from bokeh.plotting import figure
 
-from data_model import DataFidelity, QuantaQuery, TokenMode, as_token_key
+from data_model import FidelityMode, QuantaQuery, TokenMode, as_token_key
 from trace_session import TraceSession, QuantaQuery
 from adapters.quanta_adapter import (
     empty_quanta_source,
@@ -27,6 +27,7 @@ from adapters.quanta_adapter import (
 )
 from utils import timed
 
+
 @dataclass(frozen=True)
 class ThreadLoadJob:
     generation:     int
@@ -34,9 +35,10 @@ class ThreadLoadJob:
     thread_id_1:    Optional[int]
     thread_id_2:    Optional[int]
     bin_edges_ns:   tuple[int, ...]
-    mode:           DataFidelity
+    mode:           FidelityMode
     token_mode:     TokenMode
     stack_order:    str
+
 
 @dataclass(frozen=True)
 class ThreadLoadResult:
@@ -45,7 +47,8 @@ class ThreadLoadResult:
     src1:           dict
     src2:           dict
 
-class QuantaComparisonView:
+
+class QuantaView:
 
     def __init__(
         self,
@@ -77,7 +80,7 @@ class QuantaComparisonView:
 
         self._current_threads: list[str] = []
         self._current_edges: tuple[int, ...] = ()
-        self._current_mode: DataFidelity = "fast"
+        self._current_mode: FidelityMode = "fast"
         self._current_token_mode: TokenMode = "raw"
         self._current_stack_order: str = "global"
         self._color_map: dict[str, str] = {}
@@ -215,7 +218,7 @@ class QuantaComparisonView:
         *,
         active_thread_names: list[str],
         n_quanta: int,
-        mode: DataFidelity,
+        mode: FidelityMode,
         token_mode: TokenMode = "raw",
         stack_order: str,
         window_t0_ns: int | None = None,

@@ -342,7 +342,7 @@ class TraceSession:
         with timed(f"normalize_quanta_result[{query.fidelity}]"):
             bundle = normalize_quanta_result(raw, query.fidelity)
 
-        if query.token_mode == "category":
+        if query.token_mode == "named":
             tt, tid, groups, sums = self.remap_tokens(
                 bundle.token_type,
                 bundle.token_id,
@@ -676,7 +676,7 @@ class TraceSession:
         token_type = int(token_type)
         token_id = int(token_id)
 
-        if token_mode != "category":
+        if token_mode != "named":
             return (token_type, token_id)
 
         mapped = self.meta.token_cat_remap.get((token_type, token_id))
@@ -702,7 +702,7 @@ class TraceSession:
         out_type = np.asarray(token_type, dtype=np.uint8).copy()
         out_id = np.asarray(token_id, dtype=np.int64).copy()
 
-        if token_mode == "category":
+        if token_mode == "named":
             remap = self.meta.token_cat_remap
             for i in range(len(out_id)):
                 mapped = remap.get((int(out_type[i]), int(out_id[i])))
