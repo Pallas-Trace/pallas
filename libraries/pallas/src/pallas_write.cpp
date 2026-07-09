@@ -37,12 +37,23 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
     return memcmp(array1, array2, sizeof(Token) * size1) == 0;
 }
 
-
+/** Number of recent iterations inspected when deciding whether a loop is hot. */
 static constexpr unsigned kHotLoopIters = RecentValueRingBuffer::kCapacity;
+/** Maximum representative duration, in nanoseconds, for a loop to qualify as hot. */
 static constexpr pallas_duration_t kHotLoopDurNs = 350ULL;
+/** Numerator of the minimum hit fraction required for promotion. */
 static constexpr size_t kHotLoopMinFracNum = 3;
+/** Denominator of the minimum hit fraction required for promotion. */
 static constexpr size_t kHotLoopMinFracDen = 4;
 
+#if 0
+/**
+ * @brief Narrow filter for enter/leave-only sequences.
+ *
+ * Hot-loop promotion is no longer restricted to this exact two-event shape, but
+ * the helper is kept here as a reminder of the earlier, more conservative
+ * policy that only recognised the simplest enter/leave loop bodies.
+ */
 static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
     if (sequence.tokens.size() != 2) {
         return false;
@@ -60,7 +71,16 @@ static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread)
     return first_event->data.record == PALLAS_EVENT_ENTER &&
            second_event->data.record == PALLAS_EVENT_LEAVE;
 }
+#endif
 
+/**
+ * @brief Recursively apply an event-timestamp storage policy to one token tree.
+ *
+ * Sequence hot-loop promotion is expressed at the logical token level, but the
+ * timestamp vectors actually live on events nested inside sequences and loops.
+ * This helper walks that token structure and updates every affected event-time
+ * linked vector in place.
+ */
 static void applyEventTimestampPolicyToToken(Token token, Thread& thread, StoragePolicy policy) {
     switch (token.type) {
     case TypeEvent: {
@@ -88,6 +108,13 @@ static void applyEventTimestampPolicyToToken(Token token, Thread& thread, Storag
     }
 }
 
+/**
+ * @brief Promote one detected hot sequence to lossy runtime storage.
+ *
+ * The sequence timestamps and both duration vectors are switched to lossy mode,
+ * and the event timestamp vectors reachable from the sequence body are promoted
+ * as well so the full repeated pattern follows the same hot-loop policy.
+ */
 static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
     sequence.timestamps->setPreferredStoragePolicy(StoragePolicy::Lossy);
     sequence.timestamps->apply_storage_policy();
@@ -226,6 +253,9 @@ void ThreadWriter::storeToken(Token t, size_t i) {
 
 void ThreadWriter::incrementLoop(Loop* loop) {
     pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
+    // This is not only a counter bump: once the iteration threshold is reached,
+    // the same path also acts as the gate for hot-loop policy checks and
+    // possible lossy promotion of the repeated sequence.
     loop->nb_iterations++;
     if (parameter_handler->shouldOverrideLoopDetection()) {
         return;

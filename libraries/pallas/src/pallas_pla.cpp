@@ -669,6 +669,13 @@ size_t emit_anchor_records(const uint64_t* values, const uint16_t* anchor_positi
 
 }  // namespace
 
+/**
+ * @brief Return the size of the shared scratch buffer needed by `GammaBlockStats`.
+ *
+ * The returned size covers all temporary arrays required by the PLA helper
+ * pipeline for one full `kPLABlockSize` block, including prefix sums, per-point
+ * scores, candidate order, and packed candidate-state words.
+ */
 size_t GammaBlockStats::helper_buffer_bytes() {
     const size_t value_count = kPLABlockSize;
     const size_t prefix_count = kPLABlockSize + 1;
@@ -688,35 +695,28 @@ size_t GammaBlockStats::helper_buffer_bytes() {
            kStateWordCount * sizeof(uint64_t);                 // packed candidate state
 }
 
+/**
+ * @brief Bind a caller-provided scratch buffer to the typed views in `GammaBlockStats`.
+ *
+ * No allocation happens here: the method simply carves the single flat helper
+ * buffer into the ordered array views expected by the gamma and PLA4 builders.
+ */
 GammaBlockStats GammaBlockStats::bind(void* buffer) {
     auto* bytes = static_cast<uint8_t*>(buffer);
     GammaBlockStats stats{};
-    stats.raw = reinterpret_cast<uint64_t*>(bytes);
-    bytes += kPLABlockSize * sizeof(uint64_t);
-    stats.delta = reinterpret_cast<int64_t*>(bytes);
-    bytes += kPLABlockSize * sizeof(int64_t);
-    stats.abs_delta_of_delta = reinterpret_cast<uint64_t*>(bytes);
-    bytes += kPLABlockSize * sizeof(uint64_t);
-    stats.abs_delta_deviation = reinterpret_cast<double*>(bytes);
-    bytes += kPLABlockSize * sizeof(double);
-    stats.sum_y = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_y2 = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_xy = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_d = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_d2 = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_abs_dd = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.sum_abs_delta_deviation = reinterpret_cast<double*>(bytes);
-    bytes += (kPLABlockSize + 1) * sizeof(double);
-    stats.score = reinterpret_cast<double*>(bytes);
-    bytes += kPLABlockSize * sizeof(double);
-    stats.order = reinterpret_cast<uint16_t*>(bytes);
-    bytes += kPLABlockSize * sizeof(uint16_t);
+    stats.raw = reinterpret_cast<uint64_t*>(bytes);  bytes += kPLABlockSize * sizeof(uint64_t);
+    stats.delta = reinterpret_cast<int64_t*>(bytes); bytes += kPLABlockSize * sizeof(int64_t);
+    stats.abs_delta_of_delta = reinterpret_cast<uint64_t*>(bytes);   bytes += kPLABlockSize * sizeof(uint64_t);
+    stats.abs_delta_deviation = reinterpret_cast<double*>(bytes);    bytes += kPLABlockSize * sizeof(double);
+    stats.sum_y = reinterpret_cast<double*>(bytes);  bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_y2 = reinterpret_cast<double*>(bytes); bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_xy = reinterpret_cast<double*>(bytes); bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_d = reinterpret_cast<double*>(bytes);  bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_d2 = reinterpret_cast<double*>(bytes); bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_abs_dd = reinterpret_cast<double*>(bytes); bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.sum_abs_delta_deviation = reinterpret_cast<double*>(bytes);bytes += (kPLABlockSize + 1) * sizeof(double);
+    stats.score = reinterpret_cast<double*>(bytes);  bytes += kPLABlockSize * sizeof(double);
+    stats.order = reinterpret_cast<uint16_t*>(bytes);bytes += kPLABlockSize * sizeof(uint16_t);
     stats.state_words = reinterpret_cast<uint64_t*>(bytes);
     return stats;
 }
@@ -733,11 +733,13 @@ size_t build_pla4_alpha_block(const uint64_t* values, size_t n,GammaBlockStats& 
     std::array<double, 4> best_score{};
     size_t best_count = 0;
 
+    // Stage 1: Materialize the first-order delta stream for the block.
     const size_t delta_count = n - 1;
     for (size_t i = 0; i < delta_count; ++i) {
         stats.delta[i] = static_cast<int64_t>(values[i + 1]) - static_cast<int64_t>(values[i]);
     }
 
+    // Stage 2: Score each interior position by how spike-like its local delta pattern looks.
     for (size_t position = 1; position + 1 < n; ++position) {
         const size_t delta_idx = position - 1;
         const size_t left = (delta_idx > 5) ? (delta_idx - 5) : 0;
@@ -772,6 +774,7 @@ size_t build_pla4_alpha_block(const uint64_t* values, size_t n,GammaBlockStats& 
                             best_count);
     }
 
+    // Stage 3: Sort the strongest candidates and emit them as interior anchors.
     const size_t emitted_count = std::min(best_count, max_candidates);
     std::sort(best_idx.begin(), best_idx.begin() + static_cast<std::ptrdiff_t>(emitted_count));
     return emit_anchor_records(values, best_idx.data(), emitted_count, anchors);
@@ -793,9 +796,11 @@ size_t build_gamma_anchor_block(const uint64_t* values, size_t n, GammaBlockStat
         return 0;
     }
 
+    // Stage 1: Precompute block statistics and initialize the compact candidate-state map.
     prepare_gamma_stats(values, n, stats);
     initialize_states(stats, n);
 
+    // Stage 2: Build and rank the initial pool of seed candidates.
     std::array<uint16_t, kGammaSeedPoolSize> seed_pool{};
     size_t seed_pool_count = 0;
     build_seed_pool(stats, n, seed_pool.data(), seed_pool_count);
@@ -804,6 +809,7 @@ size_t build_gamma_anchor_block(const uint64_t* values, size_t n, GammaBlockStat
     size_t anchor_count = select_initial_seeds(
             stats, seed_pool.data(), seed_pool_count, target_anchor_count, anchor_positions.data());
 
+    // Stage 3: Mark the chosen seeds as anchors and suppress nearby flat/overlapping candidates.
     for (size_t i = 0; i < anchor_count; ++i) {
         set_state(stats, anchor_positions[i], CandidateState::Anchor);
     }
@@ -811,6 +817,7 @@ size_t build_gamma_anchor_block(const uint64_t* values, size_t n, GammaBlockStat
         apply_anchor_suppression(stats, n, anchor_positions[i]);
     }
 
+    // Stage 4: Repeatedly refine the current worst segment by inserting a better split anchor.
     while (anchor_count < target_anchor_count) {
         uint16_t split_position = 0;
         if (!choose_best_refinement(stats, n, anchor_positions.data(), anchor_count, split_position)) {
@@ -824,6 +831,7 @@ size_t build_gamma_anchor_block(const uint64_t* values, size_t n, GammaBlockStat
         }
     }
 
+    // Stage 5: Fill any remaining capacity conservatively, then emit the final anchor records.
     fill_remaining_anchors(stats, n, anchor_positions.data(), anchor_count, target_anchor_count);
     return emit_anchor_records(values, anchor_positions.data(), anchor_count, anchors);
 }

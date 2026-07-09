@@ -66,7 +66,7 @@ typedef struct ThreadWriter {
      * Does not change the current array of tokens. Loop is initialized at 2.
      * */
     [[nodiscard]] Loop* createLoop(Token sequence_id);
-    /** Increments the counter of loop by 1. */
+    /** Increments the loop iteration count and, once thresholds are met, also triggers hot-loop promotion checks. */
     void incrementLoop(Loop *loop);
     /** Duplicates the given loop. The new loop has nb_occurrences set to 1, the old loop has it decreased by 1. */
     [[nodiscard]] Loop* unsquashLoop(TokenId loopid);
