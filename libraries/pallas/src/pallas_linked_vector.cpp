@@ -600,6 +600,10 @@ AddStatus DurationLV::add(uint64_t val) {
         value_count++;
         min_duration = std::min(min_duration, val);
         max_duration = std::max(max_duration, val);
+        if (mean_duration_is_finalized && value_count > 1) {
+            mean_duration *= (value_count - 1);
+        }
+        mean_duration_is_finalized = false;
         mean_duration += val;
     }
     return status;
@@ -608,10 +612,11 @@ AddStatus DurationLV::add(uint64_t val) {
 /** Aggregate Updates */
 
 void DurationLV::final_update_mean() {
-    if (value_count == 0) {
+    if (value_count == 0 || mean_duration_is_finalized) {
         return;
     }
     mean_duration /= value_count;
+    mean_duration_is_finalized = true;
 }
 
 /** Queries and Stringification */

@@ -664,6 +664,8 @@ class DurationSubArray : public SubArrayBase {
     uint64_t max_duration = 0;
     /** Mean duration cached for this SubArray. */
     uint64_t mean_duration = 0;
+    /** Tracks whether `mean_duration` currently stores a finalized mean or a running sum. */
+    bool mean_duration_is_finalized = false;
 };
 
 }  

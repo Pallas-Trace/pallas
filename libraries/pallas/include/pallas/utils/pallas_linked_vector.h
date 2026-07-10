@@ -519,6 +519,8 @@ class DurationLV : public LVBase {
     uint64_t max_duration = 0;
     /** Running or finalized mean duration tracked at the vector level. */
     uint64_t mean_duration = 0;
+    /** Tracks whether `mean_duration` currently stores a finalized mean or a running sum. */
+    bool mean_duration_is_finalized = false;
 };
 
 }  // namespace pallas

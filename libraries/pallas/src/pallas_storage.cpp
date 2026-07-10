@@ -1007,6 +1007,7 @@ void pallas::DurationSubArray::read_header(FILE* info_file) {
     _pallas_fread(&min_duration, sizeof(min_duration), 1, info_file);
     _pallas_fread(&max_duration, sizeof(max_duration), 1, info_file);
     _pallas_fread(&mean_duration, sizeof(mean_duration), 1, info_file);
+    mean_duration_is_finalized = true;
     if (max_duration < mean_duration) {
         static bool show_warning = true;
         if (show_warning) {
@@ -1035,10 +1036,11 @@ void pallas::DurationLV::write_header(FILE* vectorFile) {
     if (value_count == 0) {
         return;
     }
-    if (parameter_handler.does_stats_need_compute) {
-        final_update_mean();
-        static_cast<DurationSubArray*>(last)->final_update_mean();
+
+    for (auto* base_subarray = first; base_subarray != nullptr; base_subarray = base_subarray->next_subarray()) {
+        static_cast<DurationSubArray*>(base_subarray)->final_update_mean();
     }
+    final_update_mean();
 
     _pallas_fwrite(&min_duration, sizeof(min_duration), 1, vectorFile);
     _pallas_fwrite(&max_duration, sizeof(max_duration), 1, vectorFile);
@@ -1083,6 +1085,7 @@ pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, P
     _pallas_fread(&min_duration, sizeof(min_duration), 1, vector_file);
     _pallas_fread(&max_duration, sizeof(max_duration), 1, vector_file);
     _pallas_fread(&mean_duration, sizeof(mean_duration), 1, vector_file);
+    mean_duration_is_finalized = true;
     if (max_duration < mean_duration) {
         static bool show_warning = true;
         if (show_warning) {

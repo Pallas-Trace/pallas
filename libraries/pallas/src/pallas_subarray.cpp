@@ -1821,14 +1821,19 @@ void DurationSubArray::write_data(FILE* file, const ParameterHandler* parameter_
 void DurationSubArray::update_statistics(uint64_t current_value) {
     min_duration = (current_value < min_duration) ? current_value : min_duration;
     max_duration = (current_value > max_duration) ? current_value : max_duration;
+    if (mean_duration_is_finalized && value_count > 1) {
+        mean_duration *= (value_count - 1);
+    }
+    mean_duration_is_finalized = false;
     mean_duration += current_value;
 }
 
 void DurationSubArray::final_update_mean() {
-    if (value_count == 0) {
+    if (value_count == 0 || mean_duration_is_finalized) {
         return;
     }
     mean_duration /= value_count;
+    mean_duration_is_finalized = true;
     pallas_assert_inferior_equal(mean_duration, max_duration);
     pallas_assert_inferior_equal(min_duration, mean_duration);
 }
