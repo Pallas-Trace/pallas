@@ -11,12 +11,14 @@ import pallas_trace as pallas
 from data_model import *
 from utils import timed
 
+
 def sequence_block_depth(reader: pallas.ThreadReader) -> int:
     return len([
         t for (t, _) in reader.callstack[:-1]
         if isinstance(t, pallas.Sequence)
         and t.type == pallas.SequenceType.SEQUENCE_BLOCK
     ])
+
 
 class TraceSession:
     def __init__(

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
 
 # > state constants
 
 from data_model import FidelityMode, TokenMode
+TraceMode:      TypeAlias = Literal["dual", "single"]
 QuantaOrder:    TypeAlias = Literal["global", "local"]
 ViewId:         TypeAlias = Literal["quanta", "inspector", "summary"]
 
@@ -60,6 +61,7 @@ class TimeScopeState:
 @dataclass
 class ContextState:
     active_threads:     tuple[str, ...]
+    trace_mode:         TraceMode = "single"
     token_mode:         TokenMode = "raw"
     selection:          SelectionState = field(default_factory=SelectionState)
     time_scope:         TimeScopeState = field(default_factory=TimeScopeState)

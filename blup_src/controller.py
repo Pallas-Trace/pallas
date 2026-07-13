@@ -4,6 +4,7 @@ import re
 import math
 from dataclasses import dataclass
 
+from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
 
 from ui import UIElements, UIModel
@@ -18,15 +19,12 @@ from state import (
     ViewState,
 )
 from trace_session import TraceSession
-from adapters.summary_adapter import SequenceSummaryDiffAdapter, SequenceSummaryDiffRow, format_duration_ns
-from views.quanta_view import QuantaView
-from views.inspector_view import InspectorView
-from views.summary_view import SummaryView
-from utils import timed
 from pipelines.base import DisplayPipeline
 from pipelines.quanta_pipeline import QuantaPipeline
 from pipelines.inspector_pipeline import InspectorPipeline
 from pipelines.summary_pipeline import SummaryPipeline
+from work_manager import WorkManager
+from utils import timed
 
 
 THREAD_RE = re.compile(r"^P#(\d+)T#(\d+)$")
@@ -46,12 +44,6 @@ class ControllerRuntime:
     ui:                 UIElements | None = None
     root:               LayoutDOM | None = None
 
-    quanta_root:        LayoutDOM | None = None
-    inspector_root:     LayoutDOM | None = None
-    summary_root:       LayoutDOM | None = None
-
-    sequence_rows:      tuple[SequenceSummaryDiffRow, ...] = ()
-
 
 class AppController:
     t1:                 TraceSession
@@ -60,16 +52,13 @@ class AppController:
     ui_model:           UIModel
     runtime:            ControllerRuntime
 
-    quanta_view:        QuantaView
-    inspector_view:     InspectorView
-    summary_view:       SummaryView
-
     def __init__(self, t1: TraceSession, t2: TraceSession):
         # install TraceSession objects
         self.t1 = t1
         self.t2 = t2
 
         # initial state setup
+        self.doc = curdoc()
         self.install_merged_category_namespace()
         self.state = self.initial_state()
 
@@ -77,25 +66,18 @@ class AppController:
         self.runtime = ControllerRuntime()
 
         self.pipelines: dict[ViewId, DisplayPipeline] = {
-            "quanta": QuantaPipeline(t1, t2, width=1350, height=950),
+            "quanta": QuantaPipeline(t1, t2, width=1650, height=950),
             "inspector": InspectorPipeline(t1, t2, width=360),
             "summary": SummaryPipeline(t1, t2, width=750, height=400),
         }
 
-        # view initializers
-        self.quanta_view = QuantaView(t1, t2, width=1350, height=950)
-        self.quanta_view.on_token_selected = self.on_quanta_token_selected  # type: ignore
-
-        self.inspector_view = InspectorView(t1, t2, width=360)
-
-        self.summary_view = SummaryView(width=750, height=400)
-        self.summary_adapter = SequenceSummaryDiffAdapter(t1, t2)
+        self.work_manager = WorkManager(
+            schedule_display_callback = self.doc.add_next_tick_callback,  # type: ignore
+            max_workers = 8,
+        )
 
         # internal logic flags
         self._refresh_scheduled = False
-        self._range_refresh_scheduled = False
-        self._ignore_range_callbacks = False
-        self._ignore_highlight_callbacks = False
 
     # -------------------------------------------
     # |              Lifecycle                  |
@@ -103,7 +85,7 @@ class AppController:
 
     def build(self):
         with timed("build.view_roots"):
-            self.build_view_roots()
+            self.build_pipeline_roots()
 
         with timed("build.ui"):
             self.build_ui_shell()
@@ -112,17 +94,16 @@ class AppController:
             self.mount_current_displays()
 
         with timed("build.bind_view_callbacks"):
-            self.bind_view_callbacks()
+            self.bind_active_pipelines()
 
         with timed("build.refresh_tick"):
             self.refresh_tick()
 
         return self.runtime.root
 
-    def build_view_roots(self) -> None:
-        self.runtime.quanta_root = self.quanta_view.build()
-        self.runtime.inspector_root = self.inspector_view.build()
-        self.runtime.summary_root = self.summary_view.build()
+    def build_pipeline_roots(self) -> None:
+        for pipeline in self.pipelines.values():
+            pipeline.build()
 
     def build_ui_shell(self) -> None:
         ui = self.ui_model.build(
@@ -132,100 +113,59 @@ class AppController:
         self.runtime.ui = ui
         self.runtime.root = ui.root
 
-    def mount_current_displays(self) -> None:
-        ui = self.runtime.ui
-        if ui is None:
-            return
-
-        primary_root = self.get_view_root(self.state.display.primary.active_view)
-        ui.primary_panel.children = [primary_root] if primary_root is not None else []  # type: ignore
-
-        secondary_children: list[LayoutDOM] = []
-        for panel in self.state.display.secondary:
-            root = self.get_view_root(panel.active_view)
-            if root is not None:
-                secondary_children.append(root)
-        ui.secondary_panel.children = secondary_children  # type: ignore
-
-    def bind_view_callbacks(self) -> None:
-        self.bind_time_range_callbacks()
+    # -------------------------------------------
+    # |               Refresh                   |
+    # -------------------------------------------
 
     def schedule_refresh(self) -> None:
         if self._refresh_scheduled:
             return
         self._refresh_scheduled = True
-        self.quanta_view.doc.add_next_tick_callback(self.refresh_tick)  # type: ignore
+        curdoc().add_next_tick_callback(self.refresh_tick)
 
     def refresh_tick(self) -> None:
         self._refresh_scheduled = False
-        self._ignore_range_callbacks = True
-        try:
-            self.mount_current_displays()
-            self.bind_view_callbacks()
-            self.refresh_current_views()
-        finally:
-            self._ignore_range_callbacks = False
+        self.mount_current_displays()
+        self.bind_active_pipelines()
+        self.refresh_current_pipelines()
 
-    def get_view_root(self, view_id: ViewId) -> LayoutDOM | None:
-        if view_id == "quanta":
-            return self.runtime.quanta_root
-        if view_id == "inspector":
-            return self.runtime.inspector_root
-        if view_id == "summary":
-            return self.runtime.summary_root
-        return None
+    def bind_active_pipelines(self) -> None:
+        for pipeline in self.active_pipelines():
+            pipeline.bind(self)
 
+    def refresh_current_pipelines(self) -> None:
+        for pipeline in self.active_pipelines():
+            pipeline.refresh(self)
+
+    # -------------------------------------------
+    # |               Display                   |
+    # -------------------------------------------
+
+    def get_pipeline(self, view_id: ViewId) -> DisplayPipeline:
+        return self.pipelines[view_id]
 
     def active_view_ids(self) -> tuple[ViewId, ...]:
         ids = [self.state.display.primary.active_view]
         ids.extend(panel.active_view for panel in self.state.display.secondary)
         return tuple(dict.fromkeys(ids))  # type: ignore
 
-    def refresh_current_views(self) -> None:
-        for view_id in self.active_view_ids():
-            self.refresh_view(view_id)
+    def active_pipelines(self) -> tuple[DisplayPipeline, ...]:
+        return tuple(self.get_pipeline(id) for id in self.active_view_ids())
 
-    def refresh_view(self, view_id: ViewId) -> None:
-        if view_id == "quanta":
-            self._refresh_quanta_view()
-        elif view_id == "inspector":
-            self._refresh_inspector_view()
-        elif view_id == "summary":
-            self._refresh_summary_view()
+    def mount_current_displays(self) -> None:
+        ui = self.runtime.ui
+        if ui is None:
+            return
 
-    def _refresh_quanta_view(self) -> None:
-        with timed("quanta_view.update"):
-            self.quanta_view.update(
-                active_thread_names = list(self.state.context.active_threads),
-                n_quanta            = self.state.views.quanta.n_bins,
-                mode                = self.state.views.quanta.mode,
-                token_mode          = self.state.context.token_mode,
-                stack_order         = self.state.views.quanta.order,
-                window_t0_ns        = self.state.context.time_scope.t0_ns,
-                window_t1_ns        = self.state.context.time_scope.t1_ns,
-            )
+        primary_root = self.get_pipeline(self.state.display.primary.active_view).root()
+        ui.primary_panel.children = [primary_root] if primary_root is not None else []  # type: ignore
 
-    def _refresh_inspector_view(self) -> None:
-        with timed("inspector_view.update"):
-            self.inspector_view.update(
-                active_threads      = list(self.state.context.active_threads),
-                n_quanta            = self.state.views.quanta.n_bins,
-                mode                = self.state.views.quanta.mode,
-                token_mode          = self.state.context.token_mode,
-                stack_order         = self.state.views.quanta.order,
-            )
-
-    def _refresh_summary_view(self) -> None:
-        with timed("summary_view.update"):
-            rows = self.summary_adapter.build_rows(
-                token_mode          = self.state.context.token_mode,
-                fidelity            = "fast",
-                top_k               = 32,
-                active_thread_names = tuple(self.state.context.active_threads),
-            )
-            self.runtime.sequence_rows = rows
-            self.refresh_highlight_token_select(rows)
-            self.refresh_summary_view()
+        secondary_children: list[LayoutDOM] = []
+        for panel in self.state.display.secondary:
+            root = self.get_pipeline(panel.active_view).root()
+            if root is not None:
+                secondary_children.append(root)
+        ui.secondary_panel.children = secondary_children  # type: ignore
 
     # -------------------------------------------
     # |            State Management             |
@@ -237,6 +177,7 @@ class AppController:
             views=ViewState(),
             context=ContextState(
                 active_threads=names,
+                trace_mode="single",
             ),
             display=DisplayState(
                 primary=PanelState(
@@ -281,19 +222,11 @@ class AppController:
         self.state.views.quanta.order = order
         self.schedule_refresh()
 
-    def set_highlight_token(
-        self,
-        token: tuple[int, int] | None,
-        *,
-        sync_widget: bool = True,
-        refresh_summary: bool = True,
-    ) -> None:
-        if self.state.context.selection.token != token:
-            self.state.context.selection.token = token
-        if sync_widget:
-            self.sync_highlight_widget(token)
-        if refresh_summary:
-            self.refresh_summary_view()
+    def set_highlight_token(self, token: tuple[int, int] | None) -> None:
+        if self.state.context.selection.token == token:
+            return
+        self.state.context.selection.token = token
+        self.schedule_refresh()
 
     # -------------------------------------------
     # |             Event Adapters              |
@@ -317,165 +250,9 @@ class AppController:
         self.set_quanta_order(new)
 
     def on_highlight_token_changed(self, attr, old, new):
-        if self._ignore_highlight_callbacks:
-            return
-        self.set_highlight_token(
-            self.select_value_to_token(new),
-            sync_widget=False,
-            refresh_summary=True,
-        )
-
-    def on_quanta_token_selected(self, token: tuple[int, int] | None) -> None:
-        self.set_highlight_token(
-            token,
-            sync_widget=True,
-            refresh_summary=True,
-        )
-
-    # -------------------------------------------
-    # |         Selection Coordination          |
-    # -------------------------------------------
-
-    def refresh_highlight_token_select(
-        self,
-        rows: tuple[SequenceSummaryDiffRow, ...],
-    ) -> None:
-        if self.runtime.ui is None:
-            return
-
-        widget = self.runtime.ui.highlight_token_select
-        options = self.highlight_token_options(rows)
-        valid_values = {value for value, _ in options}
-
-        current_value = self.token_to_select_value(self.state.context.selection.token)
-        if current_value not in valid_values:
-            current_value = options[1][0] if len(options) > 1 else ""
-            self.state.context.selection.token = self.select_value_to_token(current_value)
-
-        self._ignore_sequence_callbacks = True
-        try:
-            widget.options = options  # type: ignore
-            if widget.value != current_value:
-                widget.value = current_value
-        finally:
-            self._ignore_sequence_callbacks = False
-
-    def highlight_token_options(
-        self,
-        rows: tuple[SequenceSummaryDiffRow, ...],
-    ) -> list[tuple[str, str]]:
-        opts: list[tuple[str, str]] = [("", "(none)")]
-        for row in rows:
-            value = self.token_to_select_value((row.token_type, row.token_id))
-            label = (
-                f"#{row.contribution_rank} "
-                f"{row.name} "
-                f"({format_duration_ns(row.contribution_abs_ns)}, "
-                f"{row.contribution_share_pct:.1f}%) "
-                f"[{row.token_type}:{row.token_id}]"
-            )
-            opts.append((value, label))
-        return opts
-
-    def sync_highlight_widget(self, token: tuple[int, int] | None) -> None:
-        if self.runtime.ui is None:
-            return
-
-        widget = self.runtime.ui.highlight_token_select
-        value = self.token_to_select_value(token)
-
-        self._ignore_highlight_callbacks = True
-        try:
-            if widget.value != value:
-                widget.value = value
-        finally:
-            self._ignore_highlight_callbacks = False
-
-    def refresh_summary_view(self) -> None:
-        token = self.state.context.selection.token
-        row = next((r for r in self.runtime.sequence_rows if r.token == token), None)
-
-        t0_ns = self.state.context.time_scope.t0_ns
-        t1_ns = self.state.context.time_scope.t1_ns
-        if t0_ns is None or t1_ns is None:
-            t0_ns = self.quanta_view.full_start_ns
-            t1_ns = self.quanta_view.full_end_ns
-
-        model = self.summary_adapter.build_display_model(
-            row,
-            active_thread_names = tuple(self.state.context.active_threads),
-            token_mode          = self.state.context.token_mode,
-            t0_ns               = t0_ns,
-            t1_ns               = t1_ns,
-            histogram_bins      = 20,
-        )
-        self.summary_view.update(model)
-
-    # -------------------------------------------
-    # |               Viewport                  |
-    # -------------------------------------------
-
-    def bind_time_range_callbacks(self) -> None:
-        fig = self.quanta_view.fig
-        if fig is None:
-            return
-        fig.x_range.on_change("start", self.on_time_range_changed)  # type: ignore
-        fig.x_range.on_change("end", self.on_time_range_changed)  # type: ignore
-
-    def on_time_range_changed(self, attr, old, new) -> None:
-        if self._ignore_range_callbacks:
-            return
-        if self._range_refresh_scheduled:
-            return
-        if self.quanta_view.doc is None:
-            return
-
-        self._range_refresh_scheduled = True
-        self.quanta_view.doc.add_next_tick_callback(self.apply_time_range_change)
-
-    def apply_time_range_change(self) -> None:
-        self._range_refresh_scheduled = False
-
-        fig = self.quanta_view.fig
-        if fig is None:
-            return
-
-        start_ms = fig.x_range.start  # type: ignore
-        end_ms = fig.x_range.end      # type: ignore
-        if start_ms is None or end_ms is None:
-            return
-        if not math.isfinite(start_ms) or not math.isfinite(end_ms):
-            return
-        if end_ms <= start_ms:
-            return
-
-        full_t0_ns = self.quanta_view.full_start_ns
-        full_t1_ns = self.quanta_view.full_end_ns
-
-        new_t0_ns = max(full_t0_ns, int(start_ms * 1e6))
-        new_t1_ns = min(full_t1_ns, int(end_ms * 1e6))
-        if new_t1_ns <= new_t0_ns:
-            return
-
-        scope = self.state.context.time_scope
-
-        full_t0_ms = full_t0_ns / 1e6
-        full_t1_ms = full_t1_ns / 1e6
-        eps_ms = 1e-9
-
-        if abs(start_ms - full_t0_ms) <= eps_ms and abs(end_ms - full_t1_ms) <= eps_ms:
-            next_t0_ns = None
-            next_t1_ns = None
-        else:
-            next_t0_ns = new_t0_ns
-            next_t1_ns = new_t1_ns
-
-        if scope.t0_ns == next_t0_ns and scope.t1_ns == next_t1_ns:
-            return
-
-        scope.t0_ns = next_t0_ns
-        scope.t1_ns = next_t1_ns
-        self.schedule_refresh()
+        summary = self.get_pipeline("summary")
+        assert isinstance(summary, SummaryPipeline)
+        summary.on_highlight_widget_changed(self, new)
 
     # -------------------------------------------
     # |               Utilities                 |
@@ -499,15 +276,10 @@ class AppController:
         names = set(map(str, self.t1.meta.thread_names)) | set(map(str, self.t2.meta.thread_names))
         return sorted(names, key=thread_sort_key)
 
-    def token_to_select_value(self, token: tuple[int, int] | None) -> str:
-        if token is None:
-            return ""
-        return f"{token[0]}:{token[1]}"
-
-    def select_value_to_token(self, value: str) -> tuple[int, int] | None:
-        if not value:
-            return None
-        a, b = value.split(":", 1)
-        return (int(a), int(b))
+    def full_time_bounds(self) -> tuple[int, int]:
+        return (
+            min(self.t1.meta.start_ns, self.t2.meta.start_ns),
+            max(self.t1.meta.end_ns, self.t2.meta.end_ns),
+        )
 
 
