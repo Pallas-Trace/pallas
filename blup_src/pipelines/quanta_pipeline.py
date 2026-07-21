@@ -22,8 +22,17 @@ from work_manager import WorkJob, WorkRequestBase, WorkResult
 class QuantaWorkRequest(WorkRequestBase):
     scope_key = "quanta"
 
-    def __init__(self, pipeline: "QuantaPipeline", spec: QuantaRequestSpec) -> None:
+    def __init__(
+        self,
+        pipeline: "QuantaPipeline",
+        *,
+        t1: TraceSession,
+        t2: TraceSession | None,
+        spec: QuantaRequestSpec
+    ) -> None:
         self.pipeline = pipeline
+        self.t1 = t1
+        self.t2 = t2
         self.spec = spec
         self.request_key = spec.request_key
 
@@ -32,9 +41,9 @@ class QuantaWorkRequest(WorkRequestBase):
 
     def make_jobs(self) -> list[WorkJob]:
         jobs = build_quanta_jobs(
-            t1=self.pipeline.t1,
-            t2=self.pipeline.t2,
-            spec=self.spec,
+            t1      = self.t1,
+            t2      = self.t2,
+            spec    = self.spec,
         )
         return [
             WorkJob(id=i, payload=job)
@@ -44,18 +53,19 @@ class QuantaWorkRequest(WorkRequestBase):
     def run_job(self, job: WorkJob) -> WorkResult:
         payload = cast(QuantaThreadJobData, job.payload)
         result = compute_quanta_thread_result(
-            t1=self.pipeline.t1,
-            t2=self.pipeline.t2,
-            job=payload,
+            t1      = self.t1,
+            t2      = self.t2,
+            job     = payload,
         )
         return WorkResult(id=job.id, payload=result)
 
     def apply_result(self, result: WorkResult) -> None:
         payload = cast(QuantaThreadResultData, result.payload)
         self.pipeline.view.apply_thread_result(
-            thread_name=payload.thread_name,
-            src1=payload.src1,
-            src2=payload.src2,
+            thread_name = payload.thread_name,
+            src1        = payload.src1,
+            src2        = payload.src2,
+            trace_mode  = self.spec.trace_mode,
         )
 
     def finish_apply(self, *, cancelled: bool) -> None:
@@ -67,15 +77,11 @@ class QuantaPipeline:
 
     def __init__(
         self,
-        t1: TraceSession,
-        t2: TraceSession,
         *,
         width: int,
         height: int,
     ) -> None:
-        self.t1 = t1
-        self.t2 = t2
-        self.view = QuantaView(t1, t2, width=width, height=height)
+        self.view = QuantaView(width=width, height=height)
 
         self._root: LayoutDOM | None = None
         self._controller = None
@@ -109,10 +115,13 @@ class QuantaPipeline:
         self._callbacks_bound = True
 
     def refresh(self, controller) -> None:
-        print(controller.state.context.trace_mode)
+        t1 = controller.get_primary_session()
+        assert(t1 is not None)
+        t2 = controller.get_secondary_session()
+
         spec = build_quanta_request_spec(
-            t1                      = self.t1,
-            t2                      = self.t2,
+            t1                      = t1,
+            t2                      = t2,
             active_thread_names     = tuple(controller.state.context.active_threads),
             n_bins                  = controller.state.views.quanta.n_bins,
             mode                    = controller.state.views.quanta.mode,
@@ -123,16 +132,24 @@ class QuantaPipeline:
             window_t1_ns            = controller.state.context.time_scope.t1_ns,
         )
 
-        controller.work_manager.submit(QuantaWorkRequest(self, spec))
+        controller.work_manager.submit(
+            QuantaWorkRequest(
+                self,
+                t1   = t1,
+                t2   = t2,
+                spec = spec
+            )
+        )
 
     def begin_request_apply(self, spec: QuantaRequestSpec) -> None:
         self._ignore_range_callbacks = True
         try:
             self.view.prepare_display(
-                active_thread_names=list(spec.active_threads),
-                start_ns=spec.start_ns,
-                end_ns=spec.end_ns,
-                sync_range_to_fig=spec.sync_range_to_fig,
+                active_thread_names = list(spec.active_threads),
+                start_ns            = spec.start_ns,
+                end_ns              = spec.end_ns,
+                sync_range_to_fig   = spec.sync_range_to_fig,
+                trace_mode          = spec.trace_mode,
             )
         finally:
             self._ignore_range_callbacks = False

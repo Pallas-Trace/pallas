@@ -16,9 +16,8 @@ from views.summary_view import SummaryView
 class SummaryPipeline:
     view_id: ViewId = "summary"
 
-    def __init__(self, t1: TraceSession, t2: TraceSession, *, width: int, height: int) -> None:
+    def __init__(self, *, width: int, height: int) -> None:
         self.view = SummaryView(width=width, height=height)
-        self.adapter = SequenceSummaryDiffAdapter(t1, t2)
         self._root: LayoutDOM | None = None
         self._rows: tuple[SequenceSummaryDiffRow, ...] = ()
         self._ignore_widget_callbacks = False
@@ -39,14 +38,27 @@ class SummaryPipeline:
         return
 
     def refresh(self, controller) -> None:
-        self._rows = self.adapter.build_rows(
+        primary = controller.get_primary_trace()
+        secondary = controller.get_secondary_trace()
+
+        adapter = SequenceSummaryDiffAdapter(
+            primary.session,
+            None if secondary is None else secondary.session,  # type: ignore
+        )
+
+        self._rows = adapter.build_rows(
             token_mode              = controller.state.context.token_mode,
             fidelity                = "fast",
             top_k                   = 32,
             active_thread_names     = tuple(controller.state.context.active_threads),
         )
         self.sync_highlight_widget(controller)
-        self.refresh_detail(controller)
+        self.refresh_detail(
+            controller, 
+            adapter, 
+            primary.label, 
+            None if secondary is None else secondary.label
+        )
 
     # -------------------------------------------
     # |              Callbacks                  |
@@ -79,7 +91,7 @@ class SummaryPipeline:
         finally:
             self._ignore_widget_callbacks = False
 
-    def refresh_detail(self, controller) -> None:
+    def refresh_detail(self, controller, adapter, primary_label: str, secondary_label: str | None) -> None:
         token = controller.state.context.selection.token
         row = next(
             (r for r in self._rows if (r.token_type, r.token_id) == token),
@@ -91,13 +103,15 @@ class SummaryPipeline:
         if t0_ns is None or t1_ns is None:
             t0_ns, t1_ns = controller.full_time_bounds()
 
-        model = self.adapter.build_display_model(
+        model = adapter.build_display_model(
             row,
             active_thread_names     = tuple(controller.state.context.active_threads),
             token_mode              = controller.state.context.token_mode,
             t0_ns                   = t0_ns,
             t1_ns                   = t1_ns,
             histogram_bins          = 20,
+            primary_label           = primary_label,
+            secondary_label         = secondary_label,
         )
         self.view.update(model)
 

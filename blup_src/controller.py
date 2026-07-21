@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
+from numpy import trace
 
 from ui import UIElements, UIModel
 from data_model import FidelityMode, TokenMode, CATEGORY_TOKEN_TYPE
@@ -15,6 +16,7 @@ from state import (
     DisplayState,
     PanelState,
     QuantaOrder,
+    TraceMode,
     ViewId,
     ViewState,
 )
@@ -39,8 +41,18 @@ def thread_sort_key(name: str):
     return (2, name)
 
 
+@dataclass(frozen=True)
+class LoadedTrace:
+    trace_id: str
+    path: str
+    label: str
+    session: TraceSession
+
+
 @dataclass
 class ControllerRuntime:
+    loaded_traces:      dict[str, LoadedTrace]
+    trace_order:        list[str]
     ui:                 UIElements | None = None
     root:               LayoutDOM | None = None
 
@@ -52,23 +64,25 @@ class AppController:
     ui_model:           UIModel
     runtime:            ControllerRuntime
 
-    def __init__(self, t1: TraceSession, t2: TraceSession):
-        # install TraceSession objects
-        self.t1 = t1
-        self.t2 = t2
+    def __init__(self, loaded_traces: list[LoadedTrace]):
+        self.doc = curdoc()
+
+        # runtime setup
+        self.runtime = ControllerRuntime(
+            loaded_traces = {t.trace_id: t for t in loaded_traces},
+            trace_order   = [t.trace_id for t in loaded_traces]
+        )
 
         # initial state setup
-        self.doc = curdoc()
         self.install_merged_category_namespace()
         self.state = self.initial_state()
 
         self.ui_model = UIModel(self)
-        self.runtime = ControllerRuntime()
 
         self.pipelines: dict[ViewId, DisplayPipeline] = {
-            "quanta": QuantaPipeline(t1, t2, width=1650, height=950),
-            "inspector": InspectorPipeline(t1, t2, width=360),
-            "summary": SummaryPipeline(t1, t2, width=750, height=400),
+            "quanta":       QuantaPipeline(width=1650, height=950),
+            "inspector":    InspectorPipeline(width=360),
+            "summary":      SummaryPipeline(width=750, height=400),
         }
 
         self.work_manager = WorkManager(
@@ -172,12 +186,31 @@ class AppController:
     # -------------------------------------------
 
     def initial_state(self) -> AppState:
-        names = tuple(self.all_thread_names())
+        trace_ids = self.all_trace_ids()
+        n_loaded = len(trace_ids)
+
+        if n_loaded == 0:
+            raise ValueError("AppController requires at least one loaded trace")
+
+        primary_trace_id = trace_ids[0]
+        secondary_trace_id = trace_ids[1] if n_loaded >= 2 else None
+        trace_mode: TraceMode = "dual" if n_loaded >= 2 else "single"
+
+        names = tuple(
+            self.thread_names_for_trace_selection(
+                trace_mode=trace_mode,
+                primary_trace_id=primary_trace_id,
+                secondary_trace_id=secondary_trace_id,
+            )
+        )
+
         return AppState(
             views=ViewState(),
             context=ContextState(
                 active_threads=names,
                 trace_mode="single",
+                primary_trace_id=primary_trace_id,
+                secondary_trace_id=secondary_trace_id,
             ),
             display=DisplayState(
                 primary=PanelState(
@@ -185,11 +218,88 @@ class AppController:
                     context_key="main",
                 ),
                 secondary=(
-                    PanelState(active_view="inspector", context_key="main"),
+                    # PanelState(active_view="inspector", context_key="main"),
                     PanelState(active_view="summary", context_key="main"),
                 ),
             ),
         )
+
+    def set_trace_mode(self, mode: TraceMode) -> None:
+        if self.state.context.trace_mode == mode:
+            return
+        self.state.context.trace_mode = mode
+        self.normalize_trace_selection()
+        self.sync_ui_controls()
+        self.schedule_refresh()
+
+    def set_primary_trace(self, trace_id: str) -> None:
+        if self.state.context.primary_trace_id == trace_id:
+            return
+        self.state.context.primary_trace_id = trace_id
+        self.normalize_trace_selection()
+        self.sync_ui_controls()
+        self.schedule_refresh()
+
+    def set_secondary_trace(self, trace_id: str) -> None:
+        if self.state.context.secondary_trace_id == trace_id:
+            return
+        self.state.context.secondary_trace_id = trace_id
+        self.normalize_trace_selection()
+        self.sync_ui_controls()
+        self.schedule_refresh()
+
+    # here for now pending refactor/cleanup
+    def normalize_trace_selection(self) -> None:
+        ctx = self.state.context
+        trace_ids = self.all_trace_ids()
+
+        if not trace_ids:
+            raise ValueError("No loaded traces")
+
+        if not self.has_trace(ctx.primary_trace_id):
+            ctx.primary_trace_id = trace_ids[0]
+
+        if ctx.trace_mode == "single":
+            ctx.secondary_trace_id = None
+        else:
+            if (
+                ctx.secondary_trace_id is None
+                or not self.has_trace(ctx.secondary_trace_id)
+                or ctx.secondary_trace_id == ctx.primary_trace_id
+            ):
+                for trace_id in trace_ids:
+                    if trace_id != ctx.primary_trace_id:
+                        ctx.secondary_trace_id = trace_id
+                        break
+                else:
+                    ctx.secondary_trace_id = None
+                    ctx.trace_mode = "single"
+
+        available = tuple(self.all_thread_names())
+        kept = tuple(t for t in ctx.active_threads if t in set(available))
+        ctx.active_threads = kept or available
+        ctx.selection.token = None
+        ctx.time_scope.t0_ns = None
+        ctx.time_scope.t1_ns = None
+
+    def sync_ui_controls(self) -> None:
+        ui = self.runtime.ui
+        if ui is None:
+            return
+
+        trace_options = self.loaded_trace_options()
+        all_threads = self.all_thread_names()
+
+        ui.trace_mode_select.value = self.state.context.trace_mode
+        ui.primary_trace_select.options = trace_options  # type: ignore
+        ui.primary_trace_select.value = self.state.context.primary_trace_id or ""
+
+        ui.secondary_trace_select.options = trace_options  # type: ignore
+        ui.secondary_trace_select.disabled = (self.state.context.trace_mode != "dual")
+        ui.secondary_trace_select.value = self.state.context.secondary_trace_id or ""
+
+        ui.thread_select.options = [(name, name) for name in all_threads]
+        ui.thread_select.value = list(self.state.context.active_threads)
 
     def set_active_threads(self, thread_names: tuple[str, ...]) -> None:
         chosen_threads = thread_names or tuple(self.all_thread_names())
@@ -249,6 +359,15 @@ class AppController:
     def on_quanta_order_changed(self, attr, old, new):
         self.set_quanta_order(new)
 
+    def on_trace_mode_changed(self, attr, old, new):
+        self.set_trace_mode(new)
+
+    def on_primary_trace_changed(self, attr, old, new):
+        self.set_primary_trace(new)
+
+    def on_secondary_trace_changed(self, attr, old, new):
+        self.set_secondary_trace(new)
+
     def on_highlight_token_changed(self, attr, old, new):
         summary = self.get_pipeline("summary")
         assert isinstance(summary, SummaryPipeline)
@@ -258,28 +377,115 @@ class AppController:
     # |               Utilities                 |
     # -------------------------------------------
 
-    def install_merged_category_namespace(self) -> None:
-        names = sorted(
-            set(str(name) for name in self.t1.meta.cat_key_to_name.values())
-            | set(str(name) for name in self.t2.meta.cat_key_to_name.values())
+    def all_trace_ids(self) -> list[str]:
+        return list(self.runtime.trace_order)
+
+    def get_trace(self, trace_id: str) -> LoadedTrace:
+        return self.runtime.loaded_traces[trace_id]
+
+    def has_trace(self, trace_id: str | None) -> bool:
+        return trace_id is not None and trace_id in self.runtime.loaded_traces
+
+    def loaded_trace_options(self) -> list[tuple[str, str]]:
+        return [
+            (trace_id, self.runtime.loaded_traces[trace_id].label)
+            for trace_id in self.runtime.trace_order
+        ]
+
+    def iter_loaded_traces(self) -> tuple[LoadedTrace, ...]:
+        return tuple(
+            self.runtime.loaded_traces[trace_id]
+            for trace_id in self.runtime.trace_order
         )
+
+    def get_primary_trace(self) -> LoadedTrace | None:
+        trace_id = self.state.context.primary_trace_id
+        assert(trace_id is not None)
+        if not self.has_trace(trace_id):
+            return None
+        return self.get_trace(trace_id)
+
+    def get_secondary_trace(self) -> LoadedTrace | None:
+        if self.state.context.trace_mode != "dual":
+            return None
+        trace_id = self.state.context.secondary_trace_id
+        assert(trace_id is not None)
+        if not self.has_trace(trace_id):
+            return None
+        if trace_id == self.state.context.primary_trace_id:
+            return None
+        return self.get_trace(trace_id)
+
+    def get_primary_session(self) -> TraceSession | None:
+        loaded = self.get_primary_trace()
+        return None if loaded is None else loaded.session
+
+    def get_secondary_session(self) -> TraceSession | None:
+        loaded = self.get_secondary_trace()
+        return None if loaded is None else loaded.session
+
+    def install_merged_category_namespace(self) -> None:
+        names = sorted({
+            str(name)
+            for loaded in self.iter_loaded_traces()
+            for name in loaded.session.meta.cat_key_to_name.values()
+        })
 
         name_to_cat_token = {
             name: (CATEGORY_TOKEN_TYPE, int(i))
             for i, name in enumerate(names)
         }
 
-        self.t1.install_category_namespace(name_to_cat_token)
-        self.t2.install_category_namespace(name_to_cat_token)
+        for loaded in self.iter_loaded_traces():
+            loaded.session.install_category_namespace(name_to_cat_token)
 
-    def all_thread_names(self) -> list[str]:
-        names = set(map(str, self.t1.meta.thread_names)) | set(map(str, self.t2.meta.thread_names))
+    def thread_names_for_trace_selection(
+        self,
+        *,
+        trace_mode: TraceMode,
+        primary_trace_id: str | None,
+        secondary_trace_id: str | None,
+    ) -> list[str]:
+        trace_ids: list[str] = []
+
+        if primary_trace_id is not None and primary_trace_id in self.runtime.loaded_traces:
+            trace_ids.append(primary_trace_id)
+
+        if (
+            trace_mode == "dual"
+            and secondary_trace_id is not None
+            and secondary_trace_id in self.runtime.loaded_traces
+            and secondary_trace_id != primary_trace_id
+        ):
+            trace_ids.append(secondary_trace_id)
+
+        names: set[str] = set()
+        for trace_id in trace_ids:
+            loaded = self.runtime.loaded_traces[trace_id]
+            names |= set(map(str, loaded.session.meta.thread_names))
+
         return sorted(names, key=thread_sort_key)
 
+    def all_thread_names(self) -> list[str]:
+        ctx = self.state.context
+        return self.thread_names_for_trace_selection(
+            trace_mode=ctx.trace_mode,
+            primary_trace_id=ctx.primary_trace_id,
+            secondary_trace_id=ctx.secondary_trace_id,
+        )
+
     def full_time_bounds(self) -> tuple[int, int]:
+        t1 = self.get_primary_session()
+        if t1 is None:
+            raise RuntimeError("primary trace is not available")
+
+        t2 = self.get_secondary_session()
+        if t2 is None:
+            return (int(t1.meta.start_ns), int(t1.meta.end_ns))
+
         return (
-            min(self.t1.meta.start_ns, self.t2.meta.start_ns),
-            max(self.t1.meta.end_ns, self.t2.meta.end_ns),
+            min(int(t1.meta.start_ns), int(t2.meta.start_ns)),
+            max(int(t1.meta.end_ns), int(t2.meta.end_ns)),
         )
 
 

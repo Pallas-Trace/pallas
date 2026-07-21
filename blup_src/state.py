@@ -62,6 +62,8 @@ class TimeScopeState:
 class ContextState:
     active_threads:     tuple[str, ...]
     trace_mode:         TraceMode = "single"
+    primary_trace_id:   str | None = None
+    secondary_trace_id: str | None = None
     token_mode:         TokenMode = "raw"
     selection:          SelectionState = field(default_factory=SelectionState)
     time_scope:         TimeScopeState = field(default_factory=TimeScopeState)

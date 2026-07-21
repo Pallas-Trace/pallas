@@ -42,14 +42,17 @@ class SequenceSummaryDisplayModel:
     title: str
     subtitle: str
     metric: tuple[str, ...]
-    trace1: tuple[str, ...]
-    trace2: tuple[str, ...]
+    primary: tuple[str, ...]
+    secondary: tuple[str, ...]
     delta: tuple[str, ...]
     percent: tuple[str, ...]
     hist_left_ns: tuple[int, ...] = ()
     hist_right_ns: tuple[int, ...] = ()
-    hist_trace1_excl_ns: tuple[int, ...] = ()
-    hist_trace2_excl_ns: tuple[int, ...] = ()
+    hist_primary_excl_ns: tuple[int, ...] = ()
+    hist_secondary_excl_ns: tuple[int, ...] = ()
+    primary_label: str = "Primary"
+    secondary_label: str = "Secondary"
+    dual_mode: bool = True
 
 def format_percent_diff(v1: float, v2: float) -> str:
     if v1 == 0:
@@ -68,7 +71,6 @@ def format_duration_ns(value: float) -> str:
         return f"{sign}{x / 1_000_000:.3f} ms"
     return f"{sign}{x / 1_000_000_000:.3f} s"
 
-
 def format_duration_delta_ns(value: float) -> str:
     if value == 0:
         return "0 ns"
@@ -83,9 +85,9 @@ def format_duration_delta_ns(value: float) -> str:
     return f"{sign}{x / 1_000_000_000:.3f} s"
 
 class SequenceSummaryDiffAdapter:
-    def __init__(self, t1: TraceSession, t2: TraceSession) -> None:
-        self.t1 = t1
-        self.t2 = t2
+    def __init__(self, primary: TraceSession, secondary: TraceSession) -> None:
+        self.primary = primary
+        self.secondary = secondary
 
     def _thread_ids_for_names(
         self,
@@ -106,8 +108,9 @@ class SequenceSummaryDiffAdapter:
         top_k: int = 32,
         active_thread_names: tuple[str, ...] = (),
     ) -> tuple[SequenceSummaryDiffRow, ...]:
-        t1_ids = self._thread_ids_for_names(self.t1, active_thread_names)
-        t2_ids = self._thread_ids_for_names(self.t2, active_thread_names)
+        t1_ids = self._thread_ids_for_names(self.primary, active_thread_names)
+        t2_ids = () if self.secondary is None else self._thread_ids_for_names(self.secondary, active_thread_names)
+
         q1 = SummaryQuery(
             thread_ids=tuple(sorted(t1_ids)),
             fidelity=fidelity,
@@ -123,11 +126,11 @@ class SequenceSummaryDiffAdapter:
             block_only=True,
         )
 
-        s1 = self.t1.summarize_tokens(q1)
-        s2 = self.t2.summarize_tokens(q2)
+        s1 = self.primary.summarize_tokens(q1)
+        s2 = None if self.secondary is None else self.secondary.summarize_tokens(q2)
 
         by1 = {(r.token_type, r.token_id): r for r in s1.tokens}
-        by2 = {(r.token_type, r.token_id): r for r in s2.tokens}
+        by2 = {} if s2 is None else {(r.token_type, r.token_id): r for r in s2.tokens}
         keys = set(by1) | set(by2)
 
         base_rows: list[SequenceSummaryDiffRow] = []
@@ -148,10 +151,12 @@ class SequenceSummaryDiffAdapter:
             me2 = e2 / c2 if c2 else 0.0
 
             key = as_token_key(token_type, token_id)
-            name = self.t1.meta.token_key_to_name.get(
-                key,
-                self.t2.meta.token_key_to_name.get(key, f"{token_type}:{token_id}"),
-            )
+            if key in self.primary.meta.token_key_to_name:
+                name = self.primary.meta.token_key_to_name[key]
+            elif self.secondary is not None and key in self.secondary.meta.token_key_to_name:
+                name = self.secondary.meta.token_key_to_name[key]
+            else:
+                name = f"{token_type}:{token_id}"
 
             base_rows.append(
                 SequenceSummaryDiffRow(
@@ -233,27 +238,33 @@ class SequenceSummaryDiffAdapter:
         t0_ns: int,
         t1_ns: int,
         histogram_bins: int = 20,
+        primary_label: str = "Primary",
+        secondary_label: str | None = None,
     ) -> SequenceSummaryDisplayModel:
+        dual_mode = (self.secondary is not None) and (secondary_label is not None)
+
         if row is None:
             return SequenceSummaryDisplayModel(
                 title="Sequence summary",
                 subtitle="No sequence selected",
                 metric=(),
-                trace1=(),
-                trace2=(),
+                primary=(),
+                secondary=(),
                 delta=(),
                 percent=(),
                 hist_left_ns=(),
                 hist_right_ns=(),
-                hist_trace1_excl_ns=(),
-                hist_trace2_excl_ns=(),
+                hist_primary_excl_ns=(),
+                hist_secondary_excl_ns=(),
+                primary_label=primary_label,
+                secondary_label=secondary_label or "",
+                dual_mode=dual_mode,
             )
 
-        t1_ids = self._thread_ids_for_names(self.t1, active_thread_names)
-        t2_ids = self._thread_ids_for_names(self.t2, active_thread_names)
+        t1_ids = self._thread_ids_for_names(self.primary, active_thread_names)
         token = (row.token_type, row.token_id)
 
-        h1 = self.t1.query_histogram(
+        h1 = self.primary.query_histogram(
             SnapshotHistogramQuery(
                 thread_ids=t1_ids,
                 token=token,
@@ -263,30 +274,46 @@ class SequenceSummaryDiffAdapter:
                 token_mode=token_mode,
             )
         )
-        h2 = self.t2.query_histogram(
-            SnapshotHistogramQuery(
-                thread_ids=t2_ids,
-                token=token,
-                t0_ns=t0_ns,
-                t1_ns=t1_ns,
-                n_bins=histogram_bins,
-                token_mode=token_mode,
-            )
-        )
 
-        hist_left_ns = h1.left_ns if h1.left_ns else h2.left_ns
-        hist_right_ns = h1.right_ns if h1.right_ns else h2.right_ns
+        if self.secondary is not None:
+            t2_ids = self._thread_ids_for_names(self.secondary, active_thread_names)
+            h2 = self.secondary.query_histogram(
+                SnapshotHistogramQuery(
+                    thread_ids=t2_ids,
+                    token=token,
+                    t0_ns=t0_ns,
+                    t1_ns=t1_ns,
+                    n_bins=histogram_bins,
+                    token_mode=token_mode,
+                )
+            )
 
-        if len(hist_left_ns) != len(h1.excl_ns):
-            raise RuntimeError(
-                f"snapshot histogram mismatch for trace 1: "
-                f"{len(hist_left_ns)=} {len(h1.excl_ns)=}"
-            )
-        if len(hist_left_ns) != len(h2.excl_ns):
-            raise RuntimeError(
-                f"snapshot histogram mismatch for trace 2: "
-                f"{len(hist_left_ns)=} {len(h2.excl_ns)=}"
-            )
+            hist_left_ns = h1.left_ns if h1.left_ns else h2.left_ns
+            hist_right_ns = h1.right_ns if h1.right_ns else h2.right_ns
+
+            if len(hist_left_ns) != len(h1.excl_ns):
+                raise RuntimeError(
+                    f"snapshot histogram mismatch for primary trace: "
+                    f"{len(hist_left_ns)=} {len(h1.excl_ns)=}"
+                )
+            if len(hist_left_ns) != len(h2.excl_ns):
+                raise RuntimeError(
+                    f"snapshot histogram mismatch for secondary trace: "
+                    f"{len(hist_left_ns)=} {len(h2.excl_ns)=}"
+                )
+
+            hist_secondary_excl_ns = h2.excl_ns
+        else:
+            hist_left_ns = h1.left_ns
+            hist_right_ns = h1.right_ns
+
+            if len(hist_left_ns) != len(h1.excl_ns):
+                raise RuntimeError(
+                    f"snapshot histogram mismatch for primary trace: "
+                    f"{len(hist_left_ns)=} {len(h1.excl_ns)=}"
+                )
+
+            hist_secondary_excl_ns = tuple(0 for _ in h1.excl_ns)
 
         return SequenceSummaryDisplayModel(
             title="Sequence summary",
@@ -301,7 +328,7 @@ class SequenceSummaryDiffAdapter:
                 "Total inclusive",
                 "Total exclusive",
             ),
-            trace1=(
+            primary=(
                 "—",
                 "—",
                 "—",
@@ -311,7 +338,7 @@ class SequenceSummaryDiffAdapter:
                 format_duration_ns(row.incl_total_ns_1),
                 format_duration_ns(row.excl_total_ns_1),
             ),
-            trace2=(
+            secondary=(
                 "—",
                 "—",
                 "—",
@@ -343,6 +370,11 @@ class SequenceSummaryDiffAdapter:
             ),
             hist_left_ns=hist_left_ns,
             hist_right_ns=hist_right_ns,
-            hist_trace1_excl_ns=h1.excl_ns,
-            hist_trace2_excl_ns=h2.excl_ns,
+            hist_primary_excl_ns=h1.excl_ns,
+            hist_secondary_excl_ns=hist_secondary_excl_ns,
+            primary_label=primary_label,
+            secondary_label=secondary_label or "",
+            dual_mode=dual_mode,
         )
+
+

@@ -88,23 +88,28 @@ def build_color_map(token_keys: set[str]) -> dict[str, str]:
     cmap["OTHER"] = "#b0b0b0"
     return cmap
 
-def get_all_thread_names(t1: TraceSession, t2: TraceSession) -> tuple[str, ...]:
-    names = set(map(str, t1.meta.thread_names)) | set(map(str, t2.meta.thread_names))
+def combine_thread_names(
+    t1: TraceSession,
+    t2: TraceSession | None
+) -> tuple[str, ...]:
+    names = set(map(str, t1.meta.thread_names))
+    if t2 is not None:
+        names |= set(map(str, t2.meta.thread_names))
     return tuple(sorted(names))
 
 def get_shared_thread_names(
     t1: TraceSession,
-    t2: TraceSession,
+    t2: TraceSession | None,
     requested: tuple[str, ...],
 ) -> tuple[str, ...]:
-    available = set(get_all_thread_names(t1, t2))
+    available = set(combine_thread_names(t1, t2))
     chosen = tuple(name for name in requested if name in available)
-    return chosen or get_all_thread_names(t1, t2)
+    return chosen or combine_thread_names(t1, t2)
 
 def build_quanta_request_spec(
     *,
     t1: TraceSession,
-    t2: TraceSession,
+    t2: TraceSession | None,
     active_thread_names: tuple[str, ...],
     n_bins: int,
     mode: FidelityMode,
@@ -116,8 +121,17 @@ def build_quanta_request_spec(
 ) -> QuantaRequestSpec:
     active_threads = get_shared_thread_names(t1, t2, active_thread_names)
 
-    full_start_ns = min(t1.meta.start_ns, t2.meta.start_ns)
-    full_end_ns = max(t1.meta.end_ns, t2.meta.end_ns)
+    if t2 is None:
+        full_start_ns = int(t1.meta.start_ns)
+        full_end_ns = int(t1.meta.end_ns)
+        all_token_keys = set(t1.meta.token_key_to_name.keys())
+    else:
+        full_start_ns = min(int(t1.meta.start_ns), int(t2.meta.start_ns))
+        full_end_ns = max(int(t1.meta.end_ns), int(t2.meta.end_ns))
+        all_token_keys = (
+            set(t1.meta.token_key_to_name.keys())
+            | set(t2.meta.token_key_to_name.keys())
+        )
 
     if window_t0_ns is None or window_t1_ns is None:
         start_ns = full_start_ns
@@ -134,13 +148,7 @@ def build_quanta_request_spec(
     bin_edges_ns = tuple(
         int(x) for x in np.linspace(start_ns, end_ns, int(n_bins) + 1, dtype=np.int64)
     )
-
-    all_token_keys = (
-        set(t1.meta.token_key_to_name.keys())
-        | set(t2.meta.token_key_to_name.keys())
-    )
     color_map = build_color_map(all_token_keys)
-
     request_key = (
         active_threads,
         int(n_bins),
@@ -169,17 +177,19 @@ def build_quanta_request_spec(
 def build_quanta_jobs(
     *,
     t1: TraceSession,
-    t2: TraceSession,
+    t2: TraceSession | None,
     spec: QuantaRequestSpec,
 ) -> list[QuantaThreadJobData]:
     jobs: list[QuantaThreadJobData] = []
 
     for thread_name in spec.active_threads:
+        t1_id = t1.meta.thread_name_to_id.get(thread_name) if t1 else None
+        t2_id = t2.meta.thread_name_to_id.get(thread_name) if t2 else None
         jobs.append(
             QuantaThreadJobData(
                 thread_name     = thread_name,
-                thread_id_1     = t1.meta.thread_name_to_id.get(thread_name),
-                thread_id_2     = t2.meta.thread_name_to_id.get(thread_name),
+                thread_id_1     = t1_id,
+                thread_id_2     = t2_id,
                 active_threads  = spec.active_threads,
                 bin_edges_ns    = spec.bin_edges_ns,
                 mode            = spec.mode,
@@ -195,7 +205,7 @@ def build_quanta_jobs(
 def compute_quanta_thread_result(
     *,
     t1: TraceSession,
-    t2: TraceSession,
+    t2: TraceSession | None,
     job: QuantaThreadJobData,
 ) -> QuantaThreadResultData:
     if job.thread_id_1 is not None:
@@ -210,18 +220,19 @@ def compute_quanta_thread_result(
         )
         src1 = quanta_bundle_to_bokeh_source(
             q1,
-            meta=t1.meta,
-            active_threads=list(job.active_threads),
-            trace_side="lower",
-            color_map=job.color_map,
-            trace_mode=job.trace_mode,
-            stack_order=job.stack_order,
+            meta            = t1.meta,
+            active_threads  = list(job.active_threads),
+            trace_side      = "lower",
+            color_map       = job.color_map,
+            trace_mode      = job.trace_mode,
+            stack_order     = job.stack_order,
         )
     else:
         src1 = empty_quanta_source()
 
     if ((job.thread_id_2 is not None)
         and (job.trace_mode != "single")):
+        assert(t2 is not None)
         q2 = t2.query_quanta(
             QuantaQuery(
                 thread_ids      = (job.thread_id_2,),
@@ -233,12 +244,12 @@ def compute_quanta_thread_result(
         )
         src2 = quanta_bundle_to_bokeh_source(
             q2,
-            meta=t2.meta,
-            active_threads=list(job.active_threads),
-            trace_side="upper",
-            color_map=job.color_map,
-            trace_mode=job.trace_mode,
-            stack_order=job.stack_order,
+            meta            = t2.meta,
+            active_threads  = list(job.active_threads),
+            trace_side      = "upper",
+            color_map       = job.color_map,
+            trace_mode      = job.trace_mode,
+            stack_order     = job.stack_order,
         )
     else:
         src2 = empty_quanta_source()

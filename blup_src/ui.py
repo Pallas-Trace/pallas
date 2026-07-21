@@ -19,6 +19,10 @@ class UIElements:
     root: LayoutDOM
     title: Div
 
+    trace_mode_select: Select
+    primary_trace_select: Select
+    secondary_trace_select: Select
+
     thread_select: MultiSelect
     n_quanta_spinner: Spinner
     token_mode_select: Select
@@ -41,6 +45,33 @@ class UIModel:
         all_thread_names: list[str],
     ) -> UIElements:
         title = Div(text="## Pallas trace comparison")
+
+        trace_options = self.controller.loaded_trace_options()
+
+        trace_mode_select = Select(
+            title="Trace mode",
+            value=state.context.trace_mode,
+            options=[("single", "Single"), ("dual", "Dual")],
+            width=120,
+        )
+        trace_mode_select.on_change("value", self.controller.on_trace_mode_changed)
+
+        primary_trace_select = Select(
+            title="Primary trace",
+            value=state.context.primary_trace_id or "",
+            options=trace_options,  # type: ignore
+            width=220,
+        )
+        primary_trace_select.on_change("value", self.controller.on_primary_trace_changed)
+
+        secondary_trace_select = Select(
+            title="Secondary trace",
+            value=state.context.secondary_trace_id or "",
+            options=trace_options,  # type: ignore
+            width=220,
+            disabled=(state.context.trace_mode != "dual"),
+        )
+        secondary_trace_select.on_change("value", self.controller.on_secondary_trace_changed)
 
         thread_select = MultiSelect(
             title="Threads",
@@ -104,7 +135,10 @@ class UIModel:
         highlight_token_select.on_change("value", self.controller.on_highlight_token_changed)
 
         controls = row(
-            title,
+            # title,
+            trace_mode_select,
+            primary_trace_select,
+            secondary_trace_select,
             thread_select,
             n_quanta_spinner,
             token_mode_select,
@@ -132,6 +166,9 @@ class UIModel:
         return UIElements(
             root=root,
             title=title,
+            trace_mode_select=trace_mode_select,
+            primary_trace_select=primary_trace_select,
+            secondary_trace_select=secondary_trace_select,
             thread_select=thread_select,
             n_quanta_spinner=n_quanta_spinner,
             token_mode_select=token_mode_select,

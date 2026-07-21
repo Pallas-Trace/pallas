@@ -14,19 +14,19 @@ ErrorHandler = Callable[[str, int, BaseException], None]
 
 @dataclass(frozen=True)
 class WorkJob:
-    id: int
-    payload: object
+    id:         int
+    payload:    object
 
 
 @dataclass(frozen=True)
 class WorkResult:
-    id: int
-    payload: object
+    id:         int
+    payload:    object
 
 
 class WorkRequest(Protocol):
-    scope_key: str
-    request_key: Hashable
+    scope_key:      str
+    request_key:    Hashable
 
     def make_jobs(self) -> list[WorkJob]:
         ...
@@ -45,8 +45,8 @@ class WorkRequest(Protocol):
 
 
 class WorkRequestBase:
-    scope_key: str
-    request_key: Hashable
+    scope_key:      str
+    request_key:    Hashable
 
     def begin_apply(self) -> None:
         return
@@ -57,20 +57,20 @@ class WorkRequestBase:
 
 @dataclass
 class ActiveRequest:
-    request_id: int
-    scope_key: str
-    request_key: Hashable
-    request: WorkRequest
-    pending_jobs: int
-    cancelled: bool = False
+    request_id:     int
+    scope_key:      str
+    request_key:    Hashable
+    request:        WorkRequest
+    pending_jobs:   int
+    cancelled:      bool = False
 
 
 @dataclass(frozen=True)
 class ResultEnvelope:
-    request_id: int
-    scope_key: str
-    result: WorkResult | None = None
-    error: BaseException | None = None
+    request_id:     int
+    scope_key:      str
+    result:         WorkResult | None = None
+    error:          BaseException | None = None
 
 
 class WorkManager:
@@ -159,7 +159,7 @@ class WorkManager:
         self._executor.shutdown(wait=wait, cancel_futures=False)
 
     # -------------------------------------------
-    # | Worker path |
+    # |             Worker path                 |
     # -------------------------------------------
 
     def run_job(self, request_id: int, request: WorkRequest, job: WorkJob) -> None:
@@ -183,7 +183,7 @@ class WorkManager:
         self.schedule_drain()
 
     # -------------------------------------------
-    # | Display-thread path |
+    # |           Display-thread path           |
     # -------------------------------------------
 
     def drain_results(self) -> None:

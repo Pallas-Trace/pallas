@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import csv
 import time
@@ -14,7 +15,7 @@ import pallas_trace as pallas
 
 from data_model import QuantaQuery
 from trace_session import TraceSession
-from controller import AppController
+from controller import AppController, LoadedTrace
 from utils import timed
 
 DEBUG_EXACT_COMPARE = False
@@ -373,66 +374,77 @@ def main():
 
     print(">> Reading Traces")
 
-    t1 = TraceSession(sys.argv[1])
-    t2 = TraceSession(sys.argv[2])
+    paths = [p for p in sys.argv[1:] if p.strip()]
+    if not paths:
+        raise SystemExit("usage: bokeh serve --show main.py --args TRACE1 [TRACE2 ...]")
 
-    print(">> Opening Traces")
-
-    with timed("t1 open"):
-        t1.open()
-    with timed("t2 open"):
-        t2.open()
+    loaded: list[LoadedTrace] = []
+    for i, path in enumerate(paths):
+        session = TraceSession(path)
+        with timed(f"open {os.path.basename(path) or f'trace_{i}'}"):
+            session.open()
+        loaded.append(
+            LoadedTrace(
+                trace_id=f"trace_{i}",
+                path=path,
+                label=os.path.basename(path) or f"trace_{i}",
+                session=session,
+            )
+        )
 
     print(">> Traces Read")
 
-    if DEBUG_EXACT_COMPARE:
-        debug_session = t1 if DEBUG_TRACE_SIDE == "t1" else t2
-        with timed("exact debug compare"):
-            report = run_exact_debug(debug_session)
+    # if DEBUG_EXACT_COMPARE:
+    #     debug_session = t1 if DEBUG_TRACE_SIDE == "t1" else t2
+    #     with timed("exact debug compare"):
+    #         report = run_exact_debug(debug_session)
 
-        token_key_to_name = dict(debug_session.meta.token_key_to_name)
-        exact_rows = quanta_res_to_rows(report["new"], token_key_to_name)
+    #     token_key_to_name = dict(debug_session.meta.token_key_to_name)
+    #     exact_rows = quanta_res_to_rows(report["new"], token_key_to_name)
 
-        bin_edges_ns = extract_bin_edges_from_quanta_res(report["new"])
-        if not bin_edges_ns:
-            raise ValueError("Could not derive bin edges from exact debug output")
+    #     bin_edges_ns = extract_bin_edges_from_quanta_res(report["new"])
+    #     if not bin_edges_ns:
+    #         raise ValueError("Could not derive bin edges from exact debug output")
 
-        thread_ids = tuple(sorted(set(int(x) for x in report["new"].thread_id)))
-        if not thread_ids:
-            raise ValueError("Could not derive thread ids from exact debug output")
+    #     thread_ids = tuple(sorted(set(int(x) for x in report["new"].thread_id)))
+    #     if not thread_ids:
+    #         raise ValueError("Could not derive thread ids from exact debug output")
 
-        with timed("debug query fast"):
-            fast_bundle = debug_session.query_quanta(
-                QuantaQuery(
-                    thread_ids=thread_ids,
-                    bin_edges_ns=bin_edges_ns,
-                    fidelity="fast",
-                    top_k=None,
-                )
-            )
+    #     with timed("debug query fast"):
+    #         fast_bundle = debug_session.query_quanta(
+    #             QuantaQuery(
+    #                 thread_ids=thread_ids,
+    #                 bin_edges_ns=bin_edges_ns,
+    #                 fidelity="fast",
+    #                 top_k=None,
+    #             )
+    #         )
 
-        with timed("debug query balanced"):
-            balanced_bundle = debug_session.query_quanta(
-                QuantaQuery(
-                    thread_ids=thread_ids,
-                    bin_edges_ns=bin_edges_ns,
-                    fidelity="balanced",
-                    top_k=None,
-                )
-            )
+    #     with timed("debug query balanced"):
+    #         balanced_bundle = debug_session.query_quanta(
+    #             QuantaQuery(
+    #                 thread_ids=thread_ids,
+    #                 bin_edges_ns=bin_edges_ns,
+    #                 fidelity="balanced",
+    #                 top_k=None,
+    #             )
+    #         )
 
-        fast_rows = quanta_bundle_to_rows(fast_bundle, token_key_to_name)
-        balanced_rows = quanta_bundle_to_rows(balanced_bundle, token_key_to_name)
+    #     fast_rows = quanta_bundle_to_rows(fast_bundle, token_key_to_name)
+    #     balanced_rows = quanta_bundle_to_rows(balanced_bundle, token_key_to_name)
 
-        fast_metrics = compute_overlap_and_wmape(exact_rows, fast_rows)
-        balanced_metrics = compute_overlap_and_wmape(exact_rows, balanced_rows)
+    #     fast_metrics = compute_overlap_and_wmape(exact_rows, fast_rows)
+    #     balanced_metrics = compute_overlap_and_wmape(exact_rows, balanced_rows)
 
-        print_fidelity_metrics("fast", fast_metrics)
-        print_fidelity_metrics("balanced", balanced_metrics)
+    #     print_fidelity_metrics("fast", fast_metrics)
+    #     print_fidelity_metrics("balanced", balanced_metrics)
 
     with timed("build"):
-        controller = AppController(t1, t2)
-        curdoc().add_root(controller.build())
+        controller = AppController(loaded)
+        root = controller.build()
+        if not root:
+            raise AssertionError
+        curdoc().add_root(root)
         curdoc().title = "Blup"
 
 main()
