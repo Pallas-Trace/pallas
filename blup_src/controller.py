@@ -1,31 +1,28 @@
 from __future__ import annotations
 
 import re
-import math
 from dataclasses import dataclass
 
 from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
-from numpy import trace
 
+from colors import TokenColor
+from modules.time_profile.pipeline import TimeProfilePipeline
 from ui import UIElements, UIModel
 from data_model import FidelityMode, TokenMode, CATEGORY_TOKEN_TYPE
 from state import (
-    AppState,
-    ContextState,
-    DisplayState,
-    PanelState,
-    QuantaOrder,
     TraceMode,
-    ViewId,
-    ViewState,
+    ModuleID,
+    TimeProfileOrder,
+    PanelState,
+    DisplayState,
+    ContextState,
+    ModuleState,
+    AppState,
 )
 from trace_session import TraceSession
-from pipelines.base import DisplayPipeline
-from pipelines.quanta_pipeline import QuantaPipeline
-from pipelines.inspector_pipeline import InspectorPipeline
-from pipelines.summary_pipeline import SummaryPipeline
-from work_manager import WorkManager
+from module_interface import Pipeline
+from module_interface import WorkManager
 from utils import timed
 
 
@@ -58,8 +55,6 @@ class ControllerRuntime:
 
 
 class AppController:
-    t1:                 TraceSession
-    t2:                 TraceSession
     state:              AppState
     ui_model:           UIModel
     runtime:            ControllerRuntime
@@ -74,19 +69,20 @@ class AppController:
         )
 
         # initial state setup
-        self.install_merged_category_namespace()
+        self._install_merged_category_namespace()
         self.state = self.initial_state()
 
         self.ui_model = UIModel(self)
 
-        self.pipelines: dict[ViewId, DisplayPipeline] = {
-            "quanta":       QuantaPipeline(width=1650, height=950),
-            "inspector":    InspectorPipeline(width=360),
-            "summary":      SummaryPipeline(width=750, height=400),
+        self.token_color = TokenColor()
+        self._register_loaded_trace_tokens()
+
+        self.module_pipelines: dict[ModuleID, Pipeline] = {
+            "time_profile": TimeProfilePipeline(width=1650, height=950)
         }
 
         self.work_manager = WorkManager(
-            schedule_display_callback = self.doc.add_next_tick_callback,  # type: ignore
+            schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
             max_workers = 8,
         )
 
@@ -98,8 +94,8 @@ class AppController:
     # -------------------------------------------
 
     def build(self):
-        with timed("build.view_roots"):
-            self.build_pipeline_roots()
+        with timed("build.module_roots"):
+            self.build_module_roots()
 
         with timed("build.ui"):
             self.build_ui_shell()
@@ -107,7 +103,7 @@ class AppController:
         with timed("build.mount_current_displays"):
             self.mount_current_displays()
 
-        with timed("build.bind_view_callbacks"):
+        with timed("build.bind_active_pipelines"):
             self.bind_active_pipelines()
 
         with timed("build.refresh_tick"):
@@ -115,8 +111,8 @@ class AppController:
 
         return self.runtime.root
 
-    def build_pipeline_roots(self) -> None:
-        for pipeline in self.pipelines.values():
+    def build_module_roots(self) -> None:
+        for pipeline in self.module_pipelines.values():
             pipeline.build()
 
     def build_ui_shell(self) -> None:
@@ -155,31 +151,59 @@ class AppController:
     # |               Display                   |
     # -------------------------------------------
 
-    def get_pipeline(self, view_id: ViewId) -> DisplayPipeline:
-        return self.pipelines[view_id]
+    def get_module_pipeline(self, module_id: ModuleID) -> Pipeline:
+        return self.module_pipelines[module_id]
 
-    def active_view_ids(self) -> tuple[ViewId, ...]:
-        ids = [self.state.display.primary.active_view]
-        ids.extend(panel.active_view for panel in self.state.display.secondary)
+    def active_module_ids(self) -> tuple[ModuleID, ...]:
+        ids = [self.state.display.center.active_module]
+        if self.state.display.left is not None:
+            ids.append(self.state.display.left.active_module)
+        if self.state.display.right is not None:
+            ids.append(self.state.display.right.active_module)
         return tuple(dict.fromkeys(ids))  # type: ignore
 
-    def active_pipelines(self) -> tuple[DisplayPipeline, ...]:
-        return tuple(self.get_pipeline(id) for id in self.active_view_ids())
+    def active_pipelines(self) -> tuple[Pipeline, ...]:
+        return tuple(
+            self.get_module_pipeline(id)
+            for id in self.active_module_ids()
+        )
 
     def mount_current_displays(self) -> None:
         ui = self.runtime.ui
         if ui is None:
             return
 
-        primary_root = self.get_pipeline(self.state.display.primary.active_view).root()
-        ui.primary_panel.children = [primary_root] if primary_root is not None else []  # type: ignore
+        center_root = (
+            self
+            .get_module_pipeline(self.state.display.center.active_module)
+            .root
+        )
+        ui.center_panel.children = (                                        # type: ignore
+            [center_root]
+            if center_root is not None else []
+        )
 
-        secondary_children: list[LayoutDOM] = []
-        for panel in self.state.display.secondary:
-            root = self.get_pipeline(panel.active_view).root()
-            if root is not None:
-                secondary_children.append(root)
-        ui.secondary_panel.children = secondary_children  # type: ignore
+        left_children: list[LayoutDOM] = []
+        if self.state.display.left is not None:
+            left_root = (
+                self
+                .get_module_pipeline(self.state.display.left.active_module)
+                .root
+            )
+            if left_root is not None:
+                left_children.append(left_root)
+        ui.left_panel.children = left_children                              # type: ignore
+
+        right_children: list[LayoutDOM] = []
+        if self.state.display.right is not None:
+            right_root = (
+                self
+                .get_module_pipeline(self.state.display.right.active_module)
+                .root
+            )
+            if right_root is not None:
+                right_children.append(right_root)
+        ui.right_panel.children = right_children                            # type: ignore
 
     # -------------------------------------------
     # |            State Management             |
@@ -188,40 +212,37 @@ class AppController:
     def initial_state(self) -> AppState:
         trace_ids = self.all_trace_ids()
         n_loaded = len(trace_ids)
-
         if n_loaded == 0:
-            raise ValueError("AppController requires at least one loaded trace")
+            raise ValueError("AppController requires at least one trace")
 
         primary_trace_id = trace_ids[0]
         secondary_trace_id = trace_ids[1] if n_loaded >= 2 else None
         trace_mode: TraceMode = "dual" if n_loaded >= 2 else "single"
 
         names = tuple(
-            self.thread_names_for_trace_selection(
-                trace_mode=trace_mode,
-                primary_trace_id=primary_trace_id,
-                secondary_trace_id=secondary_trace_id,
+            self._thread_names_for_trace_selection(
+                trace_mode          = trace_mode,
+                primary_trace_id    = primary_trace_id,
+                secondary_trace_id  = secondary_trace_id,
             )
         )
 
         return AppState(
-            views=ViewState(),
-            context=ContextState(
-                active_threads=names,
-                trace_mode="single",
-                primary_trace_id=primary_trace_id,
-                secondary_trace_id=secondary_trace_id,
-            ),
-            display=DisplayState(
-                primary=PanelState(
-                    active_view="quanta",
-                    context_key="main",
+            display = DisplayState(
+                center = PanelState(
+                    active_module   = "time_profile",
+                    context_key     = "main"
                 ),
-                secondary=(
-                    # PanelState(active_view="inspector", context_key="main"),
-                    PanelState(active_view="summary", context_key="main"),
-                ),
+                left   = None,
+                right  = None,
             ),
+            context = ContextState(
+                active_threads      = names,
+                trace_mode          = "single",
+                primary_trace_id    = primary_trace_id,
+                secondary_trace_id  = secondary_trace_id,
+            ),
+            modules = ModuleState(),
         )
 
     def set_trace_mode(self, mode: TraceMode) -> None:
@@ -309,9 +330,9 @@ class AppController:
         self.schedule_refresh()
 
     def set_n_quanta(self, n: int) -> None:
-        if self.state.views.quanta.n_bins == n:
+        if self.state.modules.time_profile.n_bins == n:
             return
-        self.state.views.quanta.n_bins = n
+        self.state.modules.time_profile.n_bins = n
         self.schedule_refresh()
 
     def set_token_mode(self, mode: TokenMode) -> None:
@@ -320,16 +341,16 @@ class AppController:
         self.state.context.token_mode = mode
         self.schedule_refresh()
 
-    def set_quanta_mode(self, mode: FidelityMode) -> None:
-        if self.state.views.quanta.mode == mode:
+    def set_time_profile_mode(self, mode: FidelityMode) -> None:
+        if self.state.modules.time_profile.fidelity == mode:
             return
-        self.state.views.quanta.mode = mode
+        self.state.modules.time_profile.fidelity = mode
         self.schedule_refresh()
 
-    def set_quanta_order(self, order: QuantaOrder) -> None:
-        if self.state.views.quanta.order == order:
+    def set_time_profile_order(self, order: TimeProfileOrder) -> None:
+        if self.state.modules.time_profile.order == order:
             return
-        self.state.views.quanta.order = order
+        self.state.modules.time_profile.order = order
         self.schedule_refresh()
 
     def set_highlight_token(self, token: tuple[int, int] | None) -> None:
@@ -353,11 +374,11 @@ class AppController:
     def on_token_mode_changed(self, attr, old, new):
         self.set_token_mode(new)
 
-    def on_quanta_mode_changed(self, attr, old, new):
-        self.set_quanta_mode(new)
+    def on_time_profile_mode_changed(self, attr, old, new):
+        self.set_time_profile_mode(new)
 
-    def on_quanta_order_changed(self, attr, old, new):
-        self.set_quanta_order(new)
+    def on_time_profile_order_changed(self, attr, old, new):
+        self.set_time_profile_order(new)
 
     def on_trace_mode_changed(self, attr, old, new):
         self.set_trace_mode(new)
@@ -369,9 +390,10 @@ class AppController:
         self.set_secondary_trace(new)
 
     def on_highlight_token_changed(self, attr, old, new):
-        summary = self.get_pipeline("summary")
-        assert isinstance(summary, SummaryPipeline)
-        summary.on_highlight_widget_changed(self, new)
+        pass
+        # summary = self.get_module_pipeline("summary")
+        # assert isinstance(summary, SummaryPipeline)
+        # summary.on_highlight_widget_changed(self, new)
 
     # -------------------------------------------
     # |               Utilities                 |
@@ -424,7 +446,7 @@ class AppController:
         loaded = self.get_secondary_trace()
         return None if loaded is None else loaded.session
 
-    def install_merged_category_namespace(self) -> None:
+    def _install_merged_category_namespace(self) -> None:
         names = sorted({
             str(name)
             for loaded in self.iter_loaded_traces()
@@ -439,7 +461,16 @@ class AppController:
         for loaded in self.iter_loaded_traces():
             loaded.session.install_category_namespace(name_to_cat_token)
 
-    def thread_names_for_trace_selection(
+    def _register_loaded_trace_tokens(self) -> None:
+        for loaded in self.iter_loaded_traces():
+            token_name_by_key = dict(loaded.session.meta.token_key_to_name)
+            self.token_color.register_tokens(
+                token_name_by_key.keys(),
+                token_names = token_name_by_key,
+                namespace   = loaded.trace_id
+            )
+
+    def _thread_names_for_trace_selection(
         self,
         *,
         trace_mode: TraceMode,
@@ -448,7 +479,8 @@ class AppController:
     ) -> list[str]:
         trace_ids: list[str] = []
 
-        if primary_trace_id is not None and primary_trace_id in self.runtime.loaded_traces:
+        if (primary_trace_id is not None 
+                and primary_trace_id in self.runtime.loaded_traces):
             trace_ids.append(primary_trace_id)
 
         if (
@@ -468,7 +500,7 @@ class AppController:
 
     def all_thread_names(self) -> list[str]:
         ctx = self.state.context
-        return self.thread_names_for_trace_selection(
+        return self._thread_names_for_trace_selection(
             trace_mode=ctx.trace_mode,
             primary_trace_id=ctx.primary_trace_id,
             secondary_trace_id=ctx.secondary_trace_id,

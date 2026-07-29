@@ -3,51 +3,107 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
-
-# > state constants
-
 from data_model import FidelityMode, TokenMode
-TraceMode:      TypeAlias = Literal["dual", "single"]
-QuantaOrder:    TypeAlias = Literal["global", "local"]
-ViewId:         TypeAlias = Literal["quanta", "inspector", "summary"]
 
-# > state tree:
+
+# -------------------------------------------
+# |           State Constants               |
+# -------------------------------------------
+
+
+TraceMode:                  TypeAlias = Literal[
+            "dual",
+            "single",
+]
+PanelID:                    TypeAlias = Literal[
+            "center",
+            "left",
+            "right",
+]
+
+ModuleID:                   TypeAlias = Literal[
+            "time_profile",
+            "token_detail",
+            "inspector",
+]
+
+TimeProfileOrder:           TypeAlias = Literal[
+            "global",
+            "local",
+]
+TimeProfilePresentation:    TypeAlias = Literal[
+            "auto",
+            "binned",
+            "flame",
+]
+
+TokenDetailChartMode:       TypeAlias = Literal[
+            "histogram",
+            "scatter",
+]
+TokenDetailTableMode:       TypeAlias = Literal[
+            "compare",
+            "summary",
+]
+
+
+# -------------------------------------------
+# |              State Tree                 |
+# -------------------------------------------
 
 #   AppState
-#      ├── views
-#      │   └── quanta
-#      │       ├── n_bins
-#      │       ├── mode
-#      │       └── order
+#      ├── display
+#      │   ├── center
+#      │   │   ├── active_module
+#      │   │   └── context_key
+#      │   ├── left
+#      │   │   ├── active_module
+#      │   │   └── context_key
+#      │   └── right
+#      │       ├── active_module
+#      │       └── context_key
 #      ├── context
 #      │   ├── active_threads
+#      │   ├── trace_mode
+#      │   ├── primary_trace_id
+#      │   ├── secondary_trace_id
 #      │   ├── token_mode
 #      │   ├── selection
 #      │   │   └── token
 #      │   └── time_scope
 #      │       ├── t0_ns
 #      │       └── t1_ns
-#      └── display
-#          ├── primary
-#          │   ├── active_view
-#          │   └── context_key
-#          └── secondary[*]
-#              ├── active_view
-#              └── context_key
+#      └── modules
+#          ├── time_profile
+#          │   ├── presentation
+#          │   ├── n_bins
+#          │   ├── fidelity
+#          │   └── order
+#          ├── token_detail
+#          │   ├── chart_mode
+#          │   ├── table_mode
+#          │   ├── show_stats
+#          │   └── show_chart
+#          └── inspector
 
-# >>> display layout state
+# display layout state
+# --------------------
 
 @dataclass
 class PanelState:
-    active_view:        ViewId
+    active_module:      ModuleID
     context_key:        str | None = None
+
+# >>>
 
 @dataclass
 class DisplayState:
-    primary:            PanelState
-    secondary:          tuple[PanelState, ...] = ()
+    center:             PanelState
+    left:               PanelState | None = None
+    right:              PanelState | None = None
 
-# >>> global analysis context state
+# global context state
+# --------------------
 
 @dataclass
 class SelectionState:
@@ -58,6 +114,8 @@ class TimeScopeState:
     t0_ns:              int | None = None
     t1_ns:              int | None = None
 
+# >>>
+
 @dataclass
 class ContextState:
     active_threads:     tuple[str, ...]
@@ -65,27 +123,55 @@ class ContextState:
     primary_trace_id:   str | None = None
     secondary_trace_id: str | None = None
     token_mode:         TokenMode = "raw"
-    selection:          SelectionState = field(default_factory=SelectionState)
-    time_scope:         TimeScopeState = field(default_factory=TimeScopeState)
+    selection:          SelectionState = field(
+        default_factory=SelectionState
+    )
+    time_scope:         TimeScopeState = field(
+        default_factory=TimeScopeState
+    )
 
-# >>> view specific state
+# module specific state
+# ---------------------
 
 @dataclass
-class QuantaState:
+class TimeProfileState:
+    presentation:       TimeProfilePresentation = "binned"
     n_bins:             int = 100
-    mode:               FidelityMode = "fast"
-    order:              QuantaOrder = "global"
+    fidelity:           FidelityMode = "fast"
+    order:              TimeProfileOrder = "global"
 
 @dataclass
-class ViewState:
-    quanta:             QuantaState = field(default_factory=QuantaState)
+class TokenDetailState:
+    chart_mode:         TokenDetailChartMode = "histogram"
+    table_mode:         TokenDetailTableMode = "compare"
+    show_stats:         bool = True
+    show_chart:         bool = True
 
-# >>> state root
+@dataclass
+class InspectorState:
+    pass
+
+# >>>
+
+@dataclass
+class ModuleState:
+    time_profile:       TimeProfileState = field(
+        default_factory=TimeProfileState
+    )
+    token_detail:       TokenDetailState = field(
+        default_factory=TokenDetailState
+    )
+    inspector:          InspectorState = field(
+        default_factory=InspectorState
+    )
+
+# state tree root
+# ---------------
 
 @dataclass
 class AppState:
     display:            DisplayState
     context:            ContextState
-    views:              ViewState = field(default_factory=ViewState)
+    modules:            ModuleState = field(default_factory=ModuleState)
 
 

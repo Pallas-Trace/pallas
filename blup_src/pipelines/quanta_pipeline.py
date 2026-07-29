@@ -13,7 +13,7 @@ from adapters.quanta_adapter import (
     build_quanta_request_spec,
     compute_quanta_thread_result,
 )
-from state import ViewId
+from state import ModuleID
 from trace_session import TraceSession
 from views.quanta_view import QuantaView
 from work_manager import WorkJob, WorkRequestBase, WorkResult
@@ -73,7 +73,7 @@ class QuantaWorkRequest(WorkRequestBase):
 
 
 class QuantaPipeline:
-    view_id: ViewId = "quanta"
+    view_id: ModuleID = "quanta"
 
     def __init__(
         self,

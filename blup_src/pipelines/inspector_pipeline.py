@@ -3,13 +3,13 @@ from __future__ import annotations
 from bokeh.models.layouts import LayoutDOM
 
 from data_model import SummaryQuery
-from state import ViewId
+from state import ModuleID
 from trace_session import TraceSession
 from views.inspector_view import InspectorDisplayModel, InspectorView
 
 
 class InspectorPipeline:
-    view_id: ViewId = "inspector"
+    view_id: ModuleID = "inspector"
 
     def __init__(self, *, width: int) -> None:
         self.view = InspectorView(width=width)

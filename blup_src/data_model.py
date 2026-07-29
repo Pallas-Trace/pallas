@@ -107,14 +107,14 @@ def empty_quanta_bundle(fidelity: FidelityMode) -> QuantaBundle:
     empty_u8 = np.array([], dtype=np.uint8)
     empty_f64 = np.array([], dtype=np.float64)
     return QuantaBundle(
-        fidelity    = fidelity,
-        start_ns    = empty_i64,
-        end_ns      = empty_i64.copy(),
-        thread_id   = empty_i64.copy(),
-        token_type  = empty_u8,
-        token_id    = empty_i64.copy(),
-        excl_ns     = empty_i64.copy(),
-        proportion  = empty_f64,
+        fidelity        = fidelity,
+        start_ns        = empty_i64,
+        end_ns          = empty_i64.copy(),
+        thread_id       = empty_i64.copy(),
+        token_type      = empty_u8,
+        token_id        = empty_i64.copy(),
+        excl_ns         = empty_i64.copy(),
+        proportion      = empty_f64,
     )
 
 def normalize_quanta_result(raw, fidelity: FidelityMode) -> QuantaBundle:
@@ -132,26 +132,26 @@ def normalize_quanta_result(raw, fidelity: FidelityMode) -> QuantaBundle:
 
     order = np.lexsort((token_id, token_type, thread_id, end_ns, start_ns))
     return QuantaBundle(
-        fidelity    = fidelity,
-        start_ns    = start_ns[order],
-        end_ns      = end_ns[order],
-        thread_id   = thread_id[order],
-        token_type  = token_type[order],
-        token_id    = token_id[order],
-        excl_ns     = excl_ns[order],
-        proportion  = proportion[order],
+        fidelity        = fidelity,
+        start_ns        = start_ns[order],
+        end_ns          = end_ns[order],
+        thread_id       = thread_id[order],
+        token_type      = token_type[order],
+        token_id        = token_id[order],
+        excl_ns         = excl_ns[order],
+        proportion      = proportion[order],
     )
 
 def subset_quanta_bundle(bundle: QuantaBundle, keep: np.ndarray) -> QuantaBundle:
     return QuantaBundle(
-        fidelity    = bundle.fidelity,
-        start_ns    = bundle.start_ns[keep],
-        end_ns      = bundle.end_ns[keep],
-        thread_id   = bundle.thread_id[keep],
-        token_type  = bundle.token_type[keep],
-        token_id    = bundle.token_id[keep],
-        excl_ns     = bundle.excl_ns[keep],
-        proportion  = bundle.proportion[keep],
+        fidelity        = bundle.fidelity,
+        start_ns        = bundle.start_ns[keep],
+        end_ns          = bundle.end_ns[keep],
+        thread_id       = bundle.thread_id[keep],
+        token_type      = bundle.token_type[keep],
+        token_id        = bundle.token_id[keep],
+        excl_ns         = bundle.excl_ns[keep],
+        proportion      = bundle.proportion[keep],
     )
 
 def canonicalize_quanta_query(query: QuantaQuery) -> QuantaQuery:
@@ -192,16 +192,16 @@ def empty_span_bundle(fidelity: FidelityMode) -> SpanBundle:
     empty_i64 = np.array([], dtype=np.int64)
     empty_u8 = np.array([], dtype=np.uint8)
     return SpanBundle(
-        fidelity    = fidelity,
-        thread_id   = empty_i64,
-        token_type  = empty_u8,
-        token_id    = empty_i64.copy(),
-        iteration   = empty_i64.copy(),
-        depth       = empty_i64.copy(),
-        start_ns    = empty_i64.copy(),
-        end_ns      = empty_i64.copy(),
-        dur_ns      = empty_i64.copy(),
-        excl_ns     = empty_i64.copy(),
+        fidelity        = fidelity,
+        thread_id       = empty_i64,
+        token_type      = empty_u8,
+        token_id        = empty_i64.copy(),
+        iteration       = empty_i64.copy(),
+        depth           = empty_i64.copy(),
+        start_ns        = empty_i64.copy(),
+        end_ns          = empty_i64.copy(),
+        dur_ns          = empty_i64.copy(),
+        excl_ns         = empty_i64.copy(),
     )
 
 def normalize_span_rows(
@@ -223,42 +223,42 @@ def normalize_span_rows(
 
     order = np.lexsort((iteration, -end_ns, start_ns, thread_id))
     return SpanBundle(
-        fidelity    = fidelity,
-        thread_id   = thread_id[order],
-        token_type  = token_type[order],
-        token_id    = token_id[order],
-        iteration   = iteration[order],
-        depth       = depth[order],
-        start_ns    = start_ns[order],
-        end_ns      = end_ns[order],
-        dur_ns      = dur_ns[order],
-        excl_ns     = excl_ns[order],
+        fidelity        = fidelity,
+        thread_id       = thread_id[order],
+        token_type      = token_type[order],
+        token_id        = token_id[order],
+        iteration       = iteration[order],
+        depth           = depth[order],
+        start_ns        = start_ns[order],
+        end_ns          = end_ns[order],
+        dur_ns          = dur_ns[order],
+        excl_ns         = excl_ns[order],
     )
 
 def subset_span_bundle(bundle: SpanBundle, keep: np.ndarray, fidelity: FidelityMode) -> SpanBundle:
     return SpanBundle(
-        fidelity    = fidelity,
-        thread_id   = bundle.thread_id[keep],
-        token_type  = bundle.token_type[keep],
-        token_id    = bundle.token_id[keep],
-        iteration   = bundle.iteration[keep],
-        depth       = bundle.depth[keep],
-        start_ns    = bundle.start_ns[keep],
-        end_ns      = bundle.end_ns[keep],
-        dur_ns      = bundle.dur_ns[keep],
-        excl_ns     = bundle.excl_ns[keep],
+        fidelity        = fidelity,
+        thread_id       = bundle.thread_id[keep],
+        token_type      = bundle.token_type[keep],
+        token_id        = bundle.token_id[keep],
+        iteration       = bundle.iteration[keep],
+        depth           = bundle.depth[keep],
+        start_ns        = bundle.start_ns[keep],
+        end_ns          = bundle.end_ns[keep],
+        dur_ns          = bundle.dur_ns[keep],
+        excl_ns         = bundle.excl_ns[keep],
     )
 
 def canonicalize_span_query(query: SpanQuery) -> SpanQuery:
     tok = None if query.token is None else (int(query.token[0]), int(query.token[1]))
     return SpanQuery(
-        thread_ids  = tuple(sorted(int(t) for t in query.thread_ids)),
-        t0_ns       = int(query.t0_ns),
-        t1_ns       = int(query.t1_ns),
-        fidelity    = query.fidelity,
-        token_mode  = query.token_mode,
-        max_depth   = None if query.max_depth is None else int(query.max_depth),
-        token       = tok,
+        thread_ids      = tuple(sorted(int(t) for t in query.thread_ids)),
+        t0_ns           = int(query.t0_ns),
+        t1_ns           = int(query.t1_ns),
+        fidelity        = query.fidelity,
+        token_mode      = query.token_mode,
+        max_depth       = None if query.max_depth is None else int(query.max_depth),
+        token           = tok,
     )
 
 # Occurence Data Path
@@ -277,15 +277,15 @@ class OccurrenceQuery:
 
 def canonicalize_occurrence_query(query: OccurrenceQuery) -> OccurrenceQuery:
     return OccurrenceQuery(
-        thread_ids  = tuple(sorted(int(t) for t in query.thread_ids)),
-        token       = (int(query.token[0]), int(query.token[1])),
-        fidelity    = query.fidelity,
-        token_mode  = query.token_mode,
-        t0_ns       = None if query.t0_ns is None else int(query.t0_ns),
-        t1_ns       = None if query.t1_ns is None else int(query.t1_ns),
-        max_depth   = None if query.max_depth is None else int(query.max_depth),
-        mode        = query.mode,
-        index       = None if query.index is None else int(query.index),
+        thread_ids      = tuple(sorted(int(t) for t in query.thread_ids)),
+        token           = (int(query.token[0]), int(query.token[1])),
+        fidelity        = query.fidelity,
+        token_mode      = query.token_mode,
+        t0_ns           = None if query.t0_ns is None else int(query.t0_ns),
+        t1_ns           = None if query.t1_ns is None else int(query.t1_ns),
+        max_depth       = None if query.max_depth is None else int(query.max_depth),
+        mode            = query.mode,
+        index           = None if query.index is None else int(query.index),
     )
 
 # Subtree Data Path
@@ -309,13 +309,13 @@ class SubtreeQuery:
 
 def canonicalize_subtree_query(query: SubtreeQuery) -> SubtreeQuery:
     root = NodeRef(
-        thread_id   = int(query.root.thread_id),
-        token_type  = int(query.root.token_type),
-        token_id    = int(query.root.token_id),
-        iteration   = int(query.root.iteration),
-        depth       = int(query.root.depth),
-        start_ns    = int(query.root.start_ns),
-        end_ns      = int(query.root.end_ns),
+        thread_id       = int(query.root.thread_id),
+        token_type      = int(query.root.token_type),
+        token_id        = int(query.root.token_id),
+        iteration       = int(query.root.iteration),
+        depth           = int(query.root.depth),
+        start_ns        = int(query.root.start_ns),
+        end_ns          = int(query.root.end_ns),
     )
     return SubtreeQuery(
         root            = root,
@@ -341,12 +341,12 @@ class SnapshotHistogramQuery:
 
 def canonicalize_histogram_query(query: SnapshotHistogramQuery) -> SnapshotHistogramQuery:
     return SnapshotHistogramQuery(
-        thread_ids=tuple(sorted(int(t) for t in query.thread_ids)),
-        token=(int(query.token[0]), int(query.token[1])),
-        t0_ns=int(query.t0_ns),
-        t1_ns=int(query.t1_ns),
-        n_bins=int(query.n_bins),
-        token_mode=query.token_mode,
+        thread_ids      = tuple(sorted(int(t) for t in query.thread_ids)),
+        token           = (int(query.token[0]), int(query.token[1])),
+        t0_ns           = int(query.t0_ns),
+        t1_ns           = int(query.t1_ns),
+        n_bins          = int(query.n_bins),
+        token_mode      =query.token_mode,
     )
 
 # Misc Data Model helper functions

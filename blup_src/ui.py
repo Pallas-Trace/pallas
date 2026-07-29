@@ -24,14 +24,15 @@ class UIElements:
     secondary_trace_select: Select
 
     thread_select: MultiSelect
-    n_quanta_spinner: Spinner
+    n_bins_spinner: Spinner
     token_mode_select: Select
     quanta_mode_select: Select
     stack_order_select: Select
     highlight_token_select: Select
 
-    primary_panel: LayoutDOM
-    secondary_panel: LayoutDOM
+    center_panel: LayoutDOM
+    left_panel: LayoutDOM
+    right_panel: LayoutDOM
 
 
 class UIModel:
@@ -59,7 +60,7 @@ class UIModel:
         primary_trace_select = Select(
             title="Primary trace",
             value=state.context.primary_trace_id or "",
-            options=trace_options,  # type: ignore
+            options=trace_options,                                          # type: ignore
             width=220,
         )
         primary_trace_select.on_change("value", self.controller.on_primary_trace_changed)
@@ -67,7 +68,7 @@ class UIModel:
         secondary_trace_select = Select(
             title="Secondary trace",
             value=state.context.secondary_trace_id or "",
-            options=trace_options,  # type: ignore
+            options=trace_options,                                          # type: ignore
             width=220,
             disabled=(state.context.trace_mode != "dual"),
         )
@@ -82,15 +83,15 @@ class UIModel:
         )
         thread_select.on_change("value", self.controller.on_threads_changed)
 
-        n_quanta_spinner = Spinner(
-            title="Quanta bins",
+        n_bins_spinner = Spinner(
+            title="# of bins",
             low=4,
             high=2000,
             step=4,
-            value=state.views.quanta.n_bins,
+            value=state.modules.time_profile.n_bins,
             width=140,
         )
-        n_quanta_spinner.on_change("value", self.controller.on_n_quanta_changed)
+        n_bins_spinner.on_change("value", self.controller.on_n_quanta_changed)
 
         token_mode_select = Select(
             title="Token view",
@@ -103,9 +104,9 @@ class UIModel:
         )
         token_mode_select.on_change("value", self.controller.on_token_mode_changed)
 
-        quanta_mode_select = Select(
+        time_profile_mode_select = Select(
             title="Snapshot mode",
-            value=state.views.quanta.mode,
+            value=state.modules.time_profile.fidelity,
             options=[
                 ("fast", "Fast"),
                 ("balanced", "Balanced"),
@@ -113,18 +114,18 @@ class UIModel:
             ],
             width=140,
         )
-        quanta_mode_select.on_change("value", self.controller.on_quanta_mode_changed)
+        time_profile_mode_select.on_change("value", self.controller.on_time_profile_mode_changed)
 
         stack_order_select = Select(
             title="Stack order",
-            value=state.views.quanta.order,
+            value=state.modules.time_profile.order,
             options=[
                 ("global", "Global"),
                 ("local", "Local"),
             ],
             width=140,
         )
-        stack_order_select.on_change("value", self.controller.on_quanta_order_changed)
+        stack_order_select.on_change("value", self.controller.on_time_profile_order_changed)
 
         highlight_token_select = Select(
             title="Highlight token",
@@ -140,20 +141,22 @@ class UIModel:
             primary_trace_select,
             secondary_trace_select,
             thread_select,
-            n_quanta_spinner,
+            n_bins_spinner,
             token_mode_select,
-            quanta_mode_select,
+            time_profile_mode_select,
             stack_order_select,
             highlight_token_select,
             sizing_mode="stretch_width",
         )
 
-        primary_panel = column(sizing_mode="fixed", width=1350)
-        secondary_panel = column(sizing_mode="fixed", width=400)
+        center_panel = column(sizing_mode="fixed", width=1350)
+        left_panel = column(sizing_mode="fixed", width=400)
+        right_panel = column(sizing_mode="fixed", width=400)
 
         body = row(
-            primary_panel,
-            secondary_panel,
+            left_panel,
+            center_panel,
+            right_panel,
             sizing_mode="fixed",
         )
 
@@ -170,11 +173,12 @@ class UIModel:
             primary_trace_select=primary_trace_select,
             secondary_trace_select=secondary_trace_select,
             thread_select=thread_select,
-            n_quanta_spinner=n_quanta_spinner,
+            n_bins_spinner=n_bins_spinner,
             token_mode_select=token_mode_select,
-            quanta_mode_select=quanta_mode_select,
+            quanta_mode_select=time_profile_mode_select,
             stack_order_select=stack_order_select,
             highlight_token_select=highlight_token_select,
-            primary_panel=primary_panel,
-            secondary_panel=secondary_panel,
+            center_panel=center_panel,
+            left_panel=left_panel,
+            right_panel=right_panel,
         )

@@ -1,5 +1,33 @@
 # Architecture Design-Doc
 
+## System Overview
+
+```text
+TraceSession(s)
+    │
+    │ domain queries and normalized results
+    ▼
+data_model.py
+    │
+    ▼
+AppController
+    ├── AppState
+    ├── UIModel / UIElements
+    ├── TokenColor
+    ├── WorkManager
+    └── module_pipelines[ModuleID]
+            │
+            ├── Pipeline
+            ├── Assembler
+            ├── Request / Job / Result contracts
+            └── Bokeh Surface
+```
+
+The controller is the integration boundary for the application. It owns loaded
+traces, shared state, shared services, the UI shell, and the active module
+pipeline registry. Modules do not directly own global state or lifecycle
+coordination.
+
 ## Data Flow
 
 Multiple data flows exist among the application modules.
@@ -254,3 +282,22 @@ pipelines/
 views/
   *_view.py
 ```
+
+## Conventions
+
+### Method/Field Naming
+
+Use public names only for the supported class interface. Other classes can
+depend on public names.
+
+Use one leading underscore for internal fields and methods. Do not use these
+names outside the class unless a documented exception applies.
+
+Use a public method for an action or a calculated value. Do not create a
+public accessor only to return a private field.
+
+Use a public field when it is a stable part of the class interface and does not
+need validation or calculation.
+
+Use a private field for caches, callback guards, Bokeh objects, work state, and
+other implementation data.

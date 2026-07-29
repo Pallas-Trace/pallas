@@ -8,13 +8,13 @@ from adapters.summary_adapter import (
     SequenceSummaryDiffRow,
     format_duration_ns,
 )
-from state import ViewId
+from state import ModuleID
 from trace_session import TraceSession
 from views.summary_view import SummaryView
 
 
 class SummaryPipeline:
-    view_id: ViewId = "summary"
+    view_id: ModuleID = "summary"
 
     def __init__(self, *, width: int, height: int) -> None:
         self.view = SummaryView(width=width, height=height)
