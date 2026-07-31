@@ -5,6 +5,7 @@ import sys
 
 from bokeh.io import curdoc
 
+from blup.bokeh.theme import gruvbox_bokeh_theme
 from blup.controller import AppController
 from blup.traces.interface import TraceRecord
 from blup.traces.session import TraceSession
@@ -54,6 +55,7 @@ def main() -> None:
         root = controller.build()
 
     curdoc().add_root(root)                                                 # type: ignore
+    curdoc().theme = gruvbox_bokeh_theme()
     curdoc().title = "Blup"
 
 

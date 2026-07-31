@@ -259,7 +259,7 @@ class DisplayPatch:
         if state is None:
             raise ValueError(
                 "Cannot apply PanelPatch to a missing side panel; "
-                "supply PanelState(...) first to create it!"
+                "call with PanelState(...) first to create it!"
             )
 
         return update.apply(state)

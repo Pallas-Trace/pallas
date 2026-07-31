@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "blup"
-version = "0.1.0"
+version = "0.4.0"
 description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
@@ -11,13 +15,16 @@ dependencies = [
     "scipy>=1.17.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [dependency-groups]
 dev = [
     "pandas-stubs>=3.0.0.260204",
 ]
 
 [tool.uv.sources]
-pallas-trace = { path = "../pallas-fork/libraries/pallas_python", editable = true }
+pallas-trace = {path = "../pallas-fork/libraries/pallas_python", editable = true}
 
 [tool.pyright]
 venvPath = "."

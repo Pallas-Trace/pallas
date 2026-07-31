@@ -8,6 +8,8 @@ from bokeh.models.layouts import LayoutDOM
 from bokeh.models.widgets.inputs import MultiSelect, Select, Spinner
 from bokeh.models.widgets.markups import Div
 
+from blup.bokeh.app_shell import BokehAppShell
+from blup.bokeh.styles import panel_frame
 from blup.state import AppState, TraceMode
 
 if TYPE_CHECKING:
