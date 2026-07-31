@@ -14,6 +14,7 @@ from blup.shell.layout import ShellDimensions
 @dataclass
 class BokehShellElements:
     root:               LayoutDOM
+    title:              Div
     context_host:       LayoutDOM
     center_host:        LayoutDOM
     inspector_host:     LayoutDOM
@@ -25,7 +26,7 @@ class BokehAppShell:
         dims = ShellDimensions()
         p = PALETTE
 
-        header = Div(
+        title = Div(
             text = f"""
             <div style="
                 height: {dims.header_height}px;
@@ -56,19 +57,22 @@ class BokehAppShell:
         context_host = column(
             sizing_mode = "stretch_height",
             width       = dims.context_width,
+            min_width   = dims.context_min_width,
         )
         center_host = column(
             sizing_mode = "stretch_both",
+            min_width   = 420,
         )
         inspector_host = column(
             sizing_mode = "stretch_height",
             width       = dims.inspector_width,
+            min_width   = dims.inspector_min_width,
         )
 
         body = row(
-            panel_frame("Context", context_host, width=dims.context_width),
+            panel_frame("Context", context_host),
             panel_frame("Analysis", center_host),
-            panel_frame("Inspector", inspector_host, width=dims.inspector_width),
+            panel_frame("Inspector", inspector_host),
             sizing_mode = "stretch_both",
             spacing     = dims.panel_gap,
         )
@@ -76,19 +80,23 @@ class BokehAppShell:
         status = status_text("READY · NO ACTIVE JOBS")
 
         root = column(
-            header,
+            title,
             body,
             status,
             sizing_mode = "stretch_both",
-            spacing     = dims.panel_gap,
             styles      = {
-                "background": p.bg0,
-                "padding": f"{dims.panel_gap}px",
+                "height":       "100vh",
+                "width":        "100%",
+                "overflow":     "hidden",
+                "box-sizing":   "border-box",
+                "background":   p.bg0,
+                "padding":      f"{dims.panel_gap}px",
             },
         )
 
         return BokehShellElements(
             root            = root,
+            title           = title,
             context_host    = context_host,
             center_host     = center_host,
             inspector_host  = inspector_host,

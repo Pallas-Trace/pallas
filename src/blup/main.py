@@ -50,13 +50,20 @@ def main() -> None:
 
     trace_records = load_trace_records(paths)
 
+    doc = curdoc()
+
+    doc.theme = gruvbox_bokeh_theme()
+    doc.title = "Blup Trace"
+
     with timed("build"):
         controller = AppController(trace_records)
         root = controller.build()
 
+    if root is None:
+        raise RuntimeError("unable to build bokeh root in startup")
+
+    root.sizing_mode = "stretch_both"                                       # type: ignore
     curdoc().add_root(root)                                                 # type: ignore
-    curdoc().theme = gruvbox_bokeh_theme()
-    curdoc().title = "Blup"
 
 
 main()

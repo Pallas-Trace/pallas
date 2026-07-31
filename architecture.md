@@ -1,303 +1,627 @@
-# Architecture Design-Doc
+# Architecture Design Document
 
 ## System Overview
 
 ```text
-TraceSession(s)
-    │
-    │ domain queries and normalized results
-    ▼
-data_model.py
-    │
-    ▼
+main.py
+  │
+  │ opens trace files
+  ▼
+TraceRecord and TraceRegistry
+  │
+  │ give access to loaded traces and sessions
+  ▼
 AppController
-    ├── AppState
-    ├── UIModel / UIElements
-    ├── TokenColor
-    ├── WorkManager
-    └── module_pipelines[ModuleID]
-            │
-            ├── Pipeline
-            ├── Assembler
-            ├── Request / Job / Result contracts
-            └── Bokeh Surface
+  ├── StateManager and AppState
+  ├── UIModel and UIElements
+  ├── TokenColor
+  ├── WorkManager
+  └── module_pipelines[ModuleID]
+          │
+          ├── Pipeline
+          ├── Assembler
+          ├── Request, Job, and Result types
+          └── Bokeh chart surface
 ```
 
-The controller is the integration boundary for the application. It owns loaded
-traces, shared state, shared services, the UI shell, and the active module
-pipeline registry. Modules do not directly own global state or lifecycle
-coordination.
+`AppController` is the main application boundary.
 
-## Data Flow
+The controller owns the trace registry, state manager, UI model, work manager,
+shared services, display layout, and pipeline lifecycle.
 
-Multiple data flows exist among the application modules.
+A module must not own global state. A module must not control application
+lifecycle.
 
-### Results path
+## Startup
 
-Data 'results' are pulled from individual trace-sessions as defined by the API
-in `data_model.py`, routed through the `AppController` into the requesting
-pipeline which defines the requesting views data-contract with the application.
-Data is subsequently shaped for the specific nature of the view inside the
-adapter and served to the view file itself for rendering.
+`main.py` starts the application.
+
+It does these tasks:
+
+1. It reads the trace-file paths.
+2. It opens a `TraceSession` for each trace file.
+3. It creates a `TraceRecord` for each session.
+4. It creates `AppController`.
+5. It adds the Bokeh root to the current Bokeh document.
+
+The project uses a `src/` package layout.
 
 ```text
-TraceSession(s)
-    ↓
-data_model.py (provides: types + query contracts)
-    ↓
-AppController (provides: )
-    ↓
-Pipeline(s) (provides: )
-    ↓
-Adapter(s) (provides: interface specs + result shaping)
-    ↓
-View(s) (provides: Bokeh figure/widget logic)
+pyproject.toml
+uv.lock
+src/
+  blup/
+    __init__.py
+    main.py
+    controller.py
+    state.py
+    ui.py
+    utils.py
+    traces/
+    modules/
 ```
 
-### Interaction path
+Use uv to start the Bokeh application:
+
+```bash
+uv run bokeh serve src/blup --show --args TRACE [TRACE ...]
+```
+
+The package must install from `src/`. This lets Bokeh use imports such as:
+
+```python
+from blup.controller import AppController
+```
+
+Put debug tools in `utils.py`, or in a future debug module. Do not put debug
+tools in `main.py`.
+
+## Trace Access
+
+### Trace record
+
+`TraceRecord` describes one loaded trace.
 
 ```text
-Frontend UI
-    ↓
-AppController
-    ↓
-AppState
-    ↓
-Pipeline(s)
+TraceRecord
+├── trace_id
+├── label
+└── session: TraceSession
 ```
 
-### Data Classification
+`trace_id` identifies the trace in application state.
 
-Data is organized into tiers based on its life-cycle, size, and responsibility
+`label` gives the trace a name for the user interface.
 
-- Tier 1: direct trace meta-data and token information, primarily lives in
-`TraceSession` objects to inform data query operations. Limited size structures
-so can be highly processed/transformed.
-- Tier 2: aggregated summary statistics that are directly transferred between
-`TraceSession` and `AppController` to inform Application logic/state. Can also
-be forwarded to views if needed. Data is limited in scope but excessive
-calculation/analysis should be avoided (especially in Python).
-- Tier 3: heavy result data-streams that are processed by thread workers and
-\routed to views by the `AppContoller`. As these are the largest data structures
-minimal processing should occur in Python code (as opposed to C++ PALLAS code)
-besides app state dependent transformations (i.e. token replacement) and view
-specific transformation (i.e. display preparation in adapters).
+`session` gives access to trace data.
 
-Data is also organized by 'fidelity' since the API design allows for multiple
-data preparation paths featuring trade-offs of latency versus accuracy.
-These differences are built into the architecture and considered different
-bundles. The design is such that higher fidelity data can be prepared in the
-background and substituted in as necessary (on demand or predicted need).
+### Trace registry
+
+`TraceRegistry` owns all `TraceRecord` objects.
+
+The registry is the supported way to find loaded traces. Other application
+components must use `TraceRegistryAccess`. They must not read a controller
+dictionary of traces directly.
+
+The registry can:
+
+- Get all loaded trace IDs.
+- Check if a trace ID is valid.
+- Get a trace record.
+- Get one or more sessions.
+- Give trace options for UI controls.
+- Get thread names for selected traces.
+- Get time bounds for selected traces.
+
+### Trace session
+
+`TraceSession` owns one Pallas trace object.
+
+`TraceSession` uses query and result types from `data_model.py`.
+
+`TraceSession` does these tasks:
+
+- Open one trace.
+- Build trace metadata.
+- Build token indices.
+- Cache query results.
+- Call native Pallas queries.
+- Convert native results to application result bundles.
+- Apply token-mode changes when necessary.
+
+`TraceSession` must not know about Bokeh.
+
+`TraceSession` must not change application state.
+
+`TraceSession` must not coordinate other traces.
 
 ## Application State
 
-Application state (i.e. mutable interaction based state differentiated from immutable
-trace-session based state) is centralized in the `AppState` class (and
-owned by/interfaced through the controller module) and is structured as a tree
-to clarify distinct aspects of the state.
+### State tree
 
-State Tree:
+`AppState` is the source of user-visible application state.
+
+`AppState` is immutable. Code must create a new state object for each state
+change.
 
 ```text
 AppState
-   ├── views
-   │   ├── *
-   │   ├── *
-   │ [...]
-   ├── context
-   │   ├── active_threads
-   │   ├── token_mode
-   │   ├── selection
-   │   │   └── token
-   │   └── time_scope
-   │       ├── t0_ns
-   │       └── t1_ns
-   └── display
-       ├── primary
-       │   ├── active_view
-       │   └── context_key
-       └── secondary[*]
-           ├── active_view
-           └── context_key
-
+├── display
+│   ├── center: PanelState
+│   ├── left: PanelState | None
+│   └── right: PanelState | None
+├── context
+│   ├── traces
+│   │   ├── trace_ids: tuple[TraceID, ...]
+│   │   └── focus_id: TraceID | None
+│   ├── active_threads: tuple[str, ...]
+│   ├── token_mode
+│   ├── selection
+│   │   └── token: tuple[int, int] | None
+│   └── time_scope
+│       ├── t0_ns: int | None
+│       └── t1_ns: int | None
+└── modules
+    ├── time_profile
+    │   ├── presentation
+    │   ├── n_bins
+    │   ├── fidelity
+    │   └── order
+    ├── token_detail
+    │   ├── chart_mode
+    │   ├── table_mode
+    │   ├── show_stats
+    │   └── show_chart
+    └── inspector
 ```
 
-## Global Modules
+`context.traces.trace_ids` contains the selected traces.
+
+The application does not use `primary_trace_id`, `secondary_trace_id`, or
+`trace_mode` in state.
+
+`focus_id` identifies the selected trace that a view uses as its main trace.
+If `focus_id` is not valid, the application uses the first selected trace.
+
+### State patches
+
+Use patch objects to change state.
+
+```text
+DisplayPatch
+ContextPatch
+ModulePatch
+```
+
+Use nested patches to change nested state.
+
+```text
+TraceSelectionPatch
+TokenSelectionPatch
+TimeScopePatch
+TimeProfilePatch
+TokenDetailPatch
+```
+
+Do not change fields in `AppState` directly.
+
+Use the controller state-update method.
+
+Example:
+
+```python
+host.update_state(
+    context=ContextPatch(
+        selection=TokenSelectionPatch(
+            token=token,
+        ),
+    ),
+)
+```
+
+### State normalization
+
+`StateManager` applies patches and checks the resulting state.
+
+`StateManager` makes these checks:
+
+- Selected trace IDs must exist in the trace registry.
+- If no selected trace exists, select the first loaded trace.
+- `focus_id` must be in `trace_ids`.
+- Active thread names must exist in the selected traces.
+- If no active thread is selected, select all available threads.
+
+When trace selection changes, `StateManager` clears:
+
+- Token selection.
+- Time scope.
+
+The controller refreshes the display only when the state changes.
+
+## User Interface
+
+`UIModel` creates Bokeh controls.
+
+`UIElements` gives access to the created controls.
+
+The UI shows application state. The UI is not a second source of state.
+
+The trace selector is a Bokeh `MultiSelect`.
+
+Its selected values map to:
+
+```python
+state.context.traces.trace_ids
+```
+
+A trace-selection callback creates a state patch:
+
+```python
+ContextPatch(
+    traces=TraceSelectionPatch(
+        trace_ids=tuple(new),
+    ),
+)
+```
+
+The controller gets available thread names from:
+
+```python
+trace_registry.thread_names_for(
+    state.context.traces.trace_ids,
+)
+```
+
+The controller updates widget values after state normalization.
+
+A Bokeh callback can occur during widget synchronization. The state manager
+ignores the update if it causes no state change.
+
+## Controller
+
+`AppController` coordinates the main application components.
+
+It owns:
+
+- The trace registry.
+- The state manager.
+- The UI model.
+- The work manager.
+- Module pipelines.
+- Display layout.
+- Shared services.
+
+The controller must not contain chart drawing code.
+
+The controller must not contain low-level trace query code.
+
+The controller has this main lifecycle:
+
+```text
+build()
+├── build module roots
+├── build UI shell
+├── mount current displays
+├── bind active pipelines
+└── refresh active pipelines
+```
+
+The controller refreshes after a valid state change.
+
+A pipeline can bind more than one time. Pipeline binding must be safe if it
+runs again.
+
+A pipeline must use a guard for callbacks that must be added only one time.
+For example, a pipeline can bind Bokeh range callbacks only one time.
+
+A pipeline can replace a chart callback reference on each bind. This action is
+safe because it replaces one reference. It does not add another callback.
+
+## Pipelines
+
+A pipeline controls one module display.
+
+A pipeline owns:
+
+- One reusable Bokeh root.
+- One chart surface.
+- One assembler.
+- Update request state.
+- Chart callback bindings.
+
+A pipeline does these tasks:
+
+- Build its Bokeh root.
+- Connect chart events to controller state updates.
+- Read controller state.
+- Make an update context.
+- Make a work request.
+- Send the request to `WorkManager`.
+- Apply results on the Bokeh document thread.
+
+A pipeline must not change `AppState` directly.
+
+### Time profile pipeline
+
+`TimeProfilePipeline` controls the time-profile chart.
+
+It uses this update sequence:
+
+```text
+refresh(host)
+  ↓
+prepare_update(host)
+  ↓
+assembler.prepare_request(update)
+  ↓
+WorkManager.submit(UIWorkRequest(...))
+  ↓
+start_update()
+  ↓
+assembler.run_job(job) in a worker thread
+  ↓
+apply_result(result) in the Bokeh document thread
+  ↓
+finish_update(cancelled=...)
+```
+
+The time-profile pipeline binds time-range callbacks one time.
+
+The callbacks combine multiple range changes into one next-tick update. The
+pipeline checks the range, limits it to trace time bounds, and sends a time
+scope patch through the controller.
+
+The state model supports more than two selected traces.
+
+The current time-profile chart still uses upper and lower trace sides. It does
+not yet display all selected traces as separate visual lanes.
+
+## Work Manager
+
+`WorkManager` runs background jobs.
+
+It keeps Bokeh changes on the Bokeh document thread.
+
+A work request contains:
+
+```text
+scope_key
+request_key
+priority
+request_kind
+exec_kind
+```
+
+`scope_key` identifies the display or task group.
+
+`request_key` identifies the request data.
+
+If a new request has the same scope and request key, `WorkManager` uses the
+active request.
+
+If a new request has the same scope and a different request key,
+`WorkManager` cancels the old request.
+
+A cancelled request can finish in a worker thread. `WorkManager` ignores its
+result.
+
+The worker puts each result in a thread-safe queue.
+
+`WorkManager` schedules a Bokeh document callback to drain the queue.
+
+`Pipeline.apply_result()` runs in that Bokeh document callback.
+
+### Thread lanes
+
+`WorkManager` has two active thread lanes:
+
+```text
+Reserved lane
+  UI update jobs
+
+Shared lane
+  Other UI update jobs
+  Background jobs
+```
+
+UI work requests use threads by default.
+
+The controller currently configures eight thread workers.
+
+The process-work interface is for future use.
+
+Process work is not ready for use because:
+
+- Process dispatch is not complete.
+- Current job contexts include session closures.
+- Session closures cannot safely move to another process.
+
+### CPU limitation
+
+Many scheduled worker threads do not always use many CPU cores.
+
+Python uses the Global Interpreter Lock, also called the GIL.
+
+The native Pallas query can hold the GIL during its calculation. If it holds
+the GIL, Python worker threads cannot run that calculation at the same time.
+
+For this reason, process CPU use can stay near one CPU core even when the
+application has many worker threads.
+
+Future native work must:
+
+- Copy Python arguments to native C++ data.
+- Release the GIL only around native C++ work.
+- Reacquire the GIL before code uses Python objects.
+- Check that concurrent reads of `GlobalArchive` and `Thread` are safe.
+- Test calls on different trace sessions first.
+- Test calls on one shared trace archive after the first test.
+- Use ThreadSanitizer when practical.
+
+## Data Flow
+
+### Query and result flow
+
+```text
+TraceSession
+  ↓ normalized domain result
+Assembler
+  ↓ module job and result
+WorkManager worker thread
+  ↓ result queue
+Bokeh document callback
+  ↓
+Pipeline.apply_result()
+  ↓
+Chart surface and ColumnDataSource update
+```
+
+### Interaction flow
+
+```text
+Bokeh control or chart event
+  ↓
+Controller callback or pipeline callback
+  ↓
+StateManager.update(patch)
+  ↓
+Valid AppState
+  ↓
+Controller refresh
+  ↓
+Pipeline work request
+```
+
+### Data levels
+
+The application uses three data levels.
+
+- **Level 1: Metadata and indices.** This data includes trace bounds, thread
+  names, token metadata, and token mappings. `TraceSession` and
+  `TraceRegistry` own this data.
+- **Level 2: Small query results.** This data includes summaries and other
+  compact results. The application can use this data for controls, state, and
+  requests.
+- **Level 3: Large display results.** This data includes quanta, spans, and
+  other large result bundles. Worker threads produce this data. Python code
+  must do as little processing as possible on this data.
+
+Fidelity mode defines the trade between response time and result accuracy.
+
+Fidelity mode is part of query contracts and module state. It is not an
+uncontrolled chart setting.
+
+## Module Boundaries
 
 ### `data_model.py`
 
-Defines the normalized domain types and query/result contracts used between
-trace access code and higher-level application layers. It is the shared schema
-layer for summaries, quanta, spans, occurrences, subtrees, and histograms.
+`data_model.py` defines:
 
-Responsibilities:
+- Query types.
+- Result bundle types.
+- Fidelity modes.
+- Token modes.
+- Normalization helpers.
+- Data caches.
 
-- Define immutable query contracts
-- Define normalized result containers
+`data_model.py` must not use Bokeh.
 
-Constraints:
+`data_model.py` must not control application state.
 
-- Queries/results should be a generic interface with the trace
-(informed by PALLAS semantics)
-- Should not contain view, UI, or Bokeh specific logic
+### `traces/`
 
-### `trace_session.py`
+The `traces/` directory contains trace access code.
 
-Acts as the boundary around trace-backed data access and exposes query methods
-against a single trace using the shared `data_model` contracts.
+```text
+traces/
+├── interface.py
+├── registry.py
+└── session.py
+```
 
-Responsibilities:
+`interface.py` defines `TraceRecord` and `TraceRegistryAccess`.
 
-- Wrap (and own) the underlying trace object
-- Carry out queries and return result objects
-- Carry out token-level data transformations/normalization
+`registry.py` manages loaded trace records.
 
-Constraints:
-
-- Interface must follow the specification of `data_model` module
-- Responsible only for a single trace at a time
-- Does not carry out application-level logic or state changes
+`session.py` manages one trace and its data queries.
 
 ### `state.py`
 
-Defines the application state tree and the enums/type aliases that
-constrain user-visible modes. Serves as the ground source of truth for display
-layout, current analysis context, and per-view settings.
+`state.py` defines:
 
-Responsibilities:
+- Immutable state types.
+- State patch types.
+- `StateManager`.
 
-- Defines the central state-tree that all application-level logic depends on
+`state.py` checks and normalizes state against the trace registry.
 
-Constraints:
+`state.py` must not create Bokeh controls.
 
-- Must maintain clear and consistent scope of state-tree entries, separating
-view-specific states from broader global-context state
-- Other modules define when state is mutated and how views respond to state changes
+`state.py` must not run heavy trace queries.
 
 ### `controller.py`
 
-The central application orchestration layer. Owns sessions, state, pipelines,
-UI model, and the work manager. Acts as the main coordinator between declarative
-state and imperative refresh/mount/callback behavior carried out through views.
+`controller.py` coordinates state, traces, UI, displays, pipelines, and
+background work.
 
-Responsibilities:
+`controller.py` must not contain native Pallas query code.
 
-- Creates and owns the global application state
-- Wires together individual `trace_session` objects
-- Instantiates and registers individual data pipelines
-- Builds the application UI and display panels and routes them together
-- Serializes parallel data processing into a single async view-refresh loop
+`controller.py` must not contain detailed chart update code.
 
-Constraints:
+### `ui.py`
 
-- Should be highly modular:
-  - Should not contain any view-specific render-logic
-  - Should not contain any low-level trace specific data-logic
+`ui.py` creates Bokeh controls and layout containers.
 
-### `work_manager.py`
+`ui.py` sends control changes to controller callbacks.
 
-The work manager provides a generic interface implemented by individual
-pipelines for interaction with the central application state through the
-controller as well as participation in the multi-threaded data processing
-job-queue system.
+`ui.py` must not own application state.
 
-Responsibilities:
+### `modules/`
 
-- Accepts data requests via `submit()`
-- Cancels stale requests
-- Runs jobs within the thread pool, queueing results for serialization
-
-Constraints:
-
-- Only manages background data processing
-  - UI operations must be handled through the serial display loop in the controller
-
-### `pipelines/`
-
-Pipelines are the application-facing units of display behavior. Each pipeline
-owns one view, knows how to refresh it from controller state, and can submit
-background work when needed. The controller treats pipelines uniformly through a
-common interface defined in `pipelines/base.py` and activates them by ID.
-
-Responsibilities:
-
-- Builds a reusable DOM root for its view that the controller can place/enable
-- Binds callbacks between the view and controller
-- Translates application state changes into data requests needed by the view
-
-Constraints:
-
-- Sits on the boundary between controller/application state and view internals
-  - Should encapsulate only the necessary logic along this boundary
-- Only contains high level architecture logic; data-shaping is done by adapters
-
-## View-Specific Modules
-
-### `adapters/`
-
-Adapters convert domain-level query results into view-ready request specs, work
-jobs, and Bokeh source dictionaries. They are the “shape translation” layer
-between analysis data and rendering data.
-
-Responsibilities:
-
-- Translates generic data query results into view-specific form
-
-Constraints:
-
-- Should follow common patterns to be used interchangeably by pipelines
-
-### `views/`
-
-Views are thin Bokeh-facing rendering objects. They own figures, sources, glyph
-renderers, and widget callbacks, but they should not own application state
-transitions or trace query logic.
-
-Responsibilities:
-
-- Defines and initializes Bokeh rendering layout
-- Updates Bokeh sources based on adapter preparation
-
-Constraints:
-
-- Should only contain immediate display logic
-- Should not apply further processing to data; data is forwarded as-is
-
-## File Layout
+The `modules/` directory contains module code.
 
 ```text
-main.py
-data_model.py
-trace_session.py
-state.py
-controller.py
-work_manager.py
-ui.py
-utils.py
-adapters/
-  *_adapter.py
-pipelines/
-  base.py
-  *_pipeline.py
-views/
-  *_view.py
+modules/
+├── interface.py
+└── time_profile/
+    ├── assembler.py
+    ├── chart.py
+    ├── pipeline.py
+    └── types.py
 ```
 
-## Conventions
+`modules/interface.py` defines common pipeline, assembler, request, job, and
+work-manager types.
 
-### Method/Field Naming
+A module contains only its display behavior and its data-shaping behavior.
 
-Use public names only for the supported class interface. Other classes can
-depend on public names.
+### `utils.py`
 
-Use one leading underscore for internal fields and methods. Do not use these
-names outside the class unless a documented exception applies.
+`utils.py` contains general helper functions.
 
-Use a public method for an action or a calculated value. Do not create a
-public accessor only to return a private field.
+It can contain timing tools and temporary debug tools.
 
-Use a public field when it is a stable part of the class interface and does not
-need validation or calculation.
+It must not start the application.
 
-Use a private field for caches, callback guards, Bokeh objects, work state, and
-other implementation data.
+It must not contain Bokeh application setup.
+
+## Code Rules
+
+Use public names for supported class interfaces.
+
+Use names that start with `_` for internal fields and methods.
+
+Do not use internal names outside their class unless the design document
+explicitly permits this use.
+
+Do not change frozen state objects.
+
+Do not update Bokeh models from a worker thread.
+
+A worker job must return data only.
+
+Only the Bokeh document thread can update Bokeh models.
+
+Use `TraceRegistryAccess` and `TraceSession` methods for trace access.
+
+Do not access trace data through controller implementation details.
