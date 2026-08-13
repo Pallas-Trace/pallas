@@ -3,18 +3,24 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from blup.bokeh.app_shell import collapse_arrows
+from blup.modules.context_selection.pipeline import ContextSelectionPipeline
+from blup.modules.token_detail.pipeline import TokenDetailPipeline
+from blup.shell.intents import IntentBus
+from blup.shell.layout import ShellDimensions
 from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
 
 from blup.colors import TokenColor
 from blup.data_model import FidelityMode, TokenMode, CATEGORY_TOKEN_TYPE
-from blup.modules.interface import Pipeline, WorkManager
+from blup.modules.interface import Pipeline, WorkPipeline, WorkManager
 from blup.modules.time_profile.pipeline import TimeProfilePipeline
 from blup.ui import UIElements, UIModel
 from blup.state import (
     ContextPatch,
     DisplayPatch,
     ModulePatch,
+    PanelPatch,
     StateManager,
     TimeProfilePatch,
     TokenSelectionPatch,
@@ -39,6 +45,7 @@ from blup.traces.registry import TraceRegistry
 class ControllerRuntime:
     ui:                 UIElements | None = None
     root:               LayoutDOM | None = None
+    dims:               ShellDimensions = ShellDimensions()
 
 
 class AppController:
@@ -48,6 +55,7 @@ class AppController:
     trace_registry:     TraceRegistryAccess
     state_manager:      StateManager
     work_manager:       WorkManager
+    intent_bus:         IntentBus
 
     def __init__(self, trace_records: list[TraceRecord]) -> None:
         self.doc = curdoc()
@@ -62,29 +70,39 @@ class AppController:
             self.initial_state(),
         )
 
+        # setup work manager and register modules
+        self.work_manager = WorkManager(
+            schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
+            max_workers = 8,
+        )
+        self.module_pipelines: dict[ModuleID, Pipeline] = {
+            "context_selection": ContextSelectionPipeline(),
+            "time_profile": TimeProfilePipeline(height=700),
+            "token_detail": TokenDetailPipeline(height=700),
+        }
+        self.work_pipelines: dict[ModuleID, WorkPipeline] = {               # type: ignore[assignment]
+            "time_profile": self.module_pipelines["time_profile"],          # type: ignore[assignment]
+            "token_detail": self.module_pipelines["token_detail"]           # type: ignore[assignment]
+        }
+
         # setup ui
         self.ui_model = UIModel(self)
         self.token_color = TokenColor()
         self._register_loaded_trace_tokens()
 
-        # setup work manager and load modules
-        self.work_manager = WorkManager(
-            schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
-            max_workers = 8,
-        )
+        # intents bus
+        self.intent_bus = IntentBus()
+        self.intent_bus.panel.on_change("data", self._on_panel_intent)
+        print(f"[setup] subscribed to panel bus: {id(self.intent_bus.panel)}")
 
-        self.module_pipelines: dict[ModuleID, Pipeline] = {
-            "time_profile": TimeProfilePipeline(width=1650, height=950)
-        }
-
-        # setup runtime
+        # setup controller runtime
         self.runtime = ControllerRuntime()
 
         # set internal logic flags
         self._refresh_scheduled = False
 
     # -------------------------------------------
-    # |              Lifecycle                  |
+    # |           Lifecycle - Build             |
     # -------------------------------------------
 
     def build(self):
@@ -120,7 +138,7 @@ class AppController:
         self.runtime.root = ui.root
 
     # -------------------------------------------
-    # |               Refresh                   |
+    # |          Lifecycle - Refresh            |
     # -------------------------------------------
 
     def schedule_refresh(self) -> None:
@@ -131,9 +149,11 @@ class AppController:
 
     def refresh_tick(self) -> None:
         self._refresh_scheduled = False
-        self.mount_current_displays()
+
         self.bind_active_pipelines()
         self.refresh_current_pipelines()
+        self.mount_current_displays()
+        self.sync_panel_layout()
 
     def bind_active_pipelines(self) -> None:
         for pipeline in self.active_pipelines():
@@ -143,63 +163,64 @@ class AppController:
         for pipeline in self.active_pipelines():
             pipeline.refresh(self)
 
-    # -------------------------------------------
-    # |               Display                   |
-    # -------------------------------------------
-
-    def get_module_pipeline(self, module_id: ModuleID) -> Pipeline:
-        return self.module_pipelines[module_id]
-
-    def active_module_ids(self) -> tuple[ModuleID, ...]:
-        ids = [self.state.display.center.active_module]
-        if self.state.display.left is not None:
-            ids.append(self.state.display.left.active_module)
-        if self.state.display.right is not None:
-            ids.append(self.state.display.right.active_module)
-        return tuple(dict.fromkeys(ids))                                    # type: ignore
-
-    def active_pipelines(self) -> tuple[Pipeline, ...]:
-        return tuple(
-            self.get_module_pipeline(id)
-            for id in self.active_module_ids()
-        )
-
     def mount_current_displays(self) -> None:
         ui = self.runtime.ui
         if ui is None:
             return
 
-        center_root = (
-            self
-            .get_module_pipeline(self.state.display.center.active_module)
-            .root
+        self._mount_panel(
+            host    = ui.main_host,
+            panel   = self.state.display.main,
         )
-        ui.center_panel.children = (                                        # type: ignore
-            [center_root]
-            if center_root is not None else []
+        self._mount_panel(
+            host    = ui.context_host,
+            panel   = self.state.display.context,
+        )
+        self._mount_panel(
+            host    = ui.inspector_host,
+            panel   = self.state.display.inspector,
         )
 
-        left_children: list[LayoutDOM] = []
-        if self.state.display.left is not None:
-            left_root = (
-                self
-                .get_module_pipeline(self.state.display.left.active_module)
-                .root
-            )
-            if left_root is not None:
-                left_children.append(left_root)
-        ui.left_panel.children = left_children                              # type: ignore
+    def _mount_panel(
+        self,
+        *,
+        host: LayoutDOM,
+        panel: PanelState,
+    ) -> None:
+        if panel.active_module is None:
+            host.children = []                                              # type: ignore[attr-defined]
+            return
 
-        right_children: list[LayoutDOM] = []
-        if self.state.display.right is not None:
-            right_root = (
-                self
-                .get_module_pipeline(self.state.display.right.active_module)
-                .root
+        root = self.get_module_pipeline(panel.active_module).root
+
+        host.children = (                                                   # type: ignore[attr-defined]
+            [root]
+            if root is not None
+            else []
+        )
+
+    def sync_panel_layout(self) -> None:
+        ui = self.runtime.ui
+        if ui is None:
+            return
+
+        for name in ("context", "inspector"):
+            ps = getattr(self.state.display, name)
+            panel = getattr(ui, f"{name}_panel")
+            host = getattr(ui, f"{name}_host")
+            btn = ui.root.select_one({"name": f"blup-collapse-btn-{name}"})
+            title = ui.root.select_one({"name": f"blup-panel-title-{name}"})
+            collapse_arrow, expand_arrow = collapse_arrows(ps.side)
+
+            panel.width = (
+                self.runtime.dims.panel_rail_width
+                if ps.collapsed
+                else (ps.width or panel.width)
             )
-            if right_root is not None:
-                right_children.append(right_root)
-        ui.right_panel.children = right_children                            # type: ignore
+            host.visible = not ps.collapsed
+            title.visible = not ps.collapsed                                # type: ignore[attr-defined]
+            btn.text = expand_arrow if ps.collapsed else collapse_arrow     # type: ignore[attr-defined]
+
 
     # -------------------------------------------
     # |            State Management             |
@@ -219,12 +240,25 @@ class AppController:
 
         return AppState(
             display = DisplayState(
-                center = PanelState(
+                main = PanelState(
                     active_module   = "time_profile",
-                    context_key     = "main"
+                    context_key     = "main",
+                    side            = "center",
                 ),
-                left   = None,
-                right  = None,
+                context = PanelState(
+                    active_module   = "context_selection",
+                    context_key     = "selection",
+                    side            = "left",
+                    collapsed       = False,
+                    width           = 280,
+                ),
+                inspector = PanelState(
+                    active_module   = "token_detail",
+                    context_key     = "detail",
+                    side            = "right",
+                    collapsed       = True,
+                    width           = 320,
+                )
             ),
             context = ContextState(
                 traces = TraceSelectionState(
@@ -250,33 +284,10 @@ class AppController:
         if not update_applied:
             return
 
-        self.sync_ui_controls()
         self.schedule_refresh()
 
-    def sync_ui_controls(self) -> None:
-        ui = self.runtime.ui
-        if ui is None:
-            return
-
-        traces = self.state.context.traces
-
-        ui.trace_select.options = list(
-            self.trace_registry.trace_options(),
-        )
-        ui.trace_select.value = list(traces.trace_ids)
-
-        ui.thread_select.options = [
-            (name, name) 
-            for name in self.trace_registry.thread_names_for(
-                traces.trace_ids,
-            )
-        ]
-        ui.thread_select.value = list(
-            self.state.context.active_threads,
-        )
-
     # -------------------------------------------
-    # |             Event Adapters              |
+    # |          Intent Bus Adapters            |
     # -------------------------------------------
 
     def on_traces_changed(self, attr, old, new):
@@ -358,9 +369,84 @@ class AppController:
             ),
         )
 
+    def _on_panel_intent(self, attr, old, new) -> None:
+        print(f"[intent] raw: {new}")
+        panel, action, width = (
+                new["panel"][0], new["action"][0], new["width"][0]
+        )
+
+        if not panel:
+            return
+        match action:
+            case "toggle":
+                ps = getattr(self.state.display, panel)
+                self.update_state(
+                    display = self._build_display_patch(
+                        panel, 
+                        PanelPatch(
+                            collapsed=not ps.collapsed
+                        )
+                    )
+                )
+            case "uncollapse":
+                self.update_state(
+                    display = self._build_display_patch(
+                        panel,
+                        PanelPatch(
+                            collapsed=False,
+                            width=width,
+                        )
+                    )
+                )
+            case "resize":
+                if not getattr(self.state.display, panel).collapsed:
+                    self.update_state(
+                        display = self._build_display_patch(
+                            panel,
+                            PanelPatch(
+                                width=width
+                            )
+                        )
+                    )
+
+    def _build_display_patch(self, panel: str, pp: PanelPatch) -> DisplayPatch:
+        match panel:
+            case "context":     return DisplayPatch(context=pp)
+            case "inspector":   return DisplayPatch(inspector=pp)
+            case _:             raise ValueError(
+                f"unknown panel intent target{panel!r}"
+            )
+
+
+
     # -------------------------------------------
     # |               Utilities                 |
     # -------------------------------------------
+
+    def get_module_pipeline(self, module_id: ModuleID) -> Pipeline:
+        return self.module_pipelines[module_id]
+
+    def get_work_pipeline(self, module_id: ModuleID) -> WorkPipeline:
+        return self.work_pipelines[module_id]
+
+    def active_module_ids(self) -> tuple[ModuleID, ...]:
+        ids: list[ModuleID] = []
+
+        for panel in (
+            self.state.display.main,
+            self.state.display.context,
+            self.state.display.inspector,
+        ):
+            if panel.active_module is not None:
+                ids.append(panel.active_module)
+
+        return tuple(dict.fromkeys(ids))
+
+    def active_pipelines(self) -> tuple[Pipeline, ...]:
+        return tuple(
+            self.get_module_pipeline(id)
+            for id in self.active_module_ids()
+        )
 
     def get_selected_sessions(self) -> tuple[TraceSession, ...]:
         return self.trace_registry.get_sessions(
@@ -416,5 +502,6 @@ class AppController:
                 token_names = token_name_by_key,
                 namespace   = record.trace_id
             )
+
 
 

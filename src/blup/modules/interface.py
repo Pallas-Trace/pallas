@@ -61,13 +61,11 @@ class Assembler[UpdT, ReqT: RequestSpec, JobT, ResT](Protocol):
         ...
 
 
-class Pipeline[UpdT, ReqT: RequestSpec, JobT, ResT](Protocol):
+class Pipeline(Protocol):
     @property
     def module_id(self) -> ModuleID: ...
     @property
     def root(self) -> LayoutDOM | None: ...
-    @property
-    def assembler(self) -> Assembler[UpdT, ReqT, JobT, ResT]: ...
 
     # controller facing interface:
     def build(self) -> LayoutDOM:
@@ -76,6 +74,11 @@ class Pipeline[UpdT, ReqT: RequestSpec, JobT, ResT](Protocol):
         ...
     def refresh(self, host: "AppController") -> None:
         ...
+
+
+class WorkPipeline[UpdT, ReqT: RequestSpec, JobT, ResT](Pipeline, Protocol):
+    @property
+    def assembler(self) -> Assembler[UpdT, ReqT, JobT, ResT]: ...
 
     # async update interface:
     def prepare_update(self, host: "AppController") -> UpdT:
@@ -97,7 +100,7 @@ class Pipeline[UpdT, ReqT: RequestSpec, JobT, ResT](Protocol):
 # For module UI update requests:
 class UIWorkRequest[UpdT, ReqT: RequestSpec, JobT, ResT]:
     request:        ReqT
-    pipeline:       Pipeline[UpdT, ReqT, JobT, ResT]
+    pipeline:       WorkPipeline[UpdT, ReqT, JobT, ResT]
 
     scope_key:      str
     request_key:    Hashable
@@ -109,7 +112,7 @@ class UIWorkRequest[UpdT, ReqT: RequestSpec, JobT, ResT]:
         self,
         *,
         request: ReqT,
-        pipeline: Pipeline[UpdT, ReqT, JobT, ResT],
+        pipeline: WorkPipeline[UpdT, ReqT, JobT, ResT],
         scope_key: str | None = None,
         priority: RequestPriority = UPDATE_PRIORITY,
         exec_kind: ExecutionKind = "thread",

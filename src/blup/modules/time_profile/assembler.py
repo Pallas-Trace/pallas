@@ -4,13 +4,45 @@ from collections import defaultdict
 
 from blup.data_model import QuantaQuery, QuantaBundle, as_token_key
 from blup.modules.interface import WorkJob
-from modules.time_profile.types import (
+from blup.modules.time_profile.types import (
     TimeProfileUpdate,
     TimeProfileJob,
     TimeProfileRequest,
     TimeProfileResult,
 )
 from blup.state import TraceMode
+
+
+def _format_proportion(proportion: float) -> str:
+    pct = proportion * 100
+    if pct >= 10:
+        return f"{pct:.1f}%"
+    if pct >= 1:
+        return f"{pct:.2f}%"
+    return f"{pct:.3f}%"
+
+def _format_duration(exclusive_s: float) -> str:
+    if exclusive_s >= 1.0:
+        return f"{exclusive_s:.3g} s"
+    return f"{exclusive_s * 1000:.3g} ms"
+
+def _empty_source() -> dict:
+    return {
+        "left":             [],
+        "right":            [],
+        "top":              [],
+        "bottom":           [],
+        "color":            [],
+        "token_key":        [],
+        "token_name":       [],
+        "token_type":       [],
+        "token_id":         [],
+        "thread":           [],
+        "proportion":       [],
+        "exclusive_s":      [],
+        "pct_display":      [],
+        "time_display":     [],
+    }
 
 
 class TimeProfileAssembler:
@@ -57,7 +89,7 @@ class TimeProfileAssembler:
 
     def run_job(self, job: WorkJob[TimeProfileJob]) -> TimeProfileResult:
         payload = job.payload
-        print(f"running job: thread #{payload.thread_id} side: {payload.trace_side}")
+        print(f"running time_profile job: thread #{payload.thread_id} side: {payload.trace_side}")
         update = payload.update
         ctx = update.context
         trace_ctx = ctx.trace_context[payload.trace_side]
@@ -101,7 +133,7 @@ class TimeProfileAssembler:
         stack_order: str = "global",
     ) -> dict:
         if len(bundle.start_ns) == 0:
-            return self._empty_source()
+            return _empty_source()
 
         start_ns_arr = bundle.start_ns
         end_ns_arr = bundle.end_ns
@@ -146,7 +178,7 @@ class TimeProfileAssembler:
 
 
         if not rows:
-            return self._empty_source()
+            return _empty_source()
 
         if stack_order == "global":
             totals: dict[str, float] = defaultdict(float)
@@ -178,7 +210,7 @@ class TimeProfileAssembler:
                  token_id, proportion, exclusive_s)
             )
 
-        out = self._empty_source()
+        out = _empty_source()
         centered_mode = (trace_mode != "dual")
         dual_half = 0.45
         dual_padding = 0.02
@@ -222,23 +254,11 @@ class TimeProfileAssembler:
                 out["thread"].append(thread_name)
                 out["proportion"].append(proportion)
                 out["exclusive_s"].append(exclusive_s)
+                out["pct_display"].append(_format_proportion(proportion))
+                out["time_display"].append(_format_duration(exclusive_s))
 
                 cumsum += proportion
 
         return out
 
-    def _empty_source(self) -> dict:
-        return dict(
-            left=[],
-            right=[],
-            top=[],
-            bottom=[],
-            color=[],
-            token_key=[],
-            token_name=[],
-            token_type=[],
-            token_id=[],
-            thread=[],
-            proportion=[],
-            exclusive_s=[],
-        )
+

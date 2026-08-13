@@ -34,18 +34,19 @@ class TimeProfilePipeline:
 
     root: LayoutDOM | None
     host: "AppController | None"
-    chart: TimeProfileChartSurface
     assembler: TimeProfileAssembler
+
+    chart: TimeProfileChartSurface
 
     _pending_update: TimeProfileUpdate | None
     _active_update: TimeProfileUpdate | None
 
-    def __init__(self, *, width: int, height: int) -> None:
+    def __init__(self, *, height: int = 700) -> None:
         self.root = None
         self.host = None
-
-        self.chart = TimeProfileChartSurface(width=width, height=height)
         self.assembler = TimeProfileAssembler()
+
+        self.chart = TimeProfileChartSurface(height=height)
 
         self._pending_update = None
         self._active_update = None
@@ -69,6 +70,8 @@ class TimeProfilePipeline:
                 ),
             )
         )
+        # TODO: wire this into state ('selected time')
+        # self.chart.on_cursor_position = 'set cursor position'
 
         # bind figure callbacks
         fig = self.chart.fig

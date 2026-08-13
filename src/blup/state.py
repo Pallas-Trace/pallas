@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 from typing import Final, Literal, TypeAlias, TYPE_CHECKING, TypeGuard
 
+from bokeh.models.glyphs import Patch
 from numpy import trace
 
 from blup.data_model import FidelityMode, TokenMode
@@ -22,14 +23,22 @@ TraceMode:                  TypeAlias = Literal[
             "single",
 ]
 PanelID:                    TypeAlias = Literal[
-            "center",
+            "main",
+            "context",
+            "inspector",
+]
+PanelSide:                  TypeAlias = Literal[
             "left",
             "right",
+            "top",
+            "bottom",
+            "center",
 ]
 
 ModuleID:                   TypeAlias = Literal[
             "time_profile",
             "token_detail",
+            "context_selection",
             "inspector",
 ]
 
@@ -44,12 +53,12 @@ TimeProfilePresentation:    TypeAlias = Literal[
 ]
 
 TokenDetailChartMode:       TypeAlias = Literal[
-            "histogram",
-            "scatter",
+            "overlay",
+            "delta",
 ]
 TokenDetailTableMode:       TypeAlias = Literal[
-            "compare",
-            "summary",
+            "full",
+            "compact",
 ]
 
 
@@ -97,16 +106,59 @@ TokenDetailTableMode:       TypeAlias = Literal[
 
 @dataclass(frozen=True)
 class PanelState:
-    active_module:      ModuleID
+    active_module:      ModuleID | None = None
     context_key:        str | None = None
+    side:               PanelSide = "center"
+    width:              int | None = None
+    collapsed:          bool = False
+
+@dataclass(frozen=True)
+class HeaderState:
+    # TODO: flesh out state fields later
+    status:             str = "READY"
+
+@dataclass(frozen=True)
+class FooterState:
+    # TODO: flesh out state fields later
+    status:             str = "READY"
+    pending_jobs:       int = 0
 
 # >>>
 
 @dataclass(frozen=True)
 class DisplayState:
-    center:             PanelState
-    left:               PanelState | None = None
-    right:              PanelState | None = None
+    main:               PanelState = field(
+        default_factory=lambda: PanelState(
+            active_module   = "time_profile",
+            context_key     = "main",
+            side            = "center",
+        )
+    )
+    context:            PanelState = field(
+        default_factory=lambda: PanelState(
+            active_module   = "context_selection",
+            context_key     = "selection",
+            side            = "left",
+            collapsed       = False,
+            width           = 280,
+        )
+    )
+    inspector:          PanelState = field(
+        default_factory=lambda: PanelState(
+            active_module   = "token_detail",
+            context_key     = "detail",
+            side            = "right",
+            collapsed       = True,
+            width           = 320,
+        )
+    )
+
+    header:             HeaderState = field(
+        default_factory=HeaderState
+    )
+    footer:             FooterState = field(
+        default_factory=FooterState
+    )
 
 # global context state
 # --------------------
@@ -133,7 +185,7 @@ class ContextState:
         default_factory=TraceSelectionState
     )
     active_threads:     tuple[str, ...] = ()
-    token_mode:         TokenMode = "raw"
+    token_mode:         TokenMode = "named"
     selection:          TokenSelectionState = field(
         default_factory=TokenSelectionState
     )
@@ -147,14 +199,14 @@ class ContextState:
 @dataclass(frozen=True)
 class TimeProfileState:
     presentation:       TimeProfilePresentation = "binned"
-    n_bins:             int = 100
-    fidelity:           FidelityMode = "fast"
+    n_bins:             int = 50
+    fidelity:           FidelityMode = "balanced"
     order:              TimeProfileOrder = "global"
 
 @dataclass(frozen=True)
 class TokenDetailState:
-    chart_mode:         TokenDetailChartMode = "histogram"
-    table_mode:         TokenDetailTableMode = "compare"
+    chart_mode:         TokenDetailChartMode = "overlay"
+    table_mode:         TokenDetailTableMode = "compact"
     show_stats:         bool = True
     show_chart:         bool = True
 
@@ -203,8 +255,11 @@ def is_set[T](value: PatchValue[T]) -> TypeGuard[T]:
 
 @dataclass(frozen=True)
 class PanelPatch:
-    active_module:      PatchValue[ModuleID] = UNSET
+    active_module:      PatchValue[ModuleID | None] = UNSET
     context_key:        PatchValue[str | None] = UNSET
+    side:               PatchValue[PanelSide] = UNSET
+    width:              PatchValue[int | None] = UNSET
+    collapsed:          PatchValue[bool] = UNSET
 
     def apply(self, state: PanelState) -> PanelState:
         active_module = state.active_module
@@ -215,54 +270,102 @@ class PanelPatch:
         if is_set(self.context_key):
             context_key = self.context_key
 
+        side = state.side
+        if is_set(self.side):
+            side = self.side
+
+        width = state.width
+        if is_set(self.width):
+            width = self.width
+
+        collapsed = state.collapsed
+        if is_set(self.collapsed):
+            collapsed = self.collapsed
+
         return replace(
             state,
             active_module   = active_module,
             context_key     = context_key,
+            side            = side,
+            width           = width,
+            collapsed       = collapsed,
         )
 
 
-type SidePanelUpdate = PanelPatch | PanelState | None
-
 @dataclass(frozen=True)
-class DisplayPatch:
-    center:             PatchValue[PanelPatch] = UNSET
-    left:               PatchValue[SidePanelUpdate] = UNSET
-    right:              PatchValue[SidePanelUpdate] = UNSET
+class HeaderPatch:
+    status:             PatchValue[str] = UNSET
 
-    def apply(self, state: DisplayState) -> DisplayState:
-        center = state.center
-        if is_set(self.center):
-            center = self.center.apply(center)
+    def apply(self, state: HeaderState) -> HeaderState:
+        status = state.status
+        if is_set(self.status):
+            status = self.status
 
         return replace(
             state,
-            center  = center,
-            left    = self._apply_side(state.left, self.left),
-            right   = self._apply_side(state.right, self.right),
+            status  = status,
         )
 
-    @staticmethod
-    def _apply_side(
-        state: PanelState | None,
-        update: PatchValue[SidePanelUpdate],
-    ) -> PanelState | None:
-        if not is_set(update):
-            return state
 
-        if update is None:
-            return None
+@dataclass(frozen=True)
+class FooterPatch:
+    status:             PatchValue[str] = UNSET
+    pending_jobs:       PatchValue[int] = UNSET
 
-        if isinstance(update, PanelState):
-            return update
+    def apply(self, state: FooterState) -> FooterState:
+        status = state.status
+        if is_set(self.status):
+            status = self.status
 
-        if state is None:
-            raise ValueError(
-                "Cannot apply PanelPatch to a missing side panel; "
-                "call with PanelState(...) first to create it!"
-            )
+        pending_jobs = state.pending_jobs
+        if is_set(self.pending_jobs):
+            pending_jobs = self.pending_jobs
 
-        return update.apply(state)
+        return replace(
+            state,
+            status          = status,
+            pending_jobs    = pending_jobs,
+        )
+
+
+@dataclass(frozen=True)
+class DisplayPatch:
+    main:               PatchValue[PanelPatch] = UNSET
+    context:            PatchValue[PanelPatch] = UNSET
+    inspector:          PatchValue[PanelPatch] = UNSET
+
+    header:             PatchValue[HeaderPatch] = UNSET
+    footer:             PatchValue[FooterPatch] = UNSET
+
+    def apply(self, state: DisplayState) -> DisplayState:
+        main = state.main
+        if is_set(self.main):
+            main = self.main.apply(main)
+
+        context = state.context
+        if is_set(self.context):
+            context = self.context.apply(context)
+
+        inspector = state.inspector
+        if is_set(self.inspector):
+            inspector = self.inspector.apply(inspector)
+
+        header = state.header
+        if is_set(self.header):
+            header = self.header.apply(header)
+
+        footer = state.footer
+        if is_set(self.footer):
+            footer = self.footer.apply(footer)
+
+        return replace(
+            state,
+            main        = main,
+            context     = context,
+            inspector   = inspector,
+            header      = header,
+            footer      = footer,
+        )
 
 
 @dataclass(frozen=True)

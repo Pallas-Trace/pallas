@@ -9,6 +9,7 @@ from blup.state import TimeProfileOrder, TraceMode
 
 TraceSide = Literal["lower", "upper"]
 QueryQuantaFn = Callable[[QuantaQuery], QuantaBundle]
+# NOTE: is this ^^ necessary ?
 
 
 @dataclass(frozen=True)
@@ -22,9 +23,9 @@ class TimeProfileTraceContext:
 class TimeProfileUpdateContext:
     request_key:            Hashable
     trace_context:          dict[TraceSide, TimeProfileTraceContext]
-    bin_edges_ns:           tuple[int, ...]
     fidelity:               FidelityMode
     token_mode:             TokenMode
+    bin_edges_ns:           tuple[int, ...]
     order:                  TimeProfileOrder
     color_map:              dict[str, str]
 
@@ -44,18 +45,18 @@ class TimeProfileUpdate:
 
 
 @dataclass(frozen=True)
-class TimeProfileRequest:
-    request_key:            Hashable
-    jobs:                   tuple[TimeProfileJob, ...]
-
-
-@dataclass(frozen=True)
 class TimeProfileJob:
     thread_name:            str
     thread_id:              int
     trace_side:             TraceSide
     thread_center:          float
     update:                 TimeProfileUpdate
+
+
+@dataclass(frozen=True)
+class TimeProfileRequest:
+    request_key:            Hashable
+    jobs:                   tuple[TimeProfileJob, ...]
 
 
 @dataclass(frozen=True)
