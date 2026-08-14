@@ -591,14 +591,6 @@ class StateManager:
         if self._synced_state is None:
             return True
 
-        for path in state_paths:
-            new = _parse_state_path(self._latest_state, path)
-            old = _parse_state_path(self._synced_state, path)
-            print(f"{path}: {new!r} vs {old!r} -> {new != old}")  # TEMP
-            if new != old:
-                return True
-        return False
-
         return any(
             _parse_state_path(self._latest_state, path) != _parse_state_path(self._synced_state, path)
             for path in state_paths

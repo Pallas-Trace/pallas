@@ -116,7 +116,6 @@ class TokenDetailAssembler:
         job: WorkJob[TokenDetailJob],
     ) -> TokenDetailTableResult | TokenDetailHistogramResult:
         payload = job.payload
-        print(f"running token_detail job: {payload.kind}")
 
         if payload.kind == "table":
             return self._run_table_job(payload.update)

@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass
 
 from blup.bokeh.app_shell import collapse_arrows
+from blup.bokeh.intents import IntentBus
 from blup.modules.context_selection.pipeline import ContextSelectionPipeline
 from blup.modules.token_detail.pipeline import TokenDetailPipeline
-from blup.shell.intents import IntentBus
 from blup.shell.layout import ShellDimensions
 from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
@@ -65,11 +65,7 @@ class AppController:
             self.initial_state(),
         )
 
-        # setup work manager and register modules
-        self.work_manager = WorkManager(
-            schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
-            max_workers = 8,
-        )
+        # register modules and setup work manager
         self.module_pipelines: dict[ModuleID, Pipeline] = {
             "context_selection": ContextSelectionPipeline(),
             "time_profile": TimeProfilePipeline(height=700),
@@ -79,22 +75,25 @@ class AppController:
             "time_profile": self.module_pipelines["time_profile"],          # type: ignore[assignment]
             "token_detail": self.module_pipelines["token_detail"]           # type: ignore[assignment]
         }
+        self.work_manager = WorkManager(
+            schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
+            max_workers = 8,
+        )
 
-        # setup ui
+        # setup intent bus for ui state transfers
+        self.intent_bus = IntentBus()
+        self.intent_bus.panel.on_change("data", self._on_panel_intent)
+
+        # setup ui model
         self.ui_model = UIModel(self)
         self.token_color = TokenColor()
         self._register_loaded_trace_tokens()
 
-        # intents bus
-        self.intent_bus = IntentBus()
-        self.intent_bus.panel.on_change("data", self._on_panel_intent)
-        print(f"[setup] subscribed to panel bus: {id(self.intent_bus.panel)}")
-
-        # setup controller runtime
-        self.runtime = ControllerRuntime()
-
         # set internal logic flags
         self._refresh_scheduled = False
+
+        # initialize controller runtime
+        self.runtime = ControllerRuntime()
 
     # -------------------------------------------
     # |           Lifecycle - Build             |
@@ -292,7 +291,6 @@ class AppController:
     # -------------------------------------------
 
     def _on_panel_intent(self, attr, old, new) -> None:
-        print(f"[intent] raw: {new}")
         panel, action, width = (
                 new["panel"][0], new["action"][0], new["width"][0]
         )

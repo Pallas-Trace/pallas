@@ -89,7 +89,6 @@ class TimeProfileAssembler:
 
     def run_job(self, job: WorkJob[TimeProfileJob]) -> TimeProfileResult:
         payload = job.payload
-        print(f"running time_profile job: thread #{payload.thread_id} side: {payload.trace_side}")
         update = payload.update
         ctx = update.context
         trace_ctx = ctx.trace_context[payload.trace_side]
