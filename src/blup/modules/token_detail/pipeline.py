@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 class TokenDetailPipeline:
     module_id: ModuleID = "token_detail"
+    active: bool
 
     # TODO: lift these to state level options
     _TOP_K = 32
@@ -49,6 +50,8 @@ class TokenDetailPipeline:
     _active_update: TokenDetailUpdate | None
 
     def __init__(self, *, height: int = 700) -> None:
+        self.active = False
+
         self.root = None
         self.host = None
 
@@ -57,6 +60,17 @@ class TokenDetailPipeline:
 
         self._pending_update = None
         self._active_update = None
+
+    @property
+    def subscribed_state(self) -> tuple[str, ...]:
+        return (
+            "context.traces.trace_ids",
+            "context.active_threads",
+            "context.token_mode",
+            "context.selection",
+            "context.time_scope",
+            "modules.token_detail",
+        )
 
     def build(self) -> LayoutDOM:
         self.root = self.surface.build()

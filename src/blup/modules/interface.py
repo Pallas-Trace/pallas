@@ -67,6 +67,9 @@ class Pipeline(Protocol):
     @property
     def root(self) -> LayoutDOM | None: ...
 
+    @property
+    def subscribed_state(self) -> tuple[str, ...]: ...
+
     # controller facing interface:
     def build(self) -> LayoutDOM:
         ...

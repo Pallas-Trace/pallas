@@ -66,41 +66,6 @@ TokenDetailTableMode:       TypeAlias = Literal[
 # |              State Tree                 |
 # -------------------------------------------
 
-#   AppState
-#      ├── display
-#      │   ├── center
-#      │   │   ├── active_module
-#      │   │   └── context_key
-#      │   ├── left
-#      │   │   ├── active_module
-#      │   │   └── context_key
-#      │   └── right
-#      │       ├── active_module
-#      │       └── context_key
-#      ├── context
-#      │   ├── active_threads
-#      │   ├── trace_mode
-#      │   ├── primary_trace_id
-#      │   ├── secondary_trace_id
-#      │   ├── token_mode
-#      │   ├── selection
-#      │   │   └── token
-#      │   └── time_scope
-#      │       ├── t0_ns
-#      │       └── t1_ns
-#      └── modules
-#          ├── time_profile
-#          │   ├── presentation
-#          │   ├── n_bins
-#          │   ├── fidelity
-#          │   └── order
-#          ├── token_detail
-#          │   ├── chart_mode
-#          │   ├── table_mode
-#          │   ├── show_stats
-#          │   └── show_chart
-#          └── inspector
-
 # display layout state
 # --------------------
 
@@ -123,7 +88,7 @@ class FooterState:
     status:             str = "READY"
     pending_jobs:       int = 0
 
-# >>>
+# >>> branch root
 
 @dataclass(frozen=True)
 class DisplayState:
@@ -177,7 +142,7 @@ class TimeScopeState:
     t0_ns:              int | None = None
     t1_ns:              int | None = None
 
-# >>>
+# >>> branch root
 
 @dataclass(frozen=True)
 class ContextState:
@@ -214,7 +179,7 @@ class TokenDetailState:
 class InspectorState:
     pass
 
-# >>>
+# >>> branch root
 
 @dataclass(frozen=True)
 class ModuleState:
@@ -228,7 +193,7 @@ class ModuleState:
         default_factory=InspectorState
     )
 
-# state tree root
+# state-tree root
 # ---------------
 
 @dataclass(frozen=True)
@@ -568,6 +533,42 @@ class ModulePatch:
 # |             State Manager               |
 # -------------------------------------------
 
+_LAYOUT_PANELS = (
+    "main",
+    "context",
+    "inspector",
+)
+
+def _without_layout(ps: PanelState) -> PanelState:
+    return PanelState(
+        active_module   = ps.active_module,
+        context_key     = ps.context_key,
+    )
+
+def _strip_layout_state(state: AppState) -> AppState:
+    return replace(
+        state,
+        display = replace(
+            state.display,
+            **{
+                name: _without_layout(getattr(state.display, name))
+                for name in _LAYOUT_PANELS
+            },
+        ),
+    )
+
+
+_NULL = object()
+
+def _parse_state_path(state: AppState, path: str) -> object:
+    obj = state
+    for node in path.split("."):
+        if obj is None:
+            return _NULL
+        obj = getattr(obj, node, _NULL)
+    return obj
+
+
 class StateManager:
 
     def __init__(
@@ -576,11 +577,49 @@ class StateManager:
         initial_state: AppState,
     ) -> None:
         self._registry = trace_registry
-        self._state = self._normalize(initial_state)
+        self._latest_state: AppState = self._normalize(initial_state)
+        self._synced_state: AppState | None = None
 
     @property
     def state(self) -> AppState:
-        return self._state
+        return self._latest_state
+
+    def refresh_needed(self, state_paths: tuple[str, ...]) -> bool:
+        """
+            Parses list of subsrcibed states to determine refresh status.
+        """
+        if self._synced_state is None:
+            return True
+
+        for path in state_paths:
+            new = _parse_state_path(self._latest_state, path)
+            old = _parse_state_path(self._synced_state, path)
+            print(f"{path}: {new!r} vs {old!r} -> {new != old}")  # TEMP
+            if new != old:
+                return True
+        return False
+
+        return any(
+            _parse_state_path(self._latest_state, path) != _parse_state_path(self._synced_state, path)
+            for path in state_paths
+        )
+
+    def layout_only_refresh(self) -> bool:
+        """
+            Returns true if the pending state concerns only app visual layout.
+        """
+        if self._synced_state is None:
+            return False
+        return (
+            _strip_layout_state(self._latest_state)
+            == _strip_layout_state(self._synced_state)
+        )
+
+    def mark_synced(self) -> None:
+        """
+            Advance synchronization mark after complete state propagation.
+        """
+        self._synced_state = self._latest_state
 
     def update(
         self,
@@ -588,10 +627,13 @@ class StateManager:
         display: DisplayPatch | None = None,
         context: ContextPatch | None = None,
         modules: ModulePatch | None = None,
-    ) -> bool:
-        """Apply provided state-tree patches and validate"""
+    ) -> tuple[str, ...]:
+        """
+            Apply provided state-tree patches and validate updated state.
+            Returns list of altered top-level state branches.
+        """
 
-        previous = self._state
+        previous = self._latest_state
         candidate = previous
 
         # apply provided patches to state-tree branches
@@ -630,14 +672,20 @@ class StateManager:
 
         if candidate == previous:
             # no actual update occured
-            return False
+            return ()
 
         # commit state update
-        self._state = candidate
-        return True
+        self._latest_state = candidate
+        return tuple(
+            branch
+            for branch in ("display", "context", "modules")
+            if getattr(candidate, branch) != getattr(previous, branch)
+        )
 
     def _normalize(self, state: AppState) -> AppState:
-        """Repair modified state-tree to closest valid state"""
+        """
+            Repair modified state-tree to closest valid state.
+        """
 
         context = state.context
         trace_selection = context.traces
@@ -693,5 +741,6 @@ class StateManager:
                 active_threads  = active_threads,
             ),
         )
+
 
 

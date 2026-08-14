@@ -22,17 +22,12 @@ from blup.state import (
     ModulePatch,
     PanelPatch,
     StateManager,
-    TimeProfilePatch,
-    TokenSelectionPatch,
-    TraceMode,
     ModuleID,
-    TimeProfileOrder,
     PanelState,
     DisplayState,
     ContextState,
     ModuleState,
     AppState,
-    TraceSelectionPatch,
     TraceSelectionState,
 )
 from blup.traces.session import TraceSession
@@ -113,7 +108,7 @@ class AppController:
             self.build_ui_shell()
 
         with timed("build.mount_current_displays"):
-            self.mount_current_displays()
+            self.mount_active_displays()
 
         with timed("build.bind_active_pipelines"):
             self.bind_active_pipelines()
@@ -151,19 +146,21 @@ class AppController:
         self._refresh_scheduled = False
 
         self.bind_active_pipelines()
-        self.refresh_current_pipelines()
-        self.mount_current_displays()
+
+        for pipeline in self.active_pipelines():
+            if self.state_manager.refresh_needed(pipeline.subscribed_state):
+                pipeline.refresh(self)
+
+        self.mount_active_displays()
         self.sync_panel_layout()
+
+        self.state_manager.mark_synced()
 
     def bind_active_pipelines(self) -> None:
         for pipeline in self.active_pipelines():
             pipeline.bind(self)
 
-    def refresh_current_pipelines(self) -> None:
-        for pipeline in self.active_pipelines():
-            pipeline.refresh(self)
-
-    def mount_current_displays(self) -> None:
+    def mount_active_displays(self) -> None:
         ui = self.runtime.ui
         if ui is None:
             return
@@ -205,11 +202,13 @@ class AppController:
             return
 
         for name in ("context", "inspector"):
-            ps = getattr(self.state.display, name)
+            ps: PanelState = getattr(self.state.display, name)
+
             panel = getattr(ui, f"{name}_panel")
             host = getattr(ui, f"{name}_host")
             btn = ui.root.select_one({"name": f"blup-collapse-btn-{name}"})
             title = ui.root.select_one({"name": f"blup-panel-title-{name}"})
+
             collapse_arrow, expand_arrow = collapse_arrows(ps.side)
 
             panel.width = (
@@ -275,99 +274,22 @@ class AppController:
         context: ContextPatch | None = None,
         modules: ModulePatch | None = None,
     ) -> None:
-        update_applied = self.state_manager.update(
+        changed_branches = self.state_manager.update(
             display = display,
             context = context,
             modules = modules,
         )
-
-        if not update_applied:
+        if not changed_branches:
             return
 
-        self.schedule_refresh()
+        if self.state_manager.layout_only_refresh():
+            self.sync_panel_layout()
+        else:
+            self.schedule_refresh()
 
     # -------------------------------------------
     # |          Intent Bus Adapters            |
     # -------------------------------------------
-
-    def on_traces_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                traces = TraceSelectionPatch(
-                    trace_ids=tuple(new),
-                ),
-            ),
-        )
-
-    def on_threads_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                active_threads=tuple(new),
-            ),
-        )
-
-    def on_n_quanta_changed(self, attr, old, new):
-        if new is None:
-            return
-        self.update_state(
-            modules = ModulePatch(
-                time_profile = TimeProfilePatch(
-                    n_bins=int(new),
-                ),
-            ),
-        )
-
-    def on_token_mode_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                token_mode=new,
-            ),
-        )
-
-    def on_time_profile_mode_changed(self, attr, old, new):
-        self.update_state(
-            modules = ModulePatch(
-                time_profile = TimeProfilePatch(
-                    fidelity=new,
-                ),
-            ),
-        )
-
-    def on_time_profile_order_changed(self, attr, old, new):
-        self.update_state(
-            modules = ModulePatch(
-                time_profile = TimeProfilePatch(
-                    order=new,
-                ),
-            ),
-        )
-
-    def on_trace_ids_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                traces = TraceSelectionPatch(
-                    trace_ids=tuple(new),
-                ),
-            ),
-        )
-
-    def on_focus_trace_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                traces = TraceSelectionPatch(
-                    focus_id=new or None,
-                ),
-            ),
-        )
-
-    def on_highlight_token_changed(self, attr, old, new):
-        self.update_state(
-            context = ContextPatch(
-                selection = TokenSelectionPatch(
-                    token=new,
-                ),
-            ),
-        )
 
     def _on_panel_intent(self, attr, old, new) -> None:
         print(f"[intent] raw: {new}")
@@ -417,10 +339,8 @@ class AppController:
                 f"unknown panel intent target{panel!r}"
             )
 
-
-
     # -------------------------------------------
-    # |               Utilities                 |
+    # |         Public Class Utilities          |
     # -------------------------------------------
 
     def get_module_pipeline(self, module_id: ModuleID) -> Pipeline:
@@ -474,6 +394,10 @@ class AppController:
             )
         return bounds
 
+    # -------------------------------------------
+    # |         Private Class Utilities         |
+    # -------------------------------------------
+
     def _install_merged_category_namespace(self) -> None:
         names = sorted({
             str(name)
@@ -502,6 +426,5 @@ class AppController:
                 token_names = token_name_by_key,
                 namespace   = record.trace_id
             )
-
 
 

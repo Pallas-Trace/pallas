@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from blup.bokeh.styles import collapsible_section, panel_title, section_label, style_widget
 from blup.bokeh.theme import PALETTE, make_widget_stylesheet
-from blup.state import ModuleID
+from blup.state import ContextPatch, ModuleID, ModulePatch, TimeProfilePatch, TokenSelectionPatch, TraceSelectionPatch
 from blup.types import TraceID
 from bokeh.layouts import column
 from bokeh.models.layouts import LayoutDOM
@@ -41,6 +41,17 @@ class ContextSelectionPipeline:
         self.controls = None
 
         self._syncing = False
+
+    @property
+    def subscribed_state(self) -> tuple[str, ...]:
+        return (
+            "context.traces.trace_ids",
+            "context.active_threads",
+            "context.token_mode",
+            "modules.time_profile.n_bins",
+            "modules.time_profile.fidelity",
+            "modules.time_profile.order",
+        )
 
     def build(self) -> LayoutDOM:
         self.root = column(sizing_mode="stretch_height")
@@ -79,7 +90,7 @@ class ContextSelectionPipeline:
                 host.trace_registry.trace_options()
             )
             controls.trace_select.value = list(
-                state.context.traces.trace_ids
+                context.traces.trace_ids
             )
 
             controls.thread_select.options = [
@@ -87,19 +98,19 @@ class ContextSelectionPipeline:
                 for name in host.all_thread_names()
             ]
             controls.thread_select.value = list(
-                state.context.active_threads
+                context.active_threads
             )
 
-            controls.token_mode_select.value = state.context.token_mode
+            controls.token_mode_select.value = context.token_mode
 
             controls.n_bins_spinner.value = (
-                state.modules.time_profile.n_bins
+                time_profile.n_bins
             )
             controls.time_profile_mode_select.value = (
-                state.modules.time_profile.fidelity
+                time_profile.fidelity
             )
             controls.stack_order_select.value = (
-                state.modules.time_profile.order
+                time_profile.order
             )
         finally:
             self._syncing = False
@@ -139,7 +150,13 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_traces_changed(attr, old, new)
+                else h.update_state(
+                    context = ContextPatch(
+                        traces = TraceSelectionPatch(
+                            trace_ids=tuple(new),
+                        ),
+                    ),
+                )
             ),
         )
 
@@ -159,7 +176,11 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_threads_changed(attr, old, new)
+                else h.update_state(
+                    context = ContextPatch(
+                        active_threads=tuple(new),
+                    ),
+                )
             ),
         )
 
@@ -181,7 +202,11 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_token_mode_changed(attr, old, new)
+                else h.update_state(
+                    context = ContextPatch(
+                        token_mode=new,
+                    ),
+                )
             ),
         )
 
@@ -202,7 +227,13 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_n_quanta_changed(attr, old, new)
+                else h.update_state(
+                    modules = ModulePatch(
+                        time_profile = TimeProfilePatch(
+                            n_bins=int(new),
+                        ),
+                    ),
+                )
             ),
         )
 
@@ -223,7 +254,13 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_time_profile_mode_changed(attr, old, new)
+                else h.update_state(
+                    modules = ModulePatch(
+                        time_profile = TimeProfilePatch(
+                            fidelity=new,
+                        ),
+                    ),
+                )
             ),
         )
 
@@ -243,7 +280,13 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_time_profile_order_changed(attr, old, new)
+                else h.update_state(
+                    modules = ModulePatch(
+                        time_profile = TimeProfilePatch(
+                            order=new,
+                        ),
+                    ),
+                )
             ),
         )
 
@@ -260,7 +303,13 @@ class ContextSelectionPipeline:
             lambda attr, old, new, h=h: (
                 None
                 if self._syncing or h is None
-                else h.on_highlight_token_changed(attr, old, new)
+                else h.update_state(
+                    context = ContextPatch(
+                        selection = TokenSelectionPatch(
+                            token=new,
+                        ),
+                    ),
+                )
             ),
         )
 

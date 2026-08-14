@@ -55,6 +55,16 @@ class TimeProfilePipeline:
         self._ignore_range_callbacks = False
         self._range_apply_scheduled = False
 
+    @property
+    def subscribed_state(self) -> tuple[str, ...]:
+        return (
+            "context.traces.trace_ids",
+            "context.active_threads",
+            "context.token_mode",
+            "context.time_scope",
+            "modules.time_profile",
+        )
+
     def build(self) -> LayoutDOM:
         self.root = self.chart.build()
         return self.root
@@ -77,8 +87,8 @@ class TimeProfilePipeline:
         fig = self.chart.fig
         if fig is None or self._callbacks_bound:
             return
-        fig.x_range.on_change("start", self.on_time_range_changed)          # type: ignore
-        fig.x_range.on_change("end", self.on_time_range_changed)            # type: ignore
+        fig.x_range.on_change("start", self._on_time_range_changed)          # type: ignore
+        fig.x_range.on_change("end", self._on_time_range_changed)            # type: ignore
         self._callbacks_bound = True
 
     def refresh(self, host: "AppController") -> None:
@@ -283,7 +293,7 @@ class TimeProfilePipeline:
             color_map       = color_map,
         )
 
-    def on_time_range_changed(self, attr, old, new) -> None:
+    def _on_time_range_changed(self, attr, old, new) -> None:
         if self._ignore_range_callbacks:
             return
         if self._range_apply_scheduled:
