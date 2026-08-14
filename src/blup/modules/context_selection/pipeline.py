@@ -64,8 +64,7 @@ class ContextSelectionPipeline:
         if self.root is None:
             self.build()
 
-        state = host.state
-        context = state.context
+        app_ctx = state.context
         time_profile = state.modules.time_profile
 
         trace_options = list(host.trace_registry.trace_options())
@@ -90,7 +89,7 @@ class ContextSelectionPipeline:
                 host.trace_registry.trace_options()
             )
             controls.trace_select.value = list(
-                context.traces.trace_ids
+                app_ctx.traces.trace_ids
             )
 
             controls.thread_select.options = [
@@ -98,10 +97,10 @@ class ContextSelectionPipeline:
                 for name in host.all_thread_names()
             ]
             controls.thread_select.value = list(
-                context.active_threads
+                app_ctx.active_threads
             )
 
-            controls.token_mode_select.value = context.token_mode
+            controls.token_mode_select.value = app_ctx.token_mode
 
             controls.n_bins_spinner.value = (
                 time_profile.n_bins
@@ -127,8 +126,7 @@ class ContextSelectionPipeline:
                 "host AppController must be bound before building controls"
             )
 
-        state = host.state
-        context = state.context
+        app_ctx = state.context
         time_profile = state.modules.time_profile
 
         # freeze host for lambda closures
@@ -138,7 +136,7 @@ class ContextSelectionPipeline:
 
         trace_select = MultiSelect(
             title           = "Traces",
-            value           = list(context.traces.trace_ids),
+            value           = list(app_ctx.traces.trace_ids),
             options         = trace_options,                                # type: ignore
             size            = min(max(len(trace_options), 2), 6),
             sizing_mode     = "stretch_width",
@@ -164,7 +162,7 @@ class ContextSelectionPipeline:
 
         thread_select = MultiSelect(
             title           = "Threads",
-            value           = list(context.active_threads),
+            value           = list(app_ctx.active_threads),
             options         = thread_options,                               # type: ignore
             size            = min(max(len(thread_options), 5), 10),
             sizing_mode     = "stretch_width",
@@ -188,7 +186,7 @@ class ContextSelectionPipeline:
 
         token_mode_select = Select(
             title           = "Token view",
-            value           = context.token_mode,
+            value           = app_ctx.token_mode,
             options         = [
                 ("raw", "Raw"),
                 ("named", "Named"),

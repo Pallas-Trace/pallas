@@ -71,6 +71,7 @@ class TimeProfilePipeline:
 
     def bind(self, host: "AppController") -> None:
         self.host = host
+
         self.chart.on_token_selected = (
             lambda token: host.update_state(
                 context = ContextPatch(
@@ -80,15 +81,16 @@ class TimeProfilePipeline:
                 ),
             )
         )
-        # TODO: wire this into state ('selected time')
-        # self.chart.on_cursor_position = 'set cursor position'
+
+        # TODO: wire cursor_position into state as 'selected time'
+        #       i.e. self.chart.on_cursor_position = 'set cursor position'
 
         # bind figure callbacks
         fig = self.chart.fig
         if fig is None or self._callbacks_bound:
             return
-        fig.x_range.on_change("start", self._on_time_range_changed)          # type: ignore
-        fig.x_range.on_change("end", self._on_time_range_changed)            # type: ignore
+        fig.x_range.on_change("start", self._on_time_range_changed)         # type: ignore
+        fig.x_range.on_change("end", self._on_time_range_changed)           # type: ignore
         self._callbacks_bound = True
 
     def refresh(self, host: "AppController") -> None:
@@ -106,8 +108,10 @@ class TimeProfilePipeline:
 
     def prepare_update(self, host: "AppController") -> TimeProfileUpdate:
         app_ctx = host.state.context
+        time_scope = app_ctx.time_scope
         trace_ids = app_ctx.traces.trace_ids
 
+        # check trace sessions
         sessions = host.trace_registry.get_sessions(trace_ids)
         if not sessions:
             raise RuntimeError(
@@ -115,29 +119,26 @@ class TimeProfilePipeline:
             )
         upper = sessions[0]
         lower = sessions[1] if len(sessions) >= 2 else None
-
         trace_mode: TraceMode = "dual" if lower is not None else "single"
 
-        bounds = host.trace_registry.time_bounds_for(trace_ids)
-        if bounds is None:
-            raise RuntimeError(
-                "No available time bounds in selected traces"
-            )
-        full_start_ns, full_end_ns = bounds
-
+        # check trace threads
         available_threads = host.trace_registry.thread_names_for(
             trace_ids,
         )
         available_thread_set = set(available_threads)
-
         active_threads = tuple(
             thread_name
             for thread_name in app_ctx.active_threads
             if thread_name in available_thread_set
         )
 
-        time_scope = app_ctx.time_scope
-
+        # check time bounds
+        bounds = host.trace_registry.time_bounds_for(trace_ids)
+        if bounds is None:
+            raise RuntimeError(
+                "No available time bounds in selected traces"
+            )
+        full_start_ns, full_end_ns = bounds
         if time_scope.t0_ns is None or time_scope.t1_ns is None:
             start_ns = full_start_ns
             end_ns = full_end_ns
@@ -152,6 +153,7 @@ class TimeProfilePipeline:
             end_ns = full_end_ns
             sync_range_to_fig = True
 
+        # prepare update context
         update_ctx = self._freeze_update_context(
             host                    = host,
             upper_session           = upper,
@@ -253,7 +255,6 @@ class TimeProfilePipeline:
                 ),
             )
         }
-
         if lower_session is not None:
             token_keys.update(lower_session.meta.token_key_to_name.keys())
             trace_context["lower"] = TimeProfileTraceContext(
