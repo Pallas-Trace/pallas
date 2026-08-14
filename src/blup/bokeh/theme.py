@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from bokeh.models.css import InlineStyleSheet
+from bokeh.models.css import GlobalInlineStyleSheet, InlineStyleSheet
 from bokeh.themes import Theme
 
 
@@ -38,114 +38,172 @@ class Palette:
 PALETTE = Palette()
 
 
+def make_global_stylesheet() -> GlobalInlineStyleSheet:
+    return GlobalInlineStyleSheet(
+        css = f"""
+            html, body {{
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                background: {PALETTE.bg0};
+            }}
+
+            .bk-root {{
+                width: 100%;
+                height: 100%;
+                background: {PALETTE.bg0};
+            }}
+
+            .bk-tooltip {{
+                background: {PALETTE.bg1} !important;
+                border: 1px solid {PALETTE.bg3} !important;
+                border-radius: 0 !important;
+                color: {PALETTE.fg1} !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+            }}
+
+            bk-Tooltip.bk-left::after, .bk-Tooltip.bk-right::after {{
+                border-color: transparent {PALETTE.bg3} transparent transparent !important;
+            }}
+
+            .bk-Tooltip.bk-right::after {{
+                border-color: transparent transparent transparent {PALETTE.bg3} !important;
+            }}
+
+            .blup-split:hover {{
+                background: {PALETTE.yellow} !important;
+            }}
+
+            :root {{
+            --bokeh-base-font: monospace;
+            --bokeh-font-size: 11px;
+            --bokeh-icon-color: {PALETTE.muted};
+            --bokeh-border-color: {PALETTE.bg3};
+            --bokeh-background-color: {PALETTE.bg0};
+            --bokeh-hover-color: {PALETTE.bg1};
+            --bokeh-color: {PALETTE.fg1};
+            --bokeh-disabled-color: {PALETTE.muted};
+            --bokeh-disabled-background-color: {PALETTE.bg1};
+            --bokeh-input-focus-border-color: {PALETTE.yellow};
+            --tooltip-color: {PALETTE.bg1};
+            --tooltip-border: {PALETTE.bg3};
+            --tooltip-text: {PALETTE.fg1};
+            }}
+        """
+    )
+
+
 def make_widget_stylesheet() -> InlineStyleSheet:
-    return InlineStyleSheet(css=f"""
-        :host {{
-            background: {PALETTE.bg1};
-            color: {PALETTE.fg1};
-            font-family: monospace;
-            font-size: 12px;
-        }}
+    return InlineStyleSheet(
+        css = f"""
+            :host {{
+                background: {PALETTE.bg1};
+                color: {PALETTE.fg1};
+                font-family: monospace;
+                font-size: 12px;
+            }}
 
-        /* --- Buttons (section headers, toggle buttons) --- */
-        :host .bk-btn {{
-            background: {PALETTE.bg2};
-            color: {PALETTE.fg1};
-            border: 1px solid {PALETTE.bg3};
-            border-radius: 0;
-            font-family: monospace;
-            font-size: 12px;
-            font-weight: bold;
-            padding: 2px 8px;
-        }}
-        :host .bk-btn:hover {{
-            background: {PALETTE.bg3};
-            color: {PALETTE.yellow};
-        }}
+            /* --- Buttons (section headers, toggle buttons) --- */
+            :host .bk-btn {{
+                background: {PALETTE.bg2};
+                color: {PALETTE.fg1};
+                border: 1px solid {PALETTE.bg3};
+                border-radius: 0;
+                font-family: monospace;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 2px 8px;
+            }}
+            :host .bk-btn:hover {{
+                background: {PALETTE.bg3};
+                color: {PALETTE.yellow};
+            }}
 
-        /* --- Input groups (Select, MultiChoice, TextInput, etc.) --- */
-        :host .bk-input-group label {{
-            color: {PALETTE.fg2};
-            font-family: monospace;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        :host .bk-input,
-        :host select {{
-            background: {PALETTE.bg0};
-            color: {PALETTE.fg1};
-            border: 1px solid {PALETTE.bg3};
-            border-radius: 0;
-            font-family: monospace;
-            font-size: 12px;
-        }}
-        :host .bk-input:focus,
-        :host select:focus {{
-            border-color: {PALETTE.blue};
-            outline: none;
-            box-shadow: none;
-        }}
+            /* --- Input groups (Select, MultiChoice, TextInput, etc.) --- */
+            :host .bk-input-group label {{
+                color: {PALETTE.fg2};
+                font-family: monospace;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            :host .bk-input,
+            :host select {{
+                background: {PALETTE.bg0};
+                color: {PALETTE.fg1};
+                border: 1px solid {PALETTE.bg3};
+                border-radius: 0;
+                font-family: monospace;
+                font-size: 12px;
+            }}
+            :host .bk-input:focus,
+            :host select:focus {{
+                border-color: {PALETTE.blue};
+                outline: none;
+                box-shadow: none;
+            }}
 
-        /* --- MultiChoice (choices.js internals) --- */
-        :host .choices__inner {{
-            background: {PALETTE.bg0};
-            color: {PALETTE.red};
-            border: 1px solid {PALETTE.bg3};
-            border-radius: 0;
-            font-family: monospace;
-            font-size: 12px;
-        }}
-        :host .choices__list--dropdown {{
-            background: {PALETTE.bg1};
-            border: 1px solid {PALETTE.bg3};
-            border-radius: 0;
-        }}
-        :host .choices__item--choice {{
-            color: {PALETTE.fg1};
-        }}
-        :host .choices__item--choice:hover {{
-            background: {PALETTE.bg3};
-        }}
-        :host .choices__item--selectable {{
-            background: {PALETTE.blue};
-            color: {PALETTE.bg0};
-            border-radius: 0;
-            font-size: 11px;
-        }}
+            /* --- MultiChoice (choices.js internals) --- */
+            :host .choices__inner {{
+                background: {PALETTE.bg0};
+                color: {PALETTE.red};
+                border: 1px solid {PALETTE.bg3};
+                border-radius: 0;
+                font-family: monospace;
+                font-size: 12px;
+            }}
+            :host .choices__list--dropdown {{
+                background: {PALETTE.bg1};
+                border: 1px solid {PALETTE.bg3};
+                border-radius: 0;
+            }}
+            :host .choices__item--choice {{
+                color: {PALETTE.fg1};
+            }}
+            :host .choices__item--choice:hover {{
+                background: {PALETTE.bg3};
+            }}
+            :host .choices__item--selectable {{
+                background: {PALETTE.blue};
+                color: {PALETTE.bg0};
+                border-radius: 0;
+                font-size: 11px;
+            }}
 
-        /* --- Checkbox / Radio groups --- */
-        :host .bk-checkbox-group label,
-        :host .bk-radio-group label {{
-            color: {PALETTE.fg1};
-            font-family: monospace;
-            font-size: 12px;
-        }}
+            /* --- Checkbox / Radio groups --- */
+            :host .bk-checkbox-group label,
+            :host .bk-radio-group label {{
+                color: {PALETTE.fg1};
+                font-family: monospace;
+                font-size: 12px;
+            }}
 
-        /* --- Collapsible section toggle --- */
-        :host(.blup-section-toggle) .bk-btn {{
-            background: transparent;
-            color: {PALETTE.yellow};
-            border: none;
-            border-bottom: 1px solid {PALETTE.bg3};
-            border-radius: 0;
-            font-family: monospace;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            text-align: left;
-            justify-content: flex-start;
-            padding: 4px 8px;
-            box-shadow: none;
-        }}
-        :host(.blup-section-toggle) .bk-btn:hover {{
-            background: {PALETTE.bg2};
-            color: {PALETTE.yellow};
-        }}
-    """)
+            /* --- Collapsible section toggle --- */
+            :host(.blup-section-toggle) .bk-btn {{
+                background: transparent;
+                color: {PALETTE.yellow};
+                border: none;
+                border-bottom: 1px solid {PALETTE.bg3};
+                border-radius: 0;
+                font-family: monospace;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-align: left;
+                justify-content: flex-start;
+                padding: 4px 8px;
+                box-shadow: none;
+            }}
+            :host(.blup-section-toggle) .bk-btn:hover {{
+                background: {PALETTE.bg2};
+                color: {PALETTE.yellow};
+            }}
+        """
+    )
 
 
-def gruvbox_bokeh_theme() -> Theme:
+def make_bokeh_theme() -> Theme:
     p = PALETTE
 
     return Theme(json={

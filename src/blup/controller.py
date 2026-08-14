@@ -148,7 +148,8 @@ class AppController:
 
         for pipeline in self.active_pipelines():
             if self.state_manager.refresh_needed(pipeline.subscribed_state):
-                pipeline.refresh(self)
+                with timed(f"{pipeline.module_id}.refresh"):
+                    pipeline.refresh(self)
 
         self.mount_active_displays()
         self.sync_panel_layout()
@@ -248,14 +249,14 @@ class AppController:
                     context_key     = "selection",
                     side            = "left",
                     collapsed       = False,
-                    width           = 280,
+                    width           = 240,
                 ),
                 inspector = PanelState(
                     active_module   = "token_detail",
                     context_key     = "detail",
                     side            = "right",
                     collapsed       = True,
-                    width           = 320,
+                    width           = 360,
                 )
             ),
             context = ContextState(
@@ -281,7 +282,7 @@ class AppController:
         if not changed_branches:
             return
 
-        if self.state_manager.layout_only_refresh():
+        if self.state_manager.layout_only_update():
             self.sync_panel_layout()
         else:
             self.schedule_refresh()

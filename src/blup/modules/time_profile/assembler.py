@@ -78,7 +78,7 @@ class TimeProfileAssembler:
             jobs            = tuple(jobs),
         )
 
-    def make_job_list(
+    def unroll_job_list(
         self,
         request: TimeProfileRequest
     ) -> list[WorkJob[TimeProfileJob]]:

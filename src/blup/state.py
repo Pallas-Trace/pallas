@@ -596,7 +596,7 @@ class StateManager:
             for path in state_paths
         )
 
-    def layout_only_refresh(self) -> bool:
+    def layout_only_update(self) -> bool:
         """
             Returns true if the pending state concerns only app visual layout.
         """

@@ -55,7 +55,7 @@ class Assembler[UpdT, ReqT: RequestSpec, JobT, ResT](Protocol):
     def prepare_request(self, update: UpdT) -> ReqT:
         ...
     # NOTE: possibly remove later; update RequestSpec to always include jobs
-    def make_job_list(self, request: ReqT) -> list[WorkJob[JobT]]:
+    def unroll_job_list(self, request: ReqT) -> list[WorkJob[JobT]]:
         ...
     def run_job(self, job: WorkJob[JobT]) -> ResT:
         ...
@@ -130,8 +130,8 @@ class UIWorkRequest[UpdT, ReqT: RequestSpec, JobT, ResT]:
         self.exec_kind = exec_kind
 
     # generic request lifecycle
-    def make_job_list(self) -> list[object]:
-        jobs = self.pipeline.assembler.make_job_list(self.request)
+    def unroll_job_list(self) -> list[object]:
+        jobs = self.pipeline.assembler.unroll_job_list(self.request)
         return cast(list[object], jobs)
 
     def on_start_hook(self) -> None:
@@ -190,8 +190,8 @@ class BGWorkRequest[UpdT, CtxT, ReqT: RequestSpec, JobT, ResT]:
         self._on_finish = on_finish
 
     # custom request lifecycle
-    def make_job_list(self) -> list[object]:
-        jobs = self.assembler.make_job_list(self.request)
+    def unroll_job_list(self) -> list[object]:
+        jobs = self.assembler.unroll_job_list(self.request)
         return cast(list[object], jobs)
 
     def on_start_hook(self) -> None:
@@ -229,7 +229,7 @@ class _WorkRequestRuntime(Protocol):
     @property
     def exec_kind(self) -> ExecutionKind: ...
 
-    def make_job_list(self) -> list[object]:
+    def unroll_job_list(self) -> list[object]:
         ...
     def on_start_hook(self) -> None:
         ...
@@ -342,7 +342,7 @@ class WorkManager:
     # -------------------------------------------
 
     def submit(self, request: AnyWorkRequest) -> int:
-        jobs = list(request.make_job_list())
+        jobs = list(request.unroll_job_list())
 
         cancelled_req: AnyWorkRequest | None = None
         request_id: int

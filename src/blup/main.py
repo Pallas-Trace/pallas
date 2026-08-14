@@ -11,19 +11,23 @@ from bokeh.io import curdoc
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.css import GlobalInlineStyleSheet
 
-from blup.bokeh.theme import PALETTE, gruvbox_bokeh_theme
+from blup.bokeh.theme import make_bokeh_theme, make_global_stylesheet
 from blup.controller import AppController
 from blup.traces.interface import TraceRecord
 from blup.traces.session import TraceSession
-from blup.utils import timed
+from blup.utils import set_verbose, timed
 from bokeh.plotting import ColumnDataSource
 
 
 def parse_args() -> list[str]:
-    paths = [p for p in sys.argv[1:] if p.strip()]
+    raw = [a for a in sys.argv[1:] if a.strip()]
+    if "-v" in raw:
+        set_verbose(True)
+    paths = [a for a in raw if a != "-v"]
     if not paths:
         raise SystemExit(
-            "Usage: bokeh serve --show main.py --args TRACE [TRACE ...]"
+            "Usage: bokeh serve --show main.py "
+            "--args [-v] TRACE [TRACE ...]"
         )
     return paths
 
@@ -57,62 +61,8 @@ def main() -> None:
 
     # setup document styles
     doc = curdoc()
-    doc.stylesheets = [                                                     # type: ignore
-        GlobalInlineStyleSheet(
-            css=f"""
-            html, body {{
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                background: {PALETTE.bg0};
-            }}
-
-            .bk-root {{
-                width: 100%;
-                height: 100%;
-                background: {PALETTE.bg0};
-            }}
-
-            .bk-tooltip {{
-                background: {PALETTE.bg1} !important;
-                border: 1px solid {PALETTE.bg3} !important;
-                border-radius: 0 !important;
-                color: {PALETTE.fg1} !important;
-                box-shadow: none !important;
-                padding: 0 !important;
-            }}
-
-            bk-Tooltip.bk-left::after, .bk-Tooltip.bk-right::after {{
-                border-color: transparent {PALETTE.bg3} transparent transparent !important;
-            }}
-
-            .bk-Tooltip.bk-right::after {{
-                border-color: transparent transparent transparent {PALETTE.bg3} !important;
-            }}
-
-            .blup-split:hover {{
-                background: {PALETTE.yellow} !important;
-            }}
-
-            :root {{
-            --bokeh-base-font: monospace;
-            --bokeh-font-size: 11px;
-            --bokeh-icon-color: {PALETTE.muted};
-            --bokeh-border-color: {PALETTE.bg3};
-            --bokeh-background-color: {PALETTE.bg0};
-            --bokeh-hover-color: {PALETTE.bg1};
-            --bokeh-color: {PALETTE.fg1};
-            --bokeh-disabled-color: {PALETTE.muted};
-            --bokeh-disabled-background-color: {PALETTE.bg1};
-            --bokeh-input-focus-border-color: {PALETTE.yellow};
-            --tooltip-color: {PALETTE.bg1};
-            --tooltip-border: {PALETTE.bg3};
-            --tooltip-text: {PALETTE.fg1};
-            }}
-            """
-        )
-    ]
-    doc.theme = gruvbox_bokeh_theme()
+    doc.stylesheets = [make_global_stylesheet()]                            # type: ignore
+    doc.theme = make_bokeh_theme()
     doc.title = "Blup Trace"
 
     # build app controllr
@@ -146,3 +96,5 @@ def main() -> None:
 
 
 main()
+
+

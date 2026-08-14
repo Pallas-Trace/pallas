@@ -102,7 +102,7 @@ class TokenDetailAssembler:
             jobs            = tuple(jobs),
         )
 
-    def make_job_list(
+    def unroll_job_list(
         self,
         request: TokenDetailRequest,
     ) -> list[WorkJob[TokenDetailJob]]:
