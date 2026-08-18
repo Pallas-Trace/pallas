@@ -432,6 +432,10 @@ typedef struct String {
     int length;
 #ifdef __cplusplus
     ~String();
+    std::string to_str() const
+    {
+        return std::string(str);
+    }
 #endif
 } String;
 
@@ -714,41 +718,51 @@ typedef struct Thread {
     void printAttribute(AttributeRef) const;
 
     /** Prints a String (checks for validity first). */
-
     void printString(StringRef) const;
+    std::string stringRefToString(StringRef) const;
 
     /** Prints an AttributeRef (checks for validity first). */
-
     void printAttributeRef(AttributeRef) const;
+    std::string attributeRefToString(AttributeRef) const;
 
     /** Prints an CommRef (checks for validity first). */
-
     void printCommRef(CommRef) const;
+    std::string commRefToString(CommRef) const;
 
     /** Prints an GroupRef (checks for validity first). */
-
     void printGroupRef(GroupRef) const;
+    std::string groupRefToString(GroupRef) const;
 
     /** Prints a Ref for a Location (checks for validity first). */
-
     void printLocation(Ref) const;
+    std::string locationRefToString(Ref) const;
 
     /** Prints an RegionRef (checks for validity first). */
-
     void printRegion(RegionRef) const;
+    std::string regionRefToString(RegionRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
     [[nodiscard]] const char* getRegionStringFromEvent(EventData *e) const;
 
     /** Prints the value of the attribute.*/
     void printAttributeValue(const struct AttributeData *attr, pallas_type_t type) const;
+    std::string attributeValueToString(const struct AttributeData* attr, pallas_type_t type) const;
+
+    /** Converts an AttributeList to a vector. */
+    std::vector<AttributeData> getAttributes(const struct AttributeList* attribute_list) const;
 
     /** Prints an Attribute and its value.*/
     void printAttribute(const struct AttributeData *attr) const;
+    std::string attributeToString(const struct AttributeData* attr) const;
+
     /** Prints a list of Attribute. */
     void printAttributeList(const struct AttributeList *attribute_list) const;
+    
     /** Prints the attributes of an EventOccurrence. */
     void printEventAttribute(const struct EventOccurrence *es) const;
+    /** Returns the Attributes attached to an EventOccurrence. */
+    std::vector<AttributeData> getAttributes(const struct EventOccurrence *es) const;
+
     /** Returns the name of the thread. */
     [[nodiscard]] const char *getName() const;
     /**
