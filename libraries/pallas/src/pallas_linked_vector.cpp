@@ -14,7 +14,7 @@
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_linked_vector.h"
 
-/** Methods Pertaining to LVBase class */
+/** Methods Pertaining to LinkedVectorBase class */
 namespace pallas {
 
 const SubArrayBase* RecentSubArrayCache::lookup(size_t index, uint64_t& probes) const {
@@ -65,22 +65,22 @@ void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
 
 /** Constructor and Destructors */
 
-LVBase::LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
+LinkedVectorBase::LinkedVectorBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
     : parameter_handler(p), value_domain(domain), storage_policy(_policy) {}
 
 /*
  * NOTE:
- * I intentionally make teardown faster by letting LVBase directly free the
+ * I intentionally make teardown faster by letting LinkedVectorBase directly free the
  * loaded SubArray payloads it owns, instead of asking
  * ParameterHandler::subvector_queue to search for and erase those references
- * one by one. This relies on the current lifecycle assumption that LVBase
+ * one by one. This relies on the current lifecycle assumption that LinkedVectorBase
  * teardown only happens at the end, after analysis is done, so queue entries
  * referring to those subarrays may temporarily dangle until the queue itself is
  * destroyed shortly afterwards. If the API later grows a need for mid-lifetime
  * LV cleanup, we should reintroduce a separate destruction path that uses the
  * older queue-synchronized logic.
  */
-LVBase::~LVBase() {
+LinkedVectorBase::~LinkedVectorBase() {
     free_data();
     auto* current = first;
     while (current != nullptr) {
@@ -95,7 +95,7 @@ LVBase::~LVBase() {
 
 /** Internal Helpers */
 
-void LVBase::ensure_hbuffer(size_t bytes) {
+void LinkedVectorBase::ensure_hbuffer(size_t bytes) {
     if (bytes == 0) {
         return;
     }
@@ -107,14 +107,14 @@ void LVBase::ensure_hbuffer(size_t bytes) {
     hbuffer_bytes = bytes;
 }
 
-void LVBase::append_subarray_index(SubArrayBase* subarray) {
+void LinkedVectorBase::append_subarray_index(SubArrayBase* subarray) {
     if (subarray == nullptr) {
         return;
     }
     subarray_index.push_back(subarray);
 }
 
-void LVBase::rebuild_subarray_index() {
+void LinkedVectorBase::rebuild_subarray_index() {
     subarray_index.clear();
     subarray_index.reserve(subarray_total);
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
@@ -123,7 +123,7 @@ void LVBase::rebuild_subarray_index() {
     recent_subarrays.clear();
 }
 
-void LVBase::evict_loaded_subarrays() {
+void LinkedVectorBase::evict_loaded_subarrays() {
     while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
            !parameter_handler.subvector_queue.empty()) {
         auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
@@ -140,11 +140,11 @@ void LVBase::evict_loaded_subarrays() {
     }
 }
 
-SubArrayBase* LVBase::find_subarray(size_t pos) {
-    return const_cast<SubArrayBase*>(static_cast<const LVBase*>(this)->find_subarray(pos));
+SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) {
+    return const_cast<SubArrayBase*>(static_cast<const LinkedVectorBase*>(this)->find_subarray(pos));
 }
 
-const SubArrayBase* LVBase::find_subarray(size_t pos) const {
+const SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) const {
     uint64_t steps = 0;
     if (const auto* cached = recent_subarrays.lookup(pos, steps)) {
 #ifdef BMARK
@@ -154,7 +154,7 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
     }
 
     if (subarray_index.empty() && first != nullptr) {
-        const_cast<LVBase*>(this)->rebuild_subarray_index();
+        const_cast<LinkedVectorBase*>(this)->rebuild_subarray_index();
     }
 
     size_t left = 0;
@@ -187,7 +187,7 @@ const SubArrayBase* LVBase::find_subarray(size_t pos) const {
 
 /** Value Access and Materialization */
 
-uint64_t LVBase::at(size_t pos) const {
+uint64_t LinkedVectorBase::at(size_t pos) const {
 #ifdef BMARK
     BmarkScopedTimer timer(benchmark_family, BmarkMetric::At);
 #endif
@@ -197,7 +197,7 @@ uint64_t LVBase::at(size_t pos) const {
     return operator[](pos);
 }
 
-uint64_t LVBase::operator[](size_t pos) const {
+uint64_t LinkedVectorBase::operator[](size_t pos) const {
 #ifdef BMARK
     BmarkScopedTimer timer(benchmark_family, BmarkMetric::Operator);
 #endif
@@ -232,35 +232,35 @@ uint64_t LVBase::operator[](size_t pos) const {
                 return value;
             }
         }
-        const_cast<LVBase*>(this)->evict_loaded_subarrays();
-        const_cast<LVBase*>(this)->load_data(subarray);
+        const_cast<LinkedVectorBase*>(this)->evict_loaded_subarrays();
+        const_cast<LinkedVectorBase*>(this)->load_data(subarray);
 #ifdef BMARK
         const auto loaded_bytes = static_cast<uint64_t>(subarray->mem_size() * sizeof(uint64_t));
         bmark_note_subarray_load(benchmark_family, loaded_bytes, loaded_bytes);
 #endif
-        const_cast<LVBase*>(this)->loaded_subarrays.insert(subarray);
+        const_cast<LinkedVectorBase*>(this)->loaded_subarrays.insert(subarray);
     }
     const auto value = subarray->at(pos);
     recent_values.push(pos, value);
     return value;
 }
 
-uint64_t LVBase::front() const {
+uint64_t LinkedVectorBase::front() const {
     if (empty()) {
         pallas_error("Trying to access the front of an empty vector\n");
     }
     return at(0);
 }
 
-uint64_t LVBase::back() const {
+uint64_t LinkedVectorBase::back() const {
     if (empty()) {
         pallas_error("Trying to access the back of an empty vector\n");
     }
     return at(value_count - 1);
 }
 
-uint64_t* LVBase::as_flat_array() const {
-    const_cast<LVBase*>(this)->load_all();
+uint64_t* LinkedVectorBase::as_flat_array() const {
+    const_cast<LinkedVectorBase*>(this)->load_all();
     auto* flat_array = new uint64_t[value_count];
     size_t copied_values = 0;
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
@@ -270,7 +270,7 @@ uint64_t* LVBase::as_flat_array() const {
     return flat_array;
 }
 
-std::string LVBase::values_to_string() const {
+std::string LinkedVectorBase::values_to_string() const {
     std::ostringstream stream;
     stream << "[";
     for (size_t i = 0; i < value_count; ++i) {
@@ -285,7 +285,7 @@ std::string LVBase::values_to_string() const {
 
 /** Data Residency and Memory Management */
 
-std::vector<StoragePolicy> LVBase::get_sub_array_policies() const {
+std::vector<StoragePolicy> LinkedVectorBase::get_sub_array_policies() const {
     std::vector<StoragePolicy> policies;
     policies.reserve(subarray_total);
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
@@ -294,7 +294,7 @@ std::vector<StoragePolicy> LVBase::get_sub_array_policies() const {
     return policies;
 }
 
-std::vector<StoragePolicy> LVBase::get_loaded_sub_array_policies() const {
+std::vector<StoragePolicy> LinkedVectorBase::get_loaded_sub_array_policies() const {
     std::vector<StoragePolicy> policies;
     policies.reserve(loaded_subarrays.size());
     for (auto* subarray : loaded_subarrays) {
@@ -305,7 +305,7 @@ std::vector<StoragePolicy> LVBase::get_loaded_sub_array_policies() const {
     return policies;
 }
 
-void LVBase::load_all() {
+void LinkedVectorBase::load_all() {
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
         if (!subarray->has_values()) {
             load_data(subarray);
@@ -323,7 +323,7 @@ void LVBase::load_all() {
  * the remaining loaded payloads owned by this LV and update the memory counter;
  * the queue itself is cleared later by ParameterHandler teardown.
  */
-void LVBase::free_data() {
+void LinkedVectorBase::free_data() {
     if (first == nullptr) {
         return;
     }
@@ -341,7 +341,7 @@ void LVBase::free_data() {
     loaded_subarrays.clear();
 }
 
-void LVBase::reset_offsets() {
+void LinkedVectorBase::reset_offsets() {
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
         subarray->set_offset(0);
     }
@@ -349,7 +349,7 @@ void LVBase::reset_offsets() {
 
 /** Policy and Configuration Control */
 
-bool LVBase::apply_storage_policy() {
+bool LinkedVectorBase::apply_storage_policy() {
     if (last == nullptr) {
         first = create_subarray(nullptr);
         last = first;
@@ -381,16 +381,16 @@ bool LVBase::apply_storage_policy() {
 
 }
 
-/** Methods Pertaining to TimeLV class */
+/** Methods Pertaining to TimeLinkedVector  class */
 namespace pallas {
 
 /** Constructors */
 
-TimeLV::TimeLV(ParameterHandler& p)
-    : TimeLV(p, p.getStoragePolicy()) {}
+TimeLinkedVector ::TimeLinkedVector (ParameterHandler& p)
+    : TimeLinkedVector (p, p.getStoragePolicy()) {}
 
-TimeLV::TimeLV(ParameterHandler& p, StoragePolicy _policy)
-    : LVBase(p, ValueDomain::Timestamp, _policy) {
+TimeLinkedVector ::TimeLinkedVector (ParameterHandler& p, StoragePolicy _policy)
+    : LinkedVectorBase(p, ValueDomain::Timestamp, _policy) {
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
@@ -399,13 +399,13 @@ TimeLV::TimeLV(ParameterHandler& p, StoragePolicy _policy)
 
 /** SubArray Creation */
 
-SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
-    // This is only the runtime subarray-dispatch point for TimeLV.
+SubArrayBase* TimeLinkedVector ::create_subarray(SubArrayBase* previous) const {
+    // This is only the runtime subarray-dispatch point for TimeLinkedVector .
     // The storage-policy encoding itself is handled separately in the subarray header path.
     if (storage_policy == StoragePolicy::Lossy) {
         switch (parameter_handler.getTimeLossyPolicy()) {
             case LossyPolicy::PLA4:
-                const_cast<TimeLV*>(this)->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
+                const_cast<TimeLinkedVector *>(this)->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
                 break;
             case LossyPolicy::PLA8:
             case LossyPolicy::PLA16:
@@ -422,12 +422,12 @@ SubArrayBase* TimeLV::create_subarray(SubArrayBase* previous) const {
     return new TimeSubArray(storage_policy,
                             static_cast<TimeSubArray*>(previous),
                             &parameter_handler,
-                            const_cast<TimeLV*>(this));
+                            const_cast<TimeLinkedVector *>(this));
 }
 
 /** Value Insertion */
 
-AddStatus TimeLV::add(uint64_t val) {
+AddStatus TimeLinkedVector ::add(uint64_t val) {
 #ifdef BMARK
     BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
 #endif
@@ -456,11 +456,11 @@ AddStatus TimeLV::add(uint64_t val) {
 
 /** Queries and Stringification */
 
-std::string TimeLV::to_string() const {
+std::string TimeLinkedVector ::to_string() const {
     return values_to_string();
 }
 
-std::vector<double> TimeLV::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
+std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
     auto output = std::vector<double>();
     auto* current = static_cast<TimeSubArray*>(first);
     double sum = 0;
@@ -526,7 +526,7 @@ std::vector<double> TimeLV::getWeights(pallas_timestamp_t start, pallas_timestam
     return output;
 }
 
-size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
+size_t TimeLinkedVector ::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
     if (empty()) {
         return 0;
     }
@@ -544,16 +544,16 @@ size_t TimeLV::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
 
 }
 
-/** Methods Pertaining to DurationLV class */
+/** Methods Pertaining to DurationLinkedVector  class */
 namespace pallas {
 
 /** Constructors */
 
-DurationLV::DurationLV(ParameterHandler& p)
-    : DurationLV(p, p.getStoragePolicy()) {}
+DurationLinkedVector ::DurationLinkedVector (ParameterHandler& p)
+    : DurationLinkedVector (p, p.getStoragePolicy()) {}
 
-DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
-    : LVBase(p, ValueDomain::Duration, _policy) {
+DurationLinkedVector ::DurationLinkedVector (ParameterHandler& p, StoragePolicy _policy)
+    : LinkedVectorBase(p, ValueDomain::Duration, _policy) {
     first = create_subarray(nullptr);
     last = first;
     subarray_total = 1;
@@ -562,18 +562,18 @@ DurationLV::DurationLV(ParameterHandler& p, StoragePolicy _policy)
 
 /** SubArray Creation */
 
-SubArrayBase* DurationLV::create_subarray(SubArrayBase* previous) const {
+SubArrayBase* DurationLinkedVector ::create_subarray(SubArrayBase* previous) const {
     // Let SubArrayBase resolve the active duration lossy variant from the
     // parameter handler so Spike4/8/16/32 can instantiate their manager.
     return new DurationSubArray(storage_policy,
                                 static_cast<DurationSubArray*>(previous),
                                 &parameter_handler,
-                                const_cast<DurationLV*>(this));
+                                const_cast<DurationLinkedVector *>(this));
 }
 
 /** Value Insertion */
 
-AddStatus DurationLV::add(uint64_t val) {
+AddStatus DurationLinkedVector ::add(uint64_t val) {
 #ifdef BMARK
     BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
 #endif
@@ -611,7 +611,7 @@ AddStatus DurationLV::add(uint64_t val) {
 
 /** Aggregate Updates */
 
-void DurationLV::final_update_mean() {
+void DurationLinkedVector ::final_update_mean() {
     if (value_count == 0 || mean_duration_is_finalized) {
         return;
     }
@@ -621,7 +621,7 @@ void DurationLV::final_update_mean() {
 
 /** Queries and Stringification */
 
-pallas_duration_t DurationLV::weightedSum(std::vector<double>& weights) const {
+pallas_duration_t DurationLinkedVector ::weightedSum(std::vector<double>& weights) const {
     if (weights.empty()) {
         return 0;
     }
@@ -635,7 +635,7 @@ pallas_duration_t DurationLV::weightedSum(std::vector<double>& weights) const {
     return result;
 }
 
-pallas_duration_t DurationLV::computeDurationBetween(size_t start_index, size_t end_index) const {
+pallas_duration_t DurationLinkedVector ::computeDurationBetween(size_t start_index, size_t end_index) const {
     pallas_duration_t total = 0;
     for (size_t i = start_index; i < end_index && i < value_count; ++i) {
         total += at(i);
@@ -643,21 +643,21 @@ pallas_duration_t DurationLV::computeDurationBetween(size_t start_index, size_t 
     return total;
 }
 
-std::string DurationLV::to_string() const {
+std::string DurationLinkedVector ::to_string() const {
     std::ostringstream stream;
     stream << values_to_string() << " { " << min_duration << ", " << mean_duration << ", " << max_duration << " }";
     return stream.str();
 }
 
-uint64_t DurationLV::min_value() const {
+uint64_t DurationLinkedVector ::min_value() const {
     return min_duration;
 }
 
-uint64_t DurationLV::max_value() const {
+uint64_t DurationLinkedVector ::max_value() const {
     return max_duration;
 }
 
-uint64_t DurationLV::mean_value() const {
+uint64_t DurationLinkedVector ::mean_value() const {
     return mean_duration;
 }
 

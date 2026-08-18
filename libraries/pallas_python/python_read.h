@@ -35,8 +35,8 @@ struct PyRegion {
 };
 
 struct PyLinkedVector {
-    pallas::TimeLV* linked_vector;
-    pallas::DurationLV* linked_duration_vector;
+    pallas::TimeLinkedVector* linked_vector;
+    pallas::DurationLinkedVector* linked_duration_vector;
 
     [[nodiscard]] size_t size() const {
         return linked_vector ? linked_vector->size() : linked_duration_vector->size();
@@ -63,8 +63,8 @@ struct PyLinkedVector {
 };
 
 struct PyLinkedVectorIterator {
-    pallas::TimeLV* linked_vector;
-    pallas::DurationLV* linked_duration_vector;
+    pallas::TimeLinkedVector* linked_vector;
+    pallas::DurationLinkedVector* linked_duration_vector;
     size_t index;
 };
 

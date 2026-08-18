@@ -9,11 +9,11 @@
 
 #ifndef __cplusplus
 
-typedef struct TimeLV {
-} TimeLV;
+typedef struct TimeLinkedVector {
+} TimeLinkedVector;
 
-typedef struct DurationLV {
-} DurationLV;
+typedef struct DurationLinkedVector {
+} DurationLinkedVector;
 
 #else
 
@@ -39,8 +39,8 @@ namespace pallas {
  *
  * This ring buffer stores `(logical_index, value)` pairs from the most recent
  * linked-vector values pushed through two paths: newly appended values recorded
- * by `TimeLV::add()` / `DurationLV::add()`, and values materialized during
- * indexed reads in `LVBase::at()`. It is used as a fast path for repeated reads
+ * by `TimeLinkedVector::add()` / `DurationLinkedVector::add()`, and values materialized during
+ * indexed reads in `LinkedVectorBase::at()`. It is used as a fast path for repeated reads
  * of very recent positions, avoiding an additional subarray lookup or decode
  * step when the value is still in the cache.
  */
@@ -149,16 +149,16 @@ class RecentSubArrayCache {
 /**
  * @brief Common linked-vector base class shared by timestamp and duration vectors.
  *
- * `LVBase` exposes the logical vector interface used by the rest of the runtime
+ * `LinkedVectorBase` exposes the logical vector interface used by the rest of the runtime
  * while hiding the physical subarray layout underneath. It owns the linked list
  * of subarrays, the auxiliary lookup structures used by the read path, and the
  * policy state needed to create or reconstruct storage-policy-specific subarrays.
  *
- * Derived classes such as `TimeLV` and `DurationLV` specialize this base by
+ * Derived classes such as `TimeLinkedVector` and `DurationLinkedVector` specialize this base by
  * fixing the value domain and by creating the appropriate `SubArrayBase`
  * subclass for that domain.
  */
-class LVBase {
+class LinkedVectorBase {
    protected:
     /** Number of logical values currently stored in the linked vector. */
     size_t value_count = 0;
@@ -202,7 +202,7 @@ class LVBase {
 
    public:
     /** Virtual destructor for polymorphic linked-vector ownership. */
-    virtual ~LVBase();
+    virtual ~LinkedVectorBase();
 
     /** @returns Number of logical values stored in the vector. */
     [[nodiscard]] size_t size() const {
@@ -309,7 +309,7 @@ class LVBase {
      * @param domain Value domain served by the vector.
      * @param _policy Initial storage policy used for subarray creation.
      */
-    explicit LVBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy);
+    explicit LinkedVectorBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy);
     /**
      * @brief File-backed reconstruction constructor.
      * @param vector_file Metadata stream from which the vector header is read.
@@ -319,7 +319,7 @@ class LVBase {
      * @param _policy Fallback policy associated with the reconstructed vector.
      * @param abi_version Trace ABI version used to interpret stored metadata.
      */
-    explicit LVBase(FILE* vector_file,
+    explicit LinkedVectorBase(FILE* vector_file,
                     const char* value_file_path,
                     ParameterHandler& p,
                     ValueDomain domain,
@@ -332,7 +332,7 @@ class LVBase {
     void append_subarray_index(SubArrayBase* subarray);
     /** Rebuilds the full auxiliary lookup index from the linked subarray chain. */
     void rebuild_subarray_index();
-    /** Writes the linked-vector metadata common to both `TimeLV` and `DurationLV`. */
+    /** Writes the linked-vector metadata common to both `TimeLinkedVector` and `DurationLinkedVector`. */
     void write_common_header(FILE* vector_file) const;
     /** Evicts loaded subarray payloads when runtime memory constraints require it. */
     void evict_loaded_subarrays();
@@ -375,21 +375,21 @@ class LVBase {
 /**
  * @brief Linked-vector specialization for timestamp-domain values.
  *
- * `TimeLV` stores ordered timestamp streams such as event timestamps and
+ * `TimeLinkedVector` stores ordered timestamp streams such as event timestamps and
  * sequence timestamps. It keeps the generic linked-vector mechanics from
- * `LVBase` and specializes them by creating `TimeSubArray` instances and by
+ * `LinkedVectorBase` and specializes them by creating `TimeSubArray` instances and by
  * exposing timestamp-specific query helpers used during analysis.
  */
-class TimeLV : public LVBase {
+class TimeLinkedVector : public LinkedVectorBase {
    public:
     /** @brief Creates a fresh timestamp vector using the default policy from the parameter handler. */
-    explicit TimeLV(ParameterHandler& p);
+    explicit TimeLinkedVector(ParameterHandler& p);
     /**
      * @brief Creates a fresh timestamp vector with an explicit storage policy.
      * @param p Shared runtime parameter handler.
      * @param _policy Initial storage policy used for newly created timestamp subarrays.
      */
-    explicit TimeLV(ParameterHandler& p, StoragePolicy _policy);
+    explicit TimeLinkedVector(ParameterHandler& p, StoragePolicy _policy);
     /**
      * @brief Reconstructs a timestamp vector from persisted metadata.
      * @param vector_file Metadata stream containing the linked-vector header.
@@ -397,7 +397,7 @@ class TimeLV : public LVBase {
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    TimeLinkedVector(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one timestamp value to the logical stream.
@@ -440,21 +440,21 @@ class TimeLV : public LVBase {
 /**
  * @brief Linked-vector specialization for duration-domain values.
  *
- * `DurationLV` stores inclusive or exclusive duration streams. In addition to
- * the generic linked-vector mechanics inherited from `LVBase`, it maintains
+ * `DurationLinkedVector ` stores inclusive or exclusive duration streams. In addition to
+ * the generic linked-vector mechanics inherited from `LinkedVectorBase`, it maintains
  * aggregate duration statistics at the vector level and creates
  * `DurationSubArray` instances for the physical storage layer.
  */
-class DurationLV : public LVBase {
+class DurationLinkedVector  : public LinkedVectorBase {
    public:
     /** @brief Creates a fresh duration vector using the default policy from the parameter handler. */
-    explicit DurationLV(ParameterHandler& p);
+    explicit DurationLinkedVector(ParameterHandler& p);
     /**
      * @brief Creates a fresh duration vector with an explicit storage policy.
      * @param p Shared runtime parameter handler.
      * @param _policy Initial storage policy used for newly created duration subarrays.
      */
-    explicit DurationLV(ParameterHandler& p, StoragePolicy _policy);
+    explicit DurationLinkedVector(ParameterHandler& p, StoragePolicy _policy);
     /**
      * @brief Reconstructs a duration vector from persisted metadata.
      * @param vector_file Metadata stream containing the linked-vector header.
@@ -462,7 +462,7 @@ class DurationLV : public LVBase {
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    DurationLinkedVector (FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one duration value to the logical stream.

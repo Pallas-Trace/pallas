@@ -115,7 +115,7 @@ namespace pallas {
 class SubArrayBase;
 class TimeSubArray;
 class DurationSubArray;
-class LVBase;
+class LinkedVectorBase;
 
 /**
  * Smart policy object attached to a SubArray shell.
@@ -451,7 +451,7 @@ inline void write_varint(uint64_t x, uint8_t*& out) {
 /** SubArray storage shells shared by timestamp and duration linked-vector paths. */
 namespace pallas {
 /**
- * Common physical storage unit used underneath `LVBase`.
+ * Common physical storage unit used underneath `LinkedVectorBase`.
  *
  * A `SubArrayBase` represents one contiguous logical range inside a linked vector. It owns the navigation links, logical-range 
  * metadata, the backing buffer used while values are resident in memory, and the policy state needed to recreate its manager.
@@ -478,7 +478,7 @@ class SubArrayBase {
     /** Backing buffer used while the SubArray payload is resident in memory. */
     uint64_t* buffer = nullptr;
     /** Owning linked vector, used for policy context and benchmark attribution. */
-    LVBase* parent_lv = nullptr;
+    LinkedVectorBase* parent_lv = nullptr;
 
    public:
     /** @returns Next SubArray in the linked chain, or `nullptr` at the tail. */
@@ -559,14 +559,14 @@ class SubArrayBase {
     friend class DeltaManager;
     friend class PLAManager;
     friend class DurationSpikeManager;
-    friend class LVBase;
+    friend class LinkedVectorBase;
 
     /** Runtime-write constructor used when appending to a live linked vector. */
     explicit SubArrayBase(ValueDomain domain,
                           StoragePolicy policy = StoragePolicy::None,
                           SubArrayBase* previous = nullptr,
                           const ParameterHandler* parameter_handler = nullptr,
-                          LVBase* parent = nullptr);
+                          LinkedVectorBase* parent = nullptr);
     /** File-backed constructor used while reconstructing archived SubArrays. */
     explicit SubArrayBase(FILE* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
 
@@ -579,7 +579,7 @@ class SubArrayBase {
 };
 
 /**
- * Timestamp-specialised SubArray shell used by `TimeLV`.
+ * Timestamp-specialised SubArray shell used by `TimeLinkedVector`.
  *
  * This subclass keeps the common `SubArrayBase` structure but adds the small amount of timestamp-specific 
  * metadata needed by exact and lossy managers, namely cached first/last logical timestamps and timestamp 
@@ -591,7 +591,7 @@ class TimeSubArray : public SubArrayBase {
     explicit TimeSubArray(StoragePolicy policy = StoragePolicy::None,
                           TimeSubArray* previous = nullptr,
                           const ParameterHandler* parameter_handler = nullptr,
-                          LVBase* parent = nullptr);
+                          LinkedVectorBase* parent = nullptr);
     /** File-backed constructor used while reconstructing archived timestamp subarrays. */
     explicit TimeSubArray(FILE* info_file, TimeSubArray* previous = nullptr);
 
@@ -621,7 +621,7 @@ class TimeSubArray : public SubArrayBase {
 };
 
 /**
- * Duration-specialised SubArray shell used by `DurationLV`.
+ * Duration-specialised SubArray shell used by `DurationLinkedVector`.
  *
  * In addition to the common `SubArrayBase` metadata, this subclass tracks the per-SubArray duration aggregates needed for duration
  * -specific headers and quick summary queries. These statistics are maintained while values are appended and are persisted alongside 
@@ -633,7 +633,7 @@ class DurationSubArray : public SubArrayBase {
     explicit DurationSubArray(StoragePolicy policy = StoragePolicy::None,
                               DurationSubArray* previous = nullptr,
                               const ParameterHandler* parameter_handler = nullptr,
-                              LVBase* parent = nullptr);
+                              LinkedVectorBase* parent = nullptr);
     /** File-backed constructor used while reconstructing archived duration subarrays. */
     explicit DurationSubArray(FILE* info_file, DurationSubArray* previous = nullptr);
 

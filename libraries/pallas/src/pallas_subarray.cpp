@@ -800,7 +800,7 @@ size_t PLAManager::_capacity() const {
 
 void PLAManager::ensure_staging() {
     if (parent.parent_lv == nullptr) {
-        pallas_error("PLAManager requires a parent LVBase for PLA scratch staging.\n");
+        pallas_error("PLAManager requires a parent LinkedVectorBase for PLA scratch staging.\n");
     }
     parent.parent_lv->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
     stats = GammaBlockStats::bind(parent.parent_lv->helper_buffer());
@@ -1636,7 +1636,7 @@ SubArrayBase::SubArrayBase(ValueDomain domain,
                            StoragePolicy policy,
                            SubArrayBase* previous,
                            const ParameterHandler* parameter_handler,
-                           LVBase* parent)
+                           LinkedVectorBase* parent)
     : prev(previous),
       manager(nullptr),
       parent_lv(parent),
@@ -1767,7 +1767,7 @@ namespace pallas {
 TimeSubArray::TimeSubArray(StoragePolicy policy,
                            TimeSubArray* previous,
                            const ParameterHandler* parameter_handler,
-                           LVBase* parent)
+                           LinkedVectorBase* parent)
     : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler, parent) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
@@ -1803,7 +1803,7 @@ namespace pallas {
 DurationSubArray::DurationSubArray(StoragePolicy policy,
                                    DurationSubArray* previous,
                                    const ParameterHandler* parameter_handler,
-                                   LVBase* parent)
+                                   LinkedVectorBase* parent)
     : SubArrayBase(ValueDomain::Duration, policy, previous, parameter_handler, parent) {}
 
 AddStatus DurationSubArray::add(uint64_t val) {

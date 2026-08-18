@@ -752,7 +752,7 @@ uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHan
 }
 
 
-/** Linked-vector storage helpers shared across TimeLV and DurationLV. */
+/** Linked-vector storage helpers shared across TimeLinkedVector and DurationLinkedVector. */
 
 /**
  * @brief Reconstruct the common SubArray shell from the info stream.
@@ -826,7 +826,7 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
  * This restores the logical size and, for newer ABI versions, the persisted
  * subarray count and preferred storage policy.
  */
-pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, ParameterHandler& p,
+pallas::LinkedVectorBase::LinkedVectorBase(FILE* vector_file, const char* value_file_path, ParameterHandler& p,
                        ValueDomain domain, StoragePolicy _policy, uint8_t abi_version)
     : parameter_handler(p),
       file_path(value_file_path),
@@ -845,9 +845,9 @@ pallas::LVBase::LVBase(FILE* vector_file, const char* value_file_path, Parameter
 }
 
 /**
- * @brief Write the common linked-vector header shared by `TimeLV` and `DurationLV`.
+ * @brief Write the common linked-vector header shared by `TimeLinkedVector` and `DurationLinkedVector`.
  */
-void pallas::LVBase::write_common_header(FILE* vector_file) const {
+void pallas::LinkedVectorBase::write_common_header(FILE* vector_file) const {
     if (vector_file == nullptr) {
         return;
     }
@@ -861,10 +861,10 @@ void pallas::LVBase::write_common_header(FILE* vector_file) const {
 /**
  * @brief Lazily load one SubArray payload from the value stream.
  *
- * This is the read-side hook used by `LVBase` when a SubArray is present in the
+ * This is the read-side hook used by `LinkedVectorBase` when a SubArray is present in the
  * chain but its payload has been evicted from memory.
  */
-void pallas::LVBase::load_data(SubArrayBase* sub) {
+void pallas::LinkedVectorBase::load_data(SubArrayBase* sub) {
     pallas_log(DebugLevel::Debug, "Loading values from %s @ %lu\n", file_path, sub->offset());
     File& f = *fileMap[file_path];
     if (!f.isOpen) {
@@ -918,16 +918,16 @@ pallas::TimeSubArray::TimeSubArray(FILE* info_file, TimeSubArray* previous)
 }
 
 /**
- * @brief Write the `TimeLV` header that precedes all timestamp subarray headers.
+ * @brief Write the `TimeLinkedVector` header that precedes all timestamp subarray headers.
  */
-void pallas::TimeLV::write_header(FILE* infoFile) {
+void pallas::TimeLinkedVector::write_header(FILE* infoFile) {
     write_common_header(infoFile);
 }
 
 /**
  * @brief Persist the full timestamp linked vector across the info and value streams.
  */
-void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
+void pallas::TimeLinkedVector::write_to_file(FILE* infoFile, FILE* dataFile, const ParameterHandler* parameter_handler) {
 #ifdef BMARK
     BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
     bmark_note_write_call(get_bmark_family(), size());
@@ -942,14 +942,14 @@ void pallas::TimeLV::write_to_file(FILE* infoFile, FILE* dataFile, const Paramet
 }
 
 /**
- * @brief Reconstruct a `TimeLV` from the persisted info stream.
+ * @brief Reconstruct a `TimeLinkedVector` from the persisted info stream.
  *
  * For newer ABI versions the stored subarray count is trusted directly;
  * otherwise the constructor walks subarray headers until the logical size is
  * fully covered.
  */
-pallas::TimeLV::TimeLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
-    : LVBase(vector_file, value_file_path, p, ValueDomain::Timestamp, p.getStoragePolicy(), abi_version) {
+pallas::TimeLinkedVector::TimeLinkedVector(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
+    : LinkedVectorBase(vector_file, value_file_path, p, ValueDomain::Timestamp, p.getStoragePolicy(), abi_version) {
     if (value_count == 0) {
         return;
     }
@@ -1029,9 +1029,9 @@ pallas::DurationSubArray::DurationSubArray(FILE* info_file, DurationSubArray* pr
 }
 
 /**
- * @brief Write the `DurationLV` header that precedes all duration subarray headers.
+ * @brief Write the `DurationLinkedVector` header that precedes all duration subarray headers.
  */
-void pallas::DurationLV::write_header(FILE* vectorFile) {
+void pallas::DurationLinkedVector::write_header(FILE* vectorFile) {
     write_common_header(vectorFile);
     if (value_count == 0) {
         return;
@@ -1052,7 +1052,7 @@ void pallas::DurationLV::write_header(FILE* vectorFile) {
 /**
  * @brief Persist the full duration linked vector across the info and value streams.
  */
-void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
+void pallas::DurationLinkedVector::write_to_file(FILE* vectorFile, FILE* valueFile, const ParameterHandler* parameter_handler) {
 #ifdef BMARK
     BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
     bmark_note_write_call(get_bmark_family(), size());
@@ -1070,14 +1070,14 @@ void pallas::DurationLV::write_to_file(FILE* vectorFile, FILE* valueFile, const 
 }
 
 /**
- * @brief Reconstruct a `DurationLV` from the persisted info stream.
+ * @brief Reconstruct a `DurationLinkedVector` from the persisted info stream.
  *
  * This restores the vector-level duration statistics first, then rebuilds the
  * SubArray chain using either the stored subarray count or the legacy
  * size-driven loop depending on the ABI version.
  */
-pallas::DurationLV::DurationLV(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
-    : LVBase(vector_file, value_file_path, p, ValueDomain::Duration, p.getStoragePolicy(), abi_version) {
+pallas::DurationLinkedVector::DurationLinkedVector(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
+    : LinkedVectorBase(vector_file, value_file_path, p, ValueDomain::Duration, p.getStoragePolicy(), abi_version) {
     if (value_count == 0) {
         return;
     }
@@ -1292,7 +1292,7 @@ static void readEvent(pallas::Event& event,
         pallas_log(pallas::DebugLevel::Debug, "\tLoaded invalid event %d\n", event.id);
         return;
     }
-    event.timestamps = new pallas::TimeLV(eventFile.file, durationFileName, parameter_handler, abi_version);
+    event.timestamps = new pallas::TimeLinkedVector(eventFile.file, durationFileName, parameter_handler, abi_version);
 #ifdef BMARK
     event.timestamps->set_bmark_family(pallas::BmarkFamily::EventTimestamps);
 #endif
@@ -1379,9 +1379,9 @@ static void readSequence(pallas::Sequence& sequence, const File& sequenceFile, c
     sequence.tokens.resize(size);
     sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
-        sequence.durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
-        sequence.exclusive_durations = new pallas::DurationLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
-        sequence.timestamps = new pallas::TimeLV(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.durations = new pallas::DurationLinkedVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.exclusive_durations = new pallas::DurationLinkedVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
+        sequence.timestamps = new pallas::TimeLinkedVector(sequenceFile.file, durationFileName, parameter_handler, abi_version);
 #ifdef BMARK
         sequence.durations->set_bmark_family(pallas::BmarkFamily::SequenceDurations);
         sequence.exclusive_durations->set_bmark_family(pallas::BmarkFamily::SequenceExclusiveDurations);

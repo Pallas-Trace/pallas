@@ -146,9 +146,9 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
-            thread->sequences[i].durations = new DurationLV(*parameter_handler);
-            thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
-            thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
+            thread->sequences[i].durations = new DurationLinkedVector(*parameter_handler);
+            thread->sequences[i].exclusive_durations = new DurationLinkedVector(*parameter_handler);
+            thread->sequences[i].timestamps = new TimeLinkedVector(*parameter_handler);
 #ifdef BMARK
             thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
             thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
@@ -786,9 +786,9 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->sequences = new Sequence[thread->nb_allocated_sequences]();
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
-        thread->sequences[i].durations = new DurationLV(*parameter_handler);
-        thread->sequences[i].exclusive_durations = new DurationLV(*parameter_handler);
-        thread->sequences[i].timestamps = new TimeLV(*parameter_handler);
+        thread->sequences[i].durations = new DurationLinkedVector(*parameter_handler);
+        thread->sequences[i].exclusive_durations = new DurationLinkedVector(*parameter_handler);
+        thread->sequences[i].timestamps = new TimeLinkedVector(*parameter_handler);
     #ifdef BMARK
             thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
             thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
@@ -857,7 +857,7 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", logi_id);
 
     auto* new_event = new (&thread->events[phys_id]) Event(logi_id, *e);
-    new_event->timestamps = new TimeLV(*parameter_handler);
+    new_event->timestamps = new TimeLinkedVector(*parameter_handler);
 #ifdef BMARK
     new_event->timestamps->set_bmark_family(BmarkFamily::EventTimestamps);
 #endif

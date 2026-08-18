@@ -47,15 +47,15 @@ Pallas does not want one giant flat array per metric stream.
 
 ```terminal
 LVBase
-├── TimeLV
-└── DurationLV
+├── TimeLinkedVector
+└── DurationLinkedVector
 
 SubArrayBase
 ├── TimeSubArray
 └── DurationSubArray
 ```
 
-`LVBase` is declared in `pallas_linked_vector.h:106`.
+`LinkedVectorBase` is declared in `pallas_linked_vector.h:106`.
 `SubArrayBase` is declared in `pallas_subarray.h:308`.
 
 ---
@@ -92,9 +92,9 @@ Each piece is a `SubArrayBase`-derived object.
 - read path can locate one chunk, then decode locally
 - codec-specific logic stays below the vector interface
 
-## Core Responsibilities of `LVBase`
+## Core Responsibilities of `LinkedVectorBase`
 
-`LVBase` is the common container API used by `TimeLV` and `DurationLV`.
+`LinkedVectorBase` is the common container API used by `TimeLinkedVector` and `DurationLinkedVector`.
 
 - owns `first`, `last`, `value_count`, and `subarray_index`
 - serves `add()`, `at()`, `operator[]`, `front()`, and `back()`
@@ -105,27 +105,27 @@ Each piece is a `SubArrayBase`-derived object.
 In the write path, `ThreadWriter::getOrCreateSequenceFromArray()` in
 `pallas_write.cpp:104` creates:
 
-- `TimeLV` for `sequence.timestamps`
-- `DurationLV` for `sequence.durations`
-- `DurationLV` for `sequence.exclusive_durations`
+- `TimeLinkedVector` for `sequence.timestamps`
+- `DurationLinkedVector` for `sequence.durations`
+- `DurationLinkedVector` for `sequence.exclusive_durations`
 
-## Specialized Roles of `TimeLV` and `DurationLV`
+## Specialized Roles of `TimeLinkedVector` and `DurationLinkedVector`
 
-Both inherit `LVBase`, but they fix different value domains.
+Both inherit `LinkedVectorBase`, but they fix different value domains.
 
-- `TimeLV` sets `ValueDomain::Timestamp` in `pallas_linked_vector.cpp:380`
-- `DurationLV` sets `ValueDomain::Duration` in `pallas_linked_vector.cpp:543`
+- `TimeLinkedVector` sets `ValueDomain::Timestamp` in `pallas_linked_vector.cpp:380`
+- `DurationLinkedVector` sets `ValueDomain::Duration` in `pallas_linked_vector.cpp:543`
 
 That domain choice drives subarray type, manager choice, and codec behavior.
 
-### `TimeLV`
+### `TimeLinkedVector`
 
 - used for timestamp streams
 - creates `TimeSubArray`
 - exposes timestamp helpers such as `getWeights()` and `getFirstOccurrenceBefore()`
 - relies mainly on common vector metadata plus timestamp subarray headers
 
-### `DurationLV`
+### `DurationLinkedVector`
 
 - used for duration streams
 - creates `DurationSubArray`
@@ -135,17 +135,17 @@ That domain choice drives subarray type, manager choice, and codec behavior.
 ### Common + Specialized Headers
 
 ```terminal
-LVBase header
+LinkedVectorBase header
   value_count
   subarray_total
   storage_policy
 
 then
 
-TimeLV
+TimeLinkedVector
   no extra vector-level fields
 
-DurationLV
+DurationLinkedVector
   min_duration
   max_duration
   mean_duration
@@ -159,7 +159,7 @@ Reconstruction follows the same split in `pallas_storage.cpp:910` and
 Indexed reads should not linearly walk the full subarray chain on every access.
 
 - `subarray_index` in `pallas_linked_vector.h:120` stores subarray pointers in
-  logical order so `LVBase::find_subarray()` can use binary search as the main
+  logical order so `LinkedVectorBase::find_subarray()` can use binary search as the main
   lookup path.
 - `recent_subarrays` in `pallas_linked_vector.h:119` is a tiny hot cache for
   recently used chunks, which helps when analysis code performs repeated local or
@@ -221,7 +221,7 @@ Important `SubArrayBase` metadata lives in `pallas_subarray.h:311`.
 ### Links
 
 - `next` / `prev`: chain neighboring subarrays
-- `parent_lv`: points back to the owning `LVBase`
+- `parent_lv`: points back to the owning `LinkedVectorBase`
 
 ### Domain-Specific Examples
 

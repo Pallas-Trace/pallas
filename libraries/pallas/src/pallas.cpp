@@ -1011,9 +1011,9 @@ Sequence& Sequence::operator=(Sequence&& other) {
     return *this;
 };
 Sequence::Sequence(ParameterHandler& parameter_handler) {
-    durations = new DurationLV(parameter_handler);
-    exclusive_durations = new DurationLV(parameter_handler);
-    timestamps = new TimeLV(parameter_handler);
+    durations = new DurationLinkedVector(parameter_handler);
+    exclusive_durations = new DurationLinkedVector(parameter_handler);
+    timestamps = new TimeLinkedVector(parameter_handler);
 }
 }  // namespace pallas
 

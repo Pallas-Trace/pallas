@@ -133,7 +133,7 @@ BulkBenchmarkStats run_bulk_benchmark(const std::filesystem::path& trace_path) {
 
     stats.thread_count = trace->getThreadList().size();
 
-    for_each_vector(*trace, [&](Family family, pallas::LVBase* lv) {
+    for_each_vector(*trace, [&](Family family, pallas::LinkedVectorBase* lv) {
         auto& family_stats = stats.families[static_cast<size_t>(family)];
         family_stats.vector_count++;
         family_stats.value_count += static_cast<uint64_t>(lv->size());
@@ -143,7 +143,7 @@ BulkBenchmarkStats run_bulk_benchmark(const std::filesystem::path& trace_path) {
         family_stats.load_ns += elapsed_ns(load_start);
     });
 
-    for_each_vector(*trace, [&](Family family, pallas::LVBase* lv) {
+    for_each_vector(*trace, [&](Family family, pallas::LinkedVectorBase* lv) {
         auto& family_stats = stats.families[static_cast<size_t>(family)];
         uint64_t checksum = 0;
         const auto at_start = Clock::now();
@@ -156,7 +156,7 @@ BulkBenchmarkStats run_bulk_benchmark(const std::filesystem::path& trace_path) {
         g_benchmark_sink ^= checksum;
     });
 
-    for_each_vector(*trace, [&](Family family, pallas::LVBase* lv) {
+    for_each_vector(*trace, [&](Family family, pallas::LinkedVectorBase* lv) {
         auto& family_stats = stats.families[static_cast<size_t>(family)];
         uint64_t checksum = 0;
         const auto operator_start = Clock::now();
