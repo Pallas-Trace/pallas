@@ -40,7 +40,6 @@ from blup.data_model import (
     token_int_id,
 )
 from blup.utils import timed
-from utils import timed
 
 
 def sequence_block_depth(reader: pallas.ThreadReader) -> int:

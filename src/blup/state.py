@@ -17,11 +17,6 @@ if TYPE_CHECKING:
 # |           State Constants               |
 # -------------------------------------------
 
-
-TraceMode:                  TypeAlias = Literal[
-            "dual",
-            "single",
-]
 PanelID:                    TypeAlias = Literal[
             "main",
             "context",
@@ -37,9 +32,9 @@ PanelSide:                  TypeAlias = Literal[
 
 ModuleID:                   TypeAlias = Literal[
             "time_profile",
+            "token_list",
             "token_detail",
             "context_selection",
-            "inspector",
 ]
 
 TimeProfileOrder:           TypeAlias = Literal[
@@ -60,7 +55,6 @@ TokenDetailTableMode:       TypeAlias = Literal[
             "full",
             "compact",
 ]
-
 
 # -------------------------------------------
 # |              State Tree                 |
