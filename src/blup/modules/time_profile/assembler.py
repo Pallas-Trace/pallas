@@ -104,19 +104,19 @@ class TimeProfileAssembler:
 
         src = self._build_source(
             bundle,
-            thread_name = payload.thread_name,
-            thread_center = payload.thread_center,
-            trace_side = payload.trace_side,
-            token_name_by_key = trace_ctx.token_name_by_key,
-            color_map = ctx.color_map,
-            trace_mode = update.trace_mode,
-            stack_order = ctx.order,
+            thread_name         = payload.thread_name,
+            thread_center       = payload.thread_center,
+            trace_side          = payload.trace_side,
+            token_name_by_key   = trace_ctx.token_name_by_key,
+            color_map           = ctx.color_map,
+            trace_mode          = update.trace_mode,
+            stack_order         = ctx.order,
         )
 
         return TimeProfileResult(
-            thread_name = payload.thread_name,
-            trace_side = payload.trace_side,
-            src = src,
+            thread_name     = payload.thread_name,
+            trace_side      = payload.trace_side,
+            src             = src,
         )
 
     def _build_source(

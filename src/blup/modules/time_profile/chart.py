@@ -27,6 +27,7 @@ class TimeProfileChartSurface:
         self.fig = None
         self.hover = None
         self.cursor_line: Span | None = None
+
         self.root: LayoutDOM | None = None
 
         self.sources1: dict[str, ColumnDataSource] = {}
@@ -48,7 +49,6 @@ class TimeProfileChartSurface:
 
         p = PALETTE
 
-
         fig = figure(
             title               = "Time profile",
             min_width           = 420,
@@ -66,7 +66,7 @@ class TimeProfileChartSurface:
             ],
         )
 
-        # enables recording clicks
+        # record clicks on figure bars
         fig.toolbar.active_tap = fig.select_one(TapTool)                    # type: ignore
         # adaptive x-axis (time) formatting
         fig.xaxis.formatter = CustomJSTickFormatter(

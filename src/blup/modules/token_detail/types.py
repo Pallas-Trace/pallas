@@ -13,8 +13,6 @@ from blup.data_model import (
 )
 from blup.state import TokenDetailChartMode, TokenDetailTableMode, TraceMode
 
-# NOTE: canonicalize this elsewhere
-TraceSide = Literal["upper", "lower"]
 
 TokenDetailJobKind = Literal["table", "histogram"]
 
@@ -76,8 +74,6 @@ class TokenDetailTableModel:
     dual_mode:              bool
     upper_label:            str
     lower_label:            str
-    options:                tuple[tuple[str, str], ...]
-    selected_value:         str
 
 # NOTE: the above ^^ should be considered temporary and
 #       later modified or moved as appropraite
@@ -92,6 +88,9 @@ class TokenDetailTraceContext:
     token_name_by_key:      dict[str, str]
     summarize_tokens:       Callable[[SummaryQuery], TraceSummary]
     query_histogram:        Callable[[SnapshotHistogramQuery], SnapshotHistogram]
+
+    # TODO: implement:
+    # query_occurences: ...
 
 
 @dataclass(frozen=True)
@@ -126,6 +125,7 @@ class TokenDetailUpdate:
 class TokenDetailJob:
     kind:                   TokenDetailJobKind
     update:                 TokenDetailUpdate
+    trace_side:             TraceSide | None = None
 
 
 @dataclass(frozen=True)
@@ -141,9 +141,22 @@ class TokenDetailTableResult:
 
 @dataclass(frozen=True)
 class TokenDetailHistogramResult:
+    trace_side:             TraceSide
+    # ~~~
     src:                    dict
 
 
-TokenDetailResult = Union[TokenDetailTableResult, TokenDetailHistogramResult]
+@dataclass(frozen=True)
+class TokenDetailScatterResult:
+    trace_side:             TraceSide
+    # ~~~
+    src:                    dict
+
+
+TokenDetailResult = Union[
+    TokenDetailTableResult,
+    TokenDetailHistogramResult,
+    TokenDetailScatterResult,
+]
 
 

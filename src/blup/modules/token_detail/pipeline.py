@@ -96,8 +96,8 @@ class TokenDetailPipeline:
 
         host.work_manager.submit(
             UIWorkRequest(
-                request=request,
-                pipeline=self,
+                request     = request,
+                pipeline    = self,
             )
         )
 

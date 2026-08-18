@@ -64,8 +64,8 @@ class ContextSelectionPipeline:
         if self.root is None:
             self.build()
 
-        app_ctx = state.context
-        time_profile = state.modules.time_profile
+        app_ctx = host.state.context
+        time_profile = host.state.modules.time_profile
 
         trace_options = list(host.trace_registry.trace_options())
         thread_options = [
@@ -126,8 +126,8 @@ class ContextSelectionPipeline:
                 "host AppController must be bound before building controls"
             )
 
-        app_ctx = state.context
-        time_profile = state.modules.time_profile
+        app_ctx = host.state.context
+        time_profile = host.state.modules.time_profile
 
         # freeze host for lambda closures
         h = host

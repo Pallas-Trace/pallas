@@ -7,7 +7,6 @@ from blup.data_model import FidelityMode, QuantaBundle, QuantaQuery, TokenMode
 from blup.state import TimeProfileOrder, TraceMode
 
 
-TraceSide = Literal["lower", "upper"]
 QueryQuantaFn = Callable[[QuantaQuery], QuantaBundle]
 # NOTE: is this ^^ necessary ?
 
@@ -50,6 +49,7 @@ class TimeProfileJob:
     thread_id:              int
     trace_side:             TraceSide
     thread_center:          float
+    # ~~~
     update:                 TimeProfileUpdate
 
 
@@ -63,6 +63,7 @@ class TimeProfileRequest:
 class TimeProfileResult:
     thread_name:            str
     trace_side:             TraceSide
+    # ~~~
     src:                    dict
 
 
