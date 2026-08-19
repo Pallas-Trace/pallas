@@ -38,6 +38,8 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/linked_vector/pallas_pla.h
         include/pallas/linked_vector/pallas_linked_vector.h
         include/pallas/linked_vector/pallas_subarray.h
+        include/pallas/linked_vector/pallas_subarray_delta.h
+        include/pallas/linked_vector/pallas_subarray_pla.h
 )
 
 target_sources(pallas
@@ -53,6 +55,8 @@ target_sources(pallas
         src/pallas_read.cpp
         src/pallas_storage.cpp
         src/pallas_subarray.cpp
+        src/pallas_subarray_delta.cpp
+        src/pallas_subarray_pla.cpp
         src/pallas_timestamp.cpp
         src/pallas_write.cpp
         src/pallas_parameter_handler.cpp
