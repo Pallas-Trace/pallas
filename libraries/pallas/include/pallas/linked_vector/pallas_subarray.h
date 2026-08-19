@@ -159,7 +159,7 @@ class Manager {
 /**
  * Exact manager that stores values in the SubArray buffer without applying an internal encoding transform.
  *
- * This is the simplest policy: logical order and physical order match, random access is direct, and serialisation forwards 
+ * This is the simplest policy: logical order and physical order match, random access is direct, and serialization forwards 
  * the raw buffer to the shared compression helpers. It acts as the baseline implementation for `StoragePolicy::None`.
  */
 class NoneManager : public Manager {
@@ -181,7 +181,7 @@ class NoneManager : public Manager {
  *
  * Timestamp streams only generate non-negative deltas, while duration streams can produce signed delta behaviour around the previous value.
  * These paths originally existed as separate implementations, but were unified behind one manager to avoid duplicating the same payload,
- * checkpointing, and serialisation machinery. The manager keeps a common outer structure and dispatches to small domain-specific helpers 
+ * checkpointing, and serialization machinery. The manager keeps a common outer structure and dispatches to small domain-specific helpers 
  * where the encoding details differ.
  */
 class DeltaManager : public Manager {
@@ -273,7 +273,7 @@ class DeltaManager : public Manager {
  *
  * This path is only pseudo-online: values are accepted through `add()` as if they were being encoded incrementally, but the actual PLA compaction 
  * happens once a full SubArray-sized block has been collected. That design keeps the public linked-vector interface online while still letting the 
- * manager run a stronger block analysis (some time) before serialisation. The tradeoff is that `add()` carries extra staging and bookkeeping overhead 
+ * manager run a stronger block analysis (some time) before serialization. The tradeoff is that `add()` carries extra staging and bookkeeping overhead 
  * compared to exact policies.
  */
 class PLAManager : public Manager {

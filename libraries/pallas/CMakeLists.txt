@@ -37,7 +37,6 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/linked_vector/pallas_bmark.h
         include/pallas/linked_vector/pallas_pla.h
         include/pallas/linked_vector/pallas_linked_vector.h
-        include/pallas/linked_vector/pallas_serialisation.h
         include/pallas/linked_vector/pallas_subarray.h
 )
 

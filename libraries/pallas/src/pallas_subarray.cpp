@@ -17,11 +17,14 @@
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/linked_vector/pallas_linked_vector.h"
-#include "pallas/linked_vector/pallas_serialisation.h"
 #include "pallas/linked_vector/pallas_subarray.h"
 
 extern size_t numberPreRawBytes;
 extern size_t numberRawBytes;
+
+// These functions are defined in pallas_storage.cpp
+extern void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler);
+extern uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHandler& parameter_handler);
 
 /** Methods Pertaining to the policy manager of the SubArray */
 namespace pallas {
