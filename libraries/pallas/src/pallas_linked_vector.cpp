@@ -463,7 +463,6 @@ std::string TimeLinkedVector ::to_string() const {
 std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
     auto output = std::vector<double>();
     auto* current = static_cast<TimeSubArray*>(first);
-    double sum = 0;
     // While loop to go through all the SubVectors.
     // Legend:
     //   - : Time spent in current vector but NOT in the window
@@ -505,24 +504,8 @@ std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pall
             pallas_error("This is not supposed to happen !\n");
             pallas_error("start=%lu, end=%lu\n", start, end);
         }
-        sum += output.back();
         current = static_cast<TimeSubArray*>(current->next_subarray());
     }
-    // Then we need to normalize the weight vector
-    // UPDATE: We don't actually need to normalize the weight vector
-    //
-    // For example, a vector formatted like this:
-    //          start                   end
-    //          |                         |
-    // A: [......##][########][#######][##......]
-    // B:   [....############]
-    // A would have a non-normalized weight of [ .25, 1, 1, .25 ] -> [ .1, .4, .4, 0.1 ]
-    // B would have a non-normalized weight of [ .75 ] and that's that
-    // if (sum > 1.0) {
-    //     for (auto &i: output) {
-    //         i /= sum;
-    //     }
-    // }
     return output;
 }
 

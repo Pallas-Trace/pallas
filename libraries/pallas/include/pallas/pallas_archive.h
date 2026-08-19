@@ -608,7 +608,7 @@ extern const struct PALLAS(Group) * pallas_archive_get_group(PALLAS(Archive) * a
  * @returns First Comm matching the given pallas::CommRef in this archive, or in the global_archive if it
  * doesn't have a match, or nullptr if it doesn't have a match in the global_archive.
  */
-extern const struct PALLAS(Comm) * pallas_archive_get_comm(PALLAS(Archive) * archive, PALLAS(CommRef) comm_ref);
+extern const struct PALLAS(Comm) * pallas_archive_get_communicator(PALLAS(Archive) * archive, PALLAS(CommRef) comm_ref);
 
 extern void pallas_global_archive_add_metadata(PALLAS(GlobalArchive*) archive, const char* key, const char* value);
 
