@@ -5,7 +5,7 @@
 
 #include <cinttypes>
 #include <iostream>
-
+#include <format>
 #include "pallas/pallas.h"
 #include "pallas/pallas_attribute.h"
 #include "pallas/pallas_archive.h"
