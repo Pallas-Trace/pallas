@@ -19,7 +19,7 @@
 
 #include "utils/pallas_dbg.h"
 #include "utils/pallas_log.h"
-#include "utils/pallas_linked_vector.h"
+#include "linked_vector/pallas_linked_vector.h"
 #include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus
@@ -269,16 +269,16 @@ typedef struct Sequence {
     /** Type of that sequence ( as explained in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas?id=performance-data ). */
     enum SequenceType type CXX({SEQUENCE_BLOCK});
     /** Vector of the durations of each sequence. */
-    LinkedDurationVector* durations CXX({nullptr});
+    DurationLinkedVector* durations CXX({nullptr});
     /** Vector of the exclusive durations or block durations of each sequence.
      * - If this is a Block Sequence, it's duration - sum(Block Sequence Duration) - sum(Loop Sequence Exclusive Duration)
      * - If this is a Loop Sequence, it's sum(Block Sequence Duration) + sum (Loop Sequence Exclusive Durations)
      *
      * You can learn more in https://pallas.gitlabpages.inria.fr/pallas/#/02-pallas?id=performance-data
      */
-    LinkedDurationVector* exclusive_durations CXX({nullptr});
+    DurationLinkedVector* exclusive_durations CXX({nullptr});
     /** Vector of the timestamps of each sequence. */
-    LinkedVector* timestamps CXX({nullptr});
+    TimeLinkedVector* timestamps CXX({nullptr});
     /** Hash value according to the hash32 function.*/
     uint32_t hash CXX({0});
     /** Vector of Token to store the sequence of tokens */
@@ -363,7 +363,7 @@ typedef struct Event {
     /** The Event being summarized.*/
     EventData data;
     /** Timestamps for each occurrence of that Event.*/
-    LinkedVector* timestamps;
+    TimeLinkedVector* timestamps;
     /** Number of times that Event has happened. */
     size_t nb_occurrences;
     /** Storage for Attribute.*/

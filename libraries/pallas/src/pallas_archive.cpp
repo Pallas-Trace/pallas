@@ -385,6 +385,7 @@ void Archive::addString(StringRef string_ref, const char* string) {
 
 void Archive::addRegion(RegionRef region_ref, StringRef name_ref) {
   pthread_mutex_lock(&lock);
+  // pallas_log(DebugLevel::Error, "Adding region_ref=%d with name_ref=%d to Archive %d\n", region_ref, name_ref, id);
   definitions.addRegion(region_ref, name_ref);
   pthread_mutex_unlock(&lock);
 }
@@ -411,6 +412,7 @@ const String* Archive::getString(StringRef string_ref) {
   pthread_mutex_lock(&lock);
   auto res = definitions.getString(string_ref);
   if (res == nullptr && global_archive)
+    // pallas_log(DebugLevel::Error, "StringRef %d not found in Archive %d, looking in GlobalArchive\n", string_ref, id);
     res = global_archive->getString(string_ref);
   pthread_mutex_unlock(&lock);
   return res;

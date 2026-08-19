@@ -216,10 +216,10 @@ py::object get_sequences_statistics(pallas::Thread &thread) {
         auto &line = test_numpy_array.mutable_at(i);
         line.sequence_id = s.id.id;
         name_list[i] = py::str(s.guessName(&thread));
-        line.min = s.durations->min;
-        line.mean = s.durations->mean;
-        line.max = s.durations->max;
-        line.nb_occurrences = s.durations->size;
+        line.min = s.durations->min_value();
+        line.mean = s.durations->mean_value();
+        line.max = s.durations->max_value();
+        line.nb_occurrences = s.durations->size();
     }
 
 

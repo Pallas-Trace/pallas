@@ -9,6 +9,7 @@
 #pragma once
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <string>
 
@@ -17,6 +18,10 @@
 #endif
 
 namespace pallas {
+/** Indicates the Storage Policy Variant [None;Delta;Lossy] */
+enum class StoragePolicy : uint8_t;
+/** Indicates the Lossy Policy Variant [PLA(4,8,16,32);Spike(4,8,16,32)] */
+enum class LossyPolicy : uint8_t;
 /** A set of various compression algorithms supported by Pallas.*/
 enum class CompressionAlgorithm {
   /** No Compression.*/
@@ -158,9 +163,17 @@ class ParameterHandler {
     LoopFindingAlgorithm loopFindingAlgorithm{LoopFindingAlgorithmDefault};
     /** The max length the LoopFindingAlgorithm::BasicTruncated will go to.*/
     size_t maxLoopLength{maxLoopLengthDefault};
+    /** Testing override: if true, skip sequence/loop detection entirely. */
+    bool overrideLoopDetection = false;
 
     /** Timestamp storage method. */
     TimestampStorage timestampStorage{TimestampStorageDefault};
+    /** Default storage policy to use for newly created SubArrays. */
+    StoragePolicy storagePolicy{static_cast<StoragePolicy>(0)};
+    /** Lossy policy to use when timestamp SubArrays are created in lossy mode. */
+    LossyPolicy timeLossyPolicy{static_cast<LossyPolicy>(0)};
+    /** Lossy policy to use when duration SubArrays are created in lossy mode. */
+    LossyPolicy durationLossyPolicy{static_cast<LossyPolicy>(0)};
     /** Amount of durations loaded in memory, in bytes. */
     size_t loaded_durations_size = 0;
     /** Max amount of memory taken by timestamps / durations. */
@@ -189,17 +202,43 @@ class ParameterHandler {
      * @returns Value of #loopFindingAlgorithm.
      */
     [[nodiscard]] LoopFindingAlgorithm getLoopFindingAlgorithm() const;
+    /**
+     * @brief Controls if the Loops (and their constituent token(s)) are allowed to be promoted for lossy encoding 
+     * 
+     * @retval true  - Allows the loops that qualify the checks to use lossy encoding after a point
+     * @retval false - Fix the implementation to Lossless (Can use None/Delta storagePolicy) 
+     */
+    [[nodiscard]] bool shouldOverrideLoopDetection() const;
+    /** 
+     * @brief Getter for the default SubArray storage policy used for new vectors. 
+     * @returns Default Storage Policy for the SubArrays in Linked-Vector
+    */
+    [[nodiscard]] StoragePolicy getStoragePolicy() const;
+    /**
+     * @brief Getter for the lossy policy used when timestamp-linked vectors or timestamp SubArrays
+     *        are created in lossy mode.
+     * @returns Active lossy policy for timestamp-domain values.
+     */
+    [[nodiscard]] LossyPolicy getTimeLossyPolicy() const;
+    /**
+     * @brief Getter for the lossy policy used when duration-linked vectors or duration SubArrays
+     *        are created in lossy mode.
+     * @returns Active lossy policy for duration-domain values.
+     */
+    [[nodiscard]] LossyPolicy getDurationLossyPolicy() const;
     /** Creates a ParameterHandler from a config file loaded from PALLAS_CONFIG_PATH or pallas.config.
      */
 
     /**
-     * Getter for #timestampStorage.
-     * @returns Value of #timestampStorage. */
+     * @brief Getter for the event-timestamp storage strategy selected for the trace.
+     * @returns Active timestamp storage mode used by the runtime.
+     */
     [[nodiscard]] TimestampStorage getTimestampStorage() const;
 
     void writeToFile(FILE* file) const;
     void readFromFile(FILE* file);
 
+    ~ParameterHandler();
     ParameterHandler();
     ParameterHandler(const std::string& stringConfig);
     ParameterHandler(FILE* file);
@@ -208,7 +247,7 @@ class ParameterHandler {
      * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
      * @return String containing itself.
      */
-    [[nodiscard]] std::string to_string() const;
+    [[nodiscard]] std::string to_string(const std::string padding="") const;
 };
 
 }  // namespace pallas

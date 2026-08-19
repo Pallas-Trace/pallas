@@ -104,7 +104,7 @@ void info_event(Thread* t, int index) {
   std::cout << std::left << "E" << std::setw(14) << std::left << index;
   std::cout << std::setw(35) << std::left << t->getEventString(&e->data);
   if (e->timestamps) {
-    std::cout << std::setw(20) << std::right << e->timestamps->size;
+    std::cout << std::setw(20) << std::right << e->timestamps->size();
   }
   std::cout << std::endl;
 }
@@ -126,7 +126,7 @@ void info_sequence_header() {
 }
 
 float contention_score(Thread* t, Sequence& s) {
-  pallas_duration_t delta_duration = s.durations->size * (s.durations->mean - s.durations->min);
+  pallas_duration_t delta_duration = s.durations->size() * (s.durations->mean_value() - s.durations->min_value());
   pallas_duration_t thread_duration = t->getDuration();
   if (delta_duration > thread_duration)
     return -1;
@@ -144,12 +144,14 @@ void info_sequence(Thread* t, int index, bool details = false) {
     std::cout << std::endl;
     return;
   }
-  std::cout << std::setw(18) << std::right << s.durations->size;
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->min == UINT64_MAX ? 0 : s.durations->min);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->max == UINT64_MAX ? 0 : s.durations->max);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean);
-  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean == UINT64_MAX ? 0 : s.durations->mean * s.durations->size);
-  std::cout << std::setw(18) << std::right << ns2s(s.exclusive_durations->mean == UINT64_MAX ? 0 : s.exclusive_durations->mean * s.exclusive_durations->size);
+  std::cout << std::setw(18) << std::right << s.durations->size();
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->min_value() == UINT64_MAX ? 0 : s.durations->min_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->max_value() == UINT64_MAX ? 0 : s.durations->max_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value());
+  std::cout << std::setw(18) << std::right << ns2s(s.durations->mean_value() == UINT64_MAX ? 0 : s.durations->mean_value() * s.durations->size());
+  std::cout << std::setw(18) << std::right
+            << ns2s(s.exclusive_durations->mean_value() == UINT64_MAX ? 0
+                                                                       : s.exclusive_durations->mean_value() * s.exclusive_durations->size());
   std::cout << std::setw(18) << std::right << s.size();
 
   std::cout << std::setw(18) << std::right << contention_score(t, s);
@@ -169,7 +171,7 @@ void info_sequence(Thread* t, int index, bool details = false) {
 
     if (cmd & show_sequence_durations) {
       std::cout << std::endl << "------------------- Sequence " << s.id.id << " duration:" << std::endl;
-      for (int i = 0; i < s.durations->size; i++) {
+      for (int i = 0; i < s.durations->size(); i++) {
         uint64_t duration = s.durations->at(i);
         std::cout << "\t" << duration << std::endl;
       }
@@ -178,7 +180,7 @@ void info_sequence(Thread* t, int index, bool details = false) {
 
     if (cmd & show_sequence_timestamps) {
       std::cout << std::endl << "------------------- Sequence" << s.id.id << " timestamps:" << std::endl;
-      for (int i = 0; i < s.timestamps->size; i++) {
+      for (int i = 0; i < s.timestamps->size(); i++) {
         uint64_t timestamp = s.timestamps->at(i);
         std::cout << "\t" << timestamp << std::endl;
       }
@@ -302,13 +304,9 @@ void info_global_archive(GlobalArchive* archive) {
     printf("\t# Archives: %d\n", archive->nb_archives);
   }
 
+  const auto* parameter_handler = archive->parameter_handler;
   std::cout << "\nConfiguration:\n"
-            << "\tCompression Algorithm: " << toString(archive->parameter_handler->compressionAlgorithm) << "\n"
-            << "\tEncoding algorithm: " << toString(archive->parameter_handler->encodingAlgorithm) << "\n"
-            << "\tLoop-finding algorithm: " << toString(archive->parameter_handler->loopFindingAlgorithm) << "\n"
-            << "\tMax loop length: " << archive->parameter_handler->maxLoopLength << "\n"
-            << "\tZSTD compression level: " << archive->parameter_handler->zstdCompressionLevel << "\n"
-            << "\tTimestamp storage: " << toString(archive->parameter_handler->timestampStorage) << "\n";
+            << parameter_handler->to_string("\t")<<"\n";
 
   if (cmd & show_definitions) {
     info_definitions(archive->definitions);

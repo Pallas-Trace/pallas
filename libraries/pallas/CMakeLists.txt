@@ -31,10 +31,16 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_log.h
         include/pallas/utils/pallas_dbg.h
         include/pallas/utils/pallas_hash.h
-        include/pallas/utils/pallas_linked_vector.h
         include/pallas/utils/pallas_storage.h
         include/pallas/utils/pallas_timestamp.h
-       include/pallas/utils/pallas_parameter_handler.h
+        include/pallas/utils/pallas_parameter_handler.h
+)
+set(PALLAS_LINKED_VECTOR_HEADERS
+        include/pallas/linked_vector/pallas_bmark.h
+        include/pallas/linked_vector/pallas_linked_vector.h
+        include/pallas/linked_vector/pallas_subarray.h
+        include/pallas/linked_vector/pallas_subarray_delta.h
+        include/pallas/linked_vector/pallas_subarray_pla.h
 )
 
 target_sources(pallas
@@ -42,16 +48,22 @@ target_sources(pallas
         src/pallas.cpp
         src/pallas_archive.cpp
         src/pallas_attribute.cpp
+        src/pallas_bmark.cpp
         src/pallas_dbg.cpp
         src/pallas_hash.cpp
+        src/pallas_pla.cpp
+        src/pallas_linked_vector.cpp
         src/pallas_read.cpp
         src/pallas_storage.cpp
+        src/pallas_subarray.cpp
+        src/pallas_subarray_delta.cpp
+        src/pallas_subarray_pla.cpp
         src/pallas_timestamp.cpp
         src/pallas_write.cpp
-        src/pallas_linked_vector.cpp
         src/pallas_parameter_handler.cpp
         src/pallas_record.cpp
         ${PALLAS_UTILS_HEADERS}
+        ${PALLAS_LINKED_VECTOR_HEADERS}
         PUBLIC
         ${PALLAS_HEADERS}
 )
@@ -76,9 +88,6 @@ endif ()
 
 set_property(TARGET pallas
         PROPERTY PUBLIC_HEADER ${PALLAS_HEADERS}
-)
-set_property(TARGET pallas
-        PROPERTY PRIVATE_HEADER ${PALLAS_UTILS_HEADERS}
 )
 
 target_compile_options(pallas
@@ -151,8 +160,14 @@ if (NOT _PIP)
     install(TARGETS pallas EXPORT PALLASLibTargets
           LIBRARY DESTINATION ${INSTALL_LIBDIR}
           PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas
-          PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
-  )
+    )
+    install(
+        FILES ${PALLAS_UTILS_HEADERS}
+        DESTINATION ${INSTALL_INCLUDEDIR}/pallas/utils
+    )
+    install(
+        FILES ${PALLAS_LINKED_VECTOR_HEADERS}
+        DESTINATION ${INSTALL_INCLUDEDIR}/pallas/linked_vector
+    )
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
 endif()
-

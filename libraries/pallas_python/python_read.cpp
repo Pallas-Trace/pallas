@@ -224,24 +224,19 @@ py::tuple makePyObjectFromToken(pallas::Token t, pallas::ThreadReader& thread_re
 }
 
 py::array_t<uint64_t> linked_vector_to_numpy(PyLinkedVector& self) {
-    py::capsule free_when_done(&self, [](void* f) {
-
+    auto* array = self.linked_vector ? self.linked_vector->as_flat_array()
+                                     : self.linked_duration_vector->as_flat_array();
+    py::capsule free_when_done(array, [](void* f) {
+        auto* values = reinterpret_cast<uint64_t*>(f);
+        delete[] values;
     });
 
-    if (self.linked_vector)
-        return py::array_t<uint64_t>(
-                {self.linked_vector->size},
-                {sizeof(uint64_t)},
-                &self.linked_vector->at(0),
-                free_when_done
-                );
-    else
-        return py::array_t<uint64_t>(
-                {self.linked_duration_vector->size},
-                {sizeof(uint64_t)},
-                &self.linked_duration_vector->at(0),
-                free_when_done
-                );
+    return py::array_t<uint64_t>(
+            {self.size()},
+            {sizeof(uint64_t)},
+            array,
+            free_when_done
+            );
 }
 
 std::vector<py::tuple> thread_reader_get_callstack(pallas::ThreadReader& self) {

@@ -174,7 +174,7 @@ This drove us to design a custom container to hold our data: **Linked Vectors**.
 They are doubled-linked array list, and their base skeleton is very basic:
 
 ```cpp
-class LinkedVector {
+class LinkedTimeVector {
     size_t size;               // Number of elements in the vector
     class SubArray {
         size_t size;           // Number of elements in the array
@@ -188,7 +188,7 @@ class LinkedVector {
 }
 ```
 However, this basic skeleton is expanded depending on the type stored:
-- _**LinkedVector**_ is the container for timestamps,
+- _**LinkedTimeVector**_ is the container for timestamps,
   and their SubArrays also contain the value for the first and the last timestamp they contain.
 - _**LinkedDurationVector**_ is the container for the durations,
   and they, as well as their SubArrays, contain the minimum, the maximum, and the mean of the durations they hold.

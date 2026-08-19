@@ -107,13 +107,13 @@ size_t TokenCountMap::getEventCount() const {
 
 void Thread::loadTimestamps() {
     DOFOR(i, nb_events) {
-        events[i].timestamps->load_all_data();
+        events[i].timestamps->load_all();
     }
     DOFOR(i, nb_sequences) {
         auto& s = sequences[i];
-        s.durations->load_all_data();
-        s.exclusive_durations->load_all_data();
-        s.timestamps->load_all_data();
+        s.durations->load_all();
+        s.exclusive_durations->load_all();
+        s.timestamps->load_all();
     }
 }
 
@@ -331,8 +331,13 @@ const char* Thread::getRegionStringFromEvent(EventData *e) const {
         return "INVALID_EVENT";
     }
     region = archive->getRegion(region_ref);
-
-    return region ? archive->getString(region->string_ref)->str : "INVALID_REGION";
+    if(region){
+        return archive->getString(region->string_ref)->str;
+    }
+    else {
+        pallas_log(DebugLevel::Error, "Region not found for region_ref=%d\n", region_ref);
+        return "INVALID_REGION";
+    }
 }
 
 std::string Thread::getEventString(EventData *e) const {
@@ -660,14 +665,14 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
         if (s->type != SEQUENCE_BLOCK)
             continue;
         // s.durations.min here because we don't want to load anything.
-        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min < start) {
+        if (end < s->timestamps->front() || s->timestamps->back() + s->durations->min_value() < start) {
             continue;
         }
-        if (s->timestamps->size == 1) {
+        if (s->timestamps->size() == 1) {
             // Special treatment for edge case
             // We know the timestamp is in the interval
             // So we compute it ourselves
-            pallas_duration_t duration = s->exclusive_durations->min;
+            pallas_duration_t duration = s->exclusive_durations->min_value();
             pallas_timestamp_t t_start = s->timestamps->front();
             pallas_timestamp_t t_end = duration + t_start;
             if (end < t_end) {
@@ -702,7 +707,7 @@ std::map<std::tuple<Token,std::string>, pallas_duration_t> Thread::getSnapshotVi
 #ifdef DEBUG
         if (s.timestamps->front() <= start) {
             pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
-            if (start_index + 1 < s.timestamps->size) {
+            if (start_index + 1 < s.timestamps->size()) {
                 pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
             }
         }
@@ -781,7 +786,7 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
 #ifdef DEBUG
         if (s.timestamps->front() <= start) {
             pallas_assert_inferior_equal(s.timestamps->at(start_index), start);
-            if (start_index + 1 < s.timestamps->size) {
+            if (start_index + 1 < s.timestamps->size()) {
                 pallas_assert_inferior_equal(start, s.timestamps->at(start_index + 1));
             }
         }
@@ -1006,9 +1011,9 @@ Sequence& Sequence::operator=(Sequence&& other) {
     return *this;
 };
 Sequence::Sequence(ParameterHandler& parameter_handler) {
-    durations = new LinkedDurationVector(parameter_handler);
-    exclusive_durations = new LinkedDurationVector(parameter_handler);
-    timestamps = new LinkedVector(parameter_handler);
+    durations = new DurationLinkedVector(parameter_handler);
+    exclusive_durations = new DurationLinkedVector(parameter_handler);
+    timestamps = new TimeLinkedVector(parameter_handler);
 }
 }  // namespace pallas
 

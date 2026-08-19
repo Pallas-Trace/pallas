@@ -12,11 +12,17 @@
 
 #include "pallas_config.h"
 
-#include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_parameter_handler.h"
+#include "pallas/linked_vector/pallas_subarray.h"
 
 namespace pallas {
+
+ParameterHandler::~ParameterHandler() {
+  loaded_durations_size = 0;
+  subvector_queue.clear();
+}
 
 std::string loadStringFromEnv(const std::string& envName) {
   const char* env_value = getenv(envName.c_str());
@@ -35,6 +41,24 @@ uint64_t loadUInt64FromEnv(const std::string& envName) {
     }
   }
   return UINT64_MAX;
+}
+
+bool loadBoolFromEnv(const std::string& envName, bool default_value) {
+  const char* env_value = getenv(envName.c_str());
+  if (env_value == nullptr) {
+    return default_value;
+  }
+
+  const std::string value(env_value);
+  if (value == "1" || value == "true" || value == "TRUE" || value == "True") {
+    return true;
+  }
+  if (value == "0" || value == "false" || value == "FALSE" || value == "False") {
+    return false;
+  }
+
+  pallas_warn("Invalid boolean in config/env: %s\n", env_value);
+  return default_value;
 }
 
 std::map<CompressionAlgorithm, std::string> CompressionAlgorithmMap = {
@@ -120,6 +144,49 @@ TimestampStorage timestampStorageFromString(const std::string& str) {
     }
   }
   return TimestampStorage::Invalid;
+}
+
+std::map<StoragePolicy, std::string> StoragePolicyMap = {
+    {StoragePolicy::None, "None"},
+    {StoragePolicy::Delta, "Delta"},
+    {StoragePolicy::Lossy, "Lossy"},
+};
+
+std::string toString(StoragePolicy policy) {
+  return StoragePolicyMap[policy];
+}
+
+StoragePolicy storagePolicyFromString(const std::string& str) {
+  for (auto& [en, enStr] : StoragePolicyMap) {
+    if (enStr == str) {
+      return en;
+    }
+  }
+  return static_cast<StoragePolicy>(UINT8_MAX);
+}
+
+std::map<LossyPolicy, std::string> LossyPolicyMap = {
+    {LossyPolicy::PLA4, "PLA4"},
+    {LossyPolicy::PLA8, "PLA8"},
+    {LossyPolicy::PLA16, "PLA16"},
+    {LossyPolicy::PLA32, "PLA32"},
+    {LossyPolicy::Spike4, "Spike4"},
+    {LossyPolicy::Spike8, "Spike8"},
+    {LossyPolicy::Spike16, "Spike16"},
+    {LossyPolicy::Spike32, "Spike32"},
+};
+
+std::string toString(LossyPolicy policy) {
+  return LossyPolicyMap[policy];
+}
+
+LossyPolicy lossyPolicyFromString(const std::string& str) {
+  for (auto& [en, enStr] : LossyPolicyMap) {
+    if (enStr == str) {
+      return en;
+    }
+  }
+  return static_cast<LossyPolicy>(UINT8_MAX);
 }
 
 /** Simple class to handle the parsing of the configuration file. */
@@ -219,6 +286,72 @@ class ConfigFile {
     return ret;
   }
 
+  StoragePolicy loadStoragePolicyConfig() {
+    StoragePolicy ret = StoragePolicy::None;
+
+    std::string value = loadStringFromEnv("PALLAS_STORAGE_POLICY");
+    if (value.empty() && !config.empty() && config.find("storagePolicy") != config.end()) {
+      value = config["storagePolicy"];
+    }
+    if (!value.empty()) {
+      ret = storagePolicyFromString(value);
+      if (ret == static_cast<StoragePolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid StoragePolicy in config: %s\n", value.c_str());
+        ret = StoragePolicy::None;
+      }
+    }
+    return ret;
+  }
+
+  LossyPolicy loadTimeLossyPolicyConfig() {
+    LossyPolicy ret = LossyPolicy::PLA8;
+
+    std::string value = loadStringFromEnv("PALLAS_TIME_LOSSY_POLICY");
+    if (value.empty() && !config.empty() && config.find("timeLossyPolicy") != config.end()) {
+      value = config["timeLossyPolicy"];
+    }
+    if (!value.empty()) {
+      ret = lossyPolicyFromString(value);
+      if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid TimeLossyPolicy in config: %s\n", value.c_str());
+        ret = LossyPolicy::PLA8;
+      }
+    }
+    return ret;
+  }
+
+  LossyPolicy loadDurationLossyPolicyConfig() {
+    LossyPolicy ret = LossyPolicy::Spike8;
+
+    std::string value = loadStringFromEnv("PALLAS_DURATION_LOSSY_POLICY");
+    if (value.empty() && !config.empty() && config.find("durationLossyPolicy") != config.end()) {
+      value = config["durationLossyPolicy"];
+    }
+    if (!value.empty()) {
+      ret = lossyPolicyFromString(value);
+      if (ret == static_cast<LossyPolicy>(UINT8_MAX)) {
+        pallas_warn("Invalid DurationLossyPolicy in config: %s\n", value.c_str());
+        ret = LossyPolicy::Spike8;
+      }
+    }
+    return ret;
+  }
+
+  bool loadOverrideLoopDetectionConfig() {
+    bool value = loadBoolFromEnv("PALLAS_OVERRIDE_LOOP_DETECTION", false);
+    if (!value && !config.empty() && config.find("overrideLoopDetection") != config.end()) {
+      const auto& config_value = config["overrideLoopDetection"];
+      if (config_value == "1" || config_value == "true" || config_value == "TRUE" || config_value == "True") {
+        value = true;
+      } else if (config_value == "0" || config_value == "false" || config_value == "FALSE" || config_value == "False") {
+        value = false;
+      } else {
+        pallas_warn("Invalid overrideLoopDetection in config: %s\n", config_value.c_str());
+      }
+    }
+    return value;
+  }
+
   explicit ConfigFile(const std::string& configPath) {
     std::ifstream configFile(configPath);
     if (configFile.is_open()) {
@@ -243,6 +376,10 @@ ParameterHandler::ParameterHandler(const std::string& stringConfig) {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
+  storagePolicy = config.loadStoragePolicyConfig();
+  timeLossyPolicy = config.loadTimeLossyPolicyConfig();
+  durationLossyPolicy = config.loadDurationLossyPolicyConfig();
+  overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Normal, "%s\n", to_string().c_str());
 }
@@ -279,6 +416,10 @@ ParameterHandler::ParameterHandler() {
   maxLoopLength = config.loadMaxLoopLength();
   zstdCompressionLevel = config.loadZSTDCompressionLevel();
   timestampStorage = config.loadTimestampStorageConfig();
+  storagePolicy = config.loadStoragePolicyConfig();
+  timeLossyPolicy = config.loadTimeLossyPolicyConfig();
+  durationLossyPolicy = config.loadDurationLossyPolicyConfig();
+  overrideLoopDetection = config.loadOverrideLoopDetectionConfig();
 
   pallas_log(DebugLevel::Debug, "%s\n", to_string().c_str());
 }
@@ -305,18 +446,38 @@ LoopFindingAlgorithm ParameterHandler::getLoopFindingAlgorithm() const {
   return loopFindingAlgorithm;
 }
 
+bool ParameterHandler::shouldOverrideLoopDetection() const {
+  return overrideLoopDetection;
+}
+
+StoragePolicy ParameterHandler::getStoragePolicy() const {
+  return storagePolicy;
+}
+
+LossyPolicy ParameterHandler::getTimeLossyPolicy() const {
+  return timeLossyPolicy;
+}
+
+LossyPolicy ParameterHandler::getDurationLossyPolicy() const {
+  return durationLossyPolicy;
+}
+
 TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
 
-std::string ParameterHandler::to_string() const {
+std::string ParameterHandler::to_string(const std::string padding) const {
   std::stringstream stream("");
-  stream << "compressionAlgorithm=" << toString(compressionAlgorithm) << "\n";
-  stream << "encodingAlgorithm=" << toString(encodingAlgorithm) << "\n";
-  stream << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
-  stream << "maxLoopLength=" << maxLoopLength << "\n";
-  stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
-  stream << "timestampStorage=" << toString(timestampStorage) << "\n";
+  stream << padding << "compressionAlgorithm=" << toString(compressionAlgorithm) << "\n";
+  stream << padding << "encodingAlgorithm=" << toString(encodingAlgorithm) << "\n";
+  stream << padding << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
+  stream << padding << "maxLoopLength=" << maxLoopLength << "\n";
+  stream << padding << "overrideLoopDetection=" << (overrideLoopDetection ? "true" : "false") << "\n";
+  stream << padding << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
+  stream << padding << "timestampStorageAlgorithm=" << toString(timestampStorage) << "\n";
+  stream << padding << "storagePolicy=" << toString(storagePolicy) << "\n";
+  stream << padding << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
+  stream << padding << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
   return stream.str();
 }
 

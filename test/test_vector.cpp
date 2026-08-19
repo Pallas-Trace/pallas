@@ -4,8 +4,8 @@
  */
 
 #include "pallas/utils/pallas_dbg.h"
-#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/linked_vector/pallas_linked_vector.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) {
@@ -17,15 +17,15 @@ int main(int argc, char** argv) {
   size_t TEST_SIZE = std::stoi(argv[1]);
     auto parameter_handler = pallas::ParameterHandler();
 
-  pallas::LinkedDurationVector vector = pallas::LinkedDurationVector(parameter_handler);
+  pallas::DurationLinkedVector vector = pallas::DurationLinkedVector(parameter_handler);
 
   for (size_t i = 0; i < TEST_SIZE; i++) {
     vector.add(i);
   }
   vector.final_update_mean();
-  pallas_assert_always(vector.size == TEST_SIZE);
-  pallas_assert_always(vector.min == 0);
-  pallas_assert_always(vector.max == TEST_SIZE - 1);
+  pallas_assert_always(vector.size() == TEST_SIZE);
+  pallas_assert_always(vector.min_value() == 0);
+  pallas_assert_always(vector.max_value() == TEST_SIZE - 1);
   // This is actually because the statistics are computed "one index late"
   // Because as always the fault lies in the fact we have to compute durations.
   return EXIT_SUCCESS;

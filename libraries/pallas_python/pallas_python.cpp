@@ -90,6 +90,12 @@ void setupEnums(const py::module_ &m) {
             .value("COMM_DESTROY", pallas::PALLAS_EVENT_COMM_DESTROY)
             .value("GENERIC", pallas::PALLAS_EVENT_GENERIC)
             .export_values();
+
+    py::enum_<pallas::StoragePolicy>(m, "SubArrayPolicy")
+            .value("None", pallas::StoragePolicy::None)
+            .value("Delta", pallas::StoragePolicy::Delta)
+            .value("Lossy", pallas::StoragePolicy::Lossy)
+            .export_values();
 }
 
 PYBIND11_MODULE(_core, m) {
@@ -111,11 +117,18 @@ PYBIND11_MODULE(_core, m) {
             });
 
     py::class_<PyLinkedVector>(m, "Vector", "A Pallas custom vector")
-            .def_property_readonly("size", [](PyLinkedVector self) {
-                return self.linked_vector ? self.linked_vector->size : self.linked_duration_vector->size;
+            .def_property_readonly("size", [](const PyLinkedVector& self) { return self.size(); })
+            .def_property_readonly("preferred_subarray_policy", [](const PyLinkedVector& self) {
+                return self.preferred_subarray_policy();
+            })
+            .def_property_readonly("subarray_policies", [](const PyLinkedVector& self) {
+                return self.subarray_policies();
+            })
+            .def_property_readonly("loaded_subarray_policies", [](const PyLinkedVector& self) {
+                return self.loaded_subarray_policies();
             })
             .def("__getitem__", [](PyLinkedVector self, int i) {
-                return self.linked_vector ? self.linked_vector->at(i) : self.linked_duration_vector->at(i);
+                return self.at(i);
             })
             .def("__iter__", [](const PyLinkedVector self) {
                 return PyLinkedVectorIterator{self.linked_vector, self.linked_duration_vector, 0};
@@ -125,11 +138,11 @@ PYBIND11_MODULE(_core, m) {
     py::class_<PyLinkedVectorIterator>(m, "Vector_Iterator", "An iterator over a Pallas custom vector")
             .def("__next__", [](PyLinkedVectorIterator &self) {
                 if (self.linked_vector) {
-                    if (self.index < self.linked_vector->size) {
+                    if (self.index < self.linked_vector->size()) {
                         return self.linked_vector->at(self.index++);
                     }
                 } else {
-                    if (self.index < self.linked_duration_vector->size) {
+                    if (self.index < self.linked_duration_vector->size()) {
                         return self.linked_duration_vector->at(self.index++);
                     }
                 }
@@ -140,7 +153,7 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("id", [](const PySequence &self) { return self.self->id; })
             .def_property_readonly("tokens", [](const PySequence &self) { return self.self->tokens; })
             .def_property_readonly("content", [](const PySequence &self) { return sequenceGetContent(self); })
-            .def_property_readonly("n_iterations", [](const PySequence &self) { return self.self->durations->size; })
+            .def_property_readonly("n_iterations", [](const PySequence &self) { return self.self->durations->size(); })
             .def_property_readonly("timestamps", [](const PySequence &self) {
                 return PyLinkedVector{self.self->timestamps, nullptr};
             })
@@ -150,9 +163,9 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("exclusive_durations", [](const PySequence &self) {
                 return PyLinkedVector{nullptr, self.self->exclusive_durations};
             })
-            .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max; })
-            .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min; })
-            .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean; })
+            .def_property_readonly("max_duration", [](const PySequence &self) { return self.self->durations->max_value(); })
+            .def_property_readonly("min_duration", [](const PySequence &self) { return self.self->durations->min_value(); })
+            .def_property_readonly("mean_duration", [](const PySequence &self) { return self.self->durations->mean_value(); })
             .def_property_readonly("type", [](const PySequence &self) { return self.self->type; })
             .def("contains", [](const PySequence &self, const PySequence &other) {
                 return doesSequenceContains(self, other.self->id);

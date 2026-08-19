@@ -35,13 +35,36 @@ struct PyRegion {
 };
 
 struct PyLinkedVector {
-    pallas::LinkedVector* linked_vector;
-    pallas::LinkedDurationVector* linked_duration_vector;
+    pallas::TimeLinkedVector* linked_vector;
+    pallas::DurationLinkedVector* linked_duration_vector;
+
+    [[nodiscard]] size_t size() const {
+        return linked_vector ? linked_vector->size() : linked_duration_vector->size();
+    }
+
+    [[nodiscard]] pallas::StoragePolicy preferred_subarray_policy() const {
+        return linked_vector ? linked_vector->get_storage_policy()
+                             : linked_duration_vector->get_storage_policy();
+    }
+
+    [[nodiscard]] std::vector<pallas::StoragePolicy> subarray_policies() const {
+        return linked_vector ? linked_vector->get_sub_array_policies()
+                             : linked_duration_vector->get_sub_array_policies();
+    }
+
+    [[nodiscard]] std::vector<pallas::StoragePolicy> loaded_subarray_policies() const {
+        return linked_vector ? linked_vector->get_loaded_sub_array_policies()
+                             : linked_duration_vector->get_loaded_sub_array_policies();
+    }
+
+    [[nodiscard]] uint64_t at(size_t index) const {
+        return linked_vector ? linked_vector->at(index) : linked_duration_vector->at(index);
+    }
 };
 
 struct PyLinkedVectorIterator {
-    pallas::LinkedVector* linked_vector;
-    pallas::LinkedDurationVector* linked_duration_vector;
+    pallas::TimeLinkedVector* linked_vector;
+    pallas::DurationLinkedVector* linked_duration_vector;
     size_t index;
 };
 

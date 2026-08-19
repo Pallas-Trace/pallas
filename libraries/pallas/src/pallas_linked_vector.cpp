@@ -4,439 +4,465 @@
  */
 
 #include <algorithm>
-#include <deque>
-#include <iostream>
 #include <sstream>
 
+#ifdef BMARK
+#include "pallas/linked_vector/pallas_bmark.h"
+#endif
+
 #include "pallas/utils/pallas_dbg.h"
-#include "pallas/utils/pallas_linked_vector.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/linked_vector/pallas_linked_vector.h"
 
-#define SAME_FOR_BOTH_VECTORS(return_type, function_core) return_type LinkedVector::function_core return_type LinkedDurationVector::function_core
-
+/** Methods Pertaining to LinkedVectorBase class */
 namespace pallas {
 
-std::string LinkedVector::to_string() {
-    if (size == 0)
-        return "[ ]";
-    std::ostringstream output;
-    output << "[";
-    for (size_t i = 0; i < size; i++) {
-        if (i != size - 1) {
-            output << this->at(i) << ", ";
+const SubArrayBase* RecentSubArrayCache::lookup(size_t index, uint64_t& probes) const {
+    for (auto& entry : entries) {
+        if (entry.subarray == nullptr) {
+            continue;
         }
-        else {
-            output << this->at(i) << "]";
-        }
-    }
-    return output.str();
-}
-
-std::string LinkedDurationVector::to_string() {
-    if (size == 0)
-        return "[ ]";
-    std::ostringstream output;
-    output << "[";
-    for (size_t i = 0; i < size; i++) {
-        if (i != size - 1) {
-            output << this->at(i) << ", ";
-        }
-        else {
-            output << this->at(i) << "]";
+        probes++;
+        const size_t begin = entry.subarray->starting_index();
+        const size_t end = begin + entry.subarray->size();
+        if (index >= begin && index < end) {
+            entry.hits++;
+            entry.generation = ++generation;
+            return entry.subarray;
         }
     }
-    if (size >= 2) {
-        output << " { " << min << ", " << mean << ", " << max << " }";
+    return nullptr;
+}
+
+void RecentSubArrayCache::remember(SubArrayBase* subarray) const {
+    if (subarray == nullptr) {
+        return;
     }
-    return output.str();
-}
 
-LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
-    first = new SubArray(DEFAULT_VECTOR_SIZE);
-    last = first;
-}
-
-LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
-    first = new SubArray(DEFAULT_VECTOR_SIZE);
-    last = first;
-}
-
-uint64_t* LinkedVector::SubArray::add(uint64_t val) {
-    array[size] = val;
-    return &array[size++];
-}
-
-uint64_t* LinkedDurationVector::SubArray::add(uint64_t val) {
-    array[size++] = val;
-    update_statistics();
-    return &array[size-1];
-}
-
-SAME_FOR_BOTH_VECTORS(
-  uint64_t&,
-  SubArray::at(size_t pos) const {
-      if (pos >= starting_index && pos < size + starting_index) {
-          return array[pos - starting_index];
-      }
-      pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, starting_index, size);
-  })
-
-SAME_FOR_BOTH_VECTORS(uint64_t&, SubArray::operator[](size_t pos) const { return array[pos - starting_index]; })
-
-LinkedVector::SubArray::SubArray(size_t size, LinkedVector::SubArray* previous) {
-    this->previous = previous;
-    starting_index = 0;
-    if (previous) {
-        previous->next = this;
-        starting_index = previous->starting_index + previous->size;
-    }
-    allocated = size;
-    array = new uint64_t[size];
-}
-
-LinkedDurationVector::SubArray::SubArray(size_t size, LinkedDurationVector::SubArray* previous) {
-    this->previous = previous;
-    starting_index = 0;
-    if (previous) {
-        previous->next = this;
-        starting_index = previous->starting_index + previous->size;
-    }
-    allocated = size;
-    array = new uint64_t[size];
-}
-
-
-SAME_FOR_BOTH_VECTORS(, SubArray::~SubArray() { delete[] array; })
-
-SAME_FOR_BOTH_VECTORS(void, SubArray::copy_to_array(uint64_t* given_array) const { memcpy(given_array, array, size * sizeof(uint64_t)); })
-
-void LinkedDurationVector::update_statistics() {
-    auto& val = at(size - 1);
-    max = std::max(max, val);
-    min = std::min(min, val);
-    mean += val;
-}
-
-void LinkedDurationVector::final_update_mean() {
-    mean /= size;
-    pallas_assert_inferior_equal(mean, max);
-    pallas_assert_inferior_equal(min, mean);
-    last->final_update_mean();
-}
-
-
-void LinkedDurationVector::SubArray::update_statistics() {
-    auto& val = at(size - 1 + starting_index);
-        max = std::max(max, val);
-        min = std::min(min, val);
-        mean += val;
-}
-
-void LinkedDurationVector::SubArray::final_update_mean() {
-    mean /= size;
-    pallas_assert_inferior_equal(mean, max);
-    pallas_assert_inferior_equal(min, mean);
-}
-
-uint64_t* LinkedDurationVector::add(uint64_t val) {
-    if (this->last->size >= this->last->allocated) {
-        last->final_update_mean();
-        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
-        n_sub_array++;
-    }
-    size++;
-    auto* out = last->add(val);
-    update_statistics();
-    return out;
-}
-
-uint64_t* LinkedVector::add(uint64_t val) {
-    if (this->last->size >= this->last->allocated) {
-        last = new SubArray(DEFAULT_VECTOR_SIZE, last);
-        n_sub_array++;
-    }
-    size++;
-    return last->add(val);
-}
-
-SAME_FOR_BOTH_VECTORS(void, load_all_data() {
-    auto* v = first;
-    while (v) {
-        load_data(v);
-        loaded_subarrays.insert(v);
-        v = v->next;
-    }
-})
-
-
-SAME_FOR_BOTH_VECTORS(
-    uint64_t&,
-    at(size_t pos) {
-      if (pos >= size) {
-          pallas_error("Getting an element whose index (%lu) is bigger than LinkedVector size (%lu)\n", pos, size);
-      }
-      return operator[](pos);
-  })
-
-uint64_t& LinkedVector::operator[](size_t pos) {
-    SubArray* correct_sub = last;
-    while (pos < correct_sub->starting_index) {
-        correct_sub = correct_sub->previous;
-    }
-    if (correct_sub->array == nullptr) {
-        // TODO We should not load data for small vectors ( <= 2 )
-        //      This is a small temporary fix which should speed cleanup times
-        if (pos == correct_sub->starting_index) {
-            return correct_sub->first_value;
+    Entry* eviction_candidate = nullptr;
+    for (auto& entry : entries) {
+        if (entry.subarray == subarray) {
+            entry.hits++;
+            entry.generation = ++generation;
+            return;
         }
-        if (pos == correct_sub->starting_index + correct_sub->size - 1) {
-            return correct_sub->last_value;
+        if (entry.subarray == nullptr) {
+            eviction_candidate = &entry;
+            break;
         }
-        while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-            auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
-            parameter_handler.subvector_queue.pop_front();
-            delete[] temp->array;
-            temp->array = nullptr;
-            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-        }
-        load_data(correct_sub);
-        loaded_subarrays.insert(correct_sub);
-    }
-    return (*correct_sub)[pos];
-}
-
-uint64_t& LinkedDurationVector::operator[](size_t pos) {
-      SubArray* correct_sub = last;
-      while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
-      }
-      if (correct_sub->array == nullptr) {
-          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-              parameter_handler.subvector_queue.pop_front();
-              delete[] temp->array;
-              temp->array = nullptr;
-              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-          }
-          load_data(correct_sub);
-          loaded_subarrays.insert(correct_sub);
-      }
-      return (*correct_sub)[pos];
-}
-
-size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
-    if (ts <= front()) {
-        return 0;
-    }
-    if (back() < ts) {
-        return size - 1;
-    }
-    // TODO Infinite loop on ft.C.64 with 30 slices
-    auto current_subarray = first;
-    // First, we find the correct subarray
-    while (current_subarray->last_value < ts) {
-        current_subarray = current_subarray->next;
-        if (current_subarray == nullptr) {
-            pallas_warn("This shouldn't have happened\n");
-            return -1;
+        if (eviction_candidate == nullptr || entry.hits < eviction_candidate->hits ||
+            (entry.hits == eviction_candidate->hits && entry.generation < eviction_candidate->generation)) {
+            eviction_candidate = &entry;
         }
     }
-    // We need first_value <= ts <= last_value
-    if (ts < current_subarray->first_value) {
-        if (current_subarray->starting_index > 0) {
-            return current_subarray->starting_index - 1;
-        }
-        return 0;
-    }
-    if (current_subarray->array == nullptr) {
-        load_data(current_subarray);
-    }
-    // Then we do a dichotomy.
-    size_t start = 0;
-    size_t end = current_subarray->size - 1;
 
-    while (start < end) {
-        size_t middle = (start + end ) / 2;
-        if (current_subarray->array[middle] <= ts && current_subarray->array[middle + 1] > ts) {
-            return current_subarray->starting_index + middle;
+    if (eviction_candidate != nullptr) {
+        eviction_candidate->subarray = subarray;
+        eviction_candidate->hits = 1;
+        eviction_candidate->generation = ++generation;
+    }
+}
+
+/** Constructor and Destructors */
+
+LinkedVectorBase::LinkedVectorBase(ParameterHandler& p, ValueDomain domain, StoragePolicy _policy)
+    : parameter_handler(p), value_domain(domain), storage_policy(_policy) {}
+
+/*
+ * NOTE:
+ * I intentionally make teardown faster by letting LinkedVectorBase directly free the
+ * loaded SubArray payloads it owns, instead of asking
+ * ParameterHandler::subvector_queue to search for and erase those references
+ * one by one. This relies on the current lifecycle assumption that LinkedVectorBase
+ * teardown only happens at the end, after analysis is done, so queue entries
+ * referring to those subarrays may temporarily dangle until the queue itself is
+ * destroyed shortly afterwards. If the API later grows a need for mid-lifetime
+ * LV cleanup, we should reintroduce a separate destruction path that uses the
+ * older queue-synchronized logic.
+ */
+LinkedVectorBase::~LinkedVectorBase() {
+    free_data();
+    auto* current = first;
+    while (current != nullptr) {
+        auto* next = current->next_subarray();
+        delete current;
+        current = next;
+    }
+    delete[] static_cast<uint8_t*>(hbuffer);
+    hbuffer = nullptr;
+    hbuffer_bytes = 0;
+}
+
+/** Internal Helpers */
+
+void LinkedVectorBase::ensure_hbuffer(size_t bytes) {
+    if (bytes == 0) {
+        return;
+    }
+    if (hbuffer != nullptr && hbuffer_bytes >= bytes) {
+        return;
+    }
+    delete[] static_cast<uint8_t*>(hbuffer);
+    hbuffer = new uint8_t[bytes];
+    hbuffer_bytes = bytes;
+}
+
+void LinkedVectorBase::append_subarray_index(SubArrayBase* subarray) {
+    if (subarray == nullptr) {
+        return;
+    }
+    subarray_index.push_back(subarray);
+}
+
+void LinkedVectorBase::rebuild_subarray_index() {
+    subarray_index.clear();
+    subarray_index.reserve(subarray_total);
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        subarray_index.push_back(subarray);
+    }
+    recent_subarrays.clear();
+}
+
+void LinkedVectorBase::evict_loaded_subarrays() {
+    while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations &&
+           !parameter_handler.subvector_queue.empty()) {
+        auto* temp = static_cast<SubArrayBase*>(parameter_handler.subvector_queue.front());
+        parameter_handler.subvector_queue.pop_front();
+        if (temp != nullptr && temp->has_values()) {
+            const auto evicted_bytes = static_cast<uint64_t>(temp->mem_size() * sizeof(uint64_t));
+            parameter_handler.loaded_durations_size -= evicted_bytes;
+#ifdef BMARK
+            bmark_note_subarray_evict(temp->get_bmark_family(), evicted_bytes);
+#endif
+            temp->free_values();
+            loaded_subarrays.erase(temp);
         }
-        if (current_subarray->array[middle] < ts) {
-            if (start == middle) {
-                return end;
+    }
+}
+
+SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) {
+    return const_cast<SubArrayBase*>(static_cast<const LinkedVectorBase*>(this)->find_subarray(pos));
+}
+
+const SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) const {
+    uint64_t steps = 0;
+    if (const auto* cached = recent_subarrays.lookup(pos, steps)) {
+#ifdef BMARK
+        bmark_note_find_subarray(benchmark_family, steps);
+#endif
+        return cached;
+    }
+
+    if (subarray_index.empty() && first != nullptr) {
+        const_cast<LinkedVectorBase*>(this)->rebuild_subarray_index();
+    }
+
+    size_t left = 0;
+    size_t right = subarray_index.size();
+    while (left < right) {
+        steps++;
+        const size_t mid = left + (right - left) / 2;
+        const auto* subarray = subarray_index[mid];
+        const size_t begin = subarray->starting_index();
+        const size_t end = begin + subarray->size();
+        if (pos < begin) {
+            right = mid;
+            continue;
+        }
+        if (pos >= end) {
+            left = mid + 1;
+            continue;
+        }
+        recent_subarrays.remember(subarray_index[mid]);
+#ifdef BMARK
+        bmark_note_find_subarray(benchmark_family, steps);
+#endif
+        return subarray;
+    }
+#ifdef BMARK
+    bmark_note_find_subarray(benchmark_family, steps);
+#endif
+    return nullptr;
+}
+
+/** Value Access and Materialization */
+
+uint64_t LinkedVectorBase::at(size_t pos) const {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::At);
+#endif
+    if (pos >= value_count) {
+        pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
+    }
+    return operator[](pos);
+}
+
+uint64_t LinkedVectorBase::operator[](size_t pos) const {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Operator);
+#endif
+    uint64_t cached_value = 0;
+    if (recent_values.lookup(pos, cached_value)) {
+#ifdef BMARK
+        bmark_note_recent_value_lookup(benchmark_family, true);
+#endif
+        // pallas_log(DebugLevel::Error, "LV recent cache hit: pos=%zu value=%" PRIu64 "\n", pos, cached_value);
+        return cached_value;
+    }
+#ifdef BMARK
+    bmark_note_recent_value_lookup(benchmark_family, false);
+#endif
+    // pallas_log(DebugLevel::Error, "LV recent cache miss: pos=%zu\n", pos);
+
+    auto* subarray = const_cast<SubArrayBase*>(find_subarray(pos));
+    if (subarray == nullptr) {
+        pallas_error("Wrong index (%lu) compared to vector size (%lu)\n", pos, value_count);
+    }
+    if (!subarray->has_values()) {
+        if (value_domain == ValueDomain::Timestamp) {
+            auto* time_subarray = static_cast<const TimeSubArray*>(subarray);
+            if (pos == subarray->starting_index()) {
+                const auto value = time_subarray->first_value();
+                recent_values.push(pos, value);
+                return value;
             }
-            start = middle;
-        } else {
-            end = middle;
+            if (pos == subarray->starting_index() + subarray->size() - 1) {
+                const auto value = time_subarray->last_value();
+                recent_values.push(pos, value);
+                return value;
+            }
         }
+        const_cast<LinkedVectorBase*>(this)->evict_loaded_subarrays();
+        const_cast<LinkedVectorBase*>(this)->load_data(subarray);
+#ifdef BMARK
+        const auto loaded_bytes = static_cast<uint64_t>(subarray->mem_size() * sizeof(uint64_t));
+        bmark_note_subarray_load(benchmark_family, loaded_bytes, loaded_bytes);
+#endif
+        const_cast<LinkedVectorBase*>(this)->loaded_subarrays.insert(subarray);
     }
-    pallas_error("This shouldn't have happened: Out of the Loop\n");
+    const auto value = subarray->at(pos);
+    recent_values.push(pos, value);
+    return value;
 }
 
-pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {
-    // Find the correct starting sub-array
-    auto* start_subarray = first;
-    while (start_subarray->starting_index + start_subarray->size < start_index) {
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return 0;
+uint64_t LinkedVectorBase::front() const {
+    if (empty()) {
+        pallas_error("Trying to access the front of an empty vector\n");
     }
-
-    pallas_duration_t sum = 0;
-    if ( start_subarray->starting_index != start_index ) {
-        // Load the sub_array
-        size_t i = start_index;
-        sum += at( i++ );
-        for (; i < start_subarray->starting_index + start_subarray->size && i < end_index; i++) {
-            sum += start_subarray->at(i);
-        }
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return sum;
-    }
-
-    while (start_subarray->starting_index + start_subarray->size < end_index) {
-        sum += start_subarray->mean * start_subarray->size;
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return sum;
-    }
-
-    size_t i = start_subarray->starting_index;
-    sum += at(i ++);
-    for (; i < end_index; i++) {
-        sum += start_subarray->at(i);
-    }
-    return sum;
-}
-
-
-
-
-uint64_t& LinkedVector::front() {
-    return first->first_value;
-}
-
-uint64_t& LinkedVector::back() {
-    return last->last_value;
-}
-
-
-uint64_t& LinkedDurationVector::front() {
     return at(0);
 }
 
-uint64_t& LinkedDurationVector::back() {
-    return at(size - 1);
+uint64_t LinkedVectorBase::back() const {
+    if (empty()) {
+        pallas_error("Trying to access the back of an empty vector\n");
+    }
+    return at(value_count - 1);
 }
 
-void LinkedVector::free_data() {
-    if (first == nullptr)
+uint64_t* LinkedVectorBase::as_flat_array() const {
+    const_cast<LinkedVectorBase*>(this)->load_all();
+    auto* flat_array = new uint64_t[value_count];
+    size_t copied_values = 0;
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        subarray->copy_values(flat_array + copied_values);
+        copied_values += subarray->size();
+    }
+    return flat_array;
+}
+
+std::string LinkedVectorBase::values_to_string() const {
+    std::ostringstream stream;
+    stream << "[";
+    for (size_t i = 0; i < value_count; ++i) {
+        if (i != 0) {
+            stream << ", ";
+        }
+        stream << at(i);
+    }
+    stream << "]";
+    return stream.str();
+}
+
+/** Data Residency and Memory Management */
+
+std::vector<StoragePolicy> LinkedVectorBase::get_sub_array_policies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(subarray_total);
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        policies.push_back(subarray->policy());
+    }
+    return policies;
+}
+
+std::vector<StoragePolicy> LinkedVectorBase::get_loaded_sub_array_policies() const {
+    std::vector<StoragePolicy> policies;
+    policies.reserve(loaded_subarrays.size());
+    for (auto* subarray : loaded_subarrays) {
+        if (subarray != nullptr && subarray->has_values()) {
+            policies.push_back(subarray->policy());
+        }
+    }
+    return policies;
+}
+
+void LinkedVectorBase::load_all() {
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        if (!subarray->has_values()) {
+            load_data(subarray);
+            loaded_subarrays.insert(subarray);
+        }
+    }
+}
+
+/**
+ * Performance note:
+ * The previous shutdown path tried to erase every loaded subarray from
+ * ParameterHandler::subvector_queue one by one. Since that queue is shared and
+ * each erase required a linear search, cleanup could become quadratic and make
+ * large traces take hours to shut down. During LV teardown we only need to free
+ * the remaining loaded payloads owned by this LV and update the memory counter;
+ * the queue itself is cleared later by ParameterHandler teardown.
+ */
+void LinkedVectorBase::free_data() {
+    if (first == nullptr) {
         return;
-    auto& dq = parameter_handler.subvector_queue;
-    for (auto* sub : loaded_subarrays) {
-        // We need to remove the subvector from the global memory queue
-        auto it = std::find(dq.begin(), dq.end(), sub);
-        if (it != dq.end()) {
-            dq.erase(it);
-        }
-        delete[] sub->array;
-        sub->array = nullptr;
-        parameter_handler.loaded_durations_size -= sub->size;
     }
-}
-void LinkedDurationVector::free_data() {
-    if (first == nullptr)
-        return;
-    auto& dq = parameter_handler.subvector_queue;
-    for (auto* sub : loaded_subarrays) {
-        // We need to remove the subvector from the global memory queue
-        auto it = std::find(dq.begin(), dq.end(), sub);
-        if (it != dq.end()) {
-            dq.erase(it);
+    for (auto* subarray : loaded_subarrays) {
+        if (subarray->has_values()) {
+            const size_t subarray_bytes = subarray->mem_size() * sizeof(uint64_t);
+            if (parameter_handler.loaded_durations_size >= subarray_bytes) {
+                parameter_handler.loaded_durations_size -= subarray_bytes;
+            } else {
+                parameter_handler.loaded_durations_size = 0;
+            }
+            subarray->free_values();
         }
-        delete[] sub->array;
-        sub->array = nullptr;
-        parameter_handler.loaded_durations_size -= sub->size;
+    }
+    loaded_subarrays.clear();
+}
+
+void LinkedVectorBase::reset_offsets() {
+    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
+        subarray->set_offset(0);
     }
 }
 
-LinkedVector::~LinkedVector() {
-    free_data();
-    if (is_contiguous) {
-        // All the subvectors were allocated using a single big calloc
-#ifdef DEBUG
-        auto* temp = first;
-        auto& dq = parameter_handler.subvector_queue;
-        for (int i = 0; i < n_sub_array; i ++, temp++) {
-            // Check we've correctly cleared it
-            // And cleared it from the queue
-            pallas_assert(temp->array == nullptr);
-            auto it = std::find(dq.begin(), dq.end(), temp);
-            pallas_assert(it == dq.end());
+/** Policy and Configuration Control */
+
+bool LinkedVectorBase::apply_storage_policy() {
+    if (last == nullptr) {
+        first = create_subarray(nullptr);
+        last = first;
+        subarray_total = 1;
+        append_subarray_index(last);
+        return true;
+    }
+
+    if (last->policy() == storage_policy) {
+        return false;
+    }
+
+    if (last->size() == 0) {
+        auto* previous = last->previous_subarray();
+        delete last;
+        last = create_subarray(previous);
+        if (previous == nullptr) {
+            first = last;
         }
+        rebuild_subarray_index();
+        return true;
+    }
+
+    last = create_subarray(last);
+    subarray_total++;
+    append_subarray_index(last);
+    return true;
+}
+
+}
+
+/** Methods Pertaining to TimeLinkedVector  class */
+namespace pallas {
+
+/** Constructors */
+
+TimeLinkedVector ::TimeLinkedVector (ParameterHandler& p)
+    : TimeLinkedVector (p, p.getStoragePolicy()) {}
+
+TimeLinkedVector ::TimeLinkedVector (ParameterHandler& p, StoragePolicy _policy)
+    : LinkedVectorBase(p, ValueDomain::Timestamp, _policy) {
+    first = create_subarray(nullptr);
+    last = first;
+    subarray_total = 1;
+    append_subarray_index(last);
+}
+
+/** SubArray Creation */
+
+SubArrayBase* TimeLinkedVector ::create_subarray(SubArrayBase* previous) const {
+    // This is only the runtime subarray-dispatch point for TimeLinkedVector .
+    // The storage-policy encoding itself is handled separately in the subarray header path.
+    if (storage_policy == StoragePolicy::Lossy) {
+        switch (parameter_handler.getTimeLossyPolicy()) {
+            case LossyPolicy::PLA4:
+                const_cast<TimeLinkedVector *>(this)->ensure_hbuffer(GammaBlockStats::helper_buffer_bytes());
+                break;
+            case LossyPolicy::PLA8:
+            case LossyPolicy::PLA16:
+            case LossyPolicy::PLA32:
+                break;
+            case LossyPolicy::Spike4:
+            case LossyPolicy::Spike8:
+            case LossyPolicy::Spike16:
+            case LossyPolicy::Spike32:
+                pallas_error("Spike lossy policies are not supported for timestamp subarrays in the standalone LV path.\n");
+                break;
+        }
+    }
+    return new TimeSubArray(storage_policy,
+                            static_cast<TimeSubArray*>(previous),
+                            &parameter_handler,
+                            const_cast<TimeLinkedVector *>(this));
+}
+
+/** Value Insertion */
+
+AddStatus TimeLinkedVector ::add(uint64_t val) {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
 #endif
-        free(first);
-    } else {
-        auto * sub = first;
-        while (sub->next) {
-            sub = sub->next;
-            delete sub->previous;
-        }
-        delete sub;
+    if (last == nullptr) {
+        first = create_subarray(nullptr);
+        last = first;
+        subarray_total = 1;
+        append_subarray_index(last);
     }
+
+    const size_t insert_index = value_count;
+    auto status = last->add(val);
+    if (status == AddStatus::Full || status == AddStatus::Outlier) {
+        last = create_subarray(last);
+        subarray_total++;
+        append_subarray_index(last);
+        status = last->add(val);
+    }
+
+    if (status == AddStatus::Ok) {
+        recent_values.push(insert_index, val);
+        value_count++;
+    }
+    return status;
 }
 
-LinkedDurationVector::~LinkedDurationVector() {
-    free_data();
-    if (is_contiguous) {
-        // All the subvectors were allocated using a single big calloc
-#ifdef DEBUG
-        auto* temp = first;
-        auto& dq = parameter_handler.subvector_queue;
-        for (int i = 0; i < n_sub_array; i ++, temp++) {
-            // Check we've correctly cleared it
-            // And cleared it from the queue
-            pallas_assert_equals(temp->array, nullptr);
-            auto it = std::find(dq.begin(), dq.end(), temp);
-            pallas_assert(it == dq.end());
-        }
-#endif
-        free(first);
-    } else {
-        auto * sub = first;
-        while (sub->next) {
-            sub = sub->next;
-            delete sub->previous;
-        }
-        delete sub;
-    }
+/** Queries and Stringification */
+
+std::string TimeLinkedVector ::to_string() const {
+    return values_to_string();
 }
 
-SAME_FOR_BOTH_VECTORS(void, reset_offsets() {
-    auto* v = first;
-    while (v != nullptr) {
-        v->offset = 0;
-        v = v->next;
-    }
-})
-
-SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
-    load_all_data();
-    auto * output = new uint64_t[size];
-    auto * start = first;
-    size_t i = 0;
-    while (start != nullptr) {
-        std::memcpy(&output[i], start->array, start->size * sizeof(uint64_t));
-        i += start->size;
-        start = start->next;
-    }
-    return output;
-})
-
-
-std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
+std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
     auto output = std::vector<double>();
-    auto *current = first;
+    auto* current = static_cast<TimeSubArray*>(first);
     // While loop to go through all the SubVectors.
     // Legend:
     //   - : Time spent in current vector but NOT in the window
@@ -444,56 +470,178 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
     // We store in output the ratio of # / ( - + # )
     // i.e. the ratio of time spent in window over duration of current vector
     while (current != nullptr) {
-        if (current->last_value < start) {
+        if (current->last_value() < start) {
             // first_value ... last_value ... [ start ... end ]
             // --------------------------
             // Completely outside of the range
             output.push_back(0.);
-        } else if (end < current->first_value) {
+        } else if (end < current->first_value()) {
             // [ start ... end ] .. first_value ... last_value
             //                      --------------------------
             // We're past the boundaries, we can stop searching.
             break;
-        } else if (start <= current->first_value && current->last_value <= end) {
+        } else if (start <= current->first_value() && current->last_value() <= end) {
             // [ start ... first_value ... last_value ... end ]
             //             ##########################
             // Completely inside the bounds
             output.push_back(1.0);
-        } else if (current->first_value < start && end < current->last_value) {
+        } else if (current->first_value() < start && end < current->last_value()) {
             // first_value ... [ start ... end ] ... last_value
             // ----------------#################---------------
             // We have to compute the ratio of the two intervals to "guess" the weight of this vector in the total
-            output.push_back(static_cast<double>(end - start) / (current->last_value - current->first_value));
-        } else if (current->first_value < start && current->last_value < end) {
+            output.push_back(static_cast<double>(end - start) / (current->last_value() - current->first_value()));
+        } else if (current->first_value() < start && current->last_value() < end) {
             // first_value ... [ start ... last_value ... end ]
             // ----------------######################
             // Same thing except the window ends in the current vector
-            output.push_back(static_cast<double>(current->last_value - start) / (current->last_value - current->first_value));
-        } else if (current->first_value <= end && end < current->last_value) {
+            output.push_back(static_cast<double>(current->last_value() - start) / (current->last_value() - current->first_value()));
+        } else if (current->first_value() <= end && end < current->last_value()) {
             // [ start ... first_value ... end ] ... last_value
             //             #####################---------------
             // Same thing except the window starts in the current vector and isn't entirely contained in it.
-            output.push_back(static_cast<double>(end - current->first_value) / (current->last_value - current->first_value));
+            output.push_back(static_cast<double>(end - current->first_value()) / (current->last_value() - current->first_value()));
         } else {
             pallas_error("This is not supposed to happen !\n");
-            pallas_error("start=%" PRIu64 ", end=%" PRIu64 "\n", start, end);
+            pallas_error("start=%lu, end=%lu\n", start, end);
         }
-        current = current->next;
+        current = static_cast<TimeSubArray*>(current->next_subarray());
     }
     return output;
 }
 
-pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights) {
-    double sum = 0;
-    auto* current = first;
-    for (auto w: weights) {
-        sum += w * current->mean * current->size;
-        current = current->next;
+size_t TimeLinkedVector ::getFirstOccurrenceBefore(pallas_timestamp_t ts) const {
+    if (empty()) {
+        return 0;
     }
-    return sum;
+
+    size_t result = 0;
+    for (size_t i = 0; i < value_count; ++i) {
+        if (at(i) <= ts) {
+            result = i;
+        } else {
+            break;
+        }
+    }
+    return result;
 }
 
+}
 
-// Sub-LinkedVector methods
+/** Methods Pertaining to DurationLinkedVector  class */
+namespace pallas {
+
+/** Constructors */
+
+DurationLinkedVector ::DurationLinkedVector (ParameterHandler& p)
+    : DurationLinkedVector (p, p.getStoragePolicy()) {}
+
+DurationLinkedVector ::DurationLinkedVector (ParameterHandler& p, StoragePolicy _policy)
+    : LinkedVectorBase(p, ValueDomain::Duration, _policy) {
+    first = create_subarray(nullptr);
+    last = first;
+    subarray_total = 1;
+    append_subarray_index(last);
+}
+
+/** SubArray Creation */
+
+SubArrayBase* DurationLinkedVector ::create_subarray(SubArrayBase* previous) const {
+    // Let SubArrayBase resolve the active duration lossy variant from the
+    // parameter handler so Spike4/8/16/32 can instantiate their manager.
+    return new DurationSubArray(storage_policy,
+                                static_cast<DurationSubArray*>(previous),
+                                &parameter_handler,
+                                const_cast<DurationLinkedVector *>(this));
+}
+
+/** Value Insertion */
+
+AddStatus DurationLinkedVector ::add(uint64_t val) {
+#ifdef BMARK
+    BmarkScopedTimer timer(benchmark_family, BmarkMetric::Add);
+#endif
+    if (last == nullptr) {
+        first = create_subarray(nullptr);
+        last = first;
+        subarray_total = 1;
+        append_subarray_index(last);
+    }
+
+    const size_t insert_index = value_count;
+    auto status = last->add(val);
+    
+    if (status == AddStatus::Full || status == AddStatus::Outlier) {
+        static_cast<DurationSubArray*>(last)->final_update_mean();
+        last = create_subarray(last);
+        subarray_total++;
+        append_subarray_index(last);
+        status = last->add(val);
+    }
+
+    if (status == AddStatus::Ok) {
+        recent_values.push(insert_index, val);
+        value_count++;
+        min_duration = std::min(min_duration, val);
+        max_duration = std::max(max_duration, val);
+        if (mean_duration_is_finalized && value_count > 1) {
+            mean_duration *= (value_count - 1);
+        }
+        mean_duration_is_finalized = false;
+        mean_duration += val;
+    }
+    return status;
+}
+
+/** Aggregate Updates */
+
+void DurationLinkedVector ::final_update_mean() {
+    if (value_count == 0 || mean_duration_is_finalized) {
+        return;
+    }
+    mean_duration /= value_count;
+    mean_duration_is_finalized = true;
+}
+
+/** Queries and Stringification */
+
+pallas_duration_t DurationLinkedVector ::weightedSum(std::vector<double>& weights) const {
+    if (weights.empty()) {
+        return 0;
+    }
+
+    pallas_duration_t result = 0;
+    size_t index = 0;
+    for (auto* subarray = first; subarray != nullptr && index < weights.size(); subarray = subarray->next_subarray(), ++index) {
+        auto* duration_subarray = static_cast<const DurationSubArray*>(subarray);
+        result += static_cast<pallas_duration_t>(weights[index] * duration_subarray->mean_value() * duration_subarray->size());
+    }
+    return result;
+}
+
+pallas_duration_t DurationLinkedVector ::computeDurationBetween(size_t start_index, size_t end_index) const {
+    pallas_duration_t total = 0;
+    for (size_t i = start_index; i < end_index && i < value_count; ++i) {
+        total += at(i);
+    }
+    return total;
+}
+
+std::string DurationLinkedVector ::to_string() const {
+    std::ostringstream stream;
+    stream << values_to_string() << " { " << min_duration << ", " << mean_duration << ", " << max_duration << " }";
+    return stream.str();
+}
+
+uint64_t DurationLinkedVector ::min_value() const {
+    return min_duration;
+}
+
+uint64_t DurationLinkedVector ::max_value() const {
+    return max_duration;
+}
+
+uint64_t DurationLinkedVector ::mean_value() const {
+    return mean_duration;
+}
 
 }  // namespace pallas

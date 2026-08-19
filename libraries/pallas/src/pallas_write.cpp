@@ -14,6 +14,11 @@
 #include "pallas/pallas_archive.h"
 #include "pallas/pallas_write.h"
 
+#ifdef BMARK
+#include "pallas/linked_vector/pallas_bmark.h"
+#endif
+
+#include "pallas/linked_vector/pallas_linked_vector.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"
@@ -21,6 +26,8 @@
 
 thread_local int pallas_recursion_shield = 0;
 namespace pallas {
+// Forward declaration for SubArrayEncoding (defined in pallas_timestamp.h)
+// enum class SubArrayEncoding : int;
 /**
  * Compares two arrays of tokens array1 and array2
  */
@@ -30,27 +37,95 @@ static inline bool _pallas_arrays_equal(Token* array1, size_t size1, Token* arra
     return memcmp(array1, array2, sizeof(Token) * size1) == 0;
 }
 
+/** Number of recent iterations inspected when deciding whether a loop is hot. */
+static constexpr unsigned kHotLoopIters = RecentValueRingBuffer::kCapacity;
+/** Maximum representative duration, in nanoseconds, for a loop to qualify as hot. */
+static constexpr pallas_duration_t kHotLoopDurNs = 350ULL;
+/** Numerator of the minimum hit fraction required for promotion. */
+static constexpr size_t kHotLoopMinFracNum = 3;
+/** Denominator of the minimum hit fraction required for promotion. */
+static constexpr size_t kHotLoopMinFracDen = 4;
 
-static Token getFirstEvent(Token t, const Thread* thread) {
-    while (t.type != TypeEvent) {
-        if (t.type == TypeSequence) {
-            t = thread->getSequence(t)->tokens[0];
-        } else {
-            t = thread->getLoop(t)->repeated_token;
-        }
+#if 0
+/**
+ * @brief Narrow filter for enter/leave-only sequences.
+ *
+ * Hot-loop promotion is no longer restricted to this exact two-event shape, but
+ * the helper is kept here as a reminder of the earlier, more conservative
+ * policy that only recognised the simplest enter/leave loop bodies.
+ */
+static bool isSimpleEnterLeaveSequence(const Sequence& sequence, Thread& thread) {
+    if (sequence.tokens.size() != 2) {
+        return false;
     }
-    return t;
+    if (sequence.tokens[0].type != TypeEvent || sequence.tokens[1].type != TypeEvent) {
+        return false;
+    }
+
+    auto* first_event = thread.getEvent(sequence.tokens[0]);
+    auto* second_event = thread.getEvent(sequence.tokens[1]);
+    if (first_event == nullptr || second_event == nullptr) {
+        return false;
+    }
+
+    return first_event->data.record == PALLAS_EVENT_ENTER &&
+           second_event->data.record == PALLAS_EVENT_LEAVE;
+}
+#endif
+
+/**
+ * @brief Recursively apply an event-timestamp storage policy to one token tree.
+ *
+ * Sequence hot-loop promotion is expressed at the logical token level, but the
+ * timestamp vectors actually live on events nested inside sequences and loops.
+ * This helper walks that token structure and updates every affected event-time
+ * linked vector in place.
+ */
+static void applyEventTimestampPolicyToToken(Token token, Thread& thread, StoragePolicy policy) {
+    switch (token.type) {
+    case TypeEvent: {
+        auto* event = thread.getEvent(token);
+        if (event && event->timestamps) {
+            event->timestamps->setPreferredStoragePolicy(policy);
+            event->timestamps->apply_storage_policy();
+        }
+        return;
+    }
+    case TypeSequence: {
+        auto* sequence = thread.getSequence(token);
+        for (const auto child : sequence->tokens) {
+            applyEventTimestampPolicyToToken(child, thread, policy);
+        }
+        return;
+    }
+    case TypeLoop: {
+        auto* loop = thread.getLoop(token);
+        applyEventTimestampPolicyToToken(loop->repeated_token, thread, policy);
+        return;
+    }
+    default:
+        return;
+    }
 }
 
-static Token getLastEvent(Token t, const Thread* thread) {
-    while (t.type != TypeEvent) {
-        if (t.type == TypeSequence) {
-            t = thread->getSequence(t)->tokens.back();
-        } else {
-            t = thread->getLoop(t)->repeated_token;
-        }
+/**
+ * @brief Promote one detected hot sequence to lossy runtime storage.
+ *
+ * The sequence timestamps and both duration vectors are switched to lossy mode,
+ * and the event timestamp vectors reachable from the sequence body are promoted
+ * as well so the full repeated pattern follows the same hot-loop policy.
+ */
+static void applyHotLoopSequencePolicy(Sequence& sequence, Thread& thread) {
+    sequence.timestamps->setPreferredStoragePolicy(StoragePolicy::Lossy);
+    sequence.timestamps->apply_storage_policy();
+    sequence.durations->setPreferredStoragePolicy(StoragePolicy::Lossy);
+    sequence.durations->apply_storage_policy();
+    sequence.exclusive_durations->setPreferredStoragePolicy(StoragePolicy::Lossy);
+    sequence.exclusive_durations->apply_storage_policy();
+
+    for (const auto token : sequence.tokens) {
+        applyEventTimestampPolicyToToken(token, thread, StoragePolicy::Lossy);
     }
-    return t;
 }
 
 Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array, size_t array_len) {
@@ -71,9 +146,14 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
         for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
-            thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-            thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
+            thread->sequences[i].durations = new DurationLinkedVector(*parameter_handler);
+            thread->sequences[i].exclusive_durations = new DurationLinkedVector(*parameter_handler);
+            thread->sequences[i].timestamps = new TimeLinkedVector(*parameter_handler);
+#ifdef BMARK
+            thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
+            thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
+            thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
+#endif
         }
     }
 
@@ -173,7 +253,60 @@ void ThreadWriter::storeToken(Token t, size_t i) {
 
 void ThreadWriter::incrementLoop(Loop* loop) {
     pallas_log(DebugLevel::Debug, "incrementLoop: + 1 to L%d (to %u)\n", loop->self_id.id, loop->nb_iterations + 1);
+    // This is not only a counter bump: once the iteration threshold is reached,
+    // the same path also acts as the gate for hot-loop policy checks and
+    // possible lossy promotion of the repeated sequence.
     loop->nb_iterations++;
+    if (parameter_handler->shouldOverrideLoopDetection()) {
+        return;
+    }
+
+    if (!loop->repeated_token.isValid() || loop->repeated_token.type != TypeSequence) {
+        return;
+    }
+
+    if (loop->nb_iterations != kHotLoopIters) {
+        return;
+    }
+
+    auto* sequence = thread->getSequence(loop->repeated_token);
+    if (sequence == nullptr || sequence->durations == nullptr || sequence->durations->size() < kHotLoopIters) {
+        return;
+    }
+
+    #if 0
+        // Keep the old shape filter around for reference. We intentionally disable
+        // it for now because short hot loops may span 2, 3, or 4 events, not just
+        // a simple ENTER/LEAVE pair, and we still want those loops to trigger the
+        // lossy promotion heuristic.
+        if (!isSimpleEnterLeaveSequence(*sequence, *thread)) {
+            return;
+        }
+    #endif
+
+    size_t qualifying_duration_count = 0;
+    const size_t first_duration_index = sequence->durations->size() - kHotLoopIters;
+    for (size_t i = 0; i < kHotLoopIters; ++i) {
+        const pallas_duration_t duration = sequence->durations->at(first_duration_index + i);
+        if (duration <= kHotLoopDurNs) {
+            qualifying_duration_count++;
+        }
+    }
+
+    if (qualifying_duration_count * kHotLoopMinFracDen <=
+        kHotLoopIters * kHotLoopMinFracNum) {
+        return;
+    }
+
+    pallas_log(DebugLevel::Debug,
+               "Promoting hot loop L%d/S%d at %u iterations with %zu/%u durations <= %lu ns\n",
+               loop->self_id.id,
+               loop->repeated_token.id,
+               loop->nb_iterations,
+               qualifying_duration_count,
+               kHotLoopIters,
+               static_cast<unsigned long>(kHotLoopDurNs));
+    applyHotLoopSequencePolicy(*sequence, *thread);
 }
 
 Loop* ThreadWriter::unsquashLoop(TokenId loopid) {
@@ -212,8 +345,6 @@ Loop* ThreadWriter::squashLoop(TokenId loopid) {
     return loop;
 }
 
-
-
 void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteration, size_t index_second_iteration) {
     if (index_first_iteration > index_second_iteration) {
         const size_t tmp = index_second_iteration;
@@ -230,8 +361,8 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     pallas_assert_equals(loop_sequence.id.id, loop->repeated_token.id);
     bool sequence_existed = loop_len == 1 && curTokenSeq[index_first_iteration].type == TypeSequence;
     if (sequence_existed) {
-        pallas_assert(loop_sequence.durations->size >= 2);
-        pallas_assert(loop_sequence.timestamps->size >= 2);
+        pallas_assert(loop_sequence.durations->size() >= 2);
+        pallas_assert(loop_sequence.timestamps->size() >= 2);
     }
 
 
@@ -290,7 +421,7 @@ void ThreadWriter::replaceTokensInLoop(int loop_len, size_t index_first_iteratio
     if (sequence_existed) {
         // Then we know we just saw twice the same sequence, hence - 2
         auto* sequence = thread->getSequence(loop_sequence.id);
-        curIndexSeq.push_back( sequence->durations->size - 2 );
+        curIndexSeq.push_back( sequence->durations->size() - 2 );
     } else {
         curIndexSeq.push_back( 0 );
     }
@@ -440,7 +571,7 @@ void ThreadWriter::findSequence(size_t n) {
 
             curTokenSeq.resize(curTokenSeq.size() - array_len);
             curTokenIndex.resize(curTokenIndex.size() - array_len);
-            storeToken(sequence_token, sequence->timestamps->size - 1);
+            storeToken(sequence_token, sequence->timestamps->size() - 1);
             pallas_log(DebugLevel::Debug, "findSequence: %s\n", thread->getTokenArrayString(curTokenSeq.data(), 0, curTokenSeq.size()).c_str());
 
             return;
@@ -563,7 +694,7 @@ void ThreadWriter::recordExitFunction() {
 
 
     cur_depth--;
-    storeToken(sequence.id, sequence.timestamps->size - 1);
+    storeToken(sequence.id, sequence.timestamps->size() - 1);
     curTokenSeq.clear();
     index_stack[cur_depth+1].clear();
 
@@ -613,6 +744,9 @@ void ThreadWriter::threadClose() {
     // TODO Maybe not the correct exclusive duration for the main thread ? Who knows, who cares.
     mainSequence.timestamps->add(thread->first_timestamp);
     thread->store(thread->archive->dir_name, parameter_handler);
+#ifdef BMARK
+    bmark_flush_thread_stats(thread->archive);
+#endif
 }
 ThreadWriter::~ThreadWriter() {
     delete[] sequence_stack;
@@ -627,6 +761,9 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 
     pallas_log(DebugLevel::Debug, "ThreadWriter(%u)::open\n", thread_id);
     parameter_handler = new ParameterHandler();
+#ifdef BMARK
+    bmark_reset_thread_stats();
+#endif
     if (a.global_archive) {
         a.global_archive->parameter_handler = parameter_handler;
     }
@@ -649,9 +786,14 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
     thread->sequences = new Sequence[thread->nb_allocated_sequences]();
     thread->nb_sequences = 0;
     for (int i = 0; i < thread->nb_allocated_sequences; i++) {
-        thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
-        thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
+        thread->sequences[i].durations = new DurationLinkedVector(*parameter_handler);
+        thread->sequences[i].exclusive_durations = new DurationLinkedVector(*parameter_handler);
+        thread->sequences[i].timestamps = new TimeLinkedVector(*parameter_handler);
+    #ifdef BMARK
+            thread->sequences[i].durations->set_bmark_family(BmarkFamily::SequenceDurations);
+            thread->sequences[i].exclusive_durations->set_bmark_family(BmarkFamily::SequenceExclusiveDurations);
+            thread->sequences[i].timestamps->set_bmark_family(BmarkFamily::SequenceTimestamps);
+    #endif
     }
     thread->sequence_id_map.resize(1);
     thread->sequence_id_map[thread->sequence_root] = 0;
@@ -715,7 +857,10 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: \tNot found. Adding it with id=%d\n", logi_id);
 
     auto* new_event = new (&thread->events[phys_id]) Event(logi_id, *e);
-    new_event->timestamps = new LinkedVector(*parameter_handler);
+    new_event->timestamps = new TimeLinkedVector(*parameter_handler);
+#ifdef BMARK
+    new_event->timestamps->set_bmark_family(BmarkFamily::EventTimestamps);
+#endif
 
     // In-place initialisation
     thread->hashToEvent[hash].push_back(logi_id);
