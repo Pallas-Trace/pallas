@@ -4,8 +4,8 @@
  */
 
 #include <cinttypes>
+#include <cstdarg>
 #include <iostream>
-#include <format>
 #include "pallas/pallas.h"
 #include "pallas/pallas_attribute.h"
 #include "pallas/pallas_archive.h"
@@ -15,6 +15,36 @@
 
 
 namespace pallas {
+  /* std::format is not always available (eg g++12 does not support it), so let's implement it
+   * This is a very simple/naive implementation. It only supports %d, %c, %f, %s formats
+   */
+  static std::string format(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    std::stringstream ostr;
+
+    while (*fmt != '\0') {
+      if (*fmt == 'd') {
+	int i = va_arg(args, int);
+	ostr << i;
+      } else if (*fmt == 'c') {
+	// note automatic conversion to integral type
+	int c = va_arg(args, int);
+	ostr << static_cast<char>(c);
+      } else if (*fmt == 'f') {
+	double d = va_arg(args, double);
+	ostr << d;
+      } else if (*fmt == 's') {
+	const char* s = va_arg(args, const char*);
+	ostr << s;
+      }
+      ++fmt;
+    }
+
+    va_end(args);
+    return ostr.str();
+  }
+
 void Thread::printAttribute(AttributeRef ref) const {
   const Attribute* attr = archive->getAttribute(ref);
   if (attr) {
@@ -47,9 +77,9 @@ static enum AttributeType _guess_attribute_size(const AttributeData* attr) {
 std::string Thread::stringRefToString(StringRef string_ref) const {
   auto* str = archive->getString(string_ref);
   if (str)
-    return std::string(std::format("%s <%d>", str->str, string_ref));
+    return std::string(pallas::format("%s <%d>", str->str, string_ref));
   else
-    return std::string(std::format("INVALID_STRING <%d>", string_ref));
+    return std::string(pallas::format("INVALID_STRING <%d>", string_ref));
 }
 
 void Thread::printString(StringRef string_ref) const {
@@ -59,9 +89,9 @@ void Thread::printString(StringRef string_ref) const {
 std::string Thread::attributeRefToString(AttributeRef attribute_ref) const {
   auto* attr = archive->getAttribute(attribute_ref);
   if (attr)
-    return std::string(std::format("attribute <%d>", attribute_ref));
+    return std::string(pallas::format("attribute <%d>", attribute_ref));
   else
-    return std::string(std::format("INVALID_ATTRIBUTE <%d>", attribute_ref));
+    return std::string(pallas::format("INVALID_ATTRIBUTE <%d>", attribute_ref));
 }
 void Thread::printAttributeRef(AttributeRef attribute_ref) const {
   std::cout << attributeRefToString(attribute_ref);
@@ -71,9 +101,9 @@ std::string Thread::commRefToString(CommRef comm_ref) const {
   auto* comm = archive->getComm(comm_ref);
   if (comm) {
       auto* name = archive->getString(comm->name);
-      return std::string(std::format("Comm %s %d <%d>", name->str, comm->group, comm_ref));
+      return std::string(pallas::format("Comm %s %d <%d>", name->str, comm->group, comm_ref));
   } else {
-      return std::string(std::format("INVALID_COMM <%d>", comm_ref));
+      return std::string(pallas::format("INVALID_COMM <%d>", comm_ref));
   }
 }
 void Thread::printCommRef(CommRef comm_ref) const {
@@ -84,9 +114,9 @@ std::string Thread::groupRefToString(GroupRef group_ref) const {
   auto* group = archive->getGroup(group_ref);
   if (group) {
       auto* name = archive->getString(group->name);
-      return std::string(std::format("Group %s <%d>", name->str, group_ref));
+      return std::string(pallas::format("Group %s <%d>", name->str, group_ref));
   } else {
-      return std::string(std::format("INVALID_GROUP <%d>", group_ref));
+      return std::string(pallas::format("INVALID_GROUP <%d>", group_ref));
   }
 }
 void Thread::printGroupRef(GroupRef group_ref) const {
@@ -96,9 +126,9 @@ void Thread::printGroupRef(GroupRef group_ref) const {
 std::string Thread::locationRefToString(Ref location_ref) const {
   auto* attr = archive->getLocation(location_ref);
   if (attr)
-    return std::string(std::format("location <%d>", location_ref));
+    return std::string(pallas::format("location <%d>", location_ref));
   else
-    return std::string(std::format("INVALID_LOCATION <%d>", location_ref));
+    return std::string(pallas::format("INVALID_LOCATION <%d>", location_ref));
 }
 
 void Thread::printLocation(Ref location_ref) const {
@@ -108,9 +138,9 @@ void Thread::printLocation(Ref location_ref) const {
 std::string Thread::regionRefToString(RegionRef region_ref) const {
   auto* attr = archive->getRegion(region_ref);
   if (attr)
-    return std::string(std::format("region <%d>", region_ref));
+    return std::string(pallas::format("region <%d>", region_ref));
   else
-    return std::string(std::format("INVALID_REGION <%d>", region_ref));
+    return std::string(pallas::format("INVALID_REGION <%d>", region_ref));
 }
 
 void Thread::printRegion(RegionRef region_ref) const {
@@ -118,77 +148,77 @@ void Thread::printRegion(RegionRef region_ref) const {
 }
 
 static std::string _group_ref_to_string(Ref group_ref) {
-  return std::string(std::format("group <%d>", group_ref));
+  return std::string(pallas::format("group <%d>", group_ref));
 }
 static void _pallas_print_group(Ref group_ref) {
   std::cout << _group_ref_to_string(group_ref);
 }
 
 static std::string _metric_ref_to_string(Ref metric_ref) {
-  return std::string(std::format("metric <%d>", metric_ref));
+  return std::string(pallas::format("metric <%d>", metric_ref));
 } 
 static void _pallas_print_metric(Ref metric_ref) {
   std::cout << _metric_ref_to_string(metric_ref);
 }
 
 static std::string _comm_ref_to_string(Ref comm_ref) {
-  return std::string(std::format("comm <%d>", comm_ref));
+  return std::string(pallas::format("comm <%d>", comm_ref));
 }
 static void _pallas_print_comm(Ref comm_ref) {
   std::cout << _comm_ref_to_string(comm_ref);
 }
 
 static std::string _parameter_ref_to_string(Ref parameter_ref) {
-  return std::string(std::format("parameter <%d>", parameter_ref));
+  return std::string(pallas::format("parameter <%d>", parameter_ref));
 }
 static void _pallas_print_parameter(Ref parameter_ref) {
   std::cout << _parameter_ref_to_string(parameter_ref);
 }
 
 static std::string _rma_win_ref_to_string(Ref rma_win_ref) {
-  return std::string(std::format("rma_win <%d>", rma_win_ref));
+  return std::string(pallas::format("rma_win <%d>", rma_win_ref));
 }
 static void _pallas_print_rma_win(Ref rma_win_ref) {
   std::cout << _rma_win_ref_to_string(rma_win_ref);
 }
 
 static std::string _source_code_location_ref_to_string(Ref source_code_location_ref) {
-  return std::string(std::format("source_code_location <%d>", source_code_location_ref));
+  return std::string(pallas::format("source_code_location <%d>", source_code_location_ref));
 }
 static void _pallas_print_source_code_location(Ref source_code_location_ref) {
   std::cout << _source_code_location_ref_to_string(source_code_location_ref);
 }
 
 static std::string _calling_context_ref_to_string(Ref calling_context_ref) {
-  return std::string(std::format("calling_context <%d>", calling_context_ref));
+  return std::string(pallas::format("calling_context <%d>", calling_context_ref));
 }
 static void _pallas_print_calling_context(Ref calling_context_ref) {
   std::cout << _calling_context_ref_to_string(calling_context_ref);
 }
 
 static std::string _interrupt_generator_ref_to_string(Ref interrupt_generator_ref) {
-  return std::string(std::format("interrupt_generator <%d>", interrupt_generator_ref));
+  return std::string(pallas::format("interrupt_generator <%d>", interrupt_generator_ref));
 }
 static void _pallas_print_interrupt_generator(Ref interrupt_generator_ref) {
   std::cout << _interrupt_generator_ref_to_string(interrupt_generator_ref);
 }
 
 static std::string _io_file_ref_to_string(Ref io_file_ref) {
-  return std::string(std::format("io_file <%d>", io_file_ref));
+  return std::string(pallas::format("io_file <%d>", io_file_ref));
 }
 static void _pallas_print_io_file(Ref io_file_ref) {
   std::cout << _io_file_ref_to_string(io_file_ref);
 }
 
 static std::string _io_handle_ref_to_string(Ref io_handle_ref) {
-  return std::string(std::format("io_handle <%d>", io_handle_ref));
+  return std::string(pallas::format("io_handle <%d>", io_handle_ref));
 }
 static void _pallas_print_io_handle(Ref io_handle_ref) {
   std::cout << _io_handle_ref_to_string(io_handle_ref);
 }
 
 static std::string _location_group_ref_to_string(Ref location_group_ref) {
-  return std::string(std::format("location_group <%d>", location_group_ref));
+  return std::string(pallas::format("location_group <%d>", location_group_ref));
 }
 static void _pallas_print_location_group(Ref location_group_ref) {
   std::cout << _location_group_ref_to_string(location_group_ref);
@@ -296,7 +326,7 @@ std::string Thread::attributeToString(const struct AttributeData* attr) const {
     type = static_cast<AttributeType>(a->type);
   }
 
-  std::string s1= std::string(std::format("%s <%d>: ", attr_string, attr->ref));
+  std::string s1= std::string(pallas::format("%s <%d>: ", attr_string, attr->ref));
   return s1 + attributeValueToString(attr, type);
 }
 
