@@ -33,32 +33,32 @@ constexpr size_t kStateWordCount = (kPLABlockSize + 31) / 32;
 // [Gamma] Pure numeric helpers and compact-state accessors.
 namespace {
 
-uint64_t abs_i64(int64_t value) {
+static uint64_t abs_i64(int64_t value) {
     return static_cast<uint64_t>(value < 0 ? -value : value);
 }
 
-double abs_f64(double value) {
+static double abs_f64(double value) {
     return value < 0.0 ? -value : value;
 }
 
-double range_sum(const double* prefix, uint16_t start, uint16_t end_inclusive) {
+static double range_sum(const double* prefix, uint16_t start, uint16_t end_inclusive) {
     if (end_inclusive < start) {
         return 0.0;
     }
     return prefix[end_inclusive + 1] - prefix[start];
 }
 
-double sum_of_squares(uint16_t end_inclusive) {
+static double sum_of_squares(uint16_t end_inclusive) {
     const double end_value = static_cast<double>(end_inclusive);
     return end_value * (end_value + 1.0) * (2.0 * end_value + 1.0) / 6.0;
 }
 
-double range_sum_x(uint16_t start, uint16_t end_inclusive) {
+static double range_sum_x(uint16_t start, uint16_t end_inclusive) {
     const double length = static_cast<double>(end_inclusive - start + 1);
     return length * static_cast<double>(start + end_inclusive) / 2.0;
 }
 
-double range_sum_x2(uint16_t start, uint16_t end_inclusive) {
+static double range_sum_x2(uint16_t start, uint16_t end_inclusive) {
     if (end_inclusive < start) {
         return 0.0;
     }
@@ -66,7 +66,7 @@ double range_sum_x2(uint16_t start, uint16_t end_inclusive) {
     return sum_of_squares(end_inclusive) - low;
 }
 
-double segment_fit_score(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
+static double segment_fit_score(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
     if (end_inclusive <= start) {
         return 0.0;
     }
@@ -90,7 +90,7 @@ double segment_fit_score(const GammaBlockStats& stats, uint16_t start, uint16_t 
     return std::max(0.0, sse) / count;
 }
 
-double segment_smoothness_score(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
+static double segment_smoothness_score(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
     if (end_inclusive <= start || stats.value_count <= 1) {
         return 0.0;
     }
@@ -120,14 +120,14 @@ double segment_smoothness_score(const GammaBlockStats& stats, uint16_t start, ui
     return mean_abs_dd + 0.5 * std_delta;
 }
 
-CandidateState get_state(const GammaBlockStats& stats, uint16_t position) {
+static CandidateState get_state(const GammaBlockStats& stats, uint16_t position) {
     const size_t word_index = position / 32;
     const size_t shift = static_cast<size_t>(position % 32) * 2;
     const uint64_t bits = (stats.state_words[word_index] >> shift) & 0x3ULL;
     return static_cast<CandidateState>(bits);
 }
 
-void set_state(const GammaBlockStats& stats, uint16_t position, CandidateState state) {
+static void set_state(const GammaBlockStats& stats, uint16_t position, CandidateState state) {
     const size_t word_index = position / 32;
     const size_t shift = static_cast<size_t>(position % 32) * 2;
     const uint64_t mask = 0x3ULL << shift;
@@ -135,7 +135,7 @@ void set_state(const GammaBlockStats& stats, uint16_t position, CandidateState s
             (stats.state_words[word_index] & ~mask) | (static_cast<uint64_t>(state) << shift);
 }
 
-void initialize_states(const GammaBlockStats& stats, size_t n) {
+static void initialize_states(const GammaBlockStats& stats, size_t n) {
     std::memset(stats.state_words, 0, kStateWordCount * sizeof(uint64_t));
     if (n == 0) {
         return;
@@ -149,7 +149,7 @@ void initialize_states(const GammaBlockStats& stats, size_t n) {
     }
 }
 
-void insert_top_position(uint16_t idx, double score, uint16_t* positions,
+static void insert_top_position(uint16_t idx, double score, uint16_t* positions,
                          double* scores, size_t limit, size_t& count) {
     size_t insert_at = count;
     while (insert_at > 0) {
@@ -176,7 +176,7 @@ void insert_top_position(uint16_t idx, double score, uint16_t* positions,
     }
 }
 
-void insert_sorted_position(uint16_t position, uint16_t* positions, size_t& count) {
+static void insert_sorted_position(uint16_t position, uint16_t* positions, size_t& count) {
     size_t insert_at = count;
     while (insert_at > 0 && positions[insert_at - 1] > position) {
         positions[insert_at] = positions[insert_at - 1];
@@ -191,7 +191,7 @@ void insert_sorted_position(uint16_t position, uint16_t* positions, size_t& coun
 // [Gamma] precomputation and score materialization helpers.
 namespace {
 
-double compute_delta_median(const int64_t* delta, size_t delta_count) {
+static double compute_delta_median(const int64_t* delta, size_t delta_count) {
     if (delta_count == 0) {
         return 0.0;
     }
@@ -210,7 +210,7 @@ double compute_delta_median(const int64_t* delta, size_t delta_count) {
     return (static_cast<double>(sorted_delta[lower]) + static_cast<double>(sorted_delta[upper])) / 2.0;
 }
 
-void prepare_gamma_stats(const uint64_t* values, size_t n, GammaBlockStats& stats) {
+static void prepare_gamma_stats(const uint64_t* values, size_t n, GammaBlockStats& stats) {
     assert(values != nullptr);
     assert(n <= kPLABlockSize);
 
@@ -352,11 +352,11 @@ void prepare_gamma_stats(const uint64_t* values, size_t n, GammaBlockStats& stat
     stats.jarring_threshold = seed_pool_scores[pivot_index];
 }
 
-bool is_jarring_position(const GammaBlockStats& stats, uint16_t position) {
+static bool is_jarring_position(const GammaBlockStats& stats, uint16_t position) {
     return stats.score[position] >= stats.jarring_threshold;
 }
 
-void build_seed_pool(const GammaBlockStats& stats, size_t n, uint16_t* seed_pool, size_t& seed_pool_count) {
+static void build_seed_pool(const GammaBlockStats& stats, size_t n, uint16_t* seed_pool, size_t& seed_pool_count) {
     seed_pool_count = 0;
     for (size_t i = 1; i + 1 < n && seed_pool_count < kGammaSeedPoolSize; ++i) {
         const uint16_t position = stats.order[i];
@@ -366,7 +366,7 @@ void build_seed_pool(const GammaBlockStats& stats, size_t n, uint16_t* seed_pool
     }
 }
 
-size_t select_initial_seeds(const GammaBlockStats& stats, const uint16_t* seed_pool,
+static size_t select_initial_seeds(const GammaBlockStats& stats, const uint16_t* seed_pool,
                             size_t seed_pool_count, size_t target_anchor_count, uint16_t* anchors) {
     if (seed_pool_count == 0 || target_anchor_count == 0) {
         return 0;
@@ -422,7 +422,7 @@ size_t select_initial_seeds(const GammaBlockStats& stats, const uint16_t* seed_p
 // [Gamma] refinement, suppression, and anchor-emission helpers.
 namespace {
 
-double suppressed_overlap(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
+static double suppressed_overlap(const GammaBlockStats& stats, uint16_t start, uint16_t end_inclusive) {
     if (end_inclusive < start) {
         return 0.0;
     }
@@ -436,7 +436,7 @@ double suppressed_overlap(const GammaBlockStats& stats, uint16_t start, uint16_t
     return static_cast<double>(suppressed_count) / length;
 }
 
-int first_blocking_position(const GammaBlockStats& stats, uint16_t anchor_position, uint16_t start,
+static int first_blocking_position(const GammaBlockStats& stats, uint16_t anchor_position, uint16_t start,
                             uint16_t end_inclusive, int direction) {
     if (direction > 0) {
         for (uint16_t position = start; position <= end_inclusive; ++position) {
@@ -464,7 +464,7 @@ int first_blocking_position(const GammaBlockStats& stats, uint16_t anchor_positi
     return -1;
 }
 
-void suppress_direction(const GammaBlockStats& stats, size_t n, uint16_t anchor_position,
+static void suppress_direction(const GammaBlockStats& stats, size_t n, uint16_t anchor_position,
                         int direction, const uint16_t* windows, size_t window_count) {
     const double smoothness_limit = std::max(stats.global_smoothness, 1e-6);
 
@@ -522,7 +522,7 @@ void suppress_direction(const GammaBlockStats& stats, size_t n, uint16_t anchor_
     }
 }
 
-void apply_anchor_suppression(const GammaBlockStats& stats, size_t n, uint16_t anchor_position) {
+static void apply_anchor_suppression(const GammaBlockStats& stats, size_t n, uint16_t anchor_position) {
     suppress_direction(stats,
                        n,
                        anchor_position,
@@ -537,7 +537,7 @@ void apply_anchor_suppression(const GammaBlockStats& stats, size_t n, uint16_t a
                        sizeof(kGammaLeftWindows) / sizeof(kGammaLeftWindows[0]));
 }
 
-void build_segments(const uint16_t* anchors, size_t anchor_count, size_t n,
+static void build_segments(const uint16_t* anchors, size_t anchor_count, size_t n,
                     uint16_t* starts, uint16_t* ends, size_t& segment_count) {
     segment_count = 0;
     uint16_t segment_start = 0;
@@ -552,7 +552,7 @@ void build_segments(const uint16_t* anchors, size_t anchor_count, size_t n,
     ++segment_count;
 }
 
-bool choose_best_refinement(const GammaBlockStats& stats, size_t n, const uint16_t* anchors,
+static bool choose_best_refinement(const GammaBlockStats& stats, size_t n, const uint16_t* anchors,
                             size_t anchor_count, uint16_t& chosen_split) {
     std::array<uint16_t, kPLAMaxAnchors + 1> starts{};
     std::array<uint16_t, kPLAMaxAnchors + 1> ends{};
@@ -625,7 +625,7 @@ bool choose_best_refinement(const GammaBlockStats& stats, size_t n, const uint16
     return true;
 }
 
-void fill_remaining_anchors(const GammaBlockStats& stats, size_t n, uint16_t* anchors, size_t& anchor_count,
+static void fill_remaining_anchors(const GammaBlockStats& stats, size_t n, uint16_t* anchors, size_t& anchor_count,
                             size_t target_anchor_count) {
     if (anchor_count >= target_anchor_count) {
         return;
@@ -655,7 +655,7 @@ void fill_remaining_anchors(const GammaBlockStats& stats, size_t n, uint16_t* an
     }
 }
 
-size_t emit_anchor_records(const uint64_t* values, const uint16_t* anchor_positions,
+static size_t emit_anchor_records(const uint64_t* values, const uint16_t* anchor_positions,
                            size_t anchor_count, PLAAnchor* anchors) {
     for (size_t i = 0; i < anchor_count; ++i) {
         const uint16_t idx = anchor_positions[i];
