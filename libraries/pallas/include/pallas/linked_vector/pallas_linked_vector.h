@@ -26,7 +26,7 @@ typedef struct DurationLinkedVector {
 #include <vector>
 
 #ifdef BMARK
-#include "pallas/utils/pallas_bmark.h"
+#include "pallas/linked_vector/pallas_bmark.h"
 #endif
 
 #include "pallas/utils/pallas_parameter_handler.h"
@@ -359,7 +359,6 @@ class LinkedVectorBase {
      */
     virtual SubArrayBase* create_subarray(SubArrayBase* previous) const = 0;
     
-   #if 1
     public:
     /** @returns Current default storage policy associated with this vector. */
     [[nodiscard]] StoragePolicy get_storage_policy() const {
@@ -369,7 +368,6 @@ class LinkedVectorBase {
     [[nodiscard]] std::vector<StoragePolicy> get_sub_array_policies() const;
     /** @returns Storage policy of the currently loaded subarrays only. */
     [[nodiscard]] std::vector<StoragePolicy> get_loaded_sub_array_policies() const;
-   #endif
 };
 
 /**

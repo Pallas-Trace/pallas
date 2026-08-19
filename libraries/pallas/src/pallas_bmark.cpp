@@ -5,7 +5,7 @@
 
 #ifdef BMARK
 
-#include "pallas/utils/pallas_bmark.h"
+#include "pallas/linked_vector/pallas_bmark.h"
 
 #include <algorithm>
 #include <chrono>

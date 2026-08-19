@@ -15,7 +15,7 @@
 #include "pallas/pallas_write.h"
 
 #ifdef BMARK
-#include "pallas/utils/pallas_bmark.h"
+#include "pallas/linked_vector/pallas_bmark.h"
 #endif
 
 #include "pallas/linked_vector/pallas_linked_vector.h"

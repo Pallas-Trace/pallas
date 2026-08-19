@@ -26,7 +26,7 @@
 
 #include "pallas/utils/pallas_parameter_handler.h"
 #ifdef BMARK
-#include "pallas/utils/pallas_bmark.h"
+#include "pallas/linked_vector/pallas_bmark.h"
 #endif
 
 #ifndef DEFAULT_VECTOR_SIZE
