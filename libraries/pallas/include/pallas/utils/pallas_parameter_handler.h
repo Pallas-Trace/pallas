@@ -247,7 +247,7 @@ class ParameterHandler {
      * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
      * @return String containing itself.
      */
-    [[nodiscard]] std::string to_string() const;
+    [[nodiscard]] std::string to_string(const std::string padding="") const;
 };
 
 }  // namespace pallas

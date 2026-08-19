@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <cmath>
+#include <iostream>
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
@@ -328,6 +329,7 @@ namespace pallas {
             return;
         }
 
+        std::cout<<"Write a PLA chunk\n";
         const long current_offset = std::ftell(data_file);
         if (current_offset >= 0) {
             parent.file_offset = static_cast<size_t>(current_offset);

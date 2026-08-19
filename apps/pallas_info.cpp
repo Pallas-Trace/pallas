@@ -306,14 +306,7 @@ void info_global_archive(GlobalArchive* archive) {
 
   const auto* parameter_handler = archive->parameter_handler;
   std::cout << "\nConfiguration:\n"
-            << "\tCompression Algorithm: " << toString(parameter_handler->getCompressionAlgorithm()) << "\n"
-            << "\tEncoding algorithm: " << toString(parameter_handler->getEncodingAlgorithm()) << "\n"
-            << "\tLoop-finding algorithm: " << toString(parameter_handler->getLoopFindingAlgorithm()) << "\n";
-  if (parameter_handler->getLoopFindingAlgorithm() == LoopFindingAlgorithm::BasicTruncated) {
-    std::cout << "\tMax loop length: " << parameter_handler->getMaxLoopLength() << "\n";
-  }
-  std::cout << "\tZSTD compression level: " << static_cast<unsigned>(parameter_handler->getZstdCompressionLevel()) << "\n"
-            << "\tTimestamp storage: " << toString(parameter_handler->getTimestampStorage()) << "\n";
+            << parameter_handler->to_string("\t")<<"\n";
 
   if (cmd & show_definitions) {
     info_definitions(archive->definitions);

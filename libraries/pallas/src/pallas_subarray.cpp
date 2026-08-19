@@ -4,6 +4,7 @@
  */
 
 #include <cstring>
+#include <iostream>
 
 #ifdef BMARK
 #include "pallas/linked_vector/pallas_bmark.h"
@@ -235,6 +236,7 @@ void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_
         return;
     }
 
+    std::cout<<"Write a None chunk\n";
     const long current_offset = std::ftell(data_file);
     if (current_offset >= 0) {
         parent.file_offset = static_cast<size_t>(current_offset);

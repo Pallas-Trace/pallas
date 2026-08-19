@@ -466,18 +466,18 @@ TimestampStorage ParameterHandler::getTimestampStorage() const {
   return timestampStorage;
 }
 
-std::string ParameterHandler::to_string() const {
+std::string ParameterHandler::to_string(const std::string padding) const {
   std::stringstream stream("");
-  stream << "compressionAlgorithm=" << toString(compressionAlgorithm) << "\n";
-  stream << "encodingAlgorithm=" << toString(encodingAlgorithm) << "\n";
-  stream << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
-  stream << "maxLoopLength=" << maxLoopLength << "\n";
-  stream << "overrideLoopDetection=" << (overrideLoopDetection ? "true" : "false") << "\n";
-  stream << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
-  stream << "timestampStorageAlgorithm=" << toString(timestampStorage) << "\n";
-  stream << "storagePolicy=" << toString(storagePolicy) << "\n";
-  stream << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
-  stream << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
+  stream << padding << "compressionAlgorithm=" << toString(compressionAlgorithm) << "\n";
+  stream << padding << "encodingAlgorithm=" << toString(encodingAlgorithm) << "\n";
+  stream << padding << "loopFindingAlgorithm=" << toString(loopFindingAlgorithm) << "\n";
+  stream << padding << "maxLoopLength=" << maxLoopLength << "\n";
+  stream << padding << "overrideLoopDetection=" << (overrideLoopDetection ? "true" : "false") << "\n";
+  stream << padding << "zstdCompressionLevel=" << zstdCompressionLevel << "\n";
+  stream << padding << "timestampStorageAlgorithm=" << toString(timestampStorage) << "\n";
+  stream << padding << "storagePolicy=" << toString(storagePolicy) << "\n";
+  stream << padding << "timeLossyPolicy=" << toString(timeLossyPolicy) << "\n";
+  stream << padding << "durationLossyPolicy=" << toString(durationLossyPolicy) << "\n";
   return stream.str();
 }
 
