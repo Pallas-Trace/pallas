@@ -35,7 +35,6 @@ set(PALLAS_UTILS_HEADERS
         include/pallas/utils/pallas_timestamp.h
         include/pallas/utils/pallas_parameter_handler.h
         include/pallas/linked_vector/pallas_bmark.h
-        include/pallas/linked_vector/pallas_pla.h
         include/pallas/linked_vector/pallas_linked_vector.h
         include/pallas/linked_vector/pallas_subarray.h
         include/pallas/linked_vector/pallas_subarray_delta.h
