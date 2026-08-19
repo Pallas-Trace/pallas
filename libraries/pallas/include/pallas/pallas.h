@@ -19,7 +19,7 @@
 
 #include "utils/pallas_dbg.h"
 #include "utils/pallas_log.h"
-#include "utils/pallas_linked_vector.h"
+#include "linked_vector/pallas_linked_vector.h"
 #include "utils/pallas_timestamp.h"
 
 #ifdef __cplusplus

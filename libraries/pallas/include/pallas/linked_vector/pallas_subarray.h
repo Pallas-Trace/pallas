@@ -8,8 +8,8 @@
  */
 #pragma once
 
-#include "pallas_timestamp.h"
-#include "pallas/utils/pallas_pla.h"
+#include "pallas/utils/pallas_timestamp.h"
+#include "pallas_pla.h"
 
 #ifndef __cplusplus
 #include <stdint.h>

@@ -9,7 +9,7 @@
 #include <cmath>
 #include <cstring>
 
-#include "pallas/utils/pallas_pla.h"
+#include "pallas/linked_vector/pallas_pla.h"
 
 namespace pallas {
 

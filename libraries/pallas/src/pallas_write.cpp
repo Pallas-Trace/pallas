@@ -18,7 +18,7 @@
 #include "pallas/utils/pallas_bmark.h"
 #endif
 
-#include "pallas/utils/pallas_linked_vector.h"
+#include "pallas/linked_vector/pallas_linked_vector.h"
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"

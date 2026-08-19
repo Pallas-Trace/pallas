@@ -29,7 +29,7 @@ typedef struct DurationLinkedVector {
 #include "pallas/utils/pallas_bmark.h"
 #endif
 
-#include "pallas_parameter_handler.h"
+#include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas_subarray.h"
 
 namespace pallas {

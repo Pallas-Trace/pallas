@@ -12,7 +12,7 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
-#include "pallas/utils/pallas_linked_vector.h"
+#include "pallas/linked_vector/pallas_linked_vector.h"
 
 /** Methods Pertaining to LinkedVectorBase class */
 namespace pallas {

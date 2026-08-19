@@ -15,7 +15,7 @@
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
 #include "pallas/utils/pallas_parameter_handler.h"
-#include "pallas/utils/pallas_subarray.h"
+#include "pallas/linked_vector/pallas_subarray.h"
 
 namespace pallas {
 
