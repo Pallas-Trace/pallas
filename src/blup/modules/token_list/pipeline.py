@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from blup.types import TraceMode
 from bokeh.models.layouts import LayoutDOM
 
 from blup.data_model import FidelityMode
@@ -19,8 +20,9 @@ from blup.modules.token_list.types import (
 from blup.state import (
     ContextPatch,
     ModuleID,
+    ModulePatch,
+    TokenListPatch,
     TokenSelectionPatch,
-    TraceMode,
 )
 
 if TYPE_CHECKING:
@@ -30,10 +32,6 @@ if TYPE_CHECKING:
 
 class TokenListPipeline:
     module_id: ModuleID = "token_list"
-
-    # TODO: move these to state
-    _TOP_K = -1  # -1: list all
-    _FIDELITY: FidelityMode = "fast"
 
     root: LayoutDOM | None
     host: "AppController | None"
@@ -69,20 +67,30 @@ class TokenListPipeline:
         self.host = host
         self.table.on_token_selected = (
             lambda token: host.update_state(
-                context=ContextPatch(
-                    selection=TokenSelectionPatch(
+                context = ContextPatch(
+                    selection = TokenSelectionPatch(
                         token=token,
                     ),
                 ),
             )
         )
         self.table.on_order_changed = (
-            # TODO: implement
-            lambda order: self._patch_module_config(host, order=order)
+            lambda order: host.update_state(
+                modules = ModulePatch(
+                    token_list = TokenListPatch(
+                        order=order,
+                    ),
+                ),
+            )
         )
         self.table.on_direction_changed = (
-            # TODO: implement
-            lambda direction: self._patch_module_config(host, direction=direction)
+            lambda direction: host.update_state(
+                modules = ModulePatch(
+                    token_list = TokenListPatch(
+                        direction=direction,
+                    ),
+                ),
+            )
         )
 
     def refresh(self, host: "AppController") -> None:
@@ -175,7 +183,6 @@ class TokenListPipeline:
         trace_mode: TraceMode,
     ) -> TokenListUpdateContext:
         app_ctx = host.state.context
-        # TODO: implement in state
         mod_cfg = host.state.modules.token_list
         trace_ids = app_ctx.traces.trace_ids
 
@@ -198,7 +205,7 @@ class TokenListPipeline:
                 token_name_by_key = dict(upper_session.meta.token_key_to_name),
                 summarize_tokens = (
                     lambda query, session=upper_session
-                        : session.summarize_tokens(query)
+                        : session.query_summary(query)
                 )
             )
         }
@@ -214,7 +221,7 @@ class TokenListPipeline:
                 token_name_by_key = dict(lower_session.meta.token_key_to_name),
                 summarize_tokens = (
                     lambda query, session=lower_session
-                        : session.summarize_tokens(query)
+                        : session.query_summary(query)
                 )
             )
 
@@ -223,8 +230,8 @@ class TokenListPipeline:
             lower_trace_id,
             active_thread_names,
             trace_mode,
-            self._TOP_K,
-            self._FIDELITY,
+            mod_cfg.top_k,
+            mod_cfg.fidelity,
             mod_cfg.order,
             mod_cfg.direction,
             app_ctx.token_mode,
@@ -236,9 +243,9 @@ class TokenListPipeline:
         return TokenListUpdateContext(
             request_key     = request_key,
             trace_context   = trace_context,
-            fidelity        = self._FIDELITY,
+            fidelity        = mod_cfg.fidelity,
             token_mode      = app_ctx.token_mode,
-            top_k           = self._TOP_K,
+            top_k           = mod_cfg.top_k,
             order           = mod_cfg.order,
             direction       = mod_cfg.direction,
             color_map       = color_map,
@@ -248,23 +255,5 @@ class TokenListPipeline:
         # TODO: implement standard app-wide way to store/access this
         label = getattr(session, "label", None)
         return str(label) if label else str(trace_id)
-
-    def _patch_module_config(
-        self,
-        host: "AppController",
-        *,
-        order: str | None = None,
-        direction: str | None = None,
-    ) -> None:
-        # TODO: confirm the module-config patch API in state.py and route
-        # order/direction changes through it, e.g.:
-        # host.update_state(
-        #     modules=ModulePatch(
-        #         token_list=TokenListPatch(order=order, direction=direction),
-        #     ),
-        # )
-        raise NotImplementedError(
-            "token_list module-config patching is not wired yet"
-        )
 
 

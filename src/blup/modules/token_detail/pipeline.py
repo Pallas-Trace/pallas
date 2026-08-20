@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from blup.types import ThreadName, TimestampNS, TraceMode
 from bokeh.models.layouts import LayoutDOM
 
 from blup.data_model import FidelityMode
@@ -11,6 +12,7 @@ from blup.modules.token_detail.surface import TokenDetailSurface
 from blup.modules.token_detail.types import (
     TokenDetailHistogramResult,
     TokenDetailResult,
+    TokenDetailScatterResult,
     TokenDetailTableModel,
     TokenDetailTableResult,
     TokenDetailTraceContext,
@@ -24,7 +26,6 @@ from blup.state import (
     ContextPatch,
     ModuleID,
     TokenSelectionPatch,
-    TraceMode,
 )
 
 if TYPE_CHECKING:
@@ -34,12 +35,6 @@ if TYPE_CHECKING:
 
 class TokenDetailPipeline:
     module_id: ModuleID = "token_detail"
-    active: bool
-
-    # TODO: lift these to state level options
-    _TOP_K = 32
-    _HISTOGRAM_BINS = 20
-    _FIDELITY: FidelityMode = "fast"
 
     root: LayoutDOM | None
     host: "AppController | None"
@@ -48,18 +43,6 @@ class TokenDetailPipeline:
 
     _pending_update: TokenDetailUpdate | None
     _active_update: TokenDetailUpdate | None
-
-    def __init__(self, *, height: int = 700) -> None:
-        self.active = False
-
-        self.root = None
-        self.host = None
-
-        self.surface = TokenDetailSurface(height=height)
-        self.assembler = TokenDetailAssembler()
-
-        self._pending_update = None
-        self._active_update = None
 
     @property
     def subscribed_state(self) -> tuple[str, ...]:
@@ -72,21 +55,22 @@ class TokenDetailPipeline:
             "modules.token_detail",
         )
 
+    def __init__(self, *, height: int = 700) -> None:
+        self.root = None
+        self.host = None
+
+        self.surface = TokenDetailSurface(height=height)
+        self.assembler = TokenDetailAssembler()
+
+        self._pending_update = None
+        self._active_update = None
+
     def build(self) -> LayoutDOM:
         self.root = self.surface.build()
         return self.root
 
     def bind(self, host: "AppController") -> None:
         self.host = host
-        self.surface.on_token_selected = (
-            lambda token: host.update_state(
-                context=ContextPatch(
-                    selection=TokenSelectionPatch(
-                        token=token,
-                    ),
-                ),
-            )
-        )
 
     def refresh(self, host: "AppController") -> None:
         update = self.prepare_update(host)
@@ -113,7 +97,6 @@ class TokenDetailPipeline:
 
         upper = sessions[0]
         lower = sessions[1] if len(sessions) >= 2 else None
-
         trace_mode: TraceMode = "dual" if lower is not None else "single"
 
         bounds = host.trace_registry.time_bounds_for(trace_ids)
@@ -148,28 +131,27 @@ class TokenDetailPipeline:
             end_ns = full_end_ns
 
         update_ctx = self._freeze_update_context(
-            host=host,
-            upper_session=upper,
-            lower_session=lower,
-            active_thread_names=active_threads,
-            start_ns=int(start_ns),
-            end_ns=int(end_ns),
-            trace_mode=trace_mode,
+            host                    = host,
+            upper_session           = upper,
+            lower_session           = lower,
+            active_thread_names     = active_threads,
+            start_ns                = int(start_ns),
+            end_ns                  = int(end_ns),
+            trace_mode              = trace_mode,
         )
 
         mod_cfg = host.state.modules.token_detail
 
         return TokenDetailUpdate(
-            active_thread_names=active_threads,
-            start_ns=int(start_ns),
-            end_ns=int(end_ns),
-            selected_token=app_ctx.selection.token,
-            trace_mode=trace_mode,
-            chart_mode=mod_cfg.chart_mode,
-            table_mode=mod_cfg.table_mode,
-            show_stats=mod_cfg.show_stats,
-            show_chart=mod_cfg.show_chart,
-            context=update_ctx,
+            active_thread_names     = active_threads,
+            start_ns                = int(start_ns),
+            end_ns                  = int(end_ns),
+            selected_token          = app_ctx.selection.token,
+            trace_mode              = trace_mode,
+            chart_mode              = mod_cfg.chart_mode,
+            show_stats              = mod_cfg.show_stats,
+            show_chart              = mod_cfg.show_chart,
+            context                 = update_ctx,
         )
 
     def start_update(self) -> None:
@@ -183,12 +165,12 @@ class TokenDetailPipeline:
         self._pending_update = None
 
         self.surface.prepare_display(
-            start_ns=update.start_ns,
-            end_ns=update.end_ns,
-            trace_mode=update.trace_mode,
-            chart_mode=update.chart_mode,
-            show_stats=update.show_stats,
-            show_chart=update.show_chart,
+            start_ns        = update.start_ns,
+            end_ns          = update.end_ns,
+            trace_mode      = update.trace_mode,
+            chart_mode      = update.chart_mode,
+            show_stats      = update.show_stats,
+            show_chart      = update.show_chart,
         )
 
     def apply_result(self, result: TokenDetailResult) -> None:
@@ -198,9 +180,10 @@ class TokenDetailPipeline:
 
         if isinstance(result, TokenDetailTableResult):
             self.surface.apply_table_result(result.model)
-            self._maybe_fix_selection(update, result.model)
         elif isinstance(result, TokenDetailHistogramResult):
-            self.surface.apply_histogram_result(result.src)
+            self.surface.apply_histogram_result(result)
+        elif isinstance(result, TokenDetailScatterResult):
+            self.surface.apply_scatter_result(result)
         else:
             raise TypeError(
                 f"unexpected token_detail result: {type(result)!r}"
@@ -214,9 +197,9 @@ class TokenDetailPipeline:
         host: "AppController",
         upper_session: "TraceSession",
         lower_session: "TraceSession | None",
-        active_thread_names: tuple[str, ...],
-        start_ns: int,
-        end_ns: int,
+        active_thread_names: tuple[ThreadName, ...],
+        start_ns: TimestampNS,
+        end_ns: TimestampNS,
         trace_mode: TraceMode,
     ) -> TokenDetailUpdateContext:
         app_ctx = host.state.context
@@ -242,23 +225,22 @@ class TokenDetailPipeline:
             active_thread_names,
             app_ctx.selection.token,
             app_ctx.token_mode,
-            self._FIDELITY,
-            self._TOP_K,
-            self._HISTOGRAM_BINS,
             mod_cfg.chart_mode,
-            mod_cfg.table_mode,
+            mod_cfg.n_bins,
+            mod_cfg.top_k,
+            mod_cfg.fidelity,
             trace_mode,
             start_ns,
             end_ns,
         )
 
         return TokenDetailUpdateContext(
-            request_key=request_key,
-            trace_context=trace_context,
-            fidelity=self._FIDELITY,
-            token_mode=app_ctx.token_mode,
-            top_k=self._TOP_K,
-            histogram_bins=self._HISTOGRAM_BINS,
+            request_key     = request_key,
+            trace_context   = trace_context,
+            fidelity        = mod_cfg.fidelity,
+            token_mode      = app_ctx.token_mode,
+            top_k           = mod_cfg.top_k,
+            histogram_bins  = mod_cfg.n_bins,
         )
 
     def _trace_context_for(
@@ -267,48 +249,26 @@ class TokenDetailPipeline:
         trace_id,
     ) -> TokenDetailTraceContext:
         return TokenDetailTraceContext(
-            label=self._trace_label(session, trace_id),
-            thread_name_to_id={
+            label = self._trace_label(session, trace_id),
+            thread_name_to_id = {
                 str(k): int(v)
                 for k, v in session.meta.thread_name_to_id.items()
             },
-            token_name_by_key=dict(session.meta.token_key_to_name),
-            summarize_tokens=(
-                lambda query, s=session: s.summarize_tokens(query)
+            token_name_by_key = dict(session.meta.token_key_to_name),
+            summarize_tokens = (
+                lambda query, s=session: s.query_summary(query)
             ),
-            query_histogram=(
+            query_histogram = (
                 lambda query, s=session: s.query_histogram(query)
             ),
+            query_occurrences = (
+                lambda query, s=session: s.query_occurrences(query)
+            )
         )
 
     def _trace_label(self, session: "TraceSession", trace_id) -> str:
-        # TODO: confirm the registry/session label API; falls back to the
-        # trace id so table headers stay meaningful.
+        # TODO: implement 'label' state system
         label = getattr(session, "label", None)
         return str(label) if label else str(trace_id)
 
-    def _maybe_fix_selection(
-        self,
-        update: TokenDetailUpdate,
-        model: TokenDetailTableModel,
-    ) -> None:
-        host = self.host
-        if host is None:
-            return
 
-        current_value = token_to_select_value(update.selected_token)
-        if current_value == "":
-            return
-
-        valid_values = {value for value, _ in model.options}
-        if current_value in valid_values:
-            return
-
-        next_value = model.options[0][0] if model.options else ""
-        host.update_state(
-            context=ContextPatch(
-                selection=TokenSelectionPatch(
-                    token=select_value_to_token(next_value),
-                ),
-            ),
-        )

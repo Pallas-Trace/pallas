@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from blup.state import TokenListOrder, TokenListSortDirection
+from blup.types import TokenKey, TraceMode
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models.layouts import LayoutDOM
@@ -13,15 +15,10 @@ from bokeh.models.widgets.tables import (
 )
 from bokeh.plotting import ColumnDataSource
 
-from blup.modules.token_list.types import (
-    SortDirection,
-    TokenListOrder,
-    TokenListResult,
-)
-from blup.state import TraceMode
+from blup.modules.token_list.types import TokenListResult
 
 
-_ORDER_OPTIONS: list[tuple[str, str]] = [
+_ORDER_OPTIONS: list[tuple[TokenListOrder, str]] = [
     ("delta", "Delta excl"),
     ("excl", "Excl (upper)"),
     ("calls", "Call count"),
@@ -29,9 +26,9 @@ _ORDER_OPTIONS: list[tuple[str, str]] = [
     ("token", "Token id"),
 ]
 
-_DIRECTION_OPTIONS: list[tuple[str, str]] = [
-    ("desc", "Desc"),
-    ("asc", "Asc"),
+_DIRECTION_OPTIONS: list[tuple[TokenListSortDirection, str]] = [
+    ("descending", "Desc"),
+    ("ascending", "Asc"),
 ]
 
 _COLOR_CHIP_TEMPLATE = (
@@ -72,10 +69,14 @@ class TokenListTable:
         self.direction_select: Select | None = None
 
         self.on_token_selected: (
-            Callable[[tuple[int, int] | None], None] | None
+            Callable[[TokenKey | None], None] | None
         ) = None
-        self.on_order_changed: Callable[[str], None] | None = None
-        self.on_direction_changed: Callable[[str], None] | None = None
+        self.on_order_changed: (
+            Callable[[TokenListOrder], None] | None
+        ) = None
+        self.on_direction_changed: (
+            Callable[[TokenListSortDirection], None] | None
+        ) = None
 
         self._ignore_selection_callbacks = False
         self._ignore_widget_callbacks = False
@@ -87,17 +88,17 @@ class TokenListTable:
         self.doc = curdoc()
 
         self.order_select = Select(
-            title="Order by",
-            value="delta",
-            options=_ORDER_OPTIONS,                                         # type: ignore[attr-defined]
-            width=150,
+            title       = "Order by",
+            value       = "delta",
+            options     = _ORDER_OPTIONS,                                   # type: ignore[attr-defined]
+            width       = 150,
         )
         self.order_select.on_change("value", self._on_order_widget)
 
         self.direction_select = Select(
             title       = "Direction",
             value       = "desc",
-            options     = _DIRECTION_OPTIONS,                                     # type: ignore[attr-defined]
+            options     = _DIRECTION_OPTIONS,                               # type: ignore[attr-defined]
             width       = 90,
         )
         self.direction_select.on_change("value", self._on_direction_widget)
@@ -110,16 +111,35 @@ class TokenListTable:
             width       = 30,
             formatter   = color_formatter,
         )
-        col_name = TableColumn(field="name", title="Token")
-        col_id = TableColumn(field="id_label", title="ID", width=70)
+        col_name = TableColumn(
+            field       = "name",
+            title       = "Token",
+        )
+        col_id = TableColumn(
+            field       = "id_label",
+            title       = "ID",
+            width       = 70,
+        )
         col_excl_upper = TableColumn(
-            field="excl_upper", title="Excl (upper)", width=90
+            field       = "excl_upper",
+            title       = "Excl (upper)",
+            width       = 90,
         )
         col_excl_lower = TableColumn(
-            field="excl_lower", title="Excl (lower)", width=90
+            field       = "excl_lower",
+            title       = "Excl (lower)",
+            width       = 90,
         )
-        col_delta = TableColumn(field="delta_excl", title="Delta excl", width=90)
-        col_share = TableColumn(field="share", title="Share", width=70)
+        col_delta = TableColumn(
+            field       = "delta_excl",
+            title       = "Delta excl",
+            width       = 90,
+        )
+        col_share = TableColumn(
+            field       = "share",
+            title       = "Share",
+            width       = 70,
+        )
 
         self._single_columns = [col_color, col_name, col_id, col_excl_upper]
         self._dual_columns = [
@@ -161,7 +181,7 @@ class TokenListTable:
         *,
         trace_mode: TraceMode,
         order: TokenListOrder,
-        direction: SortDirection,
+        direction: TokenListSortDirection,
     ) -> None:
         table = self.table
         if table is None:
@@ -242,14 +262,26 @@ class TokenListTable:
         if self.on_token_selected is not None:
             self.on_token_selected(token)
 
-    def _on_order_widget(self, attr: str, old: str, new: str) -> None:
+    def _on_order_widget(
+        self,
+        attr: str,
+        old: TokenListOrder,
+        new: TokenListOrder,
+    ) -> None:
         if self._ignore_widget_callbacks:
             return
         if self.on_order_changed is not None:
             self.on_order_changed(new)
 
-    def _on_direction_widget(self, attr: str, old: str, new: str) -> None:
+    def _on_direction_widget(
+        self,
+        attr: str,
+        old: TokenListSortDirection,
+        new: TokenListSortDirection
+    ) -> None:
         if self._ignore_widget_callbacks:
             return
         if self.on_direction_changed is not None:
             self.on_direction_changed(new)
+
+

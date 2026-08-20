@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from blup.data_model import SummaryQuery, TraceSummary, as_token_key
+from blup.data_model import SummaryQuery, SummaryBundle
 from blup.modules.interface import WorkJob
 from blup.modules.token_list.types import (
-    SortDirection,
+    TokenListSortDirection,
     TokenListJob,
     TokenListOrder,
     TokenListRequest,
@@ -12,37 +12,14 @@ from blup.modules.token_list.types import (
     TokenListTraceContext,
     TokenListUpdate,
 )
+from blup.types import ColorHex, ThreadID, TokenKey, TokenName
+from blup.utils import as_token_key, format_duration_delta_ns, format_duration_ns
 
-
-# TODO: duplicated from token_detail.assembler; find a better home for both
-def _format_duration_ns(value: float) -> str:
-    sign = "-" if value < 0 else ""
-    x = abs(float(value))
-    if x < 1_000:
-        return f"{sign}{x:.0f} ns"
-    if x < 1_000_000:
-        return f"{sign}{x / 1_000:.3f} us"
-    if x < 1_000_000_000:
-        return f"{sign}{x / 1_000_000:.3f} ms"
-    return f"{sign}{x / 1_000_000_000:.3f} s"
-
-def _format_duration_delta_ns(value: float) -> str:
-    if value == 0:
-        return "0 ns"
-    sign = "+" if value > 0 else "-"
-    x = abs(float(value))
-    if x < 1_000:
-        return f"{sign}{x:.0f} ns"
-    if x < 1_000_000:
-        return f"{sign}{x / 1_000:.3f} us"
-    if x < 1_000_000_000:
-        return f"{sign}{x / 1_000_000:.3f} ms"
-    return f"{sign}{x / 1_000_000_000:.3f} s"
 
 def _thread_ids_for(
     trace_ctx: TokenListTraceContext,
     active_thread_names: tuple[str, ...],
-) -> tuple[int, ...]:
+) -> tuple[ThreadID, ...]:
     return tuple(
         trace_ctx.thread_name_to_id[name]
         for name in active_thread_names
@@ -114,8 +91,8 @@ class TokenListAssembler:
         rows = self._build_rows(
             upper_summary,
             lower_summary,
-            upper_names=upper_ctx.token_name_by_key,
-            lower_names=(
+            upper_names = upper_ctx.token_name_by_key,
+            lower_names = (
                 {} if lower_ctx is None else lower_ctx.token_name_by_key
             ),
         )
@@ -132,7 +109,7 @@ class TokenListAssembler:
         self,
         trace_ctx: TokenListTraceContext,
         update: TokenListUpdate,
-    ) -> TraceSummary:
+    ) -> SummaryBundle:
         ctx = update.context
         thread_ids = _thread_ids_for(trace_ctx, update.active_thread_names)
         query = SummaryQuery(
@@ -146,11 +123,11 @@ class TokenListAssembler:
 
     def _build_rows(
         self,
-        upper_summary: TraceSummary,
-        lower_summary: TraceSummary | None,
+        upper_summary: SummaryBundle,
+        lower_summary: SummaryBundle | None,
         *,
-        upper_names: dict[str, str],
-        lower_names: dict[str, str],
+        upper_names: dict[TokenKey, TokenName],
+        lower_names: dict[TokenKey, TokenName],
     ) -> list[TokenListRow]:
         by_upper = {
             (r.token_type, r.token_id): r for r in upper_summary.tokens
@@ -237,7 +214,7 @@ class TokenListAssembler:
         self,
         rows: list[TokenListRow],
         order: TokenListOrder,
-        direction: SortDirection,
+        direction: TokenListSortDirection,
     ) -> list[TokenListRow]:
         if direction not in ("asc", "desc"):
             raise ValueError(f"invalid token_list direction: {direction!r}")
@@ -252,7 +229,7 @@ class TokenListAssembler:
         self,
         rows: list[TokenListRow],
         *,
-        color_map: dict[str, str],
+        color_map: dict[TokenKey, ColorHex],
         dual_mode: bool,
     ) -> dict:
         src = _empty_source()
@@ -265,14 +242,14 @@ class TokenListAssembler:
             src["token_id"].append(r.token_id)
             src["rank"].append(r.contribution_rank)
             src["excl_upper"].append(
-                _format_duration_ns(r.excl_total_ns_upper)
+                format_duration_ns(r.excl_total_ns_upper)
             )
             if dual_mode:
                 src["excl_lower"].append(
-                    _format_duration_ns(r.excl_total_ns_lower)
+                    format_duration_ns(r.excl_total_ns_lower)
                 )
                 src["delta_excl"].append(
-                    _format_duration_delta_ns(r.delta_excl_total_ns)
+                    format_duration_delta_ns(r.delta_excl_total_ns)
                 )
                 src["share"].append(f"{r.contribution_share_pct:.1f}%")
             else:

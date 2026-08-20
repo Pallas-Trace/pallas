@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 
 from blup.data_model import (
-    SnapshotHistogram,
-    SnapshotHistogramQuery,
+    HistogramBundle,
+    HistogramQuery,
+    OccurrenceBundle,
+    OccurrenceQuery,
     SummaryQuery,
-    TraceSummary,
-    as_token_key,
+    SummaryBundle,
 )
 from blup.modules.interface import WorkJob
 from blup.modules.token_detail.types import (
@@ -15,13 +16,17 @@ from blup.modules.token_detail.types import (
     TokenDetailHistogramResult,
     TokenDetailJob,
     TokenDetailRequest,
+    TokenDetailResult,
+    TokenDetailScatterResult,
     TokenDetailTableModel,
     TokenDetailTableResult,
     TokenDetailTraceContext,
     TokenDetailUpdate,
     token_to_select_value,
 )
-from blup.state import TokenDetailTableMode
+from blup.types import ThreadID, ThreadName, TokenKey, TokenName, TraceSide
+from blup.utils import as_token_key, format_duration_delta_ns, format_duration_ns, format_percent_diff, timed
+
 
 _METRIC_NAMES = (
     "Contribution rank",
@@ -33,43 +38,12 @@ _METRIC_NAMES = (
     "Total inclusive",
     "Total exclusive",
 )
-_COMPACT_METRIC_INDEXES = (2, 3, 5, 7)
 
-
-def _format_percent_diff(v1: float, v2: float) -> str:
-    if v1 == 0:
-        return "0.0%" if v2 == 0 else "—"
-    pct = ((v2 - v1) / v1) * 100.0
-    return f"{pct:+.1f}%"
-
-def _format_duration_ns(value: float) -> str:
-    sign = "-" if value < 0 else ""
-    x = abs(float(value))
-    if x < 1_000:
-        return f"{sign}{x:.0f} ns"
-    if x < 1_000_000:
-        return f"{sign}{x / 1_000:.3f} us"
-    if x < 1_000_000_000:
-        return f"{sign}{x / 1_000_000:.3f} ms"
-    return f"{sign}{x / 1_000_000_000:.3f} s"
-
-def _format_duration_delta_ns(value: float) -> str:
-    if value == 0:
-        return "0 ns"
-    sign = "+" if value > 0 else "-"
-    x = abs(float(value))
-    if x < 1_000:
-        return f"{sign}{x:.0f} ns"
-    if x < 1_000_000:
-        return f"{sign}{x / 1_000:.3f} us"
-    if x < 1_000_000_000:
-        return f"{sign}{x / 1_000_000:.3f} ms"
-    return f"{sign}{x / 1_000_000_000:.3f} s"
 
 def _thread_ids_for(
     trace_ctx: TokenDetailTraceContext,
-    active_thread_names: tuple[str, ...],
-) -> tuple[int, ...]:
+    active_thread_names: tuple[ThreadName, ...],
+) -> tuple[ThreadID, ...]:
     return tuple(
         trace_ctx.thread_name_to_id[name]
         for name in active_thread_names
@@ -77,16 +51,14 @@ def _thread_ids_for(
     )
 
 def _empty_histogram_source() -> dict:
-    return {
-        "left": [],
-        "right": [],
-        "upper": [],
-        "lower": [],
-        "delta": [],
-    }
+    return {"left": [], "right": [], "top": []}
+
+def _empty_scatter_source() -> dict:
+    return {"x": [], "y": []}
 
 
 class TokenDetailAssembler:
+
     def __init__(self) -> None:
         pass
 
@@ -95,7 +67,14 @@ class TokenDetailAssembler:
             TokenDetailJob(kind="table", update=update),
         ]
         if update.selected_token is not None:
-            jobs.append(TokenDetailJob(kind="histogram", update=update))
+            for side in update.context.trace_context:
+                jobs.append(
+                    TokenDetailJob(
+                        kind        = update.chart_mode,
+                        trace_side  = side,
+                        update      = update,
+                    )
+                )
 
         return TokenDetailRequest(
             request_key     = update.request_key,
@@ -114,14 +93,25 @@ class TokenDetailAssembler:
     def run_job(
         self,
         job: WorkJob[TokenDetailJob],
-    ) -> TokenDetailTableResult | TokenDetailHistogramResult:
+    ) -> TokenDetailResult:
         payload = job.payload
 
         if payload.kind == "table":
             return self._run_table_job(payload.update)
+
+        side = payload.trace_side
+        if side is None:
+            raise ValueError(
+                f"token_detail {payload.kind} job requires a trace_side"
+            )
+
         if payload.kind == "histogram":
-            return self._run_histogram_job(payload.update)
+            return self._run_histogram_job(payload.update, side)
+        if payload.kind == "scatter":
+            return self._run_scatter_job(payload.update, side)
         raise ValueError(f"invalid token_detail job kind: {payload.kind!r}")
+
+    # ---------------- table job ----------------
 
     def _run_table_job(self, update: TokenDetailUpdate) -> TokenDetailTableResult:
         ctx = update.context
@@ -138,19 +128,18 @@ class TokenDetailAssembler:
         rows = self._build_rows(
             upper_summary,
             lower_summary,
-            upper_names=upper_ctx.token_name_by_key,
-            lower_names=(
+            upper_names = upper_ctx.token_name_by_key,
+            lower_names = (
                 {} if lower_ctx is None else lower_ctx.token_name_by_key
             ),
         )
 
         model = self._build_table_model(
             rows,
-            selected_token=update.selected_token,
-            table_mode=update.table_mode,
-            dual_mode=lower_ctx is not None,
-            upper_label=upper_ctx.label,
-            lower_label="" if lower_ctx is None else lower_ctx.label,
+            selected_token  = update.selected_token,
+            dual_mode       = lower_ctx is not None,
+            upper_label     = upper_ctx.label,
+            lower_label     = "" if lower_ctx is None else lower_ctx.label,
         )
         return TokenDetailTableResult(model=model)
 
@@ -158,25 +147,25 @@ class TokenDetailAssembler:
         self,
         trace_ctx: TokenDetailTraceContext,
         update: TokenDetailUpdate,
-    ) -> TraceSummary:
+    ) -> SummaryBundle:
         ctx = update.context
         thread_ids = _thread_ids_for(trace_ctx, update.active_thread_names)
         query = SummaryQuery(
-            thread_ids=tuple(sorted(thread_ids)),
-            fidelity=ctx.fidelity,
-            token_mode=ctx.token_mode,
-            top_k=ctx.top_k,
-            block_only=True,
+            thread_ids      = tuple(sorted(thread_ids)),
+            fidelity        = ctx.fidelity,
+            token_mode      = ctx.token_mode,
+            top_k           = ctx.top_k,
+            block_only      = True,
         )
         return trace_ctx.summarize_tokens(query)
 
     def _build_rows(
         self,
-        upper_summary: TraceSummary,
-        lower_summary: TraceSummary | None,
+        upper_summary: SummaryBundle,
+        lower_summary: SummaryBundle | None,
         *,
-        upper_names: dict[str, str],
-        lower_names: dict[str, str],
+        upper_names: dict[TokenKey, TokenName],
+        lower_names: dict[TokenKey, TokenName],
     ) -> tuple[TokenDetailDiffRow, ...]:
         by_upper = {
             (r.token_type, r.token_id): r for r in upper_summary.tokens
@@ -274,27 +263,11 @@ class TokenDetailAssembler:
         self,
         rows: tuple[TokenDetailDiffRow, ...],
         *,
-        selected_token: tuple[int, int] | None,
-        table_mode: TokenDetailTableMode,
+        selected_token: TokenKey | None,
         dual_mode: bool,
         upper_label: str,
         lower_label: str,
     ) -> TokenDetailTableModel:
-        options = tuple(
-            (
-                token_to_select_value((row.token_type, row.token_id)),
-                (
-                    f"#{row.contribution_rank} "
-                    f"{row.name} "
-                    f"({_format_duration_ns(row.contribution_abs_ns)}, "
-                    f"{row.contribution_share_pct:.1f}%) "
-                    f"[{row.token_type}:{row.token_id}]"
-                ),
-            )
-            for row in rows
-        )
-
-        selected_value = token_to_select_value(selected_token)
         row = next((r for r in rows if r.token == selected_token), None)
 
         if row is None:
@@ -309,146 +282,163 @@ class TokenDetailAssembler:
                 dual_mode=dual_mode,
                 upper_label=upper_label,
                 lower_label=lower_label,
-                options=options,
-                selected_value=selected_value,
             )
-
-        if table_mode == "full":
-            indexes = tuple(range(len(_METRIC_NAMES)))
-        elif table_mode == "compact":
-            indexes = _COMPACT_METRIC_INDEXES
-        else:
-            raise ValueError(f"invalid table_mode: {table_mode!r}")
-
-        upper_all = (
-            "—",
-            "—",
-            "—",
-            str(row.call_count_upper),
-            _format_duration_ns(row.mean_incl_ns_upper),
-            _format_duration_ns(row.mean_excl_ns_upper),
-            _format_duration_ns(row.incl_total_ns_upper),
-            _format_duration_ns(row.excl_total_ns_upper),
-        )
-        lower_all = (
-            "—",
-            "—",
-            "—",
-            str(row.call_count_lower),
-            _format_duration_ns(row.mean_incl_ns_lower),
-            _format_duration_ns(row.mean_excl_ns_lower),
-            _format_duration_ns(row.incl_total_ns_lower),
-            _format_duration_ns(row.excl_total_ns_lower),
-        )
-        delta_all = (
-            f"#{row.contribution_rank}",
-            _format_duration_ns(row.contribution_abs_ns),
-            "—",
-            f"{row.delta_call_count:+d}",
-            _format_duration_delta_ns(row.delta_mean_incl_ns),
-            _format_duration_delta_ns(row.delta_mean_excl_ns),
-            _format_duration_delta_ns(row.delta_incl_total_ns),
-            _format_duration_delta_ns(row.delta_excl_total_ns),
-        )
-        percent_all = (
-            "—",
-            "—",
-            f"{row.contribution_share_pct:.1f}%",
-            _format_percent_diff(row.call_count_upper, row.call_count_lower),
-            _format_percent_diff(row.mean_incl_ns_upper, row.mean_incl_ns_lower),
-            _format_percent_diff(row.mean_excl_ns_upper, row.mean_excl_ns_lower),
-            _format_percent_diff(row.incl_total_ns_upper, row.incl_total_ns_lower),
-            _format_percent_diff(row.excl_total_ns_upper, row.excl_total_ns_lower),
-        )
 
         return TokenDetailTableModel(
             title="Token detail",
             subtitle=f"{row.name} ({row.token_type}:{row.token_id})",
-            metric=tuple(_METRIC_NAMES[i] for i in indexes),
-            upper=tuple(upper_all[i] for i in indexes),
-            lower=tuple(lower_all[i] for i in indexes),
-            delta=tuple(delta_all[i] for i in indexes),
-            percent=tuple(percent_all[i] for i in indexes),
+            metric=_METRIC_NAMES,
+            upper=(
+                "—",
+                "—",
+                "—",
+                str(row.call_count_upper),
+                format_duration_ns(row.mean_incl_ns_upper),
+                format_duration_ns(row.mean_excl_ns_upper),
+                format_duration_ns(row.incl_total_ns_upper),
+                format_duration_ns(row.excl_total_ns_upper),
+            ),
+            lower=(
+                "—",
+                "—",
+                "—",
+                str(row.call_count_lower),
+                format_duration_ns(row.mean_incl_ns_lower),
+                format_duration_ns(row.mean_excl_ns_lower),
+                format_duration_ns(row.incl_total_ns_lower),
+                format_duration_ns(row.excl_total_ns_lower),
+            ),
+            delta=(
+                f"#{row.contribution_rank}",
+                format_duration_ns(row.contribution_abs_ns),
+                "—",
+                f"{row.delta_call_count:+d}",
+                format_duration_delta_ns(row.delta_mean_incl_ns),
+                format_duration_delta_ns(row.delta_mean_excl_ns),
+                format_duration_delta_ns(row.delta_incl_total_ns),
+                format_duration_delta_ns(row.delta_excl_total_ns),
+            ),
+            percent=(
+                "—",
+                "—",
+                f"{row.contribution_share_pct:.1f}%",
+                format_percent_diff(row.call_count_upper, row.call_count_lower),
+                format_percent_diff(
+                    row.mean_incl_ns_upper, row.mean_incl_ns_lower
+                ),
+                format_percent_diff(
+                    row.mean_excl_ns_upper, row.mean_excl_ns_lower
+                ),
+                format_percent_diff(
+                    row.incl_total_ns_upper, row.incl_total_ns_lower
+                ),
+                format_percent_diff(
+                    row.excl_total_ns_upper, row.excl_total_ns_lower
+                ),
+            ),
             dual_mode=dual_mode,
             upper_label=upper_label,
             lower_label=lower_label,
-            options=options,
-            selected_value=selected_value,
         )
 
     def _run_histogram_job(
         self,
         update: TokenDetailUpdate,
+        trace_side: TraceSide,
     ) -> TokenDetailHistogramResult:
         token = update.selected_token
         if token is None:
-            return TokenDetailHistogramResult(src=_empty_histogram_source())
+            return TokenDetailHistogramResult(
+                trace_side  = trace_side,
+                src         = _empty_histogram_source(),
+            )
 
         ctx = update.context
-        upper_ctx = ctx.trace_context["upper"]
-        lower_ctx = ctx.trace_context.get("lower")
+        trace_ctx = ctx.trace_context[trace_side]
 
-        h_upper = self._query_histogram(upper_ctx, update, token)
-        h_lower = (
-            None
-            if lower_ctx is None
-            else self._query_histogram(lower_ctx, update, token)
-        )
+        h = self._query_histogram(trace_ctx, update, token)
+        if len(h.left_ns) != len(h.excl_ns):
+            raise RuntimeError(
+                f"snapshot histogram mismatch for {trace_side} trace: "
+                f"{len(h.left_ns)=} {len(h.excl_ns)=}"
+            )
 
-        if h_lower is not None:
-            left_ns = (
-                h_upper.left_ns if len(h_upper.left_ns) else h_lower.left_ns
-            )
-            right_ns = (
-                h_upper.right_ns if len(h_upper.right_ns) else h_lower.right_ns
-            )
-            if len(left_ns) != len(h_upper.excl_ns):
-                raise RuntimeError(
-                    "snapshot histogram mismatch for upper trace: "
-                    f"{len(left_ns)=} {len(h_upper.excl_ns)=}"
-                )
-            if len(left_ns) != len(h_lower.excl_ns):
-                raise RuntimeError(
-                    "snapshot histogram mismatch for lower trace: "
-                    f"{len(left_ns)=} {len(h_lower.excl_ns)=}"
-                )
-            lower_excl_ns = h_lower.excl_ns
-        else:
-            left_ns = h_upper.left_ns
-            right_ns = h_upper.right_ns
-            if len(left_ns) != len(h_upper.excl_ns):
-                raise RuntimeError(
-                    "snapshot histogram mismatch for upper trace: "
-                    f"{len(left_ns)=} {len(h_upper.excl_ns)=}"
-                )
-            lower_excl_ns = tuple(0 for _ in h_upper.excl_ns)
 
         src = _empty_histogram_source()
-        for i in range(len(left_ns)):
-            upper_ms = int(h_upper.excl_ns[i]) / 1e6
-            lower_ms = int(lower_excl_ns[i]) / 1e6
-            src["left"].append(int(left_ns[i]) / 1e6)
-            src["right"].append(int(right_ns[i]) / 1e6)
-            src["upper"].append(upper_ms)
-            src["lower"].append(lower_ms)
-            src["delta"].append(lower_ms - upper_ms)
+        for i in range(len(h.left_ns)):
+            src["left"].append(int(h.left_ns[i]) / 1e6)
+            src["right"].append(int(h.right_ns[i]) / 1e6)
+            src["right"].append(int(h.excl_ns[i]) / 1e6)
 
-        return TokenDetailHistogramResult(src=src)
+        return TokenDetailHistogramResult(trace_side=trace_side, src=src)
 
     def _query_histogram(
         self,
         trace_ctx: TokenDetailTraceContext,
         update: TokenDetailUpdate,
-        token: tuple[int, int],
-    ) -> SnapshotHistogram:
+        token: TokenKey,
+    ) -> HistogramBundle:
         ctx = update.context
         thread_ids = _thread_ids_for(trace_ctx, update.active_thread_names)
-        query = SnapshotHistogramQuery(
-            thread_ids=thread_ids,
-            token=token,
-            t0_ns=update.start_ns,
-            t1_ns=update.end_ns,
-            n_bins=ctx.histogram_bins,
-            token_mode=ctx.token_mode,
+        query = HistogramQuery(
+            thread_ids      = thread_ids,
+            token           = token,
+            t0_ns           = update.start_ns,
+            t1_ns           = update.end_ns,
+            n_bins          = ctx.histogram_bins,
+            token_mode      = ctx.token_mode,
         )
-        return trace_ctx.query_histogram(query)
+        with timed(f"query_histogram[{query.fidelity}]"):
+            return trace_ctx.query_histogram(query)
+
+# ---------------- scatter job ----------------
+
+    def _run_scatter_job(
+        self,
+        update: TokenDetailUpdate,
+        trace_side: TraceSide,
+    ) -> TokenDetailScatterResult:
+        token = update.selected_token
+        if token is None:
+            return TokenDetailScatterResult(
+                trace_side=trace_side, src=_empty_scatter_source()
+            )
+
+        ctx = update.context
+        trace_ctx = ctx.trace_context[trace_side]
+
+        occ = self._query_occurrences(trace_ctx, update, token)
+        if len(occ.start_ns) != len(occ.dur_ns):
+            raise RuntimeError(
+                f"occurrence stream mismatch for {trace_side} trace: "
+                f"{len(occ.start_ns)=} {len(occ.dur_ns)=}"
+            )
+
+        src = _empty_scatter_source()
+        for i in range(len(occ.start_ns)):
+            src["x"].append(int(occ.start_ns[i]) / 1e6)
+            src["y"].append(int(occ.dur_ns[i]) / 1e6)
+
+        return TokenDetailScatterResult(trace_side=trace_side, src=src)
+
+    def _query_occurrences(
+        self,
+        trace_ctx: TokenDetailTraceContext,
+        update: TokenDetailUpdate,
+        token: TokenKey,
+    ) -> OccurrenceBundle:
+        ctx = update.context
+        thread_ids = _thread_ids_for(trace_ctx, update.active_thread_names)
+        query = OccurrenceQuery(
+            thread_ids      = thread_ids,
+            token           = token,
+            fidelity        = ctx.fidelity,
+            token_mode      = ctx.token_mode,
+            t0_ns           = update.start_ns,
+            t1_ns           = update.end_ns,
+            max_points      = None,
+        )
+        with timed(f"query_occurrences[{query.fidelity}]"):
+            return trace_ctx.query_occurrences(query)
+
+

@@ -5,26 +5,41 @@ from typing import Callable, Hashable, Literal, Protocol, Sequence, Union
 
 from blup.data_model import (
     FidelityMode,
-    SnapshotHistogram,
-    SnapshotHistogramQuery,
+    HistogramBundle,
+    HistogramQuery,
+    OccurrenceBundle,
+    OccurrenceQuery,
     SummaryQuery,
     TokenMode,
-    TraceSummary,
+    SummaryBundle,
 )
-from blup.state import TokenDetailChartMode, TokenDetailTableMode, TraceMode
+from blup.state import TokenDetailChartMode
+from blup.types import (
+    DurationNS,
+    ThreadID,
+    ThreadName,
+    TimestampNS,
+    TokenID,
+    TokenKey,
+    TokenKeyStr,
+    TokenName,
+    TokenType,
+    TraceMode,
+    TraceSide,
+)
 
 
-TokenDetailJobKind = Literal["table", "histogram"]
+type TokenDetailJobKind = Literal["table", "histogram", "scatter"]
 
 # -----------------------------------------
 
-def token_to_select_value(token: tuple[int, int] | None) -> str:
+# NOTE: this functionality should be centralized elsewhere
+def token_to_select_value(token: TokenKey | None) -> TokenKeyStr:
     if token is None:
         return ""
     return f"{token[0]}:{token[1]}"
 
-
-def select_value_to_token(value: str) -> tuple[int, int] | None:
+def select_value_to_token(value: str) -> TokenKey | None:
     if not value:
         return None
     raw_type, raw_id = value.split(":", 1)
@@ -33,15 +48,15 @@ def select_value_to_token(value: str) -> tuple[int, int] | None:
 
 @dataclass(frozen=True)
 class TokenDetailDiffRow:
-    token_type:             int
-    token_id:               int
-    name:                   str
+    token_type:             TokenType
+    token_id:               TokenID
+    name:                   TokenName
     call_count_upper:       int
     call_count_lower:       int
-    incl_total_ns_upper:    int
-    incl_total_ns_lower:    int
-    excl_total_ns_upper:    int
-    excl_total_ns_lower:    int
+    incl_total_ns_upper:    DurationNS
+    incl_total_ns_lower:    DurationNS
+    excl_total_ns_upper:    DurationNS
+    excl_total_ns_lower:    DurationNS
     mean_incl_ns_upper:     float
     mean_incl_ns_lower:     float
     mean_excl_ns_upper:     float
@@ -49,16 +64,16 @@ class TokenDetailDiffRow:
     delta_call_count:       int
     delta_mean_incl_ns:     float
     delta_mean_excl_ns:     float
-    delta_incl_total_ns:    int
-    delta_excl_total_ns:    int
-    thread_ids_upper:       tuple[int, ...]
-    thread_ids_lower:       tuple[int, ...]
+    delta_incl_total_ns:    DurationNS
+    delta_excl_total_ns:    DurationNS
+    thread_ids_upper:       tuple[ThreadID, ...]
+    thread_ids_lower:       tuple[ThreadID, ...]
     contribution_abs_ns:    int = 0
     contribution_share_pct: float = 0.0
     contribution_rank:      int = 0
 
     @property
-    def token(self) -> tuple[int, int]:
+    def token(self) -> TokenKey:
         return (self.token_type, self.token_id)
 
 
@@ -84,13 +99,11 @@ class TokenDetailTableModel:
 class TokenDetailTraceContext:
     label:                  str
     # NOTE: check this param ^^
-    thread_name_to_id:      dict[str, int]
-    token_name_by_key:      dict[str, str]
-    summarize_tokens:       Callable[[SummaryQuery], TraceSummary]
-    query_histogram:        Callable[[SnapshotHistogramQuery], SnapshotHistogram]
-
-    # TODO: implement:
-    # query_occurences: ...
+    thread_name_to_id:      dict[ThreadName, ThreadID]
+    token_name_by_key:      dict[TokenKey, TokenName]
+    summarize_tokens:       Callable[[SummaryQuery], SummaryBundle]
+    query_histogram:        Callable[[HistogramQuery], HistogramBundle]
+    query_occurrences:      Callable[[OccurrenceQuery], OccurrenceBundle]
 
 
 @dataclass(frozen=True)
@@ -99,19 +112,18 @@ class TokenDetailUpdateContext:
     trace_context:          dict[TraceSide, TokenDetailTraceContext]
     fidelity:               FidelityMode
     token_mode:             TokenMode
-    top_k:                  int
+    top_k:                  int | None
     histogram_bins:         int
 
 
 @dataclass(frozen=True)
 class TokenDetailUpdate:
-    active_thread_names:    tuple[str, ...]
-    start_ns:               int
-    end_ns:                 int
-    selected_token:         tuple[int, int] | None
+    active_thread_names:    tuple[ThreadName, ...]
+    start_ns:               TimestampNS
+    end_ns:                 TimestampNS
+    selected_token:         TokenKey | None
     trace_mode:             TraceMode
     chart_mode:             TokenDetailChartMode
-    table_mode:             TokenDetailTableMode
     show_stats:             bool
     show_chart:             bool
     context:                TokenDetailUpdateContext
