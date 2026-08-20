@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from blup.bokeh.theme import PALETTE
+from blup.types import TraceMode
 from bokeh.io import curdoc
 from bokeh.layouts import column
 from bokeh.models.annotations.geometry import Span
@@ -15,7 +16,6 @@ from bokeh.models.tools import HoverTool, TapTool
 from bokeh.plotting import ColumnDataSource, figure
 
 from blup.modules.time_profile.types import TraceSide
-from blup.state import TraceMode
 
 
 class TimeProfileChartSurface:

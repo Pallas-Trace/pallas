@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from blup.data_model import QuantaQuery, QuantaBundle, as_token_key
+from blup.data_model import OTHER_TOKEN_ID, OTHER_TOKEN_KEY, OTHER_TOKEN_NAME, OTHER_TOKEN_TYPE, QuantaQuery, QuantaBundle
 from blup.modules.interface import WorkJob
 from blup.modules.time_profile.types import (
     TimeProfileUpdate,
@@ -10,7 +10,8 @@ from blup.modules.time_profile.types import (
     TimeProfileRequest,
     TimeProfileResult,
 )
-from blup.state import TraceMode
+from blup.types import ColorHex, ThreadName, TokenID, TokenKey, TokenName, TokenType, TraceMode, TraceSide
+from blup.utils import as_token_key
 
 
 def _format_proportion(proportion: float) -> str:
@@ -98,7 +99,8 @@ class TimeProfileAssembler:
             bin_edges_ns    = ctx.bin_edges_ns,
             fidelity        = ctx.fidelity,
             token_mode      = ctx.token_mode,
-            top_k           = -1,
+            # TODO: fully wire this into state
+            top_k           = None,
         )
         bundle = trace_ctx.query_quanta(query)
 
@@ -123,11 +125,11 @@ class TimeProfileAssembler:
         self,
         bundle: QuantaBundle,
         *,
-        thread_name: str,
+        thread_name: ThreadName,
         thread_center: float,
-        trace_side: str,
-        token_name_by_key: dict[str, str],
-        color_map: dict[str, str],
+        trace_side: TraceSide,
+        token_name_by_key: dict[TokenKey, TokenName],
+        color_map: dict[TokenKey, ColorHex],
         trace_mode: TraceMode = "dual",
         stack_order: str = "global",
     ) -> dict:
@@ -141,16 +143,11 @@ class TimeProfileAssembler:
         proportion_arr = bundle.proportion
         excl_ns_arr = bundle.excl_ns
 
-        OTHER_TOKEN_TYPE = 255
-        OTHER_TOKEN_ID = 0
-        OTHER_TOKEN_KEY = "OTHER"
-        OTHER_TOKEN_NAME = "OTHER"
-
         dual_half = 0.45
         dual_padding = 0.02
         single_half = 0.45
 
-        rows: list[tuple[float, float, str, str, int, int, float, float]] = []
+        rows: list[tuple[float, float, TokenKey, TokenName, TokenType, TokenID, float, float]] = []
         for i in range(len(start_ns_arr)):
             token_type = int(token_type_arr[i])
             token_id = int(token_id_arr[i])
@@ -160,7 +157,7 @@ class TimeProfileAssembler:
                 token_name = OTHER_TOKEN_NAME
             else:
                 token_key = as_token_key(int(token_type), int(token_id))
-                token_name = token_name_by_key.get(token_key, token_key)
+                token_name = token_name_by_key.get(token_key, OTHER_TOKEN_NAME)
 
             rows.append(
                 (
@@ -180,7 +177,7 @@ class TimeProfileAssembler:
             return _empty_source()
 
         if stack_order == "global":
-            totals: dict[str, float] = defaultdict(float)
+            totals: dict[TokenKey, float] = defaultdict(float)
             for _, _, token_key, _, _, _, _, exclusive_s in rows:
                 totals[token_key] += exclusive_s
 
@@ -198,7 +195,8 @@ class TimeProfileAssembler:
 
         grouped: (
             dict[tuple[float, float],
-            list[tuple[str, str, int, int, float, float]]]
+            list[tuple[TokenKey, TokenName, TokenType,
+                        TokenID, float, float]]]
         ) = defaultdict(list)
         for (
             left, right, token_key, token_name,

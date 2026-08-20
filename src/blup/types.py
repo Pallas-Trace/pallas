@@ -48,6 +48,10 @@ type TokenID        = int
 type TokenKey       = tuple[TokenType, TokenID]
 # stringified version of TokenKey where applicable
 type TokenKeyStr    = str
+# inferred token name based on trace contents
+type TokenName      = str
+# user-assigned display tag for a token
+type TokenLabel     = str
 
 # -------------------------------------------
 # |              Time Types                 |

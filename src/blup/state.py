@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from re import L
 from typing import Final, Literal, TypeAlias, TYPE_CHECKING, TypeGuard
 
 from bokeh.models.glyphs import Patch
 from numpy import trace
 
 from blup.data_model import FidelityMode, TokenMode
-from blup.types import TraceID
+from blup.types import ThreadName, TimestampNS, TokenKey, TraceID
 
 if TYPE_CHECKING:
     from blup.traces.interface import TraceRegistryAccess
@@ -17,12 +18,12 @@ if TYPE_CHECKING:
 # |           State Constants               |
 # -------------------------------------------
 
-PanelID:                    TypeAlias = Literal[
+type PanelID                    = Literal[
             "main",
             "context",
             "inspector",
 ]
-PanelSide:                  TypeAlias = Literal[
+type PanelSide                  = Literal[
             "left",
             "right",
             "top",
@@ -30,30 +31,39 @@ PanelSide:                  TypeAlias = Literal[
             "center",
 ]
 
-ModuleID:                   TypeAlias = Literal[
+type ModuleID                   = Literal[
             "time_profile",
             "token_list",
             "token_detail",
             "context_selection",
 ]
 
-TimeProfileOrder:           TypeAlias = Literal[
+type TimeProfileOrder           = Literal[
             "global",
             "local",
 ]
-TimeProfilePresentation:    TypeAlias = Literal[
+# NOTE: not currently used
+type TimeProfilePresentation    = Literal[
             "auto",
             "binned",
             "flame",
 ]
 
-TokenDetailChartMode:       TypeAlias = Literal[
-            "overlay",
-            "delta",
+type TokenDetailChartMode       = Literal[
+            "histogram",
+            "scatter",
 ]
-TokenDetailTableMode:       TypeAlias = Literal[
-            "full",
-            "compact",
+
+type TokenListOrder             = Literal[
+            "delta",
+            "excl",
+            "calls",
+            "name",
+            "token"
+]
+type TokenListSortDirection     = Literal[
+            "ascending",
+            "descending"
 ]
 
 # -------------------------------------------
@@ -125,16 +135,32 @@ class DisplayState:
 @dataclass(frozen=True)
 class TraceSelectionState:
     trace_ids:          tuple[TraceID, ...] = ()
-    focus_id:           str | None = None
+    focus_id:           TraceID | None = None
 
 @dataclass(frozen=True)
 class TokenSelectionState:
-    token:              tuple[int, int] | None = None
+    token:              TokenKey | None = None
 
 @dataclass(frozen=True)
 class TimeScopeState:
-    t0_ns:              int | None = None
-    t1_ns:              int | None = None
+    t0_ns:              TimestampNS | None = None
+    t1_ns:              TimestampNS | None = None
+
+# NOTE: temporary name/impl; clean up later
+@dataclass(frozen=True)
+class TokenPrefsEntry:
+    pinned:             bool = False
+    nickname:           str | None = None
+    color:              str | None = None
+    note:               str = ""
+
+# NOTE: temporary name/impl; clean up later
+@dataclass(frozen=True)
+class TokenPrefsState:
+    entries:            dict[TokenKey, TokenPrefsEntry] = field(
+        default_factory=dict
+    )
+    version:            int = 0
 
 # >>> branch root
 
@@ -143,13 +169,16 @@ class ContextState:
     traces:             TraceSelectionState = field(
         default_factory=TraceSelectionState
     )
-    active_threads:     tuple[str, ...] = ()
+    active_threads:     tuple[ThreadName, ...] = ()
     token_mode:         TokenMode = "named"
     selection:          TokenSelectionState = field(
         default_factory=TokenSelectionState
     )
     time_scope:         TimeScopeState = field(
         default_factory=TimeScopeState
+    )
+    token_prefs:        TokenPrefsState = field(
+        default_factory=TokenPrefsState
     )
 
 # module specific state
@@ -164,14 +193,20 @@ class TimeProfileState:
 
 @dataclass(frozen=True)
 class TokenDetailState:
-    chart_mode:         TokenDetailChartMode = "overlay"
-    table_mode:         TokenDetailTableMode = "compact"
+    chart_mode:         TokenDetailChartMode = "histogram"
+    n_bins:             int = 20
+    top_k:              int | None = 32
+    fidelity:           FidelityMode = "balanced"
     show_stats:         bool = True
     show_chart:         bool = True
 
 @dataclass(frozen=True)
-class InspectorState:
-    pass
+class TokenListState:
+    order:              TokenListOrder = "delta"
+    direction:          TokenListSortDirection = "descending"
+    top_k:              int | None = None
+    fidelity:           FidelityMode = "fast"
+    pinned_first:       bool = True
 
 # >>> branch root
 
@@ -183,8 +218,8 @@ class ModuleState:
     token_detail:       TokenDetailState = field(
         default_factory=TokenDetailState
     )
-    inspector:          InspectorState = field(
-        default_factory=InspectorState
+    token_list:         TokenListState = field(
+        default_factory=TokenListState
     )
 
 # state-tree root
@@ -262,7 +297,7 @@ class HeaderPatch:
 
         return replace(
             state,
-            status  = status,
+            status          = status,
         )
 
 
@@ -319,11 +354,11 @@ class DisplayPatch:
 
         return replace(
             state,
-            main        = main,
-            context     = context,
-            inspector   = inspector,
-            header      = header,
-            footer      = footer,
+            main            = main,
+            context         = context,
+            inspector       = inspector,
+            header          = header,
+            footer          = footer,
         )
 
 
@@ -343,8 +378,8 @@ class TraceSelectionPatch:
 
         return replace(
             state,
-            trace_ids   = trace_ids,
-            focus_id    = focus_id,
+            trace_ids       = trace_ids,
+            focus_id        = focus_id,
         )
 
 
@@ -376,8 +411,71 @@ class TimeScopePatch:
 
         return replace(
             state,
-            t0_ns   = t0_ns,
-            t1_ns   = t1_ns,
+            t0_ns           = t0_ns,
+            t1_ns           = t1_ns,
+        )
+
+
+@dataclass(frozen=True)
+class TokenPrefsEntryPatch:
+    pinned:             PatchValue[bool] = UNSET
+    nickname:           PatchValue[str | None] = UNSET
+    color:              PatchValue[str | None] = UNSET
+    note:               PatchValue[str] = UNSET
+
+    def apply(self, state: TokenPrefsEntry) -> TokenPrefsEntry:
+        pinned = state.pinned
+        if is_set(self.pinned):
+            pinned = self.pinned
+
+        nickname = state.nickname
+        if is_set(self.nickname):
+            nickname = self.nickname
+
+        color = state.color
+        if is_set(self.color):
+            color = self.color
+
+        note = state.note
+        if is_set(self.note):
+            note = self.note
+
+        return replace(
+            state,
+            pinned          = pinned,
+            nickname        = nickname,
+            color           = color,
+            note            = note,
+        )
+
+
+# NOTE: experimental! I'm not sure if I like this approach yet
+@dataclass(frozen=True)
+class TokenPrefsPatch:
+    updates:            dict[TokenKey, TokenPrefsEntryPatch] = field(
+        default_factory=dict
+    )
+    removals:           tuple[TokenKey, ...] = ()
+
+    def apply(self, state: TokenPrefsState) -> TokenPrefsState:
+        if not self.updates and not self.removals:
+            return state
+
+        entries = dict(state.entries)
+        for key in self.removals:
+            entries.pop(key, None)
+        for key, entry_patch in self.updates.items():
+            entries[key] = entry_patch.apply(
+                entries.get(key, TokenPrefsEntry())
+            )
+
+        if entries == state.entries:
+            return state
+
+        return replace(
+            state,
+            entries         = entries,
+            version         = state.version + 1,
         )
 
 
@@ -388,6 +486,7 @@ class ContextPatch:
     token_mode:         PatchValue[TokenMode] = UNSET
     selection:          PatchValue[TokenSelectionPatch] = UNSET
     time_scope:         PatchValue[TimeScopePatch] = UNSET
+    token_prefs:        PatchValue[TokenPrefsPatch] = UNSET
 
     def apply(self, state: ContextState) -> ContextState:
         traces = state.traces
@@ -410,6 +509,10 @@ class ContextPatch:
         if is_set(self.time_scope):
             time_scope = self.time_scope.apply(time_scope)
 
+        token_prefs = state.token_prefs
+        if is_set(self.token_prefs):
+            token_prefs = self.token_prefs.apply(token_prefs)
+
         return replace(
             state,
             traces          = traces,
@@ -417,6 +520,7 @@ class ContextPatch:
             token_mode      = token_mode,
             selection       = selection,
             time_scope      = time_scope,
+            token_prefs     = token_prefs,
         )
 
 
@@ -461,7 +565,9 @@ class TimeProfilePatch:
 @dataclass(frozen=True)
 class TokenDetailPatch:
     chart_mode:         PatchValue[TokenDetailChartMode] = UNSET
-    table_mode:         PatchValue[TokenDetailTableMode] = UNSET
+    n_bins:             PatchValue[int] = UNSET
+    top_k:              PatchValue[int | None] = UNSET
+    fidelity:           PatchValue[FidelityMode] = UNSET
     show_stats:         PatchValue[bool] = UNSET
     show_chart:         PatchValue[bool] = UNSET
 
@@ -470,9 +576,17 @@ class TokenDetailPatch:
         if is_set(self.chart_mode):
             chart_mode = self.chart_mode
 
-        table_mode = state.table_mode
-        if is_set(self.table_mode):
-            table_mode = self.table_mode
+        n_bins = state.n_bins
+        if is_set(self.n_bins):
+            n_bins = self.n_bins
+
+        top_k = state.top_k
+        if is_set(self.top_k):
+            top_k = self.top_k
+
+        fidelity = state.fidelity
+        if is_set(self.fidelity):
+            fidelity = self.fidelity
 
         show_stats = state.show_stats
         if is_set(self.show_stats):
@@ -484,24 +598,58 @@ class TokenDetailPatch:
 
         return replace(
             state,
-            chart_mode  = chart_mode,
-            table_mode  = table_mode,
-            show_stats  = show_stats,
-            show_chart  = show_chart,
+            chart_mode      = chart_mode,
+            n_bins          = n_bins,
+            top_k           = top_k,
+            fidelity        = fidelity,
+            show_stats      = show_stats,
+            show_chart      = show_chart,
         )
 
 
 @dataclass(frozen=True)
-class InspectorPatch:
-    def apply(self, state: InspectorState) -> InspectorState:
-        return state
+class TokenListPatch:
+    order:              PatchValue[TokenListOrder] = UNSET
+    direction:          PatchValue[TokenListSortDirection] = UNSET
+    top_k:              PatchValue[int | None] = UNSET
+    fidelity:           PatchValue[FidelityMode] = UNSET
+    pinned_first:       PatchValue[bool] = UNSET
 
+    def apply(self, state: TokenListState) -> TokenListState:
+        order = state.order
+        if is_set(self.order):
+            order = self.order
+
+        direction = state.direction
+        if is_set(self.direction):
+            direction = self.direction
+
+        top_k = state.top_k
+        if is_set(self.top_k):
+            top_k = self.top_k
+
+        fidelity = state.fidelity
+        if is_set(self.fidelity):
+            fidelity = self.fidelity
+
+        pinned_first = state.pinned_first
+        if is_set(self.pinned_first):
+            pinned_first = self.pinned_first
+
+        return replace(
+            state,
+            order           = order,
+            direction       = direction,
+            top_k           = top_k,
+            fidelity        = fidelity,
+            pinned_first    = pinned_first,
+        )
 
 @dataclass(frozen=True)
 class ModulePatch:
     time_profile:       PatchValue[TimeProfilePatch] = UNSET
     token_detail:       PatchValue[TokenDetailPatch] = UNSET
-    inspector:          PatchValue[InspectorPatch] = UNSET
+    token_list:         PatchValue[TokenListPatch] = UNSET
 
     def apply(self, state: ModuleState) -> ModuleState:
         time_profile = state.time_profile
@@ -512,15 +660,15 @@ class ModulePatch:
         if is_set(self.token_detail):
             token_detail = self.token_detail.apply(token_detail)
 
-        inspector = state.inspector
-        if is_set(self.inspector):
-            inspector = self.inspector.apply(inspector)
+        token_list = state.token_list
+        if is_set(self.token_list):
+            token_list = self.token_list.apply(token_list)
 
         return replace(
             state,
             time_profile    = time_profile,
             token_detail    = token_detail,
-            inspector       = inspector,
+            token_list      = token_list,
         )
 
 # -------------------------------------------
@@ -727,6 +875,5 @@ class StateManager:
                 active_threads  = active_threads,
             ),
         )
-
 
 

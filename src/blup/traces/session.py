@@ -4,20 +4,21 @@ from collections import Counter, defaultdict
 from dataclasses import replace
 from typing import Optional
 
+from blup.types import TokenKey, TokenName
 import numpy as np
 import numpy.typing as npt
 import pallas_trace as pallas
 
 from blup.data_model import (
     CATEGORY_TOKEN_TYPE,
-    DataCache,
     FidelityMode,
     NodeRef,
+    OccurrenceBundle,
     OccurrenceQuery,
     QuantaBundle,
     QuantaQuery,
-    SnapshotHistogram,
-    SnapshotHistogramQuery,
+    HistogramBundle,
+    HistogramQuery,
     SpanBundle,
     SpanQuery,
     SubtreeQuery,
@@ -25,22 +26,21 @@ from blup.data_model import (
     TokenMode,
     TokenSummary,
     TraceMeta,
-    TraceSummary,
-    as_token_key,
-    canonicalize_histogram_query,
-    canonicalize_occurrence_query,
-    canonicalize_quanta_query,
-    canonicalize_span_query,
-    canonicalize_subtree_query,
-    empty_quanta_bundle,
-    empty_span_bundle,
-    normalize_quanta_result,
-    normalize_span_rows,
-    subset_span_bundle,
-    token_int_id,
+    SummaryBundle,
 )
-from blup.utils import timed
+from blup.utils import DataCache, as_token_key, timed
 
+
+def token_int_id(tok) -> int:
+    try:
+        return int(tok.id)
+    except Exception:
+        pass
+    try:
+        return int(tok.id.id)
+    except Exception:
+        pass
+    return -1
 
 def sequence_block_depth(reader: pallas.ThreadReader) -> int:
     return len([
@@ -66,14 +66,26 @@ class TraceSession:
 
         self._trace: Optional[pallas.Trace] = None
         self._meta: Optional[TraceMeta] = None
-        self._summary: Optional[TraceSummary] = None
+        self._summary: Optional[SummaryBundle] = None
 
-        self._summary_cache = DataCache(max_summary_cache)
-        self._quanta_cache = DataCache(max_quanta_cache)
-        self._span_cache = DataCache(max_span_cache)
-        self._occ_cache = DataCache(max_occ_cache)
-        self._subtree_cache = DataCache(max_subtree_cache)
-        self._hist_cache = DataCache(max_hist_cache)
+        self._summary_cache: DataCache[tuple[str, SummaryQuery], SummaryBundle] = (
+            DataCache(max_summary_cache)
+        )
+        self._quanta_cache: DataCache[tuple[str, QuantaQuery], QuantaBundle] = (
+            DataCache(max_quanta_cache)
+        )
+        self._span_cache: DataCache[tuple[str, SpanQuery], SpanBundle] = (
+            DataCache(max_span_cache)
+        )
+        self._occ_cache: DataCache[tuple[str, OccurrenceQuery], OccurrenceBundle] = (
+            DataCache(max_occ_cache)
+        )
+        self._subtree_cache: DataCache[tuple[str, SubtreeQuery], SpanBundle] = (
+            DataCache(max_subtree_cache)
+        )
+        self._hist_cache: DataCache[tuple[str, HistogramQuery], HistogramBundle] = (
+            DataCache(max_hist_cache)
+        )
 
     # ---------- lifecycle ----------
 
@@ -94,10 +106,11 @@ class TraceSession:
         summary_query = SummaryQuery(
             thread_ids=tuple(int(id) for id in self._meta.thread_ids),
             fidelity="fast",
+            # NOTE: stop hardcoding this
             top_k=32,
         )
         with timed("summarize_tokens"):
-            self._summary = self.summarize_tokens(summary_query)
+            self._summary = self.query_summary(summary_query)
 
     def close(self) -> None:
         self._trace = None
@@ -123,7 +136,7 @@ class TraceSession:
         return self._meta
 
     @property
-    def summary(self) -> TraceSummary:
+    def summary(self) -> SummaryBundle:
         if self._summary is None:
             self.open()
         assert self._summary is not None
@@ -160,7 +173,7 @@ class TraceSession:
             name_to_members[str(name)].append((int(ttype), int(tid)))
 
         token_remap: dict[tuple[int, int], tuple[int, int]] = {}
-        category_key_to_name: dict[str, str] = {}
+        category_key_to_name: dict[TokenKey, TokenName] = {}
 
         for cat_id, name in enumerate(sorted(name_to_members.keys())):
             cat_tok = (CATEGORY_TOKEN_TYPE, int(cat_id))
@@ -222,6 +235,14 @@ class TraceSession:
             cat_key_to_name   = cat_key_to_name,
         )
         self.clear_caches()
+        summary_query = SummaryQuery(
+            thread_ids=tuple(int(id) for id in self._meta.thread_ids),
+            fidelity="fast",
+            # NOTE: stop hardcoding this
+            top_k=32,
+        )
+        with timed("recompute summarize_tokens"):
+            self._summary = self.query_summary(summary_query)
 
     def validate_trace(self, meta: TraceMeta) -> None:
         thread_ids = [int(x) for x in meta.thread_ids]
@@ -271,7 +292,16 @@ class TraceSession:
                     f"{mapped!r} != {name!r}"
                 )
 
-    def summarize_tokens(self, query: SummaryQuery) -> TraceSummary:
+    # ---------- queries ----------
+
+    def query_summary(self, query: SummaryQuery) -> SummaryBundle:
+        query = query.canonicalize()
+
+        if (
+            not query.thread_ids
+        ):
+            return SummaryBundle.empty(query.fidelity)
+
         cache_key = ("summary_tokens", query)
         cached = self._summary_cache.get(cache_key)
         if cached is not None:
@@ -295,14 +325,21 @@ class TraceSession:
                     continue
 
                 for seq in thread.sequences:
-                    if query.block_only and seq.type != pallas.SequenceType.SEQUENCE_BLOCK:
+                    if (
+                        query.block_only 
+                        and seq.type != pallas.SequenceType.SEQUENCE_BLOCK
+                    ):
                         continue
 
                     token = seq.id
                     token_type = int(token.type)
 
                     token_id = int(token.id)
-                    key = self.remap_token_pair(token_type, token_id, token_mode=query.token_mode)
+                    key = self.remap_token_pair(
+                        token_type,
+                        token_id,
+                        token_mode=query.token_mode
+                    )
 
                     n_iter = int(seq.n_iterations)
                     if n_iter <= 0:
@@ -312,30 +349,55 @@ class TraceSession:
                     tids_by_token[key].add(tid)
 
                     if query.fidelity == "fast":
-                        incl_totals[key] += int(seq.mean_duration) * n_iter
-                        excl_totals[key] += int(seq.mean_exclusive_duration) * n_iter
+                        incl_totals[key] += (
+                            int(seq.mean_duration) * n_iter
+                        )
+                        excl_totals[key] += (
+                            int(seq.mean_exclusive_duration) * n_iter
+                        )
                     else:
-                        incl_totals[key] += int(seq.durations.as_numpy_array().sum())
-                        excl_totals[key] += int(seq.exclusive_durations.as_numpy_array().sum())
+                        incl_totals[key] += int(
+                            seq.durations.as_numpy_array().sum()
+                        )
+                        excl_totals[key] += int(
+                            seq.exclusive_durations.as_numpy_array().sum()
+                        )
 
         keys = set(incl_totals) | set(excl_totals) | set(call_counts)
         rows = [
             TokenSummary(
                 token_type      = token_type,
                 token_id        = token_id,
-                incl_total_ns   = int(incl_totals.get((token_type, token_id), 0)),
-                excl_total_ns   = int(excl_totals.get((token_type, token_id), 0)),
-                call_count      = int(call_counts.get((token_type, token_id), 0)),
-                thread_ids      = tuple(sorted(tids_by_token.get((token_type, token_id), set()))),
+                incl_total_ns   = int(
+                    incl_totals.get((token_type, token_id), 0)
+                ),
+                excl_total_ns   = int(
+                    excl_totals.get((token_type, token_id), 0)
+                ),
+                call_count      = int(
+                    call_counts.get((token_type, token_id), 0)
+                ),
+                thread_ids      = tuple(
+                    sorted(tids_by_token.get((token_type, token_id), set()))
+                ),
             )
             for (token_type, token_id) in keys
         ]
         rows.sort(
-            key=lambda r: (-r.excl_total_ns, -r.incl_total_ns, r.call_count, r.token_type, r.token_id)
+            key=lambda r: (
+                -r.excl_total_ns,
+                -r.incl_total_ns,
+                r.call_count,
+                r.token_type,
+                r.token_id
+            )
         )
-        top_tokens = tuple(as_token_key(r.token_type, r.token_id) for r in rows[: query.top_k])
+        top_tokens = tuple(
+            as_token_key(r.token_type, r.token_id)
+            for r in rows[: query.top_k]
+        )
 
-        summary = TraceSummary(
+        summary = SummaryBundle(
             fidelity    = query.fidelity,
             tokens      = tuple(rows),
             top_tokens  = top_tokens,
@@ -343,10 +405,14 @@ class TraceSession:
         self._summary_cache.put(cache_key, summary)
         return summary
 
-    # ---------- queries ----------
-
     def query_quanta(self, query: QuantaQuery) -> QuantaBundle:
-        query = canonicalize_quanta_query(query)
+        query = query.canonicalize()
+
+        if (
+            len(query.bin_edges_ns) < 2
+            or not query.thread_ids
+        ):
+            return QuantaBundle.empty(query.fidelity)
 
         cache_key = ("quanta", query)
         cached = self._quanta_cache.get(cache_key)
@@ -361,7 +427,7 @@ class TraceSession:
         bins = np.asarray(query.bin_edges_ns, dtype=np.uint64)
 
         if tids.size == 0 or bins.size < 2:
-            bundle = empty_quanta_bundle(query.fidelity)
+            bundle = QuantaBundle.empty(query.fidelity)
             self._quanta_cache.put(cache_key, bundle)
             return bundle
 
@@ -372,7 +438,7 @@ class TraceSession:
             )
 
         with timed(f"normalize_quanta_result[{query.fidelity}]"):
-            bundle = normalize_quanta_result(raw, query.fidelity)
+            bundle = QuantaBundle.from_pallas(raw, query.fidelity)
 
         if query.token_mode == "named":
             tt, tid, groups, sums = self.remap_tokens(
@@ -388,21 +454,27 @@ class TraceSession:
             start_ns, end_ns, thread_id = groups
             excl_ns, proportion = sums
             bundle = QuantaBundle(
-                fidelity = bundle.fidelity,
-                start_ns = start_ns,
-                end_ns = end_ns,
-                thread_id = thread_id,
-                token_type = tt,
-                token_id = tid,
-                excl_ns = excl_ns,
-                proportion = proportion,
+                fidelity    = bundle.fidelity,
+                start_ns    = start_ns,
+                end_ns      = end_ns,
+                thread_id   = thread_id,
+                token_type  = tt,
+                token_id    = tid,
+                excl_ns     = excl_ns,
+                proportion  = proportion,
             )
 
         self._quanta_cache.put(cache_key, bundle)
         return bundle
 
     def query_spans(self, query: SpanQuery) -> SpanBundle:
-        query = canonicalize_span_query(query)
+        query = query.canonicalize()
+
+        if (
+            query.t0_ns == query.t1_ns
+            or not query.thread_ids
+        ):
+            return SpanBundle.empty(query.fidelity)
 
         cache_key = ("spans", query)
         cached = self._span_cache.get(cache_key)
@@ -445,7 +517,7 @@ class TraceSession:
                         reader.moveToNextToken(True, True)
                         continue
 
-                    raw_token_type = int(token.type)
+                    raw_token_type = int(token.id.type)
                     raw_token_id = token_int_id(token)
                     token_type, token_id = self.remap_token_pair(
                         raw_token_type,
@@ -453,7 +525,10 @@ class TraceSession:
                         token_mode = query.token_mode,
                     )
 
-                    if token_filter is not None and (token_type, token_id) != token_filter:
+                    if (
+                        token_filter is not None
+                        and (token_type, token_id) != token_filter
+                    ):
                         reader.moveToNextToken(True, True)
                         continue
 
@@ -483,12 +558,18 @@ class TraceSession:
 
                     reader.moveToNextToken(True, True)
 
-        bundle = normalize_span_rows(rows, fidelity="exact")
+        bundle = SpanBundle.from_rows(rows, query.fidelity)
         self._span_cache.put(cache_key, bundle)
         return bundle
 
-    def query_occurrences(self, query: OccurrenceQuery) -> tuple[NodeRef, ...]:
-        query = canonicalize_occurrence_query(query)
+    def query_occurrences(self, query: OccurrenceQuery) -> OccurrenceBundle:
+        query = query.canonicalize()
+
+        if (
+            query.t0_ns == query.t1_ns
+            or not query.thread_ids
+        ):
+            return OccurrenceBundle.empty(query.fidelity)
 
         cache_key = ("occ", query)
         cached = self._occ_cache.get(cache_key)
@@ -505,7 +586,7 @@ class TraceSession:
         wanted_thread_ids = set(query.thread_ids)
         want_token = query.token
 
-        rows: list[NodeRef] = []
+        rows: list[tuple[int, int, int, int]] = []
         for archive in self._trace.archives:
             for thread in archive.threads:
                 tid = int(thread.id)
@@ -534,15 +615,15 @@ class TraceSession:
                         reader.moveToNextToken(True, True)
                         continue
 
-                    token_type = int(token.type)
-                    token_id = token_int_id(token)
-                    mapped_type, mapped_id = self.remap_token_pair(
-                        token_type,
-                        token_id,
+                    raw_token_type = int(token.id.type)
+                    raw_token_id = token_int_id(token)
+                    token_type, token_id = self.remap_token_pair(
+                        raw_token_type,
+                        raw_token_id,
                         token_mode=query.token_mode,
                     )
 
-                    if (mapped_type, mapped_id) != want_token:
+                    if (token_type, token_id) != want_token:
                         reader.moveToNextToken(True, True)
                         continue
 
@@ -550,55 +631,76 @@ class TraceSession:
                     dur_ns = int(token.durations[iteration])
                     end_ns = start_ns + dur_ns
 
-                    if query.t0_ns is not None and end_ns < query.t0_ns:
+                    if query.t0_ns is not None and end_ns <= query.t0_ns:
                         reader.moveToNextToken(True, True)
                         continue
-                    if query.t1_ns is not None and start_ns > query.t1_ns:
+                    if query.t1_ns is not None and start_ns >= query.t1_ns:
                         reader.moveToNextToken(True, True)
                         continue
 
-                    rows.append(
-                        NodeRef(
-                            thread_id   = tid,
-                            token_type  = token_type,
-                            token_id    = token_id,
-                            iteration   = int(iteration),
-                            depth       = int(depth),
-                            start_ns    = start_ns,
-                            end_ns      = end_ns,
-                        )
-                    )
-
+                    rows.append((tid, int(iteration), start_ns, dur_ns))
                     reader.moveToNextToken(True, True)
 
-        rows.sort(key=lambda r: (r.thread_id, r.start_ns, -r.end_ns, r.iteration))
+        rows.sort(key=lambda r: (r[0], r[1], r[2]))
 
+        if not rows:
+            bundle = OccurrenceBundle.empty(query.fidelity)
+            self._occ_cache.put(cache_key, bundle)
+            return bundle
+
+        thread_id = np.array([r[0] for r in rows], dtype=np.int64)
+        iteration = np.array([r[1] for r in rows], dtype=np.int64)
+        start_ns = np.array([r[2] for r in rows], dtype=np.int64)
+        dur_ns = np.array([r[3] for r in rows], dtype=np.int64)
+
+        n = len(rows)
+        if n == 0:
+            keep = np.array([], dtype=np.int64)
         if query.mode == "all":
-            out = tuple(rows)
-        elif query.mode == "first":
-            out = tuple(rows[:1])
-        elif query.mode == "last":
-            out = tuple(rows[-1:]) if rows else ()
-        elif query.mode == "nth":
+            keep = np.arange(n, dtype=np.int64)
+        if query.mode == "first":
+            keep = np.array([0], dtype=np.int64)
+        if query.mode == "last":
+            keep = np.array([n - 1], dtype=np.int64)
+        if query.mode == "nth":
             if query.index is None:
                 raise ValueError("query_occurrences(mode='nth') requires index")
-            out = (rows[query.index],) if 0 <= query.index < len(rows) else ()
-        elif query.mode == "median":
-            if not rows:
-                out = ()
-            else:
-                durations = np.array([r.end_ns - r.start_ns for r in rows], dtype=np.int64)
-                median = np.median(durations)
-                idx = int(np.argmin(np.abs(durations - median)))
-                out = (rows[idx],)
-        else:
-            raise ValueError(f"unknown occurrence mode: {query.mode}")
+            if 0 <= query.index < n:
+                keep = np.array([query.index], dtype=np.int64)
+            keep = np.array([], dtype=np.int64)
+        if query.mode == "median":
+            median = np.median(dur_ns)
+            keep = np.array([int(np.argmin(np.abs(dur_ns - median)))], dtype=np.int64)
+        raise ValueError(f"unknown occurrence mode: {query.mode}")
 
-        self._occ_cache.put(cache_key, out)
-        return out
+        if query.mode == "all" and query.fidelity != "exact":
+            if query.max_points is None or len(keep) <= query.max_points:
+                keep = keep[np.arange(len(keep), dtype=np.int64)]
+            else:
+                keep = keep[
+                    np.linspace(0, n - 1, query.max_points)
+                    .round()
+                    .astype(np.int64)
+                ]
+
+        bundle = OccurrenceBundle(
+            fidelity    = query.fidelity,
+            thread_id   = thread_id,
+            iteration   = iteration,
+            start_ns    = start_ns,
+            dur_ns      = dur_ns,
+        )
+        bundle = bundle.subset(keep)
+        self._occ_cache.put(cache_key, bundle)
+        return bundle
 
     def query_subtree(self, query: SubtreeQuery) -> SpanBundle:
-        query = canonicalize_subtree_query(query)
+        query = query.canonicalize()
+
+        if (
+            query.root.start_ns == query.root.end_ns
+        ):
+            return SpanBundle.empty(query.fidelity)
 
         cache_key = ("subtree", query)
         cached = self._subtree_cache.get(cache_key)
@@ -633,11 +735,11 @@ class TraceSession:
 
         idx = np.nonzero(keep)[0]
         if idx.size == 0:
-            bundle = empty_span_bundle(base.fidelity)
+            bundle = SpanBundle.empty(base.fidelity)
             self._subtree_cache.put(cache_key, bundle)
             return bundle
 
-        bundle = subset_span_bundle(base, idx, fidelity=base.fidelity)
+        bundle = SpanBundle.subset(base, idx)
 
         bundle.depth = bundle.depth - int(root.depth)
         if query.normalize_time:
@@ -647,8 +749,14 @@ class TraceSession:
         self._subtree_cache.put(cache_key, bundle)
         return bundle
 
-    def query_histogram(self, query: SnapshotHistogramQuery) -> SnapshotHistogram:
-        query = canonicalize_histogram_query(query)
+    def query_histogram(self, query: HistogramQuery) -> HistogramBundle:
+        query = query.canonicalize()
+
+        if (
+            query.t0_ns == query.t1_ns
+            or not query.thread_ids
+        ):
+            return HistogramBundle.empty()
 
         cache_key = ("snapshot_hist", query)
         cached = self._hist_cache.get(cache_key)
@@ -658,11 +766,6 @@ class TraceSession:
         if self._trace is None:
             self.open()
         assert self._trace is not None
-
-        if query.n_bins <= 0 or query.t1_ns <= query.t0_ns or not query.thread_ids:
-            out = SnapshotHistogram(left_ns=(), right_ns=(), excl_ns=())
-            self._hist_cache.put(cache_key, out)
-            return out
 
         edges = np.linspace(query.t0_ns, query.t1_ns, query.n_bins + 1, dtype=np.int64)
         totals = np.zeros(query.n_bins, dtype=np.int64)
@@ -688,10 +791,10 @@ class TraceSession:
 
                     totals[i] += bin_total
 
-        out = SnapshotHistogram(
-            left_ns=tuple(int(x) for x in edges[:-1]),
-            right_ns=tuple(int(x) for x in edges[1:]),
-            excl_ns=tuple(int(x) for x in totals),
+        out = HistogramBundle(
+            left_ns     = tuple(int(x) for x in edges[:-1]),
+            right_ns    = tuple(int(x) for x in edges[1:]),
+            excl_ns     = tuple(int(x) for x in totals),
         )
         self._hist_cache.put(cache_key, out)
         return out

@@ -3,19 +3,20 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from blup.bokeh.app_shell import collapse_arrows
-from blup.bokeh.intents import IntentBus
-from blup.modules.context_selection.pipeline import ContextSelectionPipeline
-from blup.modules.token_detail.pipeline import TokenDetailPipeline
-from blup.shell.layout import ShellDimensions
 from bokeh.io import curdoc
 from bokeh.models.layouts import LayoutDOM
 
+from blup.bokeh.app_shell import collapse_arrows
+from blup.bokeh.intents import IntentBus
 from blup.colors import TokenColor
 from blup.data_model import FidelityMode, TokenMode, CATEGORY_TOKEN_TYPE
+from blup.modules.context_selection.pipeline import ContextSelectionPipeline
 from blup.modules.interface import Pipeline, WorkPipeline, WorkManager
 from blup.modules.time_profile.pipeline import TimeProfilePipeline
+from blup.modules.token_detail.pipeline import TokenDetailPipeline
+from blup.modules.token_list.pipeline import TokenListPipeline
 from blup.ui import UIElements, UIModel
+from blup.shell.layout import ShellDimensions
 from blup.state import (
     ContextPatch,
     DisplayPatch,
@@ -70,10 +71,12 @@ class AppController:
             "context_selection": ContextSelectionPipeline(),
             "time_profile": TimeProfilePipeline(height=700),
             "token_detail": TokenDetailPipeline(height=700),
+            "token_list": TokenListPipeline(height=700),
         }
         self.work_pipelines: dict[ModuleID, WorkPipeline] = {               # type: ignore[assignment]
-            "time_profile": self.module_pipelines["time_profile"],          # type: ignore[assignment]
-            "token_detail": self.module_pipelines["token_detail"]           # type: ignore[assignment]
+            "time_profile": self.module_pipelines["time_profile"],
+            "token_detail": self.module_pipelines["token_detail"],
+            "token_list": self.module_pipelines["token_list"],
         }
         self.work_manager = WorkManager(
             schedule_display_callback = self.doc.add_next_tick_callback,    # type: ignore
@@ -237,6 +240,21 @@ class AppController:
                 "AppController requires at least one trace"
             )
 
+        context_default = PanelState(
+            active_module   = "context_selection",
+            context_key     = "selection",
+            side            = "left",
+            collapsed       = False,
+            width           = 240,
+        )
+        context_testing = PanelState(
+            active_module   = "token_list",
+            context_key     = "list",
+            side            = "left",
+            collapsed       = False,
+            width           = 360,
+        )
+
         return AppState(
             display = DisplayState(
                 main = PanelState(
@@ -244,13 +262,7 @@ class AppController:
                     context_key     = "main",
                     side            = "center",
                 ),
-                context = PanelState(
-                    active_module   = "context_selection",
-                    context_key     = "selection",
-                    side            = "left",
-                    collapsed       = False,
-                    width           = 240,
-                ),
+                context = context_default,
                 inspector = PanelState(
                     active_module   = "token_detail",
                     context_key     = "detail",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+from blup.types import TraceMode
 import numpy as np
 from bokeh.models.layouts import LayoutDOM
 from typing import TYPE_CHECKING
@@ -21,7 +22,6 @@ from blup.state import (
     ModuleID,
     TimeScopePatch,
     TokenSelectionPatch,
-    TraceMode,
 )
 
 if TYPE_CHECKING:
@@ -41,6 +41,16 @@ class TimeProfilePipeline:
     _pending_update: TimeProfileUpdate | None
     _active_update: TimeProfileUpdate | None
 
+    @property
+    def subscribed_state(self) -> tuple[str, ...]:
+        return (
+            "context.traces.trace_ids",
+            "context.active_threads",
+            "context.token_mode",
+            "context.time_scope",
+            "modules.time_profile",
+        )
+
     def __init__(self, *, height: int = 700) -> None:
         self.root = None
         self.host = None
@@ -54,16 +64,6 @@ class TimeProfilePipeline:
         self._callbacks_bound = False
         self._ignore_range_callbacks = False
         self._range_apply_scheduled = False
-
-    @property
-    def subscribed_state(self) -> tuple[str, ...]:
-        return (
-            "context.traces.trace_ids",
-            "context.active_threads",
-            "context.token_mode",
-            "context.time_scope",
-            "modules.time_profile",
-        )
 
     def build(self) -> LayoutDOM:
         self.root = self.chart.build()
