@@ -35,13 +35,6 @@ class ContextSelectionPipeline:
 
     controls: ContextControls | None
 
-    def __init__(self) -> None:
-        self.root = None
-        self.host = None
-        self.controls = None
-
-        self._syncing = False
-
     @property
     def subscribed_state(self) -> tuple[str, ...]:
         return (
@@ -52,6 +45,13 @@ class ContextSelectionPipeline:
             "modules.time_profile.fidelity",
             "modules.time_profile.order",
         )
+
+    def __init__(self) -> None:
+        self.root = None
+        self.host = None
+        self.controls = None
+
+        self._syncing = False
 
     def build(self) -> LayoutDOM:
         self.root = column(sizing_mode="stretch_height")

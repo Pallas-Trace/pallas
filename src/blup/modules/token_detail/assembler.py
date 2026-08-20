@@ -368,7 +368,7 @@ class TokenDetailAssembler:
         for i in range(len(h.left_ns)):
             src["left"].append(int(h.left_ns[i]) / 1e6)
             src["right"].append(int(h.right_ns[i]) / 1e6)
-            src["right"].append(int(h.excl_ns[i]) / 1e6)
+            src["top"].append(int(h.excl_ns[i]) / 1e6)
 
         return TokenDetailHistogramResult(trace_side=trace_side, src=src)
 
@@ -432,7 +432,8 @@ class TokenDetailAssembler:
         query = OccurrenceQuery(
             thread_ids      = thread_ids,
             token           = token,
-            fidelity        = ctx.fidelity,
+            # NOTE: hardcoded for now
+            fidelity        = "exact",
             token_mode      = ctx.token_mode,
             t0_ns           = update.start_ns,
             t1_ns           = update.end_ns,

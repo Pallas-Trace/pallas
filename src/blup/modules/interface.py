@@ -7,6 +7,7 @@ from queue import Empty, Queue
 from threading import Lock
 from typing import Callable, Hashable, Literal, Protocol, TYPE_CHECKING, cast
 
+from blup.utils import log_job
 from bokeh.models.layouts import LayoutDOM
 
 from blup.state import ModuleID
@@ -561,7 +562,8 @@ class WorkManager:
         job: object
     ) -> None:
         try:
-            result = request.run_job(job)
+            with log_job(request, job):
+                result = request.run_job(job)
             res = _ResultWrapper(
                 request_id  = request_id,
                 scope_key   = request.scope_key,

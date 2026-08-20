@@ -5,8 +5,12 @@ import os
 import time
 from collections import OrderedDict
 from threading import Lock
+from typing import TYPE_CHECKING
 
 from blup.types import TokenID, TokenKey, TokenKeyStr, TokenType
+
+if TYPE_CHECKING:
+    from blup.modules.interface import AnyWorkRequest
 
 # TODO: organize this file!
 
@@ -28,6 +32,40 @@ def timed(label: str):
     finally:
         dt = time.perf_counter() - t0
         print(f"[timing] {label}: {dt:.6f}s", flush=True)
+
+def _describe_job(request: AnyWorkRequest, job: object) -> str:
+    pipeline = getattr(request, "pipeline", None)
+    module_id = getattr(pipeline, "module_id", "?")
+    pid = f"{id(pipeline) & 0xFFFF:04x}" if pipeline is not None else "----"
+
+    payload = getattr(job, "payload", job)
+    parts = []
+    kind = getattr(payload, "kind", None)
+    if kind is not None:
+        parts.append(str(kind))
+    side = getattr(payload, "trace_side", None)
+    if side is not None:
+        parts.append(str(side))
+    thread = getattr(payload, "thread_name", None)
+    if thread is not None:
+        parts.append(f"thread={thread}")
+
+    detail = " ".join(parts) if parts else type(payload).__name__
+    return f"{module_id}[{pid}] {detail}"
+
+@contextmanager
+def log_job(request: AnyWorkRequest, job: object):
+    label = _describe_job(request, job)
+    if not VERBOSE:
+        yield
+        return
+    print(f"[job] start {label}", flush=True)
+    try:
+        yield
+    except BaseException as exc:
+        print(f"[job] FAIL  {label}: {exc!r}", flush=True)
+        raise
+    print(f"[job] done  {label}", flush=True)
 
 
 def as_token_key(token_type: TokenType, token_id: TokenID) -> TokenKey:

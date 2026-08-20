@@ -63,7 +63,7 @@ type TokenListOrder             = Literal[
 ]
 type TokenListSortDirection     = Literal[
             "ascending",
-            "descending"
+            "descending",
 ]
 
 # -------------------------------------------
@@ -196,13 +196,13 @@ class TokenDetailState:
     chart_mode:         TokenDetailChartMode = "histogram"
     n_bins:             int = 20
     top_k:              int | None = 32
-    fidelity:           FidelityMode = "balanced"
+    fidelity:           FidelityMode = "fast"
     show_stats:         bool = True
     show_chart:         bool = True
 
 @dataclass(frozen=True)
 class TokenListState:
-    order:              TokenListOrder = "delta"
+    order:              TokenListOrder = "excl"
     direction:          TokenListSortDirection = "descending"
     top_k:              int | None = None
     fidelity:           FidelityMode = "fast"

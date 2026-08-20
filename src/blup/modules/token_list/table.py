@@ -97,7 +97,7 @@ class TokenListTable:
 
         self.direction_select = Select(
             title       = "Direction",
-            value       = "desc",
+            value       = "descending",
             options     = _DIRECTION_OPTIONS,                               # type: ignore[attr-defined]
             width       = 90,
         )

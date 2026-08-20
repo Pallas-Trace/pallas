@@ -216,13 +216,13 @@ class TokenListAssembler:
         order: TokenListOrder,
         direction: TokenListSortDirection,
     ) -> list[TokenListRow]:
-        if direction not in ("asc", "desc"):
+        if direction not in ("ascending", "descending"):
             raise ValueError(f"invalid token_list direction: {direction!r}")
         rows = sorted(rows, key=lambda r: (r.token_type, r.token_id))
         return sorted(
             rows,
             key=_order_key_fn(order),
-            reverse=(direction == "desc"),
+            reverse=(direction == "descending"),
         )
 
     def _build_source(

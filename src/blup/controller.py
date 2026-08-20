@@ -262,12 +262,12 @@ class AppController:
                     context_key     = "main",
                     side            = "center",
                 ),
-                context = context_default,
+                context = context_testing,
                 inspector = PanelState(
                     active_module   = "token_detail",
                     context_key     = "detail",
                     side            = "right",
-                    collapsed       = True,
+                    collapsed       = False,
                     width           = 360,
                 )
             ),
@@ -368,7 +368,10 @@ class AppController:
             self.state.display.context,
             self.state.display.inspector,
         ):
-            if panel.active_module is not None:
+            if (
+                panel.active_module is not None
+                and not panel.collapsed
+            ):
                 ids.append(panel.active_module)
 
         return tuple(dict.fromkeys(ids))

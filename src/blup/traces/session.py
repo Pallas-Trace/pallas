@@ -297,113 +297,119 @@ class TraceSession:
     def query_summary(self, query: SummaryQuery) -> SummaryBundle:
         query = query.canonicalize()
 
-        if (
-            not query.thread_ids
+        with timed(
+            f"trace.query_summary[{query.fidelity}]"
+            f" threads={len(query.thread_ids)}"
+            f" top_k={query.top_k}"
         ):
-            return SummaryBundle.empty(query.fidelity)
 
-        cache_key = ("summary_tokens", query)
-        cached = self._summary_cache.get(cache_key)
-        if cached is not None:
-            return cached
+            if (
+                not query.thread_ids
+            ):
+                return SummaryBundle.empty(query.fidelity)
 
-        if self._trace is None:
-            self.open()
-        assert self._trace is not None
+            cache_key = ("summary_tokens", query)
+            cached = self._summary_cache.get(cache_key)
+            if cached is not None:
+                return cached
 
-        wanted_tids = set(int(t) for t in query.thread_ids)
+            if self._trace is None:
+                self.open()
+            assert self._trace is not None
 
-        incl_totals: dict[tuple[int, int], int] = defaultdict(int)
-        excl_totals: dict[tuple[int, int], int] = defaultdict(int)
-        call_counts: dict[tuple[int, int], int] = defaultdict(int)
-        tids_by_token: dict[tuple[int, int], set[int]] = defaultdict(set)
+            wanted_tids = set(int(t) for t in query.thread_ids)
 
-        for archive in self._trace.archives:
-            for thread in archive.threads:
-                tid = int(thread.id)
-                if wanted_tids and tid not in wanted_tids:
-                    continue
+            incl_totals: dict[tuple[int, int], int] = defaultdict(int)
+            excl_totals: dict[tuple[int, int], int] = defaultdict(int)
+            call_counts: dict[tuple[int, int], int] = defaultdict(int)
+            tids_by_token: dict[tuple[int, int], set[int]] = defaultdict(set)
 
-                for seq in thread.sequences:
-                    if (
-                        query.block_only 
-                        and seq.type != pallas.SequenceType.SEQUENCE_BLOCK
-                    ):
+            for archive in self._trace.archives:
+                for thread in archive.threads:
+                    tid = int(thread.id)
+                    if wanted_tids and tid not in wanted_tids:
                         continue
 
-                    token = seq.id
-                    token_type = int(token.type)
+                    for seq in thread.sequences:
+                        if (
+                            query.block_only 
+                            and seq.type != pallas.SequenceType.SEQUENCE_BLOCK
+                        ):
+                            continue
 
-                    token_id = int(token.id)
-                    key = self.remap_token_pair(
-                        token_type,
-                        token_id,
-                        token_mode=query.token_mode
-                    )
+                        token = seq.id
+                        token_type = int(token.type)
 
-                    n_iter = int(seq.n_iterations)
-                    if n_iter <= 0:
-                        continue
-
-                    call_counts[key] += n_iter
-                    tids_by_token[key].add(tid)
-
-                    if query.fidelity == "fast":
-                        incl_totals[key] += (
-                            int(seq.mean_duration) * n_iter
-                        )
-                        excl_totals[key] += (
-                            int(seq.mean_exclusive_duration) * n_iter
-                        )
-                    else:
-                        incl_totals[key] += int(
-                            seq.durations.as_numpy_array().sum()
-                        )
-                        excl_totals[key] += int(
-                            seq.exclusive_durations.as_numpy_array().sum()
+                        token_id = int(token.id)
+                        key = self.remap_token_pair(
+                            token_type,
+                            token_id,
+                            token_mode=query.token_mode
                         )
 
-        keys = set(incl_totals) | set(excl_totals) | set(call_counts)
-        rows = [
-            TokenSummary(
-                token_type      = token_type,
-                token_id        = token_id,
-                incl_total_ns   = int(
-                    incl_totals.get((token_type, token_id), 0)
-                ),
-                excl_total_ns   = int(
-                    excl_totals.get((token_type, token_id), 0)
-                ),
-                call_count      = int(
-                    call_counts.get((token_type, token_id), 0)
-                ),
-                thread_ids      = tuple(
-                    sorted(tids_by_token.get((token_type, token_id), set()))
-                ),
+                        n_iter = int(seq.n_iterations)
+                        if n_iter <= 0:
+                            continue
+
+                        call_counts[key] += n_iter
+                        tids_by_token[key].add(tid)
+
+                        if query.fidelity == "fast":
+                            incl_totals[key] += (
+                                int(seq.mean_duration) * n_iter
+                            )
+                            excl_totals[key] += (
+                                int(seq.mean_exclusive_duration) * n_iter
+                            )
+                        else:
+                            incl_totals[key] += int(
+                                seq.durations.as_numpy_array().sum()
+                            )
+                            excl_totals[key] += int(
+                                seq.exclusive_durations.as_numpy_array().sum()
+                            )
+
+            keys = set(incl_totals) | set(excl_totals) | set(call_counts)
+            rows = [
+                TokenSummary(
+                    token_type      = token_type,
+                    token_id        = token_id,
+                    incl_total_ns   = int(
+                        incl_totals.get((token_type, token_id), 0)
+                    ),
+                    excl_total_ns   = int(
+                        excl_totals.get((token_type, token_id), 0)
+                    ),
+                    call_count      = int(
+                        call_counts.get((token_type, token_id), 0)
+                    ),
+                    thread_ids      = tuple(
+                        sorted(tids_by_token.get((token_type, token_id), set()))
+                    ),
+                )
+                for (token_type, token_id) in keys
+            ]
+            rows.sort(
+                key=lambda r: (
+                    -r.excl_total_ns,
+                    -r.incl_total_ns,
+                    r.call_count,
+                    r.token_type,
+                    r.token_id
+                )
             )
-            for (token_type, token_id) in keys
-        ]
-        rows.sort(
-            key=lambda r: (
-                -r.excl_total_ns,
-                -r.incl_total_ns,
-                r.call_count,
-                r.token_type,
-                r.token_id
+            top_tokens = tuple(
+                as_token_key(r.token_type, r.token_id)
+                for r in rows[: query.top_k]
             )
-        )
-        top_tokens = tuple(
-            as_token_key(r.token_type, r.token_id)
-            for r in rows[: query.top_k]
-        )
 
-        summary = SummaryBundle(
-            fidelity    = query.fidelity,
-            tokens      = tuple(rows),
-            top_tokens  = top_tokens,
-        )
-        self._summary_cache.put(cache_key, summary)
-        return summary
+            summary = SummaryBundle(
+                fidelity    = query.fidelity,
+                tokens      = tuple(rows),
+                top_tokens  = top_tokens,
+            )
+            self._summary_cache.put(cache_key, summary)
+            return summary
 
     def query_quanta(self, query: QuantaQuery) -> QuantaBundle:
         query = query.canonicalize()

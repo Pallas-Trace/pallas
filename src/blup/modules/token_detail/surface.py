@@ -160,11 +160,11 @@ class TokenDetailSurface:
         if chart_mode == "histogram":
             if fig.title:
                 fig.title.text = "Exclusive total by time bin"              # type: ignore[attr-defined]
-            fig.yaxis.axis_label = "Exclusive (ms)"
+            # fig.yaxis.axis_label = "Exclusive (ms)"
         else:
             if fig.title:
                 fig.title.text = "Call durations over time"                 # type: ignore[attr-defined]
-            fig.yaxis.axis_label = "Duration (ms)"
+            # fig.yaxis.axis_label = "Duration (ms)"
 
         for side in ("upper", "lower"):
             self.hist_sources[side].data = _empty_histogram_source()

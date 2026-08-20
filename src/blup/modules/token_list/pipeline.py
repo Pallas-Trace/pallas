@@ -56,7 +56,11 @@ class TokenListPipeline:
     @property
     def subscribed_state(self) -> tuple[str, ...]:
         return (
-            "",
+            "context.traces.trace_ids",
+            "context.active_threads",
+            "context.token_mode",
+            "context.selection",
+            "modules.token_list",
         )
 
     def build(self) -> LayoutDOM:
