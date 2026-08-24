@@ -32,6 +32,8 @@ typedef struct DurationLinkedVector {
 #include "pallas/utils/pallas_parameter_handler.h"
 #include "pallas_subarray.h"
 
+class File;
+
 namespace pallas {
 
 /**
@@ -319,7 +321,7 @@ class LinkedVectorBase {
      * @param _policy Fallback policy associated with the reconstructed vector.
      * @param abi_version Trace ABI version used to interpret stored metadata.
      */
-    explicit LinkedVectorBase(FILE* vector_file,
+    explicit LinkedVectorBase(File* vector_file,
                     const char* value_file_path,
                     ParameterHandler& p,
                     ValueDomain domain,
@@ -333,7 +335,7 @@ class LinkedVectorBase {
     /** Rebuilds the full auxiliary lookup index from the linked subarray chain. */
     void rebuild_subarray_index();
     /** Writes the linked-vector metadata common to both `TimeLinkedVector` and `DurationLinkedVector`. */
-    void write_common_header(FILE* vector_file) const;
+    void write_common_header(File* vector_file) const;
     /** Evicts loaded subarray payloads when runtime memory constraints require it. */
     void evict_loaded_subarrays();
     /** Loads one subarray payload from the backing value file. */
@@ -395,7 +397,8 @@ class TimeLinkedVector : public LinkedVectorBase {
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    TimeLinkedVector(FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    TimeLinkedVector(File* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    //TimeLinkedVector(File* vector_file, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one timestamp value to the logical stream.
@@ -421,14 +424,15 @@ class TimeLinkedVector : public LinkedVectorBase {
     [[nodiscard]] size_t getFirstOccurrenceBefore(pallas_timestamp_t ts) const;
 
     /** Writes the timestamp-vector header to the metadata stream. */
-    void write_header(FILE* info_file);
+    void write_header(File* info_file);
     /**
      * @brief Writes the timestamp vector to the metadata and value streams.
      * @param info_file Metadata output stream.
      * @param data_file Value output stream.
      * @param parameter_handler Runtime parameter handler used by subarray serialization.
      */
-    void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
+    void write_to_file(File* info_file, File* data_file, const ParameterHandler* parameter_handler); // TODO: renamed all data_file or vector_file to details_file
+    // TODO: similarly,  renamed all info_file to summary_file
 
    protected:
     /** Creates the next timestamp-domain subarray in the chain. */
@@ -460,7 +464,7 @@ class DurationLinkedVector  : public LinkedVectorBase {
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    DurationLinkedVector (FILE* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    DurationLinkedVector (File* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one duration value to the logical stream.
@@ -498,14 +502,14 @@ class DurationLinkedVector  : public LinkedVectorBase {
     [[nodiscard]] uint64_t mean_value() const;
 
     /** Writes the duration-vector header to the metadata stream. */
-    void write_header(FILE* info_file);
+    void write_header(File* info_file);
     /**
      * @brief Writes the duration vector to the metadata and value streams.
      * @param info_file Metadata output stream.
      * @param data_file Value output stream.
      * @param parameter_handler Runtime parameter handler used by subarray serialization.
      */
-    void write_to_file(FILE* info_file, FILE* data_file, const ParameterHandler* parameter_handler);
+    void write_to_file(File* info_file, File* data_file, const ParameterHandler* parameter_handler);
 
    protected:
     /** Creates the next duration-domain subarray in the chain. */

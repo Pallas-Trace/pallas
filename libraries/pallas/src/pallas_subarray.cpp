@@ -12,15 +12,244 @@
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"
+#include "pallas/utils/pallas_storage.h"
 #include "pallas/linked_vector/pallas_linked_vector.h"
 #include "pallas/linked_vector/pallas_subarray.h"
 
+
+
+
+namespace pallas {
+    SubArrayStats::SubArrayStats(pallas::ValueDomain value_domain) {
+        _value_domain = value_domain;
+        _count = 0;
+    }
+
+    SubArrayDurationStats::SubArrayDurationStats(ValueDomain value_domain) : SubArrayStats(value_domain){ }
+    SubArrayTimestampStats::SubArrayTimestampStats(ValueDomain value_domain) : SubArrayStats(value_domain){ }
+}
+
+namespace pallas {
+    
+
+
+    /********* Getters/Setter functions *********/
+    SubArrayBase* SubArrayBase::next_subarray() const { return _next_subarray; }
+    SubArrayBase* SubArrayBase::previous_subarray() const { return _prev_subarray; }
+    LinkedVectorBase* SubArrayBase::parent_linked_vector() const { return _parent_linked_vector; }
+
+    ValueDomain SubArrayBase::value_domain() const {return _value_domain; };
+    StoragePolicy SubArrayBase::storage_policy() const { return _storage_policy; }
+
+    size_t SubArrayBase::size() const { return _size; }
+    size_t SubArrayBase::starting_index() const { return _starting_index; }
+    size_t SubArrayBase::offset() const { return _file_offset;}
+
+    bool SubArrayBase::contains(size_t pos) const {
+        return pos >= _starting_index && pos < _starting_index + _size;
+    }
+
+    size_t SubArrayBase::local_index(size_t pos) const {
+        return pos - _starting_index;
+    }
+
+#if 1
+    void SubArrayBase::set_offset(size_t offset) { _file_offset = offset; } // useless ?
+#endif   
+
+    /********* Functions for accessing the SubArray data *********/
+
+    uint64_t SubArrayBase::operator[](size_t pos) const { return at(pos); }
+    SubArrayStats& SubArrayBase::subarray_stats() const {return *_subarray_stats;}
+    
+    /** @returns First logical timestamp stored in this SubArray. */
+    uint64_t SubArrayBase::first_value() const { return at(_starting_index); }
+    /** @returns Last logical timestamp stored in this SubArray. */
+    uint64_t SubArrayBase::last_value() const  { return at(_starting_index+_size); }
+
+
+    AddStatus SubArrayBase::add(uint64_t val) {
+        AddStatus status = add_value(val);
+        _subarray_stats->add(val);
+        _size++;
+
+        if(status == AddStatus::Full) {
+            finalize_block();
+        }
+        return status;
+    }
+    
+    /********* Constructor/Destructor functions *********/
+    
+    SubArrayBase::SubArrayBase(ValueDomain domain,
+                           StoragePolicy policy,
+                           SubArrayBase* previous,
+                           const ParameterHandler* parameter_handler,
+                           LinkedVectorBase* parent)
+    : _prev_subarray(previous),
+      _parent_linked_vector(parent),
+      _value_domain(domain),
+      _storage_policy(policy),
+      _subarray_phase(SubArrayPhase::RuntimeWrite) {
+
+        if(domain == ValueDomain::Duration) _subarray_stats = new SubArrayTimestampStats(domain);
+        else _subarray_stats = new SubArrayDurationStats(domain);
+
+        if (_prev_subarray != nullptr) {
+            _prev_subarray->_next_subarray = this;
+            _starting_index = _prev_subarray->_starting_index + _prev_subarray->_size;
+        }
+    }
+    
+    /**
+     * @brief Reconstruct the common SubArray shell from the info stream.
+     *
+     * This constructor restores the metadata shared by timestamp and duration
+     * subarrays, recreates the appropriate manager, and relinks the SubArray into
+     * the in-memory chain during analysis-time loading.
+     */
+    pallas::SubArrayBase::SubArrayBase(File* info_file, ValueDomain domain, SubArrayBase* previous)
+        : _prev_subarray(previous),
+        _value_domain(domain),
+        _subarray_phase(SubArrayPhase::AnalysisRead) {
+        
+            //read_common_header(info_file);
+            std::cout<<"not implemented!\n";
+        abort();
+        if (_prev_subarray != nullptr) {
+            _prev_subarray->_next_subarray = this;
+            _starting_index = _prev_subarray->_starting_index + _prev_subarray->_size;
+        }
+    }
+
+    SubArrayBase* SubArrayBase::create_subarray(SubArrayBase* previous,
+                                                    const ParameterHandler* parameter_handler,
+                                                    LinkedVectorBase* parent) {
+        StoragePolicy policy = StoragePolicy::None; // TODO: automatically decide the storage policy to apply
+        
+        switch(policy) {
+#if 0
+            case StoragePolicy::Delta:
+                return new SubArrayDelta(domain, previous);
+                break;
+            case StoragePolicy::Lossy:
+                return new SubArrayPLA(domain, previous);
+                break;
+#endif
+            default:
+                return new SubArrayRaw(parent->domain(), policy, previous, parameter_handler, parent);
+                break;
+        }
+    }
+
+    SubArrayBase* SubArrayBase::load_subarray(File* data_file,
+                                        SubArrayBase* previous,
+                                        const ParameterHandler* parameter_handler,
+                                        LinkedVectorBase* parent) {
+        ValueDomain domain;
+        StoragePolicy policy;
+        size_t size;
+        data_file->read(&policy, sizeof(policy), 1);
+        data_file->read(&domain, sizeof(domain), 1);
+        data_file->read(&size, sizeof(size), 1);
+
+        switch(policy) {
+#if 0
+            case StoragePolicy::Delta:
+                return new SubArrayDelta(domain, previous);
+                break;
+            case StoragePolicy::Lossy:
+                return new SubArrayPLA(domain, previous);
+                break;
+#endif
+            default:
+                return new SubArrayRaw(domain, policy, previous, parameter_handler, parent);
+                break;
+            
+        }
+    }
+
+    /** Write/read the SubArray summary (eg. stats) */
+
+    
+    void SubArrayTimestampStats::write_summary(File* info_file) {
+        info_file->write(&_first_timestamp, sizeof(_first_timestamp), 1);
+        info_file->write(&_last_timestamp, sizeof(_last_timestamp), 1);
+    }
+    void SubArrayTimestampStats::read_summary(File* info_file) {
+        std::cout<<"Read summary for subarray TimeStats\n";
+        info_file->read(&_first_timestamp, sizeof(_first_timestamp), 1);
+        info_file->read(&_last_timestamp, sizeof(_last_timestamp), 1);
+    }
+
+    void SubArrayDurationStats::write_summary(File* info_file) {
+        info_file->write(&_min_duration, sizeof(_min_duration), 1);
+        info_file->write(&_max_duration, sizeof(_max_duration), 1);
+        info_file->write(&_mean_duration, sizeof(_mean_duration), 1);
+        info_file->write(&_mean_duration_is_finalized, sizeof(_mean_duration_is_finalized), 1);
+    }
+    void SubArrayDurationStats::read_summary(File* info_file) {
+        std::cout<<"Read summary for subarray DurationStats\n";
+        info_file->read(&_min_duration, sizeof(_min_duration), 1);
+        info_file->read(&_max_duration, sizeof(_max_duration), 1);
+        info_file->read(&_mean_duration, sizeof(_mean_duration), 1);
+        info_file->read(&_mean_duration_is_finalized, sizeof(_mean_duration_is_finalized), 1);
+    }
+
+    void pallas::SubArrayBase::write_summary(File* info_file) const {
+        info_file->write(&_storage_policy, sizeof(_storage_policy), 1);
+        info_file->write(&_value_domain, sizeof(_value_domain), 1);
+        info_file->write(&_size, sizeof(_size), 1);
+        info_file->write(&_starting_index, sizeof(_starting_index), 1);
+        _subarray_stats->write_summary(info_file);
+//        info_file->write(&_subarray_stats->_stats, sizeof(_subarray_stats_stats), 1);
+    }
+
+    void pallas::SubArrayBase::read_summary(File* info_file) {
+        std::cout<<"Read summary for subarray\n";
+        info_file->read(&_storage_policy, sizeof(_storage_policy), 1);
+        info_file->read(&_value_domain, sizeof(_value_domain), 1);
+        info_file->read(&_size, sizeof(_size), 1);
+        info_file->read(&_starting_index, sizeof(_starting_index), 1);
+        _subarray_stats->read_summary(info_file);
+   //     info_file->read(&_subarray_stats->_stats, sizeof(_subarray_stats_stats), 1);
+    }
+
+    /** Write/read the SubArray data (eg. timestamps) and calls the child class write_values */
+    void pallas::SubArrayBase::write_data(File* data_file) {
+        _file_offset = fseek(data_file->file, 0, SEEK_CUR);
+        data_file->write(&_storage_policy, sizeof(_storage_policy), 1);
+        data_file->write(&_value_domain, sizeof(_value_domain), 1);
+        data_file->write(&_size, sizeof(_size), 1);
+
+        // Call the child write_values function to actually write the timestamps
+        write_values(data_file);
+    }
+
+    void pallas::SubArrayBase::read_data(File* data_file) {
+        std::cout<<"Read data for subarray\n";        
+        data_file->read(&_storage_policy, sizeof(_storage_policy), 1);
+        data_file->read(&_value_domain, sizeof(_value_domain), 1);
+        data_file->read(&_size, sizeof(_size), 1);
+
+        // Call the child write_values function to actually write the timestamps
+        load_values(data_file);
+    }        
+
+    SubArrayBase::~SubArrayBase() {
+        delete _subarray_stats;
+        //free_values();
+    }
+
+}
+
+#if 0
 extern size_t numberPreRawBytes;
 extern size_t numberRawBytes;
 
 // These functions are defined in pallas_storage.cpp
-extern void _pallas_compress_write(uint64_t* src, size_t n, FILE* file, const pallas::ParameterHandler* parameter_handler);
-extern uint64_t* _pallas_compress_read(size_t n, FILE* file, const pallas::ParameterHandler& parameter_handler);
+extern void _pallas_compress_write(uint64_t* src, size_t n, File* file, const pallas::ParameterHandler* parameter_handler);
+extern uint64_t* _pallas_compress_read(size_t n, File* file, const pallas::ParameterHandler& parameter_handler);
 
 /** Methods Pertaining to the policy manager of the SubArray */
 namespace pallas {
@@ -47,7 +276,7 @@ LossyPolicy resolve_lossy_policy(ValueDomain domain,
 
 #ifdef BMARK
 void record_subarray_write_metrics(BmarkFamily family,
-                                   FILE* data_file,
+                                   File* data_file,
                                    long start_offset,
                                    uint64_t pre_raw_bytes,
                                    uint64_t raw_bytes) {
@@ -70,11 +299,11 @@ void record_subarray_write_metrics(BmarkFamily family,
 void record_subarray_error_metrics(BmarkFamily family,
                                    const uint64_t* exact_values,
                                    const uint64_t* observed_values,
-                                   size_t value_count) {
+                                   size_t _size) {
     if (family == BmarkFamily::Unknown) {
         return;
     }
-    bmark_note_error_values(family, exact_values, observed_values, value_count);
+    bmark_note_error_values(family, exact_values, observed_values, _size);
 }
 #endif
 
@@ -128,80 +357,6 @@ void SubArrayBase::unpack_subarray_flags(uint8_t encoded_policy) {
 
 namespace {
 
-/**
- * @brief Factory that selects the concrete manager attached to one SubArray.
- *
- * The choice depends on the logical value domain, the coarse `StoragePolicy`,
- * and, for lossy paths, the resolved `LossyPolicy` variant. This keeps manager
- * selection in one place for both runtime-created and file-reconstructed
- * SubArrays.
- */
-std::unique_ptr<Manager> make_manager(SubArrayBase& parent,
-                                      ValueDomain domain,
-                                      StoragePolicy policy,
-                                      LossyPolicy lossy_policy) {
-    switch (policy) {
-        case StoragePolicy::None:
-            return std::make_unique<NoneManager>(parent);
-        case StoragePolicy::Lossy:
-            if (domain == ValueDomain::Timestamp) {
-                switch (lossy_policy) {
-                    case LossyPolicy::PLA8:
-                        return std::make_unique<PLAManager>(parent, 8);
-                    case LossyPolicy::PLA16:
-                        return std::make_unique<PLAManager>(parent, 16);
-                    case LossyPolicy::PLA32:
-                        return std::make_unique<PLAManager>(parent, 32);
-                    case LossyPolicy::PLA4:
-                        return std::make_unique<PLAManager>(parent, 4);
-                    case LossyPolicy::Spike4:
-                    case LossyPolicy::Spike8:
-                    case LossyPolicy::Spike16:
-                    case LossyPolicy::Spike32:
-                        return std::make_unique<DeltaManager>(parent, domain);
-                }
-                return std::make_unique<DeltaManager>(parent, domain);
-            }
-            if (domain == ValueDomain::Duration) {
-                switch (lossy_policy) {
-                    case LossyPolicy::Spike4:
-                        return std::make_unique<DurationSpikeManager>(parent, 4);
-                    case LossyPolicy::Spike8:
-                        return std::make_unique<DurationSpikeManager>(parent, 8);
-                    case LossyPolicy::Spike16:
-                        return std::make_unique<DurationSpikeManager>(parent, 16);
-                    case LossyPolicy::Spike32:
-                        return std::make_unique<DurationSpikeManager>(parent, 32);
-                    case LossyPolicy::PLA4:
-                    case LossyPolicy::PLA8:
-                    case LossyPolicy::PLA16:
-                    case LossyPolicy::PLA32:
-                        return std::make_unique<DeltaManager>(parent, domain);
-                }
-                return std::make_unique<DeltaManager>(parent, domain);
-            }
-            return std::make_unique<NoneManager>(parent);
-        case StoragePolicy::Delta:
-            if (domain == ValueDomain::Timestamp) {
-                return std::make_unique<DeltaManager>(parent, domain);
-            }
-            if (domain == ValueDomain::Duration) {
-                return std::make_unique<DeltaManager>(parent, domain);
-            }
-            return std::make_unique<NoneManager>(parent);
-    }
-
-    return std::make_unique<NoneManager>(parent);
-}
-
-}  // namespace
-
-Manager::~Manager() = default;
-
-void Manager::on_subarray_initialized() {}
-
-}
-
 /** Methods Peratining to NoneManger Class */
 namespace pallas {
 
@@ -215,23 +370,23 @@ AddStatus NoneManager::add(uint64_t val) {
     }
 
     parent.buffer[parent.physical_size] = val;
-    parent.value_count++;
+    parent._size++;
     parent.physical_size++;
     return AddStatus::Ok;
 }
 
 uint64_t NoneManager::at(size_t pos) const {
     if (!parent.contains(pos)) {
-        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, parent.first_index, parent.value_count);
+        pallas_error("Wrong index (%lu) compared to starting index (%lu) and size (%lu)\n", pos, parent._starting_index, parent._size);
     }
     return parent.buffer[parent.local_index(pos)];
 }
 
 void NoneManager::copy_to_array(uint64_t* given_array) const {
-    std::memcpy(given_array, parent.buffer, parent.value_count * sizeof(uint64_t));
+    std::memcpy(given_array, parent.buffer, parent._size * sizeof(uint64_t));
 }
 
-void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_handler) {
+void NoneManager::write_data(File* data_file, const ParameterHandler* parameter_handler) {
     if (data_file == nullptr || parameter_handler == nullptr || parent.buffer == nullptr) {
         return;
     }
@@ -256,7 +411,7 @@ void NoneManager::write_data(FILE* data_file, const ParameterHandler* parameter_
     parent.free_values();
 }
 
-void NoneManager::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+void NoneManager::load_data(File* data_file, const ParameterHandler& parameter_handler) {
     if (data_file == nullptr) {
         return;
     }
@@ -274,38 +429,13 @@ void NoneManager::on_values_freed() {}
 /** Methods Pertaining to the base SubArray Class */
 namespace pallas {
 
-SubArrayBase::SubArrayBase(ValueDomain domain,
-                           StoragePolicy policy,
-                           SubArrayBase* previous,
-                           const ParameterHandler* parameter_handler,
-                           LinkedVectorBase* parent)
-    : prev(previous),
-      manager(nullptr),
-      parent_lv(parent),
-      value_domain(domain),
-      storage_policy(policy),
-      lossy_storage_policy(resolve_lossy_policy(domain, policy, parameter_handler)),
-      subarray_phase(SubArrayPhase::RuntimeWrite) {
-    manager = make_manager(*this, domain, policy, lossy_storage_policy);
-    buffer = new uint64_t[manager->_capacity()];
-    manager->on_subarray_initialized();
-    if (prev != nullptr) {
-        prev->next = this;
-        first_index = prev->first_index + prev->value_count;
-    }
-}
+
 
 SubArrayBase::~SubArrayBase() {
     free_values();
 }
 
-bool SubArrayBase::contains(size_t pos) const {
-    return pos >= first_index && pos < first_index + value_count;
-}
 
-size_t SubArrayBase::local_index(size_t pos) const {
-    return pos - first_index;
-}
 
 uint64_t* SubArrayBase::raw_buffer() {
     return buffer;
@@ -353,7 +483,7 @@ SubArrayPhase SubArrayBase::phase() const {
 }
 
 size_t SubArrayBase::size() const {
-    return value_count;
+    return _size;
 }
 
 size_t SubArrayBase::mem_size() const {
@@ -368,20 +498,14 @@ size_t SubArrayBase::capacity() const {
 }
 
 size_t SubArrayBase::starting_index() const {
-    return first_index;
+    return _starting_index;
 }
 
 size_t SubArrayBase::offset() const {
     return file_offset;
 }
 
-SubArrayBase* SubArrayBase::next_subarray() const {
-    return next;
-}
 
-SubArrayBase* SubArrayBase::previous_subarray() const {
-    return prev;
-}
 
 bool SubArrayBase::has_values() const {
     return buffer != nullptr;
@@ -397,7 +521,7 @@ BmarkFamily SubArrayBase::get_bmark_family() const {
 }
 #endif
 
-void SubArrayBase::load_data(FILE* data_file, const ParameterHandler& parameter_handler) {
+void SubArrayBase::load_data(File* data_file, const ParameterHandler& parameter_handler) {
     manager->load_data(data_file, parameter_handler);
 }
 
@@ -413,7 +537,7 @@ TimeSubArray::TimeSubArray(StoragePolicy policy,
     : SubArrayBase(ValueDomain::Timestamp, policy, previous, parameter_handler, parent) {}
 
 AddStatus TimeSubArray::add(uint64_t val) {
-    const bool is_first_value = (value_count == 0);
+    const bool is_first_value = (_size == 0);
     auto status = manager->add(val);
     if (status == AddStatus::Ok) {
         if (is_first_value) {
@@ -425,7 +549,7 @@ AddStatus TimeSubArray::add(uint64_t val) {
     return status;
 }
 
-void TimeSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
+void TimeSubArray::write_data(File* file, const ParameterHandler* parameter_handler) {
     manager->write_data(file, parameter_handler);
 }
 
@@ -456,25 +580,25 @@ AddStatus DurationSubArray::add(uint64_t val) {
     return status;
 }
 
-void DurationSubArray::write_data(FILE* file, const ParameterHandler* parameter_handler) {
+void DurationSubArray::write_data(File* file, const ParameterHandler* parameter_handler) {
     manager->write_data(file, parameter_handler);
 }
 
 void DurationSubArray::update_statistics(uint64_t current_value) {
     min_duration = (current_value < min_duration) ? current_value : min_duration;
     max_duration = (current_value > max_duration) ? current_value : max_duration;
-    if (mean_duration_is_finalized && value_count > 1) {
-        mean_duration *= (value_count - 1);
+    if (mean_duration_is_finalized && _size > 1) {
+        mean_duration *= (_size - 1);
     }
     mean_duration_is_finalized = false;
     mean_duration += current_value;
 }
 
 void DurationSubArray::final_update_mean() {
-    if (value_count == 0 || mean_duration_is_finalized) {
+    if (_size == 0 || mean_duration_is_finalized) {
         return;
     }
-    mean_duration /= value_count;
+    mean_duration /= _size;
     mean_duration_is_finalized = true;
     pallas_assert_inferior_equal(mean_duration, max_duration);
     pallas_assert_inferior_equal(min_duration, mean_duration);
@@ -493,3 +617,5 @@ uint64_t DurationSubArray::mean_value() const {
 }
 
 }  // namespace pallas
+
+#endif

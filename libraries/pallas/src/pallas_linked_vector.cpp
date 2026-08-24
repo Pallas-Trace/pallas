@@ -220,14 +220,14 @@ uint64_t LinkedVectorBase::operator[](size_t pos) const {
     }
     if (!subarray->has_values()) {
         if (value_domain == ValueDomain::Timestamp) {
-            auto* time_subarray = static_cast<const TimeSubArray*>(subarray);
+            //auto* time_subarray = static_cast<const TimeSubArray*>(subarray);
             if (pos == subarray->starting_index()) {
-                const auto value = time_subarray->first_value();
+                const auto value = subarray->first_value();
                 recent_values.push(pos, value);
                 return value;
             }
             if (pos == subarray->starting_index() + subarray->size() - 1) {
-                const auto value = time_subarray->last_value();
+                const auto value = subarray->last_value();
                 recent_values.push(pos, value);
                 return value;
             }
@@ -289,7 +289,7 @@ std::vector<StoragePolicy> LinkedVectorBase::get_sub_array_policies() const {
     std::vector<StoragePolicy> policies;
     policies.reserve(subarray_total);
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
-        policies.push_back(subarray->policy());
+        policies.push_back(subarray->storage_policy());
     }
     return policies;
 }
@@ -299,7 +299,7 @@ std::vector<StoragePolicy> LinkedVectorBase::get_loaded_sub_array_policies() con
     policies.reserve(loaded_subarrays.size());
     for (auto* subarray : loaded_subarrays) {
         if (subarray != nullptr && subarray->has_values()) {
-            policies.push_back(subarray->policy());
+            policies.push_back(subarray->storage_policy());
         }
     }
     return policies;
@@ -358,7 +358,7 @@ bool LinkedVectorBase::apply_storage_policy() {
         return true;
     }
 
-    if (last->policy() == storage_policy) {
+    if (last->storage_policy() == storage_policy) {
         return false;
     }
 
@@ -402,6 +402,7 @@ TimeLinkedVector ::TimeLinkedVector (ParameterHandler& p, StoragePolicy _policy)
 SubArrayBase* TimeLinkedVector ::create_subarray(SubArrayBase* previous) const {
     // This is only the runtime subarray-dispatch point for TimeLinkedVector .
     // The storage-policy encoding itself is handled separately in the subarray header path.
+    #if 0
     if (storage_policy == StoragePolicy::Lossy) {
         switch (parameter_handler.getTimeLossyPolicy()) {
             case LossyPolicy::PLA4:
@@ -419,8 +420,9 @@ SubArrayBase* TimeLinkedVector ::create_subarray(SubArrayBase* previous) const {
                 break;
         }
     }
-    return new TimeSubArray(storage_policy,
-                            static_cast<TimeSubArray*>(previous),
+    #endif
+
+    return SubArrayBase::create_subarray(previous,
                             &parameter_handler,
                             const_cast<TimeLinkedVector *>(this));
 }
@@ -462,7 +464,7 @@ std::string TimeLinkedVector ::to_string() const {
 
 std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) const {
     auto output = std::vector<double>();
-    auto* current = static_cast<TimeSubArray*>(first);
+    auto* current = first;
     // While loop to go through all the SubVectors.
     // Legend:
     //   - : Time spent in current vector but NOT in the window
@@ -504,7 +506,7 @@ std::vector<double> TimeLinkedVector ::getWeights(pallas_timestamp_t start, pall
             pallas_error("This is not supposed to happen !\n");
             pallas_error("start=%lu, end=%lu\n", start, end);
         }
-        current = static_cast<TimeSubArray*>(current->next_subarray());
+        current = current->next_subarray();
     }
     return output;
 }
@@ -548,10 +550,9 @@ DurationLinkedVector ::DurationLinkedVector (ParameterHandler& p, StoragePolicy 
 SubArrayBase* DurationLinkedVector ::create_subarray(SubArrayBase* previous) const {
     // Let SubArrayBase resolve the active duration lossy variant from the
     // parameter handler so Spike4/8/16/32 can instantiate their manager.
-    return new DurationSubArray(storage_policy,
-                                static_cast<DurationSubArray*>(previous),
-                                &parameter_handler,
-                                const_cast<DurationLinkedVector *>(this));
+    return SubArrayBase::create_subarray(previous,
+                                        &parameter_handler,
+                                        const_cast<DurationLinkedVector *>(this));
 }
 
 /** Value Insertion */
@@ -571,7 +572,7 @@ AddStatus DurationLinkedVector ::add(uint64_t val) {
     auto status = last->add(val);
     
     if (status == AddStatus::Full || status == AddStatus::Outlier) {
-        static_cast<DurationSubArray*>(last)->final_update_mean();
+        //last->final_update_mean();
         last = create_subarray(last);
         subarray_total++;
         append_subarray_index(last);
@@ -612,8 +613,7 @@ pallas_duration_t DurationLinkedVector ::weightedSum(std::vector<double>& weight
     pallas_duration_t result = 0;
     size_t index = 0;
     for (auto* subarray = first; subarray != nullptr && index < weights.size(); subarray = subarray->next_subarray(), ++index) {
-        auto* duration_subarray = static_cast<const DurationSubArray*>(subarray);
-        result += static_cast<pallas_duration_t>(weights[index] * duration_subarray->mean_value() * duration_subarray->size());
+        result += static_cast<pallas_duration_t>(weights[index] * subarray->subarray_stats().mean_duration() * subarray->size());
     }
     return result;
 }

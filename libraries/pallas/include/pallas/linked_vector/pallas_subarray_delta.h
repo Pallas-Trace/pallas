@@ -8,6 +8,11 @@
 
 namespace pallas {
 
+    class DeltaSubArray : public SubArrayBase {
+        public:
+        
+    }
+
     /**
      * Exact delta-encoding manager shared by timestamp and duration SubArrays.
      *

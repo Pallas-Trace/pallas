@@ -148,6 +148,7 @@ std::string toString(TimestampStorage alg);
  */
 TimestampStorage timestampStorageFromString(const std::string& str);
 
+class File;
 /**
  * A simple data class that contains information on different parameters.
  */
@@ -235,13 +236,13 @@ class ParameterHandler {
      */
     [[nodiscard]] TimestampStorage getTimestampStorage() const;
 
-    void writeToFile(FILE* file) const;
-    void readFromFile(FILE* file);
+    void writeToFile(File* file) const;
+    void readFromFile(File* file);
 
     ~ParameterHandler();
     ParameterHandler();
     ParameterHandler(const std::string& stringConfig);
-    ParameterHandler(FILE* file);
+    ParameterHandler(File* file);
 
     /**
      * Prints the config of the ParameterHandler. That string is a valid Pallas configuration file.
