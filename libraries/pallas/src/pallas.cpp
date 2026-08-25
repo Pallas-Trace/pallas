@@ -7,8 +7,9 @@
 #include <sstream>
 
 #include "pallas/pallas.h"
-#include "pallas/pallas_record.h"
 #include "pallas/pallas_archive.h"
+#include "pallas/pallas_read.h"
+#include "pallas/pallas_record.h"
 
 #include "pallas/utils/pallas_hash.h"
 #include "pallas/utils/pallas_log.h"

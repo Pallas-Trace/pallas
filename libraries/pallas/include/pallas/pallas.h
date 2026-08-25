@@ -15,10 +15,7 @@
 
 #include <pthread.h>
 
-#include "pallas_config.h"
-
 #include "utils/pallas_dbg.h"
-#include "utils/pallas_log.h"
 #include "utils/pallas_linked_vector.h"
 #include "utils/pallas_timestamp.h"
 
@@ -757,7 +754,7 @@ typedef struct Thread {
 
     /** Prints a list of Attribute. */
     void printAttributeList(const struct AttributeList *attribute_list) const;
-    
+
     /** Prints the attributes of an EventOccurrence. */
     void printEventAttribute(const struct EventOccurrence *es) const;
     /** Returns the Attributes attached to an EventOccurrence. */

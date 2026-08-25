@@ -4,6 +4,7 @@
  */
 
 #include <stdlib.h>
+#include <cinttypes>
 
 #include "pallas/utils/pallas_hash.h"
 

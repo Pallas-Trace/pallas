@@ -30,8 +30,6 @@
 
 #ifdef __cplusplus
 #include <pthread.h>
-#include <cstdio>
-#include <cstdlib>
 #else
 #include <pthread.h>
 #include <stdio.h>

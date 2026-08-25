@@ -7,7 +7,7 @@
  */
 #pragma once
 
-#include "pallas/pallas.h"
+#include "pallas.h"
 
 #ifdef __cplusplus
 /** Seed used for the hashing algorithm. */

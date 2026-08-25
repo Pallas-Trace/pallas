@@ -5,6 +5,8 @@
 #pragma once
 #include <inttypes.h>
 #include <stddef.h>
+#include <stdio.h>
+
 extern __thread uint64_t pallas_thread_rank;
 extern unsigned int pallas_mpi_rank;
 

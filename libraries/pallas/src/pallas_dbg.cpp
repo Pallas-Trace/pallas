@@ -4,6 +4,7 @@
  */
 
 #include <cstring>
+#include <cstdlib>
 
 #include "pallas/utils/pallas_dbg.h"
 #include "pallas/utils/pallas_log.h"

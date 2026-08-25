@@ -10,7 +10,6 @@
 #endif
 #include "pallas.h"
 #include "pallas_attribute.h"
-#include "pallas_read.h"
 #include "pallas_write.h"
 /* Event Records */
 #ifdef __cplusplus

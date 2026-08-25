@@ -8,6 +8,7 @@
 #include <pallas/pallas_archive.h>
 
 #include <pallas/utils/pallas_storage.h>
+#include <pallas/utils/pallas_log.h>
 
 static int id_width = 8;
 static int value_width = 14;

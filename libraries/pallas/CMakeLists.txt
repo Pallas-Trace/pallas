@@ -60,6 +60,7 @@ target_include_directories(pallas
         PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         include
+        include/pallas
         ${ZSTD_INCLUDE_DIRS}
         ${CMAKE_CURRENT_BINARY_DIR}/include/pallas/
 )
@@ -155,4 +156,3 @@ if (NOT _PIP)
   )
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pallas.config DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/)
 endif()
-
