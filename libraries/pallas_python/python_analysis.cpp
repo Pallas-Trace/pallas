@@ -2,8 +2,12 @@
 
 #include <iostream>
 #include <bitset>
-#include "pallas_python.h"
 #include <regex>
+
+#include "pallas_python.h"
+#include "pallas_read.h"
+#include "utils/pallas_log.h"
+
 extern py::module pandas;
 
 py::array_t<uint64_t> get_communication_matrix(pallas::GlobalArchive &trace) {

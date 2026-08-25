@@ -1,16 +1,17 @@
 #include "python_read.h"
 
-#include <pallas/utils/pallas_storage.h>
 #include <pybind11/pytypes.h>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <variant>
 #include <vector>
-#include "pallas/pallas.h"
-#include "pallas/pallas_archive.h"
-#include "pallas/pallas_attribute.h"
-#include "pallas/pallas_read.h"
+#include "pallas.h"
+#include "pallas_archive.h"
+#include "pallas_attribute.h"
+#include "pallas_read.h"
+#include "utils/pallas_log.h"
+#include "utils/pallas_storage.h"
 
 std::vector<pallas::Thread*> Archive_get_threads(pallas::Archive& archive) {
     auto vector = std::vector<pallas::Thread*>();
