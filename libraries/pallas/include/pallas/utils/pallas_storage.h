@@ -12,6 +12,9 @@
 #include "pallas/pallas_archive.h"
 
 #ifdef __cplusplus
+
+#include <stack>
+#include <iostream>
 extern "C" {
 #endif
 
@@ -73,6 +76,34 @@ typedef struct File {
     bool isOpen CXX({false});
 
 #ifdef __cplusplus
+    std::stack<std::string> block_stack;
+#else
+    byte strings[VECTOR_SIZE]; // TODO: define STACK_SIZE
+#endif
+
+
+#ifdef __cplusplus
+    void begin_block(std::string msg) {
+#ifdef DEBUG
+        block_stack.push(msg);
+        std::cout<<"begin "<<msg<<" : "<<path<<":"<<offset()<<std::endl;
+#endif
+    }
+
+    void end_block(std::string msg) {
+#ifdef DEBUG
+        block_stack.pop();
+        std::cout<<"\nend "<<msg<<" : "<<path<<":"<<offset()<<std::endl;
+#endif
+    }
+    void log(const std::string& mode, size_t size) const {
+        #ifdef DEBUG
+        if(block_stack.size() == 0 )
+        abort();
+        std::cout<<std::string(mode)<<size<<",";
+        #endif
+    }
+
     bool is_open() const { return isOpen; }
 
     static void pallasMkdir(const char* directory_name, mode_t mode);
@@ -120,39 +151,69 @@ typedef struct File {
             numberOpenFiles--;
     };
     
-    void read(void* ptr, size_t size, size_t n) const {
+    /* Move the file cursor
+    * Returns the new offset
+    */
+    off_t seek(off_t offset, int whence) {
+        fseek(file, offset, whence);
+        return ftell(file);
+    }
+    // Warning: not thread safe!
+    void read(void* ptr, size_t size, size_t n, off_t _offset = -1) const {        
         if (size > 0) {
+            if(_offset != -1) {fseek(file, _offset, SEEK_SET);}
+
+            log("r",size*n);
             size_t ret = fread(ptr, size, n, file);
             if (ret != (n))
                 pallas_error("fread failed: %d %s\n", errno, strerror(errno));
+            if(size*n==1)
+                printf("(%x)", ((uint8_t*)ptr)[0]);
+            if(size*n==4)
+                printf("(%x)", ((int*)ptr)[0]);
+            if(size*n==8)
+                printf("(%lx)", ((uint64_t*)ptr)[0]);
         }
     }
 
-    void write(const void* ptr, size_t size, size_t n) const {
+    // Warning: not thread safe!
+    void write(const void* ptr, size_t size, size_t n, off_t _offset = -1) const {
         if (size > 0) {
+            if(_offset != -1) {fseek(file, _offset, SEEK_SET);}
+
+            log("w", size*n);
+            if(size*n==1)
+                printf("(%x)", ((uint8_t*)ptr)[0]);
+            if(size*n==4)
+                printf("(%x)", ((int*)ptr)[0]);
+            if(size*n==8)
+                printf("(%lx)", ((uint64_t*)ptr)[0]);
             size_t ret = fwrite(ptr, size, n, file);
             if (ret != (n))
                 pallas_error("fwrite failed: %d %s\n", errno, strerror(errno));
         }
     }
 
-    void writeString(const std::string& str) const {
+    // Warning: not thread safe!
+    void writeString(const std::string& str, off_t _offset = -1) const {
         auto size = str.size() + 1;
-        write(&size, sizeof(size), 1);
+        write(&size, sizeof(size), 1, _offset);
         write(str.data(), sizeof(char), size);
     }
 
-    [[nodiscard]] std::string readString() const {
+    [[nodiscard]] std::string readString(off_t _offset = -1) const {
         size_t size = 0;
-        read(&size, sizeof(size), 1);
+        read(&size, sizeof(size), 1, _offset);
         char* str = new char[size];
         read(str, sizeof(char), size);
         return str;
     }
 
     [[nodiscard]] size_t offset() const {
-        if(isOpen)
-            return fseek(file, 0, SEEK_CUR);
+        if(isOpen) {
+            fseek(file, 0, SEEK_CUR);
+            return ftell(file);
+        }
         return -1;
     }
 
@@ -184,21 +245,6 @@ typedef struct File {
 };
 #endif
 
-#if 0
-#define _pallas_fread(ptr, size, nmemb, stream)                            \
-    do {                                                                   \
-        size_t ret = fread(ptr, size, nmemb, stream);                      \
-        if (ret != (nmemb))                                                \
-            pallas_error("fread failed: %d %s\n", errno, strerror(errno)); \
-    } while (0)
-
-#define _pallas_fwrite(ptr, size, nmemb, stream)       \
-    do {                                               \
-        size_t ret = fwrite(ptr, size, nmemb, stream); \
-        if (ret != (nmemb))                            \
-            pallas_error("fwrite failed\n");           \
-    } while (0)
-#endif
 
 /* -*-
    mode: c;

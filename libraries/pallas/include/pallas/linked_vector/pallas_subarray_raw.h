@@ -43,7 +43,8 @@ namespace pallas {
                                 LinkedVectorBase* parent = nullptr);
 
             /** File-backed constructor used while reconstructing archived SubArrays. */
-            explicit SubArrayRaw(File* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
+            explicit SubArrayRaw(File* info_file, ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr,
+                                const ParameterHandler* parameter_handler = nullptr, LinkedVectorBase* parent = nullptr);
 
             ~SubArrayRaw();            
             

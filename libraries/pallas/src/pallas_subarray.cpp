@@ -43,7 +43,7 @@ namespace pallas {
 
     size_t SubArrayBase::size() const { return _size; }
     size_t SubArrayBase::starting_index() const { return _starting_index; }
-    size_t SubArrayBase::offset() const { return _file_offset;}
+    //size_t SubArrayBase::offset() const { return _details_offset;}
 
     bool SubArrayBase::contains(size_t pos) const {
         return pos >= _starting_index && pos < _starting_index + _size;
@@ -54,7 +54,7 @@ namespace pallas {
     }
 
 #if 1
-    void SubArrayBase::set_offset(size_t offset) { _file_offset = offset; } // useless ?
+    //void SubArrayBase::set_offset(size_t offset) { _file_offset = offset; } // useless ?
 #endif   
 
     /********* Functions for accessing the SubArray data *********/
@@ -108,14 +108,17 @@ namespace pallas {
      * subarrays, recreates the appropriate manager, and relinks the SubArray into
      * the in-memory chain during analysis-time loading.
      */
-    pallas::SubArrayBase::SubArrayBase(File* info_file, ValueDomain domain, SubArrayBase* previous)
+    pallas::SubArrayBase::SubArrayBase(File* info_file, ValueDomain domain, StoragePolicy policy, SubArrayBase* previous,
+                                    const ParameterHandler* parameter_handler, LinkedVectorBase* parent)
         : _prev_subarray(previous),
+        _parent_linked_vector(parent),
         _value_domain(domain),
+        _storage_policy(policy),
         _subarray_phase(SubArrayPhase::AnalysisRead) {
         
             //read_common_header(info_file);
-            std::cout<<"not implemented!\n";
-        abort();
+          //  std::cout<<"not implemented!\n";
+        //abort();
         if (_prev_subarray != nullptr) {
             _prev_subarray->_next_subarray = this;
             _starting_index = _prev_subarray->_starting_index + _prev_subarray->_size;
@@ -142,6 +145,10 @@ namespace pallas {
         }
     }
 
+    void log_io(File*f, std::string &msg) {
+        std::cout<<msg<<": "<<f->path<<":"<<f->offset()<<"\n";
+    }
+
     SubArrayBase* SubArrayBase::load_subarray(File* data_file,
                                         SubArrayBase* previous,
                                         const ParameterHandler* parameter_handler,
@@ -149,6 +156,10 @@ namespace pallas {
         ValueDomain domain;
         StoragePolicy policy;
         size_t size;
+        if(!data_file->isOpen)
+            data_file->open("r");
+
+        data_file->begin_block(__func__);
         data_file->read(&policy, sizeof(policy), 1);
         data_file->read(&domain, sizeof(domain), 1);
         data_file->read(&size, sizeof(size), 1);
@@ -163,49 +174,66 @@ namespace pallas {
                 break;
 #endif
             default:
-                return new SubArrayRaw(domain, policy, previous, parameter_handler, parent);
+                data_file->end_block(__func__);
+
+                return new SubArrayRaw(data_file, domain, policy, previous, parameter_handler, parent);
+                
                 break;
             
         }
+        data_file->end_block(__func__);
+        return NULL;
     }
 
     /** Write/read the SubArray summary (eg. stats) */
 
     
     void SubArrayTimestampStats::write_summary(File* info_file) {
+        info_file->begin_block(__func__);
         info_file->write(&_first_timestamp, sizeof(_first_timestamp), 1);
         info_file->write(&_last_timestamp, sizeof(_last_timestamp), 1);
+        info_file->end_block(__func__);
     }
     void SubArrayTimestampStats::read_summary(File* info_file) {
         std::cout<<"Read summary for subarray TimeStats\n";
+        info_file->begin_block(__func__);
         info_file->read(&_first_timestamp, sizeof(_first_timestamp), 1);
         info_file->read(&_last_timestamp, sizeof(_last_timestamp), 1);
+        info_file->end_block(__func__);
     }
 
     void SubArrayDurationStats::write_summary(File* info_file) {
+        info_file->begin_block(__func__);
         info_file->write(&_min_duration, sizeof(_min_duration), 1);
         info_file->write(&_max_duration, sizeof(_max_duration), 1);
         info_file->write(&_mean_duration, sizeof(_mean_duration), 1);
         info_file->write(&_mean_duration_is_finalized, sizeof(_mean_duration_is_finalized), 1);
+        info_file->end_block(__func__);
     }
     void SubArrayDurationStats::read_summary(File* info_file) {
+        info_file->begin_block(__func__);
         std::cout<<"Read summary for subarray DurationStats\n";
         info_file->read(&_min_duration, sizeof(_min_duration), 1);
         info_file->read(&_max_duration, sizeof(_max_duration), 1);
         info_file->read(&_mean_duration, sizeof(_mean_duration), 1);
         info_file->read(&_mean_duration_is_finalized, sizeof(_mean_duration_is_finalized), 1);
+        info_file->end_block(__func__);
     }
 
+    #if 0
     void pallas::SubArrayBase::write_summary(File* info_file) const {
+        info_file->begin_block(__func__);
         info_file->write(&_storage_policy, sizeof(_storage_policy), 1);
         info_file->write(&_value_domain, sizeof(_value_domain), 1);
         info_file->write(&_size, sizeof(_size), 1);
         info_file->write(&_starting_index, sizeof(_starting_index), 1);
         _subarray_stats->write_summary(info_file);
 //        info_file->write(&_subarray_stats->_stats, sizeof(_subarray_stats_stats), 1);
+        info_file->end_block(__func__);
     }
-
+#endif
     void pallas::SubArrayBase::read_summary(File* info_file) {
+        info_file->begin_block(__func__);
         std::cout<<"Read summary for subarray\n";
         info_file->read(&_storage_policy, sizeof(_storage_policy), 1);
         info_file->read(&_value_domain, sizeof(_value_domain), 1);
@@ -213,27 +241,40 @@ namespace pallas {
         info_file->read(&_starting_index, sizeof(_starting_index), 1);
         _subarray_stats->read_summary(info_file);
    //     info_file->read(&_subarray_stats->_stats, sizeof(_subarray_stats_stats), 1);
+        info_file->end_block(__func__);
     }
 
     /** Write/read the SubArray data (eg. timestamps) and calls the child class write_values */
-    void pallas::SubArrayBase::write_data(File* data_file) {
-        _file_offset = fseek(data_file->file, 0, SEEK_CUR);
-        data_file->write(&_storage_policy, sizeof(_storage_policy), 1);
-        data_file->write(&_value_domain, sizeof(_value_domain), 1);
-        data_file->write(&_size, sizeof(_size), 1);
+    void pallas::SubArrayBase::write_details(File* details_file, size_t* data_size, off_t *data_offset) {
+        _details_offset = details_file->seek(0, SEEK_END);
+        if(data_offset)
+            *data_offset = _details_offset;
+
+        details_file->begin_block(__func__);                
+        details_file->write(&_storage_policy, sizeof(_storage_policy), 1);
+        details_file->write(&_value_domain, sizeof(_value_domain), 1);
+        details_file->write(&_size, sizeof(_size), 1);
 
         // Call the child write_values function to actually write the timestamps
-        write_values(data_file);
+        write_values(details_file);
+        details_file->end_block(__func__);
+        off_t end_offset = details_file->seek(0, SEEK_END);
+        _details_size = end_offset - _details_offset;
+        if(data_size) {
+            *data_size = _details_size;
+        }
     }
 
     void pallas::SubArrayBase::read_data(File* data_file) {
-        std::cout<<"Read data for subarray\n";        
+        data_file->begin_block(__func__);
+        std::cout<<"Read data for subarray\n";
         data_file->read(&_storage_policy, sizeof(_storage_policy), 1);
         data_file->read(&_value_domain, sizeof(_value_domain), 1);
         data_file->read(&_size, sizeof(_size), 1);
 
         // Call the child write_values function to actually write the timestamps
         load_values(data_file);
+        data_file->end_block(__func__);
     }        
 
     SubArrayBase::~SubArrayBase() {

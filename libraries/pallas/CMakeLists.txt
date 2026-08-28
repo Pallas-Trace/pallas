@@ -56,6 +56,7 @@ target_sources(pallas
         src/pallas_linked_vector.cpp
         src/pallas_read.cpp
         src/pallas_storage.cpp
+        src/pallas_file_format.cpp
         src/pallas_subarray.cpp
         #src/pallas_subarray_delta.cpp
         #src/pallas_subarray_pla.cpp

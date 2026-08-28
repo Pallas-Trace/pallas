@@ -205,8 +205,12 @@ namespace pallas {
         //size_t physical_size = 0; // TODO: useless ?
         /** Global logical index of the first value stored in this SubArray. */
         size_t _starting_index = 0;
+        
         /** Offset of the subarray in the data file, or 0 if the subarray has not been written to disk yet */
-        size_t _file_offset = 0;
+        //size_t _file_offset = 0;
+        off_t _details_offset = 0;
+        /** Size of the subarray in the data file, or 0 if the subarray has not been written to disk yet */
+        size_t _details_size = 0;
 
         SubArrayStats* _subarray_stats = nullptr;
 
@@ -221,18 +225,20 @@ namespace pallas {
                             LinkedVectorBase* parent = nullptr);
 
         /** File-backed constructor used while reconstructing archived SubArrays. */
-        explicit SubArrayBase(File* info_file, ValueDomain domain, SubArrayBase* previous = nullptr);
+        explicit SubArrayBase(File* info_file, ValueDomain domain, StoragePolicy policy = StoragePolicy::None, SubArrayBase* previous = nullptr,
+                            const ParameterHandler* parameter_handler = nullptr, LinkedVectorBase* parent=nullptr);
 
         /** Virtual destructor for polymorphic timestamp/duration SubArray ownership. */
         virtual ~SubArrayBase();        
 
         /** Write/read the SubArray summary (eg. stats) */
-        void write_summary(File* summary_file) const;
+        //void write_summary(File* summary_file) const;
         void read_summary(File* summary_file);
 
         /** Write/read the SubArray data (eg. timestamps) and calls the child class write_values */
-        void write_data(File* data_file);
+        //void write_data(File* data_file);
         void read_data(File* data_file);
+        void write_details(File* details_file, size_t* data_size = nullptr, off_t *data_offset = nullptr);
 
 
         static SubArrayBase* create_subarray(SubArrayBase* previous = nullptr,

@@ -172,8 +172,6 @@ class LinkedVectorBase {
     bool is_contiguous = false;
     /** Shared runtime configuration used for policy resolution, memory limits, and file I/O helpers. */
     ParameterHandler& parameter_handler;
-    /** Path to the value file used when subarray payloads are reloaded on demand. */
-    const char* file_path = nullptr;
 
     /** Set of subarrays whose payloads are currently resident in memory. */
     std::set<SubArrayBase*> loaded_subarrays;
@@ -201,6 +199,11 @@ class LinkedVectorBase {
     SubArrayBase* first = nullptr;
     /** Tail subarray used as the append target for runtime writes. */
     SubArrayBase* last = nullptr;
+
+    /** File that contains the LinkedVector summary */
+    File* _summary_file;
+    /** File that contains the LinkedVector actual content */
+    File* _details_file;
 
    public:
     /** Virtual destructor for polymorphic linked-vector ownership. */
@@ -321,8 +324,8 @@ class LinkedVectorBase {
      * @param _policy Fallback policy associated with the reconstructed vector.
      * @param abi_version Trace ABI version used to interpret stored metadata.
      */
-    explicit LinkedVectorBase(File* vector_file,
-                    const char* value_file_path,
+    explicit LinkedVectorBase(File* summary_file,
+                    File* details_file,
                     ParameterHandler& p,
                     ValueDomain domain,
                     StoragePolicy _policy,
@@ -349,10 +352,13 @@ class LinkedVectorBase {
         return hbuffer_bytes;
     }
 
+public:
     /** Finds the mutable subarray that contains logical position `pos`. */
     [[nodiscard]] SubArrayBase* find_subarray(size_t pos);
     /** Finds the read-only subarray that contains logical position `pos`. */
     [[nodiscard]] const SubArrayBase* find_subarray(size_t pos) const;
+    /** Gets the mutable subarray based on its index. */
+    [[nodiscard]] SubArrayBase* get_subarray(int index);
 
     /**
      * @brief Creates the next subarray for the derived linked-vector type.
@@ -392,13 +398,12 @@ class TimeLinkedVector : public LinkedVectorBase {
     explicit TimeLinkedVector(ParameterHandler& p, StoragePolicy _policy);
     /**
      * @brief Reconstructs a timestamp vector from persisted metadata.
-     * @param vector_file Metadata stream containing the linked-vector header.
-     * @param value_file_path Backing value file used for lazy payload reload.
+     * @param summary_file Metadata stream containing the linked-vector header.
+     * @param details_file Backing value file used for lazy payload reload.
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    TimeLinkedVector(File* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
-    //TimeLinkedVector(File* vector_file, ParameterHandler& p, uint8_t abi_version);
+    TimeLinkedVector(File* summary_file, File* details_file, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one timestamp value to the logical stream.
@@ -464,7 +469,7 @@ class DurationLinkedVector  : public LinkedVectorBase {
      * @param p Shared runtime parameter handler.
      * @param abi_version Trace ABI version used to interpret persisted metadata.
      */
-    DurationLinkedVector (File* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version);
+    DurationLinkedVector (pallas::File* summary_file, pallas::File* details_file, ParameterHandler& p, uint8_t abi_version);
 
     /**
      * @brief Appends one duration value to the logical stream.

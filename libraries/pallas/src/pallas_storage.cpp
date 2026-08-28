@@ -446,6 +446,7 @@ size_t numberCompressedBytes = 0;
  * @param parameter_handler Handler for the storage options.
  */
 void _pallas_compress_write(uint64_t* src, size_t n, pallas::File* file, const pallas::ParameterHandler* parameter_handler) {
+    file->begin_block(__func__);
     size_t size = n * sizeof(uint64_t);
     uint64_t* encodedArray = nullptr;
     size_t encodedSize;
@@ -537,6 +538,7 @@ void _pallas_compress_write(uint64_t* src, size_t n, pallas::File* file, const p
         delete[] compressedArray;
     if (parameter_handler->getEncodingAlgorithm() != pallas::EncodingAlgorithm::None)
         delete[] encodedArray;
+    file->end_block(__func__);
 }
 
 /**
@@ -547,6 +549,7 @@ void _pallas_compress_write(uint64_t* src, size_t n, pallas::File* file, const p
  * @returns Array of uncompressed data of size uint64_t * n.
  */
 uint64_t* _pallas_compress_read(size_t n, pallas::File* file, const pallas::ParameterHandler& parameter_handler) {
+    file->begin_block(__func__);
     size_t expectedSize = n * sizeof(uint64_t);
     uint64_t* uncompressedArray = nullptr;
 
@@ -634,6 +637,7 @@ uint64_t* _pallas_compress_read(size_t n, pallas::File* file, const pallas::Para
         file->read(uncompressedArray, realSize, 1);
         pallas_assert(realSize == n * sizeof(uint64_t));
     }
+    file->end_block(__func__);
     return uncompressedArray;
 }
 
@@ -692,12 +696,15 @@ void pallas::SubArrayBase::read_common_header(FILE* info_file) {
  * This restores the logical size and, for newer ABI versions, the persisted
  * subarray count and preferred storage policy.
  */
-pallas::LinkedVectorBase::LinkedVectorBase(pallas::File* summary_file, const char* value_file_path, ParameterHandler& p,
+pallas::LinkedVectorBase::LinkedVectorBase(pallas::File* summary_file, pallas::File* details_file, ParameterHandler& p,
                        ValueDomain domain, StoragePolicy _policy, uint8_t abi_version)
     : parameter_handler(p),
-      file_path(value_file_path), // TODO: replace with a File*
       value_domain(domain),
-      storage_policy(_policy) {
+      storage_policy(_policy),
+      _summary_file(summary_file),
+      _details_file(details_file) {
+
+    summary_file->begin_block(__func__);
     summary_file->read(&value_count, sizeof(value_count), 1);
 
     if (abi_version >= 18) {
@@ -708,20 +715,23 @@ pallas::LinkedVectorBase::LinkedVectorBase(pallas::File* summary_file, const cha
             storage_policy = static_cast<StoragePolicy>(stored_policy);
         }
     }
+    summary_file->end_block(__func__);
 }
 
 /**
  * @brief Write the common linked-vector header shared by `TimeLinkedVector` and `DurationLinkedVector`.
  */
 void pallas::LinkedVectorBase::write_common_header(pallas::File* vector_file) const {
+    //TODO:  we do not need the summary/details_file parameters here. We should use the fields instead
     if (vector_file == nullptr) {
         return;
     }
-
+    vector_file->begin_block(__func__);
     const auto policy = storage_policy;
     vector_file->write(&value_count, sizeof(value_count), 1);
     vector_file->write(&subarray_total, sizeof(subarray_total), 1);
     vector_file->write(&policy, sizeof(policy), 1);
+    vector_file->end_block(__func__);
 }
 
 /**
@@ -731,19 +741,18 @@ void pallas::LinkedVectorBase::write_common_header(pallas::File* vector_file) co
  * chain but its payload has been evicted from memory.
  */
 void pallas::LinkedVectorBase::load_data(SubArrayBase* sub) {
-    pallas_log(DebugLevel::Debug, "Loading values from %s @ %lu\n", file_path, sub->offset());
-    File* f = fileMap[file_path];
-    if (!f->isOpen) {
-        f->open("r");
+    pallas_log(DebugLevel::Debug, "Loading values from %s @ %lu\n", _details_file->path, sub->offset());
+    if (!_details_file->isOpen) {
+        _details_file->open("r");
     }
-    int ret = fseek(f->file, sub->offset(), 0);
+    int ret = fseek(_details_file->file, sub->offset(), 0);
     while (ret == EBADF) {
-        f->close();
-        f->open("r");
-        ret = fseek(f->file, sub->offset(), 0);
+        _details_file->close();
+        _details_file->open("r");
+        ret = fseek(_details_file->file, sub->offset(), 0);
     }
 
-    sub->read_data(f);
+    sub->read_data(_details_file);
 
     parameter_handler.loaded_durations_size += sub->mem_size() * sizeof(uint64_t);
     parameter_handler.subvector_queue.emplace_back(sub);
@@ -789,17 +798,22 @@ pallas::TimeSubArray::TimeSubArray(FILE* info_file, TimeSubArray* previous)
 
 #endif
 
+#if 0
 /**
  * @brief Write the `TimeLinkedVector` header that precedes all timestamp subarray headers.
  */
 void pallas::TimeLinkedVector::write_header(pallas::File* summary_file) {
+    //TODO:  we do not need the summary/details_file parameters here. We should use the fields instead
     write_common_header(summary_file);
 }
+
 
 /**
  * @brief Persist the full timestamp linked vector across the info and value streams.
  */
 void pallas::TimeLinkedVector::write_to_file(pallas::File* summary_file, pallas::File* details_file, const ParameterHandler* parameter_handler) {
+//TODO:  we do not need the summary/details_file parameters here. We should use the fields instead
+
 #ifdef BMARK
     BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
     bmark_note_write_call(get_bmark_family(), size());
@@ -812,7 +826,7 @@ void pallas::TimeLinkedVector::write_to_file(pallas::File* summary_file, pallas:
         subarray->write_summary(summary_file);
     }
 }
-
+#endif
 /**
  * @brief Reconstruct a `TimeLinkedVector` from the persisted info stream.
  *
@@ -820,8 +834,8 @@ void pallas::TimeLinkedVector::write_to_file(pallas::File* summary_file, pallas:
  * otherwise the constructor walks subarray headers until the logical size is
  * fully covered.
  */
-pallas::TimeLinkedVector::TimeLinkedVector(pallas::File* details_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
-    : LinkedVectorBase(details_file, value_file_path, p, ValueDomain::Timestamp, p.getStoragePolicy(), abi_version) {
+pallas::TimeLinkedVector::TimeLinkedVector(pallas::File* summary_file, pallas::File* details_file, ParameterHandler& p, uint8_t abi_version)
+    : LinkedVectorBase(summary_file, details_file, p, ValueDomain::Timestamp, p.getStoragePolicy(), abi_version) {
     if (value_count == 0) {
         return;
     }
@@ -905,10 +919,12 @@ pallas::DurationSubArray::DurationSubArray(FILE* info_file, DurationSubArray* pr
 
 #endif
 
+#if 0
 /**
  * @brief Write the `DurationLinkedVector` header that precedes all duration subarray headers.
  */
 void pallas::DurationLinkedVector::write_header(pallas::File* summary_file) {
+    summary_file->begin_block(__func__);
     write_common_header(summary_file);
     if (value_count == 0) {
         return;
@@ -925,24 +941,26 @@ void pallas::DurationLinkedVector::write_header(pallas::File* summary_file) {
     summary_file->write(&mean_duration, sizeof(mean_duration), 1);
     pallas_assert_inferior_equal(mean_duration, max_duration);
     pallas_assert_inferior_equal(min_duration, mean_duration);
+    summary_file->end_block(__func__);
 }
-
+#endif
 /**
  * @brief Persist the full duration linked vector across the info and value streams.
  */
 void pallas::DurationLinkedVector::write_to_file(pallas::File* summary_file, pallas::File* details_file, const ParameterHandler* parameter_handler) {
+    //TODO:  we do not need the summary/details_file parameters here. We should use the fields instead
 #ifdef BMARK
     BmarkScopedTimer timer(get_bmark_family(), BmarkMetric::Write);
     bmark_note_write_call(get_bmark_family(), size());
 #endif
-    write_header(summary_file);
+    //write_header(summary_file);
     if (value_count == 0) {
         return;
     }
 
     for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
-        subarray->write_data(details_file);
-        subarray->write_summary(summary_file);
+        subarray->write_details(details_file, nullptr, nullptr);
+//        subarray->write_summary(summary_file);
     }
 }
 
@@ -953,15 +971,16 @@ void pallas::DurationLinkedVector::write_to_file(pallas::File* summary_file, pal
  * SubArray chain using either the stored subarray count or the legacy
  * size-driven loop depending on the ABI version.
  */
-pallas::DurationLinkedVector::DurationLinkedVector(pallas::File* vector_file, const char* value_file_path, ParameterHandler& p, uint8_t abi_version)
-    : LinkedVectorBase(vector_file, value_file_path, p, ValueDomain::Duration, p.getStoragePolicy(), abi_version) {
+pallas::DurationLinkedVector::DurationLinkedVector(pallas::File* summary_file, pallas::File* details_file, ParameterHandler& p, uint8_t abi_version)
+    : LinkedVectorBase(summary_file, details_file, p, ValueDomain::Duration, p.getStoragePolicy(), abi_version) {
     if (value_count == 0) {
         return;
     }
-
-    vector_file->read(&min_duration, sizeof(min_duration), 1);
-    vector_file->read(&max_duration, sizeof(max_duration), 1);
-    vector_file->read(&mean_duration, sizeof(mean_duration), 1);
+    size_t loaded_values = 0;
+    summary_file->begin_block(__func__);
+    summary_file->read(&min_duration, sizeof(min_duration), 1);
+    summary_file->read(&max_duration, sizeof(max_duration), 1);
+    summary_file->read(&mean_duration, sizeof(mean_duration), 1);
     mean_duration_is_finalized = true;
     if (max_duration < mean_duration) {
         static bool show_warning = true;
@@ -976,19 +995,19 @@ pallas::DurationLinkedVector::DurationLinkedVector(pallas::File* vector_file, co
 
     if (abi_version >= 18) {
         for (size_t i = 0; i < subarray_total; ++i) {
-            last = SubArrayBase::load_subarray(vector_file, last, &p, this);
+            last = SubArrayBase::load_subarray(details_file, last, &p, this);
             if (first == nullptr) {
                 first = last;
             }
         }
         rebuild_subarray_index();
-        return;
+        goto out;
     }
 
-    size_t loaded_values = 0;
+
     subarray_total = 0;
     while (loaded_values < value_count) {
-        last = SubArrayBase::load_subarray(vector_file, last, &p, this);
+        last = SubArrayBase::load_subarray(details_file, last, &p, this);
         if (first == nullptr) {
             first = last;
         }
@@ -996,6 +1015,8 @@ pallas::DurationLinkedVector::DurationLinkedVector(pallas::File* vector_file, co
         subarray_total++;
     }
     rebuild_subarray_index();
+out:
+    summary_file->end_block(__func__);
 }
 
 /**************** Storage Functions ****************/
@@ -1024,7 +1045,8 @@ static const char* pallasGetEventDurationFilename(const char* base_dirname, pall
     return filename;
 }
 
-static void _pallas_store_attribute_values(pallas::Event* e, const pallas::File& file, const pallas::ParameterHandler& parameter_handler) {
+static void _pallas_store_attribute_values(pallas::Event* e, pallas::File& file, const pallas::ParameterHandler& parameter_handler) {
+    file.begin_block(__func__);
     file.write(&e->attribute_pos, sizeof(e->attribute_pos), 1);
     if (e->attribute_pos > 0) {
         pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", e->attribute_pos);
@@ -1039,9 +1061,11 @@ static void _pallas_store_attribute_values(pallas::Event* e, const pallas::File&
             file.write(e->attribute_buffer, e->attribute_pos, 1);
         }
     }
+    file.end_block(__func__);
 }
 
-static void _pallas_read_attribute_values(pallas::Event* e, const pallas::File& file, const pallas::ParameterHandler& parameter_handler, uint8_t abi_version) {
+static void _pallas_read_attribute_values(pallas::Event* e, pallas::File& file, const pallas::ParameterHandler& parameter_handler, uint8_t abi_version) {
+    file.begin_block(__func__);
     file.read(&e->attribute_pos, sizeof(e->attribute_pos), 1);
     e->attribute_buffer_size = e->attribute_pos;
     e->attribute_pos = 0;
@@ -1063,22 +1087,30 @@ static void _pallas_read_attribute_values(pallas::Event* e, const pallas::File& 
             file.read(e->attribute_buffer, e->attribute_buffer_size, 1);
         }
     }
+    file.end_block(__func__);
 }
 static void storeEventData(pallas::EventData& event,
-                           const pallas::File& eventFile,
+                           pallas::File& eventFile,
                            const pallas::ParameterHandler& parameter_handler) {
+    eventFile.begin_block(__func__);
+#if 0
     eventFile.write(&event.record, sizeof(event.record), 1);
     eventFile.write(&event.event_size, sizeof(event.event_size), 1);
     size_t payload_size = event.event_size - offsetof(pallas::EventData, event_data);
     if (payload_size > 0) {
         eventFile.write(event.event_data, payload_size, 1);
     }
+#endif
+    eventFile.write(&event, sizeof(event), 1);
+    eventFile.end_block(__func__);
 }
 
 static void readEventData(pallas::EventData& event,
-                          const pallas::File& eventFile,
+                          pallas::File& eventFile,
                           const pallas::ParameterHandler& parameter_handler,
                           uint8_t abi_version) {
+    eventFile.begin_block(__func__);
+#if 0
     eventFile.read(&event.record, sizeof(event.record), 1);
     if (abi_version <= 18 && event.record == 0) {
         event.record = pallas::PALLAS_EVENT_BUFFER_FLUSH;
@@ -1090,6 +1122,9 @@ static void readEventData(pallas::EventData& event,
     if (payload_size > 0) {
         eventFile.read(event.event_data, payload_size, 1);
     }
+#endif
+    eventFile.read(&event, sizeof(event), 1);
+    eventFile.end_block(__func__);
 };
 
 static void storeEvent(pallas::Event& event,
@@ -1098,7 +1133,7 @@ static void storeEvent(pallas::Event& event,
                                     const pallas::ParameterHandler* parameter_handler,
                                     bool load_thread) {
     pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
-
+    eventFile.begin_block(__func__);
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
         pallas::EventData dummy{};
         dummy.record = pallas::PALLAS_EVENT_MAX_ID;
@@ -1114,6 +1149,7 @@ static void storeEvent(pallas::Event& event,
             eventFile.write(&zero_size, sizeof(zero_size), 1);
             eventFile.write(&one_sub_array, sizeof(one_sub_array), 1);
         }
+        eventFile.end_block(__func__);
         return;
     }
 
@@ -1133,17 +1169,19 @@ static void storeEvent(pallas::Event& event,
         }
         event.timestamps->write_to_file(&eventFile, &durationFile, parameter_handler);
     }
+    eventFile.end_block(__func__);
 }
 
 static void readEvent(pallas::Event& event,
-                      pallas::File& eventFile,
-                      pallas::File& durationFile,
+                      pallas::File& summary_file,
+                      pallas::File& details_file,
                       pallas::ParameterHandler& parameter_handler,
                       uint8_t abi_version) {
-    readEventData(event.data, eventFile, parameter_handler, abi_version);
+    summary_file.begin_block(__func__);
+    readEventData(event.data, summary_file, parameter_handler, abi_version);
 
     size_t serialized_attr_size = 0;
-    eventFile.read(&serialized_attr_size, sizeof(serialized_attr_size), 1);
+    summary_file.read(&serialized_attr_size, sizeof(serialized_attr_size), 1);
 
     event.attribute_buffer = nullptr;
     event.attribute_buffer_size = serialized_attr_size;
@@ -1151,32 +1189,28 @@ static void readEvent(pallas::Event& event,
 
     if (serialized_attr_size > 0) {
         event.attribute_buffer = new byte[serialized_attr_size];
-        eventFile.read(event.attribute_buffer, sizeof(byte), serialized_attr_size);
+        summary_file.read(event.attribute_buffer, sizeof(byte), serialized_attr_size);
     }
 
     if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
         if (STORE_TIMESTAMPS) {
             size_t size = 0;
-            eventFile.read(&size, sizeof(size), 1);
+            summary_file.read(&size, sizeof(size), 1);
             if (abi_version >= 18) {
                 size_t n_sub_array = 0;
-                eventFile.read(&n_sub_array, sizeof(n_sub_array), 1);
+                summary_file.read(&n_sub_array, sizeof(n_sub_array), 1);
             }
         }
         event.timestamps = nullptr;
         event.nb_occurrences = 0;
         pallas_log(pallas::DebugLevel::Debug, "\tLoaded invalid event %d\n", event.id);
-        return;
+        goto out;
     }
-    event.timestamps = new pallas::TimeLinkedVector(&eventFile, durationFile.path, parameter_handler, abi_version);
-#ifdef BMARK
-    event.timestamps->set_bmark_family(pallas::BmarkFamily::EventTimestamps);
-#endif
+    event.timestamps = new pallas::TimeLinkedVector(&summary_file, &details_file, parameter_handler, abi_version);
     event.nb_occurrences = event.timestamps->size();
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
-    size_t summary_offset = eventFile.offset();
-    size_t details_offset = durationFile.offset();
-    pallas_log(pallas::DebugLevel::Debug, "\t\tSummary offset: %zu \tDetails offset: %zu\n", summary_offset, details_offset);
+out:
+    summary_file.end_block(__func__);
 }
 
 static const char* pallasGetSequenceDurationFilename(const char* base_dirname, pallas::Thread* th) {
@@ -1192,6 +1226,7 @@ static void storeSequence(pallas::Sequence& sequence,
                                 pallas::File& durationFile,
                                 const pallas::ParameterHandler* parameter_handler,
                                 bool load_thread) {
+    sequenceFile.begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
                sequence.id.id, sequence.size(), sequence.durations->size());
 
@@ -1199,6 +1234,7 @@ static void storeSequence(pallas::Sequence& sequence,
         sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
         size_t zero_size = 0;
         sequenceFile.write(&zero_size, sizeof(zero_size), 1);
+        sequenceFile.end_block(__func__);
         return;
     }
 
@@ -1212,6 +1248,7 @@ static void storeSequence(pallas::Sequence& sequence,
     size_t size = sequence.size();
     sequenceFile.write(&size, sizeof(size), 1);
     if (size == 0) {
+        sequenceFile.end_block(__func__);
       return;
     }
     sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
@@ -1237,12 +1274,14 @@ static void storeSequence(pallas::Sequence& sequence,
         }
         sequence.timestamps->write_to_file(&sequenceFile, &durationFile, parameter_handler);
     }
+    sequenceFile.end_block(__func__);
 }
 
-static void readSequence(pallas::Sequence& sequence, pallas::File& sequenceFile, const char* durationFileName, pallas::ParameterHandler& parameter_handler, uint8_t abi_version) {
-    sequenceFile.read(&sequence.type, sizeof(sequence.type), 1);
+static void readSequence(pallas::Sequence& sequence, pallas::File& summary_file, pallas::File& details_file, pallas::ParameterHandler& parameter_handler, uint8_t abi_version) {
+    summary_file.begin_block(__func__);
+    summary_file.read(&sequence.type, sizeof(sequence.type), 1);
     size_t size;
-    sequenceFile.read(&size, sizeof(size), 1);
+    summary_file.read(&size, sizeof(size), 1);
 
     // catch empty sequence
     if (size == 0) {
@@ -1252,15 +1291,15 @@ static void readSequence(pallas::Sequence& sequence, pallas::File& sequenceFile,
         sequence.exclusive_durations = nullptr;
         sequence.timestamps = nullptr;
         pallas_log(pallas::DebugLevel::Debug, "\\tLoaded invalid sequence\\n");
-        return;
+        goto out;
     }
 
     sequence.tokens.resize(size);
-    sequenceFile.read(sequence.tokens.data(), sizeof(pallas::Token), size);
+    summary_file.read(sequence.tokens.data(), sizeof(pallas::Token), size);
     if (STORE_TIMESTAMPS) {
-        sequence.durations = new pallas::DurationLinkedVector(&sequenceFile, durationFileName, parameter_handler, abi_version);
-        sequence.exclusive_durations = new pallas::DurationLinkedVector(&sequenceFile, durationFileName, parameter_handler, abi_version);
-        sequence.timestamps = new pallas::TimeLinkedVector(&sequenceFile, durationFileName, parameter_handler, abi_version);
+        sequence.durations = new pallas::DurationLinkedVector(&summary_file, &details_file, parameter_handler, abi_version);
+        sequence.exclusive_durations = new pallas::DurationLinkedVector(&summary_file, &details_file, parameter_handler, abi_version);
+        sequence.timestamps = new pallas::TimeLinkedVector(&summary_file, &details_file, parameter_handler, abi_version);
 #ifdef BMARK
         sequence.durations->set_bmark_family(pallas::BmarkFamily::SequenceDurations);
         sequence.exclusive_durations->set_bmark_family(pallas::BmarkFamily::SequenceExclusiveDurations);
@@ -1268,20 +1307,25 @@ static void readSequence(pallas::Sequence& sequence, pallas::File& sequenceFile,
 #endif
     }
     pallas_log(pallas::DebugLevel::Debug, "\tLoaded sequence %d {.size=%zu, .nb_ts=%zu}\n", sequence.id.id, sequence.size(), sequence.durations->size());
+out:
+    summary_file.end_block(__func__);
 }
 
-static void storeLoop(pallas::Loop& loop, const pallas::File& loopFile) {
+static void storeLoop(pallas::Loop& loop, pallas::File& loopFile) {
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         pallas_log(pallas::DebugLevel::Debug, "\tStore loop %d {.repeated_token=%d.%d, .nb_iterations: %u\n", loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id,
                    loop.nb_iterations);
         std::cout << "}" << std::endl;
     }
+    loopFile.begin_block(__func__);
     loopFile.write(&loop.repeated_token, sizeof(loop.repeated_token), 1);
     loopFile.write(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
     loopFile.write(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
+    loopFile.end_block(__func__);
 }
 
-static void readLoop(pallas::Loop& loop, const pallas::File& loopFile, uint8_t abi_version) {
+static void readLoop(pallas::Loop& loop, pallas::File& loopFile, uint8_t abi_version) {
+    loopFile.begin_block(__func__);
     loopFile.read(&loop.repeated_token, sizeof(loop.repeated_token), 1);
     loopFile.read(&loop.nb_iterations, sizeof(loop.nb_iterations), 1);
     if (abi_version <= 18) {
@@ -1295,9 +1339,11 @@ static void readLoop(pallas::Loop& loop, const pallas::File& loopFile, uint8_t a
     if (loop.repeated_token.type == pallas::TypeInvalid) {
       loop.self_id.type = pallas::TypeInvalid;
     }
+    loopFile.end_block(__func__);
 }
 
 static void storeString(pallas::Definition& definitions, pallas::File& file) {
+    file.begin_block(__func__);
     size_t size = definitions.strings.size();
     file.write(&size, sizeof(size), 1);
     for (auto& it : definitions.strings) {
@@ -1308,9 +1354,11 @@ static void storeString(pallas::Definition& definitions, pallas::File& file) {
         file.write(&s.length, sizeof(s.length), 1);
         file.write(s.str, sizeof(char), s.length);
     }
+    file.end_block(__func__);
 }
 
 static void readString(pallas::Definition& definitions, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     for (size_t i = 0; i < size; i++) {
@@ -1324,9 +1372,11 @@ static void readString(pallas::Definition& definitions, pallas::File& file, uint
         file.read(string.str, sizeof(char), string.length);
         pallas_log(pallas::DebugLevel::Debug, "\tLoad String {.ref=%d, .length=%d, .str='%s'}\n", string.string_ref, string.length, string.str);
     }
+    file.end_block(__func__);
 }
 
 static void storeRegions(pallas::Definition& definitions, pallas::File& file) {
+    file.begin_block(__func__);
     size_t size = definitions.regions.size();
     file.write(&size, sizeof(size), 1);
     if (definitions.regions.empty())
@@ -1336,9 +1386,11 @@ static void storeRegions(pallas::Definition& definitions, pallas::File& file) {
     for (auto& region : definitions.regions) {
         file.write(&region.second, sizeof(pallas::Region), 1);
     }
+    file.end_block(__func__);
 }
 
 static void readRegions(pallas::Definition& definitions, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     pallas::Region tempRegion;
@@ -1349,9 +1401,11 @@ static void readRegions(pallas::Definition& definitions, pallas::File& file, uin
     }
 
     pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu regions\n", definitions.regions.size());
+    file.end_block(__func__);
 }
 
 static void storeAttributes(pallas::Definition& definitions, pallas::File& file) {
+    file.begin_block(__func__);
     size_t size = definitions.attributes.size();
     file.write(&size, sizeof(size), 1);
     pallas_log(pallas::DebugLevel::Debug, "\tStore %zu Attributes\n", definitions.attributes.size());
@@ -1363,9 +1417,11 @@ static void storeAttributes(pallas::Definition& definitions, pallas::File& file)
     for (auto& attribute : definitions.attributes) {
         file.write(&attribute.second, sizeof(pallas::Attribute), 1);
     }
+    file.end_block(__func__);
 }
 
 static void readAttributes(pallas::Definition& definitions, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     pallas::Attribute tempAttribute;
@@ -1375,9 +1431,11 @@ static void readAttributes(pallas::Definition& definitions, pallas::File& file, 
     }
 
     pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu attributes\n", definitions.attributes.size());
+    file.end_block(__func__);
 }
 
 static void storeGroups(pallas::Definition& definitions, pallas::File& file) {
+    file.begin_block(__func__);
     size_t size = definitions.groups.size();
     file.write(&size, sizeof(size), 1);
     for (auto& [ref, g] : definitions.groups) {
@@ -1390,9 +1448,11 @@ static void storeGroups(pallas::Definition& definitions, pallas::File& file) {
         file.write(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
         file.write(g.members, sizeof(uint32_t), g.numberOfMembers);
     }
+    file.end_block(__func__);
 }
 
 static void readGroups(pallas::Definition& definitions, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     for (size_t i = 0; i < size; i++) {
@@ -1420,21 +1480,26 @@ static void readGroups(pallas::Definition& definitions, pallas::File& file, uint
         }
         pallas_log(pallas::DebugLevel::Debug, "\tLoad Group {.ref=%d, .name=%d, .nb_members=%d}\n", g.group_ref, g.name, g.numberOfMembers);
     }
+    file.end_block(__func__);
 }
 
 static void storeComms(pallas::Definition& definitions, pallas::File& file) {
+    file.begin_block(__func__);
     size_t size = definitions.comms.size();
     file.write(&size, sizeof(size), 1);
     if (definitions.comms.empty())
-        return;
+        goto out;
 
     pallas_log(pallas::DebugLevel::Debug, "\tStore %zu Comms\n", definitions.comms.size());
     for (auto& comm : definitions.comms) {
         file.write(&comm.second, sizeof(pallas::Comm), 1);
     }
+out:
+    file.end_block(__func__);
 }
 
 static void readComms(pallas::Definition& definitions, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     pallas::Comm tempComm;
@@ -1444,6 +1509,7 @@ static void readComms(pallas::Definition& definitions, pallas::File& file, uint8
     }
 
     pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu comms\n", definitions.comms.size());
+    file.end_block(__func__);
 }
 
 static void storeDefinitions(pallas::Definition& def, pallas::File& file) {
@@ -1463,25 +1529,31 @@ static void readDefinitions(pallas::Definition& def, pallas::File& file, uint8_t
 }
 
 static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, pallas::File& file) {
+    file.begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "\tStore %zu location groups\n", location_groups.size());
     size_t size = location_groups.size();
     file.write(&size, sizeof(size), 1);
     file.write(location_groups.data(), sizeof(pallas::LocationGroup), location_groups.size());
+    file.end_block(__func__);
 }
 
 static void readLocationGroups(std::vector<pallas::LocationGroup>& location_groups, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     location_groups.resize(size);
     if (location_groups.empty())
-        return;
+        goto out;
 
     file.read(location_groups.data(), sizeof(pallas::LocationGroup), location_groups.size());
     std::sort(location_groups.begin(), location_groups.end(), [](pallas::LocationGroup a, pallas::LocationGroup b) { return a.id < b.id; });
     pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu location_groups\n", location_groups.size());
+out:
+    file.end_block(__func__);
 }
 
 static void storeLocations(std::vector<pallas::Location>& locations, pallas::File& file) {
+    file.begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "\tStore %zu locations\n", locations.size());
     for (auto& l : locations) {
         pallas_assert(l.id != PALLAS_THREAD_ID_INVALID);
@@ -1489,20 +1561,25 @@ static void storeLocations(std::vector<pallas::Location>& locations, pallas::Fil
     size_t size = locations.size();
     file.write(&size, sizeof(size), 1);
     file.write(locations.data(), sizeof(pallas::Location), locations.size());
+    file.end_block(__func__);
 }
 
 static void readLocations(std::vector<pallas::Location>& locations, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     size_t size;
     file.read(&size, sizeof(size), 1);
     locations.resize(size);
     if (locations.empty())
-        return;
+        goto out;
     file.read(locations.data(), sizeof(pallas::Location), locations.size());
     std::sort(locations.begin(), locations.end(), [](pallas::Location a, pallas::Location b) { return a.id < b.id; });
     pallas_log(pallas::DebugLevel::Debug, "\tLoad %lu locations\n", locations.size());
+out:
+    file.end_block(__func__);
 }
 
 static void storeMetadata(pallas::Metadata& metadata, pallas::File& file) {
+    file.begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "\tStoring metadata.\n");
     auto size = metadata.size();
     file.write(&size, sizeof(size), 1);
@@ -1510,9 +1587,11 @@ static void storeMetadata(pallas::Metadata& metadata, pallas::File& file) {
         file.writeString(key);
         file.writeString(value);
     }
+    file.end_block(__func__);
 }
 
 static void readMetadata(pallas::Metadata& metadata, pallas::File& file, uint8_t abi_version) {
+    file.begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "\tReading metadata.\n");
     size_t size;
     file.read(&size, sizeof(size), 1);
@@ -1523,13 +1602,15 @@ static void readMetadata(pallas::Metadata& metadata, pallas::File& file, uint8_t
             pallas_warn("Could not read Thread metadata, ABI too low: %d < 17\n", abi_version);
             metadata_warning_set = false;
         }
-        return;
+        goto out;
     }
     for (size_t i = 0; i < size; i++) {
         auto key = file.readString();
         auto value = file.readString();
         metadata[key] = value;
     }
+out:
+    file.end_block(__func__);
 }
 
 static pallas::File pallasGetThreadFile(const char* dir_name, pallas::Thread* thread, const char* mode) {
@@ -1540,12 +1621,15 @@ static pallas::File pallasGetThreadFile(const char* dir_name, pallas::Thread* th
     return pallas::File(filename, mode);
 }
 
+
+
 void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::ParameterHandler* parameter_handler, bool load_thread) {
     pallas::File threadFile = pallasGetThreadFile(path, th, "w");
     if (!threadFile.is_open())
         return;
 
     pallas_log(pallas::DebugLevel::Verbose, "\tThread %u {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", th->id, th->nb_events, th->nb_sequences, th->nb_loops);
+    threadFile.begin_block(__func__);
 
     threadFile.write(&th->id, sizeof(th->id), 1);
     threadFile.write(&th->archive->id, sizeof(th->archive->id), 1);
@@ -1599,7 +1683,9 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
     threadFile.write(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
   }
 
+  threadFile.end_block(__func__);
     threadFile.close();
+
     double effective_ratio = numberCompressedBytes ? (numberRawBytes + .0) / numberCompressedBytes : 0.0;
     double true_ratio = numberCompressedBytes ? (numberPreRawBytes + .0) / numberCompressedBytes : 0.0;
     pallas_log(pallas::DebugLevel::Error,
@@ -1609,6 +1695,8 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
                numberCompressedBytes,
                effective_ratio,
                true_ratio);
+
+    
 }
 
 void pallas::Thread::store(const char* path, const ParameterHandler* parameter_handler, bool load_thread) {
@@ -1629,6 +1717,7 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
     if (!threadFile.is_open()) {
         return;
     }
+    threadFile.begin_block(__func__);
     threadFile.read(&th->id, sizeof(th->id), 1);
     pallas::LocationGroupId archive_id;
     threadFile.read(&archive_id, sizeof(archive_id), 1);
@@ -1693,7 +1782,7 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   }
   for (size_t i = 0; i < th->nb_sequences; i++) {
     th->sequences[i].id = PALLAS_SEQUENCE_ID(i);
-    readSequence(th->sequences[i], threadFile, sequenceDurationFilename, *global_archive->parameter_handler, abi_version);
+    readSequence(th->sequences[i], threadFile, *fileMap[sequenceDurationFilename], *global_archive->parameter_handler, abi_version);
   }
 
   // read sequences with indirection map if supported
@@ -1745,7 +1834,7 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
       th->loop_id_map[i] = i;
     }
   }
-
+  threadFile.end_block(__func__);
   threadFile.close();
 
     pallas_log(pallas::DebugLevel::Verbose, "\tThread %u: {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", th->id, th->nb_events, th->nb_sequences, th->nb_loops);
@@ -1764,7 +1853,7 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive, const char* path, 
     pallas::File file = pallas::File(fullpath.c_str(), "w");
     if (!file.is_open())
         pallas_abort();
-
+    file.begin_block(__func__);
     uint8_t version = PALLAS_ABI_VERSION;
     file.write(&version, sizeof(version), 1);
     parameter_handler->writeToFile(&file);
@@ -1773,7 +1862,7 @@ void pallasStoreGlobalArchive(pallas::GlobalArchive* archive, const char* path, 
     storeLocationGroups(archive->location_groups, file);
     storeLocations(archive->locations, file);
     storeMetadata(archive->metadata, file);
-
+    file.end_block(__func__);
     file.close();
 }
 
@@ -1794,6 +1883,7 @@ void pallasStoreArchive(pallas::Archive* archive, const char* path, const pallas
     if (!file.is_open())
         pallas_abort();
     delete[] fullpath;
+    file.begin_block(__func__);
     file.write(&archive->id, sizeof(pallas::LocationGroupId), 1);
 #ifdef DEBUG
     if (archive->locations.size() != archive->nb_threads) {
@@ -1806,6 +1896,8 @@ void pallasStoreArchive(pallas::Archive* archive, const char* path, const pallas
     storeLocationGroups(archive->location_groups, file);
     storeLocations(archive->locations, file);
     storeMetadata(archive->metadata, file);
+
+    file.end_block(__func__);
     file.close();
 
 #ifdef BMARK
@@ -1830,6 +1922,7 @@ static char* pallas_archive_filename(pallas::GlobalArchive* archive, pallas::Loc
 }
 
 void pallas::ParameterHandler::writeToFile(pallas::File* file) const {
+    file->begin_block(__func__);
     file->write(&compressionAlgorithm, sizeof(compressionAlgorithm), 1);
     file->write(&encodingAlgorithm, sizeof(encodingAlgorithm), 1);
     file->write(&zstdCompressionLevel, sizeof(zstdCompressionLevel), 1);
@@ -1840,6 +1933,7 @@ void pallas::ParameterHandler::writeToFile(pallas::File* file) const {
     file->write(&storagePolicy, sizeof(storagePolicy), 1);
     file->write(&timeLossyPolicy, sizeof(timeLossyPolicy), 1);
     file->write(&durationLossyPolicy, sizeof(durationLossyPolicy), 1);
+    file->end_block(__func__);
 }
 
 pallas::ParameterHandler::ParameterHandler(pallas::File* file) {
@@ -1847,6 +1941,7 @@ pallas::ParameterHandler::ParameterHandler(pallas::File* file) {
 }
 
 void pallas::ParameterHandler::readFromFile(pallas::File* file) {
+    file->begin_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "Reading configuration from trace.\n");
     file->read(&compressionAlgorithm, sizeof(compressionAlgorithm), 1);
     file->read(&encodingAlgorithm, sizeof(encodingAlgorithm), 1);
@@ -1858,6 +1953,7 @@ void pallas::ParameterHandler::readFromFile(pallas::File* file) {
     file->read(&storagePolicy, sizeof(storagePolicy), 1);
     file->read(&timeLossyPolicy, sizeof(timeLossyPolicy), 1);
     file->read(&durationLossyPolicy, sizeof(durationLossyPolicy), 1);
+    file->end_block(__func__);
     pallas_log(pallas::DebugLevel::Debug, "%s\n", this->to_string().c_str());
 }
 
@@ -1882,7 +1978,7 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
         pallas_warn("I can't read %s: %s\n", file.path, strerror(errno));
         return nullptr;
     }
-
+    file.begin_block(__func__);
     file.read(&archive->id, sizeof(pallas::LocationGroupId), 1);
     file.read(&archive->nb_threads, sizeof(int), 1);
     archive->threads = new pallas::Thread*[archive->nb_threads]();
@@ -1895,6 +1991,7 @@ pallas::Archive* pallas::GlobalArchive::getArchive(pallas::LocationGroupId archi
             archive->locations.emplace_back(l);
     }
     readMetadata(archive->metadata, file, abi_version);
+    file.end_block(__func__);
     file.close();
 
     int index = 0;
@@ -1982,6 +2079,7 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     if (!file.is_open())
         return nullptr;
     uint8_t abi_version;
+    file.begin_block(__func__);
     file.read(&abi_version, sizeof(abi_version), 1);
     auto minimum_compatible_abi = 16;
     if (abi_version != PALLAS_ABI_VERSION) {
@@ -2009,6 +2107,7 @@ pallas::GlobalArchive* pallas_open_trace(const char* trace_filename) {
     } else
         trace->archive_list = nullptr;
 
+    file.end_block(__func__);
     file.close();
     return trace;
 }

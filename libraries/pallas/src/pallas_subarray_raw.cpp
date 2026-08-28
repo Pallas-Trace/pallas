@@ -24,9 +24,10 @@ namespace pallas {
         _buffer = new uint64_t[_buffer_capacity];
     }
 
-    SubArrayRaw::SubArrayRaw(File* info_file, ValueDomain domain, SubArrayBase* previous) : SubArrayBase(info_file, domain, previous) {
-        _buffer_capacity = VECTOR_SIZE_2048;
-        _buffer = new uint64_t[_buffer_capacity];
+    SubArrayRaw::SubArrayRaw(File* info_file, ValueDomain domain, StoragePolicy policy, SubArrayBase* previous, 
+                            const ParameterHandler* parameter_handler, LinkedVectorBase* parent) 
+                            : SubArrayBase(info_file, domain, policy, previous, parameter_handler, parent) {
+        load_values(info_file);
     };
 
     SubArrayRaw::~SubArrayRaw(){
@@ -80,14 +81,22 @@ namespace pallas {
         
     /** Write the SubArray to a file. */
     void SubArrayRaw::write_values(File* info_file) const {
-        info_file->write(_buffer, mem_size(), 1);
-
+        info_file->begin_block(__func__);
+        size_t size = mem_size(); // TODO: this will store the whole vector, even if it is mostly empty
+        info_file->write(&size, sizeof(size), 1);
+        info_file->write(_buffer, size, 1);
+        info_file->end_block(__func__);
     }
 
     /** Read the SubArray data from a file. */
     void SubArrayRaw::load_values(File* info_file) {
+        info_file->begin_block(__func__);
+        size_t size;
+        info_file->read(&size, sizeof(size), 1);
+        _size = size/sizeof(uint64_t);
         _buffer_capacity = _size;
-        _buffer = new uint64_t[_buffer_capacity];        
-        info_file->read(_buffer, mem_size(), 1);
+        _buffer = new uint64_t[size];
+        info_file->read(_buffer, size, 1);
+        info_file->end_block(__func__);
     };            
 }

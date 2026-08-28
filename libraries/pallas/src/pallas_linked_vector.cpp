@@ -144,6 +144,14 @@ SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) {
     return const_cast<SubArrayBase*>(static_cast<const LinkedVectorBase*>(this)->find_subarray(pos));
 }
 
+  SubArrayBase* LinkedVectorBase::get_subarray(int index) {
+    if (subarray_index.empty() && first != nullptr) {
+        const_cast<LinkedVectorBase*>(this)->rebuild_subarray_index();
+    }
+    return subarray_index[index];
+  }
+
+
 const SubArrayBase* LinkedVectorBase::find_subarray(size_t pos) const {
     uint64_t steps = 0;
     if (const auto* cached = recent_subarrays.lookup(pos, steps)) {
