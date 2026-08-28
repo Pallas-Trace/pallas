@@ -234,11 +234,6 @@ class LinkedVectorBase {
     [[nodiscard]] bool contiguous() const {
         return is_contiguous;
     }
-    /**
-     * @brief Clears persisted file offsets recorded by each subarray.
-     *
-     */
-    void reset_offsets();
 
     /**
      * @brief Returns the logical value stored at index `pos`.

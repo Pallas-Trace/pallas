@@ -24,6 +24,7 @@
 #endif
 
 #include "pallas/pallas.h"
+#include "pallas/pallas_file_format.h"
 
 #ifdef BMARK
 #include "pallas/linked_vector/pallas_bmark.h"
@@ -529,7 +530,7 @@ void _pallas_compress_write(uint64_t* src, size_t n, pallas::File* file, const p
         file->write(encodedArray, encodedSize, 1);
         numberCompressedBytes += sizeof(encodedSize) + encodedSize;
     } else {
-        pallas_log(pallas::DebugLevel::Debug, "Writing %lu bytes as is @%lu in %p.\n", size, file->offset(), file->file);
+        pallas_log(pallas::DebugLevel::Debug, "Writing %lu bytes as is in %p.\n", size, file->file);
         file->write(&size, sizeof(size), 1);
         file->write(src, size, 1);
         numberCompressedBytes += sizeof(size) + size;
@@ -741,15 +742,15 @@ void pallas::LinkedVectorBase::write_common_header(pallas::File* vector_file) co
  * chain but its payload has been evicted from memory.
  */
 void pallas::LinkedVectorBase::load_data(SubArrayBase* sub) {
-    pallas_log(DebugLevel::Debug, "Loading values from %s @ %lu\n", _details_file->path, sub->offset());
+    pallas_log(DebugLevel::Debug, "Loading values from %s @%lu\n", _details_file->path, sub->details_offset());
     if (!_details_file->isOpen) {
         _details_file->open("r");
     }
-    int ret = fseek(_details_file->file, sub->offset(), 0);
+    int ret = fseek(_details_file->file, sub->details_offset(), 0);
     while (ret == EBADF) {
         _details_file->close();
         _details_file->open("r");
-        ret = fseek(_details_file->file, sub->offset(), 0);
+        ret = fseek(_details_file->file, sub->details_offset(), 0);
     }
 
     sub->read_data(_details_file);
@@ -1127,50 +1128,6 @@ static void readEventData(pallas::EventData& event,
     eventFile.end_block(__func__);
 };
 
-static void storeEvent(pallas::Event& event,
-                                    pallas::File& eventFile,
-                                    pallas::File& durationFile,
-                                    const pallas::ParameterHandler* parameter_handler,
-                                    bool load_thread) {
-    pallas_log(pallas::DebugLevel::Debug, "\tStore event %d {.nb_events=%zu}\n", event.id, event.timestamps->size());
-    eventFile.begin_block(__func__);
-    if (event.data.record == pallas::PALLAS_EVENT_MAX_ID) {
-        pallas::EventData dummy{};
-        dummy.record = pallas::PALLAS_EVENT_MAX_ID;
-        dummy.event_size = offsetof(pallas::EventData, event_data); // Just the header, no payload
-        storeEventData(dummy, eventFile, *parameter_handler);
-
-        size_t serialized_attr_size = 0;
-        eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
-
-        if (STORE_TIMESTAMPS) {
-            size_t zero_size = 0;
-            size_t one_sub_array = 1;
-            eventFile.write(&zero_size, sizeof(zero_size), 1);
-            eventFile.write(&one_sub_array, sizeof(one_sub_array), 1);
-        }
-        eventFile.end_block(__func__);
-        return;
-    }
-
-    pallas_log(pallas::DebugLevel::Debug, "%s\n", event.timestamps->to_string().c_str());
-
-    storeEventData(event.data, eventFile, *parameter_handler);
-    size_t serialized_attr_size = event.attribute_pos;
-    eventFile.write(&serialized_attr_size, sizeof(serialized_attr_size), 1);
-    if (serialized_attr_size > 0) {
-        pallas_log(pallas::DebugLevel::Debug, "\t\tStore %lu attributes\n", serialized_attr_size);
-        eventFile.write(event.attribute_buffer, sizeof(byte), serialized_attr_size);
-    }
-    if (STORE_TIMESTAMPS) {
-        if (load_thread) {
-            event.timestamps->load_all();
-            event.timestamps->reset_offsets();
-        }
-        event.timestamps->write_to_file(&eventFile, &durationFile, parameter_handler);
-    }
-    eventFile.end_block(__func__);
-}
 
 static void readEvent(pallas::Event& event,
                       pallas::File& summary_file,
@@ -1221,61 +1178,6 @@ static const char* pallasGetSequenceDurationFilename(const char* base_dirname, p
     return filename;
 }
 
-static void storeSequence(pallas::Sequence& sequence,
-                                pallas::File& sequenceFile,
-                                pallas::File& durationFile,
-                                const pallas::ParameterHandler* parameter_handler,
-                                bool load_thread) {
-    sequenceFile.begin_block(__func__);
-    pallas_log(pallas::DebugLevel::Debug, "\tStore sequence %d {.size=%zu, .nb_ts=%zu}\n",
-               sequence.id.id, sequence.size(), sequence.durations->size());
-
-    if (sequence.id.type == pallas::TypeInvalid) {
-        sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
-        size_t zero_size = 0;
-        sequenceFile.write(&zero_size, sizeof(zero_size), 1);
-        sequenceFile.end_block(__func__);
-        return;
-    }
-
-    if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
-        //    th->printSequence(sequence);
-        std::cout << "Durations: " << sequence.durations->to_string() << "\n"
-                  << "Exclusive Durations:" << sequence.exclusive_durations->to_string() << "\n"
-                  << "Timestamps: " << sequence.timestamps->to_string() << std::endl;
-    }
-    sequenceFile.write(&sequence.type, sizeof(sequence.type), 1);
-    size_t size = sequence.size();
-    sequenceFile.write(&size, sizeof(size), 1);
-    if (size == 0) {
-        sequenceFile.end_block(__func__);
-      return;
-    }
-    sequenceFile.write(sequence.tokens.data(), sizeof(sequence.tokens[0]), sequence.size());
-#ifdef DEBUG
-    for (const auto& t : sequence.tokens) {
-        pallas_assert(t.isValid());
-    }
-#endif
-    if (STORE_TIMESTAMPS) {
-        if (load_thread) {
-            sequence.durations->load_all();
-            sequence.durations->reset_offsets();
-        }
-        sequence.durations->write_to_file(&sequenceFile, &durationFile, parameter_handler);
-        if (load_thread) {
-            sequence.exclusive_durations->load_all();
-            sequence.exclusive_durations->reset_offsets();
-        }
-        sequence.exclusive_durations->write_to_file(&sequenceFile, &durationFile, parameter_handler);
-        if (load_thread) {
-            sequence.timestamps->load_all();
-            sequence.timestamps->reset_offsets();
-        }
-        sequence.timestamps->write_to_file(&sequenceFile, &durationFile, parameter_handler);
-    }
-    sequenceFile.end_block(__func__);
-}
 
 static void readSequence(pallas::Sequence& sequence, pallas::File& summary_file, pallas::File& details_file, pallas::ParameterHandler& parameter_handler, uint8_t abi_version) {
     summary_file.begin_block(__func__);
@@ -1311,6 +1213,7 @@ out:
     summary_file.end_block(__func__);
 }
 
+#if 0
 static void storeLoop(pallas::Loop& loop, pallas::File& loopFile) {
     if (pallas::debugLevel >= pallas::DebugLevel::Debug) {
         pallas_log(pallas::DebugLevel::Debug, "\tStore loop %d {.repeated_token=%d.%d, .nb_iterations: %u\n", loop.self_id.id, loop.repeated_token.type, loop.repeated_token.id,
@@ -1323,6 +1226,8 @@ static void storeLoop(pallas::Loop& loop, pallas::File& loopFile) {
     loopFile.write(&loop.nb_occurrences, sizeof(loop.nb_occurrences), 1);
     loopFile.end_block(__func__);
 }
+#endif
+
 
 static void readLoop(pallas::Loop& loop, pallas::File& loopFile, uint8_t abi_version) {
     loopFile.begin_block(__func__);
@@ -1623,13 +1528,32 @@ static pallas::File pallasGetThreadFile(const char* dir_name, pallas::Thread* th
 
 
 
-void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::ParameterHandler* parameter_handler, bool load_thread) {
-    pallas::File threadFile = pallasGetThreadFile(path, th, "w");
-    if (!threadFile.is_open())
-        return;
+void pallasStoreThread(const char* base_dir, pallas::Thread* thread, const pallas::ParameterHandler* parameter_handler, bool load_thread) {
+    pallas::File thread_summary_file = pallasGetThreadFile(base_dir, thread, "w");
+    
+    const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(base_dir, thread);
+    pallas::File sequenceDurationFile = pallas::File(sequenceDurationFilename, "w");
 
-    pallas_log(pallas::DebugLevel::Verbose, "\tThread %u {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", th->id, th->nb_events, th->nb_sequences, th->nb_loops);
-    threadFile.begin_block(__func__);
+    const char* eventDurationFilename = pallasGetEventDurationFilename(base_dir, thread);
+    pallas::File eventDurationFile = pallas::File(eventDurationFilename, "w");
+
+    
+
+    pallas_log(pallas::DebugLevel::Verbose, "\tThread %u {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", 
+        thread->id, thread->nb_events, thread->nb_sequences, thread->nb_loops);
+
+    pallas::file_format::storeThread(thread_summary_file,
+		   eventDurationFile,
+		   sequenceDurationFile,
+		   thread,
+		   parameter_handler,
+		   load_thread);
+
+    sequenceDurationFile.close();
+    eventDurationFile.close();
+
+#if 0
+           threadFile.begin_block(__func__);
 
     threadFile.write(&th->id, sizeof(th->id), 1);
     threadFile.write(&th->archive->id, sizeof(th->archive->id), 1);
@@ -1657,13 +1581,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
     threadFile.write(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
   }
 
-    const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(path, th);
-    pallas::File sequenceDurationFile = pallas::File(sequenceDurationFilename, "w");
-    delete[] sequenceDurationFilename;
-    for (int i = 0; i < th->nb_sequences; i++) {
-        storeSequence(th->sequences[i], threadFile, sequenceDurationFile, parameter_handler, load_thread);
-    }
-    sequenceDurationFile.close();
+    
 
   // write sequence indirection map
   size_t seq_map_size = th->sequence_id_map.size();
@@ -1696,7 +1614,7 @@ void pallasStoreThread(const char* path, pallas::Thread* th, const pallas::Param
                effective_ratio,
                true_ratio);
 
-    
+    #endif
 }
 
 void pallas::Thread::store(const char* path, const ParameterHandler* parameter_handler, bool load_thread) {

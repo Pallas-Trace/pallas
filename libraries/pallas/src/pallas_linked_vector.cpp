@@ -349,12 +349,6 @@ void LinkedVectorBase::free_data() {
     loaded_subarrays.clear();
 }
 
-void LinkedVectorBase::reset_offsets() {
-    for (auto* subarray = first; subarray != nullptr; subarray = subarray->next_subarray()) {
-        subarray->set_offset(0);
-    }
-}
-
 /** Policy and Configuration Control */
 
 bool LinkedVectorBase::apply_storage_policy() {

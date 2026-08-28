@@ -43,7 +43,8 @@ namespace pallas {
 
     size_t SubArrayBase::size() const { return _size; }
     size_t SubArrayBase::starting_index() const { return _starting_index; }
-    //size_t SubArrayBase::offset() const { return _details_offset;}
+    size_t SubArrayBase::details_offset() const { return _details_offset;}
+    size_t SubArrayBase::details_size() const { return _details_size;}
 
     bool SubArrayBase::contains(size_t pos) const {
         return pos >= _starting_index && pos < _starting_index + _size;
@@ -550,10 +551,6 @@ size_t SubArrayBase::offset() const {
 
 bool SubArrayBase::has_values() const {
     return buffer != nullptr;
-}
-
-void SubArrayBase::set_offset(size_t offset) {
-    file_offset = offset;
 }
 
 #ifdef BMARK

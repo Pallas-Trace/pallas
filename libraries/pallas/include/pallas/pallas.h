@@ -660,7 +660,7 @@ typedef struct Thread {
     /** Loads all the timestamps for all the Events and Sequences. */
     void loadTimestamps();
     /** Resets the offsets of all the timestamp / duration vectors.*/
-    void resetVectorsOffsets();
+    //void resetVectorsOffsets();
 
     /** Returns the Event corresponding to the given Token. */
     [[nodiscard]] Event* getEvent(Token) const;

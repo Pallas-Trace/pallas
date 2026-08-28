@@ -560,7 +560,7 @@ namespace pallas {
 					    thread,
 					    es->event_list,
 					    es->header.event_attributes_offset);
-    es->header.event_attributes_size = current_offset - es->header.event_attributes_size;
+    es->header.event_attributes_size = current_offset - es->header.event_attributes_offset;
     pallas_assert(thread_summary_file.offset() == current_offset);
 
     // write the timestamps to disk
@@ -585,14 +585,14 @@ namespace pallas {
     pallas_assert(thread_summary_file.offset() == current_offset);
 
     // Now, each event_layout should be complete and the header info related to events should be filled
-    pallas_assert(es->header.event_list_offset > -1);
-    pallas_assert(es->header.event_list_size >= -1);
-    pallas_assert(es->header.event_id_map_offset >= -1);
-    pallas_assert(es->header.event_id_map_size >= -1);
-    pallas_assert(es->header.event_attributes_offset >= -1);
-    pallas_assert(es->header.event_attributes_size >= -1);
-    pallas_assert(es->header.event_timestamps_offset >= -1);
-    pallas_assert(es->header.event_timestamps_size >= -1);
+    pallas_assert(es->header.event_list_offset != -1);
+    pallas_assert(es->header.event_list_size != -1);
+    pallas_assert(es->header.event_id_map_offset != -1);
+    pallas_assert(es->header.event_id_map_size != -1);
+    pallas_assert(es->header.event_attributes_offset != -1);
+    pallas_assert(es->header.event_attributes_size != -1);
+    pallas_assert(es->header.event_timestamps_offset != -1);
+    pallas_assert(es->header.event_timestamps_size != 0);
 
     // Now we can write the event header to disk
     ts->header.event_section_offset = event_section_offset;
@@ -804,18 +804,18 @@ off_t store_exclusive_durations(struct thread_summary* ts,
     pallas_assert(thread_summary_file.offset() == current_offset);
 
     // Now, each sequence_layout should be complete and the header info related to sequences should be filled
-    pallas_assert(ss->header.sequence_id_map_offset > -1);
-    pallas_assert(ss->header.sequence_id_map_size > -1);
-    pallas_assert(ss->header.sequence_tokens_offset > -1);
-    pallas_assert(ss->header.sequence_tokens_size > -1);
-    pallas_assert(ss->header.sequence_durations_offset > -1);
-    pallas_assert(ss->header.sequence_durations_size > -1);
-    pallas_assert(ss->header.sequence_exclusive_durations_offset > -1);
-    pallas_assert(ss->header.sequence_exclusive_durations_size > -1);
-    pallas_assert(ss->header.sequence_timestamps_offset > -1);
-    pallas_assert(ss->header.sequence_timestamps_size > -1);
-    pallas_assert(ss->header.sequence_list_offset > -1);
-    pallas_assert(ss->header.sequence_list_size > -1);
+    pallas_assert(ss->header.sequence_id_map_offset != -1);
+    pallas_assert(ss->header.sequence_id_map_size != -1);
+    pallas_assert(ss->header.sequence_tokens_offset != -1);
+    pallas_assert(ss->header.sequence_tokens_size != -1);
+    pallas_assert(ss->header.sequence_durations_offset != -1);
+    pallas_assert(ss->header.sequence_durations_size != -1);
+    pallas_assert(ss->header.sequence_exclusive_durations_offset != -1);
+    pallas_assert(ss->header.sequence_exclusive_durations_size != -1);
+    pallas_assert(ss->header.sequence_timestamps_offset != -1);
+    pallas_assert(ss->header.sequence_timestamps_size != -1);
+    pallas_assert(ss->header.sequence_list_offset != -1);
+    pallas_assert(ss->header.sequence_list_size != -1);
     
 
     // Now we can write the event header to disk
@@ -879,10 +879,10 @@ off_t store_exclusive_durations(struct thread_summary* ts,
 
 
     // Now, each loop_layout should be complete and the header info related to loop should be filled
-    pallas_assert(header->loop_list_offset > -1);
-    pallas_assert(header->loop_list_size > -1);
-    pallas_assert(header->loop_id_map_offset > -1);
-    pallas_assert(header->loop_id_map_size > -1); 
+    pallas_assert(header->loop_list_offset != -1);
+    pallas_assert(header->loop_list_size != -1);
+    pallas_assert(header->loop_id_map_offset != -1);
+    pallas_assert(header->loop_id_map_size != -1); 
 
     // Now we can write the loop header to disk
     ts->header.loop_section_offset = loop_section_offset;
@@ -914,22 +914,6 @@ void storeThread(File& thread_summary_file,
     storeEvents(&file_layout, thread_summary_file, event_details_file, thread, parameter_handler, load_thread);
     storeSequences(&file_layout, thread_summary_file, sequence_details_file, thread, parameter_handler, load_thread);
     storeLoops(&file_layout, thread_summary_file, thread, parameter_handler, load_thread);
-
-#if 0
-    thread_summary_file->write(file_format.sequence_list, header->sequence_list_size, 1, header->sequence_list_offset);
-    thread_summary_file->write(file_format.loop_list, header->loop_list_size, 1, header->loop_list_offset);
-
-    thread_summary_file->write(file_format.event_id_map, header->event_id_map_size, 1, header->event_id_map_offset);
-    thread_summary_file->write(file_format.sequence_id_map,  header->sequence_id_map_size, 1, header->sequence_id_map_offset);
-    thread_summary_file->write(file_format.loop_id_map, header->loop_id_map_size, 1, header->loop_id_map_offset);
-
-    thread_summary_file->write(file_format.event_attributes, header->loop_list_size, 1, header->loop_list_offset);
-    thread_summary_file->write(file_format.event_timestamps, event_timestamps_size, 1, event_timestamps_offset);
-    thread_summary_file->write(file_format.sequence_tokens, sequence_tokens_size, 1, sequence_tokens_offset);
-    thread_summary_file->write(file_format.sequence_durations, sequence_durations_size, 1, sequence_durations_offset);
-    thread_summary_file->write(file_format.sequence_exclusive_durations, sequence_exclusive_durations_size, 1, sequence_exclusive_durations_offset);
-    thread_summary_file->write(file_format.sequence_timestamps, sequence_timestamps_size, 1, sequence_timestamps_offset);
-#endif
 
     thread_summary_file.end_block(__func__);
   }

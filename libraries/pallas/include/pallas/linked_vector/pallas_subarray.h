@@ -270,8 +270,10 @@ namespace pallas {
         size_t size() const;
         /** @returns Global logical index of the first value stored here. */
         size_t starting_index() const;
-        /** @returns The byte offset of this SubArray in the archive data file */
-        size_t offset() const;
+        /** @returns The byte offset of this SubArray in the details data file */
+        size_t details_offset() const;
+        /** @returns The byte occupancy of this SubArray in the details data file */
+        size_t details_size() const;
         
         /** @returns Whether absolute logical position `pos` belongs to this SubArray. */
         [[nodiscard]] bool contains(size_t pos) const;
@@ -285,10 +287,6 @@ namespace pallas {
         /** Release the resident payload and let the manager drop transient state. */
         virtual void free_values() = 0; // useless ?
         
-        /** Update the persisted payload offset recorded for this SubArray. */
-        void set_offset(size_t offset); // useless ?
-
-
         /********* Functions for accessing the SubArray data *********/
         
         /** Reconstruct the logical value stored at absolute index `pos`. */

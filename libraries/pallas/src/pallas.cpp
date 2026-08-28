@@ -117,18 +117,6 @@ void Thread::loadTimestamps() {
     }
 }
 
-void Thread::resetVectorsOffsets() {
-    DOFOR(i, nb_events) {
-        events[i].timestamps->reset_offsets();
-    }
-    DOFOR(i, nb_sequences) {
-        auto& s = sequences[i];
-        s.durations->reset_offsets();
-        s.exclusive_durations->reset_offsets();
-        s.timestamps->reset_offsets();
-    }
-}
-
 void Event::cleanEvent() {
     delete timestamps;
     delete attribute_buffer;
