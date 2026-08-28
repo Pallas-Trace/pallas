@@ -64,7 +64,7 @@ namespace pallas {
     };
 
     struct sequence_section_header {
-      size_t nb_sequences;
+      size_t nb_sequences = 0;
   
       off_t sequence_id_map_offset = -1;
       size_t sequence_id_map_size = -1;
@@ -125,7 +125,7 @@ namespace pallas {
     };
 
     struct loop_section_header {
-      size_t nb_loops;
+      size_t nb_loops = 0;
       off_t loop_list_offset = -1;
       size_t loop_list_size = -1;
 
@@ -150,22 +150,22 @@ namespace pallas {
       
 
     struct thread_summary_header {
-      ThreadId id;
-      LocationGroupId archive_id;
-      size_t nb_events;
-      size_t nb_sequences;
-      size_t nb_loops;
-      TokenId sequence_root;
-      pallas_timestamp_t first_timestamp;
+      ThreadId id = -1;
+      LocationGroupId archive_id = -1;
+      size_t nb_events = 0;
+      size_t nb_sequences = 0;
+      size_t nb_loops = 0;
+      TokenId sequence_root = PALLAS_TOKEN_ID_INVALID;
+      pallas_timestamp_t first_timestamp = 0;
 
-      off_t event_section_offset;
-      size_t event_section_size;
+      off_t event_section_offset = -1;
+      size_t event_section_size = -1;
 
-      off_t sequence_section_offset;
-      size_t sequence_section_size;
+      off_t sequence_section_offset = -1;
+      size_t sequence_section_size = -1;
 
-      off_t loop_section_offset;
-      size_t loop_section_size;
+      off_t loop_section_offset = -1;
+      size_t loop_section_size = -1;
     };
 
 
@@ -193,112 +193,88 @@ namespace pallas {
 
 
     struct event_layout {
-      Token id;
+      Token id = INVALID_TOKEN;
       EventData data;
-      size_t nb_occurrences;
-      off_t attributes_offset;
-      off_t timestamps_offset;
+      size_t nb_occurrences = 0;
+      off_t attributes_offset = -1;
+      off_t timestamps_offset = -1;
     };
 
     struct event_attributes {
-      Token parent; // token of the event
-      size_t size; // size of the buffer
-      byte *buffer;
+      Token parent = INVALID_TOKEN; // token of the event
+      size_t size = -1; // size of the buffer
+      byte *buffer = nullptr;
     };
 
     struct sequence_layout {
-      Token id;
+      Token id = INVALID_TOKEN;
       enum SequenceType type;
-      size_t size;
-      off_t sequence_tokens_offset;
-      off_t durations_offset;
-      off_t exclusive_durations_offset;
-      off_t timestamps_offset;
+      size_t size = -1;
+      off_t sequence_tokens_offset = -1;
+      off_t durations_offset = -1;
+      off_t exclusive_durations_offset = -1;
+      off_t timestamps_offset = -1;
     };
 
     struct loop_layout {
-      Token id;
-      Token repeated_token;
-      unsigned int nb_iterations;
-      uint64_t nb_occurrences;
+      Token id = INVALID_TOKEN;
+      Token repeated_token = INVALID_TOKEN;
+      unsigned int nb_iterations = 0;
+      uint64_t nb_occurrences = 0;
     };
 
     struct statistics_duration {
-      int count;
-      uint64_t min_duration;
-      uint64_t max_duration;
-      uint64_t mean_duration;
+      int count = 0;
+      uint64_t min_duration = -1;
+      uint64_t max_duration = -1;
+      uint64_t mean_duration = -1;
     };
 
     struct subarray_duration {
-      int starting_index;
-      int nb_values;
+      int starting_index = -1;
+      int nb_values = -1;
       StoragePolicy policy;
-      size_t data_size; // size of the data in event_details.dat
-      off_t data_offset; // offset of the data in event_details.dat 
+      size_t data_size = -1; // size of the data in event_details.dat
+      off_t data_offset = -1; // offset of the data in event_details.dat 
       struct statistics_duration statistics;
     };
 
     struct linked_vector_duration {
-      Token parent; // token of the event
+      Token parent = INVALID_TOKEN; // token of the event
       ValueDomain value_domain;
       //struct statistics_duration statistics;
-      int nb_subarray;
-      struct subarray_duration* subarray;
+      int nb_subarray = 0;
+      struct subarray_duration* subarray = nullptr;
     };
 
     struct statistics_timestamp {
-      uint64_t first_timestamp;
-      uint64_t last_timestamp;
-      int count;
+      uint64_t first_timestamp = -1;
+      uint64_t last_timestamp = -1;
+      int count = 0;
     };        
 
     struct subarray_timestamp {
-      int starting_index;
-      int nb_values;
+      int starting_index = -1;
+      int nb_values = 0;
       StoragePolicy policy;
-      size_t data_size; // size of the data in event_details.dat
-      off_t data_offset; // offset of the data in event_details.dat
+      size_t data_size = -1; // size of the data in event_details.dat
+      off_t data_offset = -1; // offset of the data in event_details.dat
       struct statistics_timestamp statistics;
     };
 
     struct linked_vector_timestamp {
-      Token parent; // token of the event
+      Token parent = INVALID_TOKEN; // token of the event
       ValueDomain value_domain;
       //todo: it would be usefull to have global statistics for a linked vector. Currently statistics are collected at the subarray granualiry
       //      struct statistics_timestamp staticstics;
-      int nb_subarray;
-      struct subarray_timestamp* subarray;
+      int nb_subarray = 0;
+      struct subarray_timestamp* subarray = nullptr;
     };
 
     struct sequence_tokens {
-      size_t nb_tokens;
-      Token* tokens;
+      size_t nb_tokens = 0;
+      Token* tokens = nullptr;
     };
-        
-
-
-    struct subarray_data {
-      size_t size; // size of the buffer
-      void* buffer;  // implementation-specific array that contains timestamps/durations
-    };
-
-    /**
-     *  The events.details file is structured as follows
-     */
-    struct events_details {            
-      // TODO: add a header ?
-      struct subarray_data* subarrays;
-    };
-
-    /**
-     *  The sequences.details file is structured as follows
-     */
-    struct sequences_details {
-      // TODO: add a header ?
-      struct subarray_data* subarrays;
-    };
-
 
     thread_summary::thread_summary(Thread* thread, const ParameterHandler* parameter_handler, bool load_thread) {
       header.id = thread->id;
@@ -918,6 +894,28 @@ void storeThread(File& thread_summary_file,
     thread_summary_file.end_block(__func__);
   }
 
+  void loadThread(File& thread_summary_file,
+		   File& event_details_file,
+		   File& sequence_details_file,
+		   Thread* thread,
+		   const ParameterHandler* parameter_handler,
+		   bool load_thread) {
+
+      if (!thread_summary_file.is_open()) { thread_summary_file.open("r"); }
+        
+      thread_summary_file.begin_block(__func__);
+      struct thread_summary file_layout(thread, parameter_handler, load_thread);
+      struct thread_summary_header *header = &file_layout.header;
+
+    // warning: some fields are not yet set
+    thread_summary_file.write(header, sizeof(struct thread_summary_header), 1, 0); // todo: move at the end
+
+    storeEvents(&file_layout, thread_summary_file, event_details_file, thread, parameter_handler, load_thread);
+    storeSequences(&file_layout, thread_summary_file, sequence_details_file, thread, parameter_handler, load_thread);
+    storeLoops(&file_layout, thread_summary_file, thread, parameter_handler, load_thread);
+
+    thread_summary_file.end_block(__func__);
+       }
 };
 };
 
