@@ -1552,69 +1552,6 @@ void pallasStoreThread(const char* base_dir, pallas::Thread* thread, const palla
     sequenceDurationFile.close();
     eventDurationFile.close();
 
-#if 0
-           threadFile.begin_block(__func__);
-
-    threadFile.write(&th->id, sizeof(th->id), 1);
-    threadFile.write(&th->archive->id, sizeof(th->archive->id), 1);
-
-  threadFile.write(&th->nb_events, sizeof(th->nb_events), 1);
-  threadFile.write(&th->nb_sequences, sizeof(th->nb_sequences), 1);
-  threadFile.write(&th->nb_loops, sizeof(th->nb_loops), 1);
-
-  threadFile.write(&th->sequence_root, sizeof(th->sequence_root), 1);
-
-    threadFile.write(&th->first_timestamp, sizeof(th->first_timestamp), 1);
-
-  const char* eventDurationFilename = pallasGetEventDurationFilename(path, th);
-  pallas::File eventDurationFile = pallas::File(eventDurationFilename, "w");
-  delete[] eventDurationFilename;
-  for (int i = 0; i < th->nb_events; i++) {
-    storeEvent(th->events[i], threadFile, eventDurationFile, parameter_handler, load_thread);
-  }
-  eventDurationFile.close();
-
-  // write event indirection map
-  size_t event_map_size = th->event_id_map.size();
-  threadFile.write(&event_map_size, sizeof(size_t), 1);
-  if (event_map_size > 0) {
-    threadFile.write(th->event_id_map.data(), sizeof(uint32_t), event_map_size);
-  }
-
-    
-
-  // write sequence indirection map
-  size_t seq_map_size = th->sequence_id_map.size();
-  threadFile.write(&seq_map_size, sizeof(size_t), 1);
-  if (seq_map_size > 0) {
-    threadFile.write(th->sequence_id_map.data(), sizeof(uint32_t), seq_map_size);
-  }
-
-    for (int i = 0; i < th->nb_loops; i++) {
-        storeLoop(th->loops[i], threadFile);
-  }
-
-  // write loop indirection map
-  size_t loop_map_size = th->loop_id_map.size();
-  threadFile.write(&loop_map_size, sizeof(size_t), 1);
-  if (loop_map_size > 0) {
-    threadFile.write(th->loop_id_map.data(), sizeof(uint32_t), loop_map_size);
-  }
-
-  threadFile.end_block(__func__);
-    threadFile.close();
-
-    double effective_ratio = numberCompressedBytes ? (numberRawBytes + .0) / numberCompressedBytes : 0.0;
-    double true_ratio = numberCompressedBytes ? (numberPreRawBytes + .0) / numberCompressedBytes : 0.0;
-    pallas_log(pallas::DebugLevel::Error,
-               "Storage bytes: pre_raw=%lu raw=%lu compressed=%lu effective_ratio=%.2f true_ratio=%.2f\n",
-               numberPreRawBytes,
-               numberRawBytes,
-               numberCompressedBytes,
-               effective_ratio,
-               true_ratio);
-
-    #endif
 }
 
 void pallas::Thread::store(const char* path, const ParameterHandler* parameter_handler, bool load_thread) {
@@ -1629,7 +1566,33 @@ void pallas::GlobalArchive::store(const char* path, const ParameterHandler* para
     pallasStoreGlobalArchive(this, path, parameter_handler);
 }
 
-static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th, pallas::ThreadId thread_id, uint8_t abi_version) {
+static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* thread, pallas::ThreadId thread_id, uint8_t abi_version) {
+    thread->id = thread_id;
+
+    pallas::File thread_summary_file = pallasGetThreadFile(global_archive->dir_name, thread, "r");
+    if(! thread_summary_file.is_open()) {
+        pallas_error("Cannot open file\n");
+    }
+    const char* sequenceDurationFilename = pallasGetSequenceDurationFilename(global_archive->dir_name, thread);
+    pallas::File sequenceDurationFile = pallas::File(sequenceDurationFilename, "r");
+
+    const char* eventDurationFilename = pallasGetEventDurationFilename(global_archive->dir_name, thread);
+    pallas::File eventDurationFile = pallas::File(eventDurationFilename, "r");
+
+    pallas::file_format::loadThread(thread_summary_file,
+		   eventDurationFile,
+		   sequenceDurationFile,
+		   thread);
+
+    pallas_log(pallas::DebugLevel::Verbose, "\tThread %u {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", 
+        thread->id, thread->nb_events, thread->nb_sequences, thread->nb_loops);
+
+
+    sequenceDurationFile.close();
+    eventDurationFile.close();
+
+#if 0
+
     th->id = thread_id;
     pallas::File threadFile = pallasGetThreadFile(global_archive->dir_name, th, "r");
     if (!threadFile.is_open()) {
@@ -1754,8 +1717,9 @@ static void readThread(pallas::GlobalArchive* global_archive, pallas::Thread* th
   }
   threadFile.end_block(__func__);
   threadFile.close();
+#endif
 
-    pallas_log(pallas::DebugLevel::Verbose, "\tThread %u: {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", th->id, th->nb_events, th->nb_sequences, th->nb_loops);
+    pallas_log(pallas::DebugLevel::Verbose, "\tThread %u: {.nb_events=%lu, .nb_sequences=%lu, .nb_loops=%lu}\n", thread->id, thread->nb_events, thread->nb_sequences, thread->nb_loops);
 }
 
 void pallasStoreGlobalArchive(pallas::GlobalArchive* archive, const char* path, const pallas::ParameterHandler* parameter_handler) {

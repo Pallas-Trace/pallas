@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "pallas/pallas.h"
 #include "pallas/utils/pallas_storage.h"
 #include "pallas/linked_vector/pallas_subarray.h"
@@ -168,6 +170,27 @@ namespace pallas {
       size_t loop_section_size = -1;
     };
 
+#ifdef __cplusplus
+    inline std::ostream& operator<<(std::ostream& os, const thread_summary_header& h) {
+        os << "thread_summary_header {"
+           << "\n  id:                      " << h.id
+           << "\n  archive_id:              " << h.archive_id
+           << "\n  nb_events:               " << h.nb_events
+           << "\n  nb_sequences:            " << h.nb_sequences
+           << "\n  nb_loops:                " << h.nb_loops
+           << "\n  sequence_root:           " << h.sequence_root
+           << "\n  first_timestamp:         " << h.first_timestamp
+           << "\n  event_section_offset:    " << h.event_section_offset
+           << "\n  event_section_size:      " << h.event_section_size
+           << "\n  sequence_section_offset: " << h.sequence_section_offset
+           << "\n  sequence_section_size:   " << h.sequence_section_size
+           << "\n  loop_section_offset:     " << h.loop_section_offset
+           << "\n  loop_section_size:       " << h.loop_section_size
+           << "\n}";
+        return os;
+    }
+#endif
+
 
     /**
      * The thread.summary file is structured as follows:
@@ -187,6 +210,7 @@ namespace pallas {
 #ifdef __cplusplus
       /** Creates a thread_summary from a Thread */
       thread_summary(Thread* thread, const ParameterHandler* parameter_handler, bool load_thread);
+      thread_summary();
 #endif
     };
 
@@ -287,61 +311,9 @@ namespace pallas {
       header.first_timestamp = thread->first_timestamp;
     }
 
-#if 0
-    off_t current_offset = offsetof(thread_summary, event_list);
+    thread_summary::thread_summary() {}
 
-    header.event_list_offset = current_offset;
-    header.event_list_size = sizeof(struct event_layout) * thread->nb_events;
-    event_list = thread->events;
-    current_offset += header.event_list_size;
-
-    header.sequence_list_offset = current_offset;
-    header.sequence_list_size = sizeof(struct sequence_layout) * thread->nb_sequences;
-    sequence_list = thread->sequences;
-    current_offset += header.sequence_list_size;
-
-    header.loop_list_offset = current_offset;
-    header.loop_list_size = sizeof(struct loop_layout) * thread->nb_loops;
-    loop_list = thread->loops;
-    current_offset += header.loop_list_size;
-
-    header.event_id_map_offset = current_offset;
-    header.event_id_map_size = sizeof(uint32_t) * thread->event_id_map.size();
-    event_id_map = th->event_id_map.data();
-    current_offset += header.event_id_map_size;
-
-    header.sequence_id_map_offset = current_offset;
-    header.sequence_id_map_size = sizeof(uint32_t) * thread->sequence_id_map.size();
-    sequence_id_map = th->sequence_id_map.data();
-    current_offset += header.sequence_id_map_size;
-
-    header.loop_id_map_offset = current_offset;
-    header.loop_id_map_size = sizeof(uint32_t) * thread->loop_id_map.size();
-    loop_id_map = th->loop_id_map.data();
-    current_offset += header.loop_id_map_size;
-
-    header.event_attributes_offset = current_offset;
-    // todo: iterate over events 
-    size_t event_attributes_size;
-
-    off_t event_timestamps_offset;
-    size_t event_timestamps_size;
-
-    off_t sequence_tokens_offset;
-    size_t sequence_tokens_size;
-
-    off_t sequence_durations_offset;
-    size_t sequence_durations_size;
-
-    off_t sequence_exclusive_durations_offset;
-    size_t sequence_exclusive_durations_size;
-
-    off_t sequence_timestamps_offset;
-    size_t sequence_timestamps_size;
-  }
-#endif
-
-  
+ 
   /** Write an id_map
    * Returns the offset after writing
    */
@@ -504,7 +476,14 @@ namespace pallas {
     return current_offset;
 
 }
-  
+
+  static void loadEvents(struct thread_summary *ts,
+			  File& thread_summary_file,
+			  File& event_details_file,
+			  Thread* thread) {
+
+  }
+
   /** Updates the thread_summary header and writes the event section to disk
    */
   static void storeEvents(struct thread_summary *ts,
@@ -885,35 +864,39 @@ void storeThread(File& thread_summary_file,
     struct thread_summary_header *header = &file_layout.header;
 
     // warning: some fields are not yet set
-    thread_summary_file.write(header, sizeof(struct thread_summary_header), 1, 0); // todo: move at the end
+    thread_summary_file.write(header, sizeof(struct thread_summary_header), 1, 0);
 
     storeEvents(&file_layout, thread_summary_file, event_details_file, thread, parameter_handler, load_thread);
     storeSequences(&file_layout, thread_summary_file, sequence_details_file, thread, parameter_handler, load_thread);
     storeLoops(&file_layout, thread_summary_file, thread, parameter_handler, load_thread);
 
+    // When storing events/sequences/loops, the thread_summary header was modified, so let's rewrite it
+    thread_summary_file.write(header, sizeof(struct thread_summary_header), 1, 0);
     thread_summary_file.end_block(__func__);
   }
 
   void loadThread(File& thread_summary_file,
 		   File& event_details_file,
 		   File& sequence_details_file,
-		   Thread* thread,
-		   const ParameterHandler* parameter_handler,
-		   bool load_thread) {
+		   Thread* thread) {
 
       if (!thread_summary_file.is_open()) { thread_summary_file.open("r"); }
         
       thread_summary_file.begin_block(__func__);
-      struct thread_summary file_layout(thread, parameter_handler, load_thread);
+      struct thread_summary file_layout;
       struct thread_summary_header *header = &file_layout.header;
 
     // warning: some fields are not yet set
-    thread_summary_file.write(header, sizeof(struct thread_summary_header), 1, 0); // todo: move at the end
+    thread_summary_file.read(&file_layout.header, sizeof(struct thread_summary_header), 1, 0);
 
+    std::cout<<"Le header contient: \n"<<file_layout.header<<"\n";
+
+    loadEvents(&file_layout, thread_summary_file, event_details_file, thread);
+#if 0
     storeEvents(&file_layout, thread_summary_file, event_details_file, thread, parameter_handler, load_thread);
     storeSequences(&file_layout, thread_summary_file, sequence_details_file, thread, parameter_handler, load_thread);
     storeLoops(&file_layout, thread_summary_file, thread, parameter_handler, load_thread);
-
+#endif
     thread_summary_file.end_block(__func__);
        }
 };
