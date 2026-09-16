@@ -28,6 +28,7 @@ pybind11_add_module(pallas_python
     python_analysis.cpp
     python_read.cpp
     python_tokens.cpp
+    python_quanta.cpp
 )
 if (Python3_DYNAMIC)
     target_include_directories(pallas_python PUBLIC ${pallas_INCLUDE_DIRS} )
