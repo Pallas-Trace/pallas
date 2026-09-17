@@ -176,7 +176,7 @@ void ThreadWriter::incrementLoop(Loop* loop) {
     loop->nb_iterations++;
 }
 
-Loop* ThreadWriter::unsquashLoop(Loop* loop) {
+Loop* ThreadWriter::unsquashLoop(Loop* loop) {    
     pallas_assert(loop->nb_occurrences > 1);
     uint32_t logi_id = loop->self_id.id;
     Loop* newLoop = createLoop(loop->repeated_token);

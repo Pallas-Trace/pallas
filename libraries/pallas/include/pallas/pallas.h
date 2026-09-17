@@ -754,7 +754,7 @@ typedef struct Thread {
 
     /** Prints a list of Attribute. */
     void printAttributeList(const struct AttributeList *attribute_list) const;
-
+    
     /** Prints the attributes of an EventOccurrence. */
     void printEventAttribute(const struct EventOccurrence *es) const;
     /** Returns the Attributes attached to an EventOccurrence. */

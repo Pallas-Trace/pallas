@@ -2,7 +2,9 @@
 
 #include <pallas/utils/pallas_storage.h>
 #include <pybind11/pytypes.h>
+#include <cstddef>
 #include <cstdint>
+#include <iostream>
 #include <variant>
 #include <vector>
 #include "pallas.h"
