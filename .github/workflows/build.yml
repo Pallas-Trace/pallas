@@ -1,0 +1,13 @@
+# Build the python packages
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pypa/cibuildwheel@v2.20
+      - uses: actions/upload-artifact@v4
+        with:
+          path: wheelhouse/*.whl
