@@ -1,4 +1,9 @@
 # Build the python packages
+on:
+  push:
+    tags:
+      - "*"
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
