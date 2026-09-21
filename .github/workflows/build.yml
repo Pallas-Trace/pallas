@@ -1,5 +1,6 @@
 # Build the python packages
 on:
+  workflow_dispatch:
   push:
     tags:
       - "*"
