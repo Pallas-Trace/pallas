@@ -554,20 +554,14 @@ class Trace:
         """
     def __iter__(self) -> Trace_Iterator: ...
     def tokens(self) -> TokenMetaRes: ...
-    def calc_quanta_base(
+    # blup query support
+    def calc_binned_proportions(
         self,
         thread_ids: numpy.typing.NDArray[numpy.uint32],
         bin_edges_ns: numpy.typing.NDArray[numpy.uint64],
         mode: QuantaMode = "fast",
         top_k: int = -1,
     ) -> QuantaRes: ...
-    def compare_exact_impls(
-        self,
-        thread_id: int,
-        bin_edges_ns: numpy.typing.NDArray[numpy.uint64],
-        top_k: int = -1,
-        top_n: int = 12,
-    ) -> dict[str, object]: ...
     @property
     def archives(self) -> list[Archive]: ...
     @property

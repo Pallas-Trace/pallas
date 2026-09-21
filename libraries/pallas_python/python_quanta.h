@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,35 @@
 
 namespace py = pybind11;
 
-struct QuantaRes {
+namespace quanta {
+
+enum class Mode {
+    Fast,      // getSnapshotViewFast
+    Balanced,  // getSnapshotView
+    Exact,     // reader walk
+};
+
+constexpr const char* MODE_LIST = "fast, balanced, exact";
+
+constexpr uint8_t OTHER_TOKEN_TYPE = 255;
+constexpr uint64_t OTHER_TOKEN_ID = 0;
+
+using ThreadIdsArg = py::array_t<uint32_t, py::array::c_style | py::array::forcecast>;
+using BinEdgesArg = py::array_t<uint64_t, py::array::c_style | py::array::forcecast>;
+
+using TokenTotals = std::map<pallas::Token, uint64_t>;
+
+struct ResultRow {
+    uint64_t start_ns;
+    uint64_t finish_ns;
+    uint32_t thread_id;
+    uint8_t token_type;
+    uint64_t token_id;
+    uint64_t excl_ns;
+    float proportion;
+};
+
+struct Result {
     std::vector<pallas::ThreadId> thread_id;
     std::vector<pallas_timestamp_t> start_ns;
     std::vector<pallas_timestamp_t> finish_ns;
@@ -40,10 +69,9 @@ struct QuantaRes {
     }
 };
 
-QuantaRes calc_quanta_base(pallas::GlobalArchive& trace,
-                           py::array_t<uint32_t, py::array::c_style | py::array::forcecast> thread_ids,
-                           py::array_t<uint64_t, py::array::c_style | py::array::forcecast> bin_edges_ns,
-                           const std::string& mode = "fast");
+Result calc(pallas::GlobalArchive& trace, ThreadIdsArg thread_ids, BinEdgesArg bin_edges_ns, const std::string& mode = "fast", int top_k = -1);
+
+}  // namespace quanta
 
 void setup_quanta(py::module_& m, py::class_<pallas::GlobalArchive>& trace_cls);
 
