@@ -4,6 +4,8 @@
  */
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <iostream>
 #include <sstream>
@@ -24,8 +26,7 @@ std::string LinkedVector::to_string() {
     for (size_t i = 0; i < size; i++) {
         if (i != size - 1) {
             output << this->at(i) << ", ";
-        }
-        else {
+        } else {
             output << this->at(i) << "]";
         }
     }
@@ -40,8 +41,7 @@ std::string LinkedDurationVector::to_string() {
     for (size_t i = 0; i < size; i++) {
         if (i != size - 1) {
             output << this->at(i) << ", ";
-        }
-        else {
+        } else {
             output << this->at(i) << "]";
         }
     }
@@ -51,12 +51,12 @@ std::string LinkedDurationVector::to_string() {
     return output.str();
 }
 
-LinkedVector::LinkedVector(ParameterHandler& p ) : parameter_handler(p) {
+LinkedVector::LinkedVector(ParameterHandler& p) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }
 
-LinkedDurationVector::LinkedDurationVector(ParameterHandler& p ) : parameter_handler(p) {
+LinkedDurationVector::LinkedDurationVector(ParameterHandler& p) : parameter_handler(p) {
     first = new SubArray(DEFAULT_VECTOR_SIZE);
     last = first;
 }
@@ -69,7 +69,7 @@ uint64_t* LinkedVector::SubArray::add(uint64_t val) {
 uint64_t* LinkedDurationVector::SubArray::add(uint64_t val) {
     array[size++] = val;
     update_statistics();
-    return &array[size-1];
+    return &array[size - 1];
 }
 
 SAME_FOR_BOTH_VECTORS(
@@ -105,7 +105,6 @@ LinkedDurationVector::SubArray::SubArray(size_t size, LinkedDurationVector::SubA
     array = new uint64_t[size];
 }
 
-
 SAME_FOR_BOTH_VECTORS(, SubArray::~SubArray() { delete[] array; })
 
 SAME_FOR_BOTH_VECTORS(void, SubArray::copy_to_array(uint64_t* given_array) const { memcpy(given_array, array, size * sizeof(uint64_t)); })
@@ -124,12 +123,11 @@ void LinkedDurationVector::final_update_mean() {
     last->final_update_mean();
 }
 
-
 void LinkedDurationVector::SubArray::update_statistics() {
     auto& val = at(size - 1 + starting_index);
-        max = std::max(max, val);
-        min = std::min(min, val);
-        mean += val;
+    max = std::max(max, val);
+    min = std::min(min, val);
+    mean += val;
 }
 
 void LinkedDurationVector::SubArray::final_update_mean() {
@@ -192,9 +190,10 @@ uint64_t& LinkedVector::operator[](size_t pos) {
         if (pos == correct_sub->starting_index + correct_sub->size - 1) {
             return correct_sub->last_value;
         }
-        while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-            auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
-            parameter_handler.subvector_queue.pop_front();
+        auto& dq = parameter_handler.subvector_queue;
+        while (!dq.empty() && parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto* temp = static_cast<SubArray*>(dq.front());
+            dq.pop_front();
             delete[] temp->array;
             temp->array = nullptr;
             parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
@@ -206,22 +205,23 @@ uint64_t& LinkedVector::operator[](size_t pos) {
 }
 
 uint64_t& LinkedDurationVector::operator[](size_t pos) {
-      SubArray* correct_sub = last;
-      while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
-      }
-      if (correct_sub->array == nullptr) {
-          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-              parameter_handler.subvector_queue.pop_front();
-              delete[] temp->array;
-              temp->array = nullptr;
-              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-          }
-          load_data(correct_sub);
-          loaded_subarrays.insert(correct_sub);
-      }
-      return (*correct_sub)[pos];
+    SubArray* correct_sub = last;
+    while (pos < correct_sub->starting_index) {
+        correct_sub = correct_sub->previous;
+    }
+    if (correct_sub->array == nullptr) {
+        auto& dq = parameter_handler.subvector_queue;
+        while (!dq.empty() && parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+            auto* temp = static_cast<SubArray*>(dq.front());
+            dq.pop_front();
+            delete[] temp->array;
+            temp->array = nullptr;
+            parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+        }
+        load_data(correct_sub);
+        loaded_subarrays.insert(correct_sub);
+    }
+    return (*correct_sub)[pos];
 }
 
 size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
@@ -250,13 +250,14 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
     }
     if (current_subarray->array == nullptr) {
         load_data(current_subarray);
+        loaded_subarrays.insert(current_subarray);
     }
     // Then we do a dichotomy.
     size_t start = 0;
     size_t end = current_subarray->size - 1;
 
     while (start < end) {
-        size_t middle = (start + end ) / 2;
+        size_t middle = (start + end) / 2;
         if (current_subarray->array[middle] <= ts && current_subarray->array[middle + 1] > ts) {
             return current_subarray->starting_index + middle;
         }
@@ -282,10 +283,10 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
     }
 
     pallas_duration_t sum = 0;
-    if ( start_subarray->starting_index != start_index ) {
+    if (start_subarray->starting_index != start_index) {
         // Load the sub_array
         size_t i = start_index;
-        sum += at( i++ );
+        sum += at(i++);
         for (; i < start_subarray->starting_index + start_subarray->size && i < end_index; i++) {
             sum += start_subarray->at(i);
         }
@@ -302,15 +303,12 @@ pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_inde
     }
 
     size_t i = start_subarray->starting_index;
-    sum += at(i ++);
+    sum += at(i++);
     for (; i < end_index; i++) {
         sum += start_subarray->at(i);
     }
     return sum;
 }
-
-
-
 
 uint64_t& LinkedVector::front() {
     return first->first_value;
@@ -319,7 +317,6 @@ uint64_t& LinkedVector::front() {
 uint64_t& LinkedVector::back() {
     return last->last_value;
 }
-
 
 uint64_t& LinkedDurationVector::front() {
     return at(0);
@@ -334,6 +331,9 @@ void LinkedVector::free_data() {
         return;
     auto& dq = parameter_handler.subvector_queue;
     for (auto* sub : loaded_subarrays) {
+        if (sub->array == nullptr) {
+            continue;
+        }
         // We need to remove the subvector from the global memory queue
         auto it = std::find(dq.begin(), dq.end(), sub);
         if (it != dq.end()) {
@@ -341,14 +341,18 @@ void LinkedVector::free_data() {
         }
         delete[] sub->array;
         sub->array = nullptr;
-        parameter_handler.loaded_durations_size -= sub->size;
+        parameter_handler.loaded_durations_size -= sub->size * sizeof(uint64_t);
     }
+    loaded_subarrays.clear();
 }
 void LinkedDurationVector::free_data() {
     if (first == nullptr)
         return;
     auto& dq = parameter_handler.subvector_queue;
     for (auto* sub : loaded_subarrays) {
+        if (sub->array == nullptr) {
+            continue;
+        }
         // We need to remove the subvector from the global memory queue
         auto it = std::find(dq.begin(), dq.end(), sub);
         if (it != dq.end()) {
@@ -356,8 +360,9 @@ void LinkedDurationVector::free_data() {
         }
         delete[] sub->array;
         sub->array = nullptr;
-        parameter_handler.loaded_durations_size -= sub->size;
+        parameter_handler.loaded_durations_size -= sub->size * sizeof(uint64_t);
     }
+    loaded_subarrays.clear();
 }
 
 LinkedVector::~LinkedVector() {
@@ -367,7 +372,7 @@ LinkedVector::~LinkedVector() {
 #ifdef DEBUG
         auto* temp = first;
         auto& dq = parameter_handler.subvector_queue;
-        for (int i = 0; i < n_sub_array; i ++, temp++) {
+        for (int i = 0; i < n_sub_array; i++, temp++) {
             // Check we've correctly cleared it
             // And cleared it from the queue
             pallas_assert(temp->array == nullptr);
@@ -377,7 +382,7 @@ LinkedVector::~LinkedVector() {
 #endif
         free(first);
     } else {
-        auto * sub = first;
+        auto* sub = first;
         while (sub->next) {
             sub = sub->next;
             delete sub->previous;
@@ -393,7 +398,7 @@ LinkedDurationVector::~LinkedDurationVector() {
 #ifdef DEBUG
         auto* temp = first;
         auto& dq = parameter_handler.subvector_queue;
-        for (int i = 0; i < n_sub_array; i ++, temp++) {
+        for (int i = 0; i < n_sub_array; i++, temp++) {
             // Check we've correctly cleared it
             // And cleared it from the queue
             pallas_assert_equals(temp->array, nullptr);
@@ -403,7 +408,7 @@ LinkedDurationVector::~LinkedDurationVector() {
 #endif
         free(first);
     } else {
-        auto * sub = first;
+        auto* sub = first;
         while (sub->next) {
             sub = sub->next;
             delete sub->previous;
@@ -436,7 +441,7 @@ SAME_FOR_BOTH_VECTORS(uint64_t*, as_flat_array() {
 
 std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_timestamp_t end) {
     auto output = std::vector<double>();
-    auto *current = first;
+    auto* current = first;
     double sum = 0;
     // While loop to go through all the SubVectors.
     // Legend:
@@ -503,13 +508,12 @@ std::vector<double> LinkedVector::getWeights(pallas_timestamp_t start, pallas_ti
 pallas_duration_t LinkedDurationVector::weightedSum(std::vector<double>& weights) {
     double sum = 0;
     auto* current = first;
-    for (auto w: weights) {
+    for (auto w : weights) {
         sum += w * current->mean * current->size;
         current = current->next;
     }
     return sum;
 }
-
 
 // Sub-LinkedVector methods
 
