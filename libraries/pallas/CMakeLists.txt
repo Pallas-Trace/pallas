@@ -105,7 +105,13 @@ target_link_libraries(pallas
         m
         ${ZSTD_LIBRARIES}
 )
-target_link_directories(pallas PRIVATE ${ZSTD_LIBRARY_DIRS})
+
+# PUBLIC: when pallas is built as a static library (the _PIP case), CMake
+# propagates its private link libraries (e.g. -lzstd) to consumers like
+# pallas_python, but not link directories, so the -L path must be PUBLIC
+# too or the linker can't find zstd where it's not in a default search
+# path (e.g. Homebrew's zstd on macOS).
+target_link_directories(pallas PUBLIC ${ZSTD_LIBRARY_DIRS})
 if (DOXYGEN_FOUND AND BUILD_DOC)
     set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doc")
     set(DOXYGEN_EXTRACT_PRIVATE YES)
