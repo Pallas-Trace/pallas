@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pypa/cibuildwheel@v2.20
         env:
+          CIBW_SKIP: "pp*"
           CIBW_BEFORE_BUILD_LINUX: "yum install -y libzstd-devel || apt-get install -y libzstd-dev"
           CIBW_BEFORE_BUILD_MACOS: "brew install zstd"
       - uses: actions/upload-artifact@v4
