@@ -1,7 +1,10 @@
-cmake_minimum_required(VERSION 3.14.0)
+cmake_minimum_required(VERSION 3.18.0)
 set (CMAKE_CXX_STANDARD 20)
 
-find_package(Python3 COMPONENTS Interpreter Development NumPy)
+# Development.Module (rather than Development) is enough for building an
+# extension module: it does not require libpython, which is not built as a
+# shared library on manylinux images used to produce the Python wheels.
+find_package(Python3 COMPONENTS Interpreter Development.Module NumPy)
 if (Python3_DYNAMIC)
 pkg_check_modules(pallas pallas REQUIRED)
 endif()
