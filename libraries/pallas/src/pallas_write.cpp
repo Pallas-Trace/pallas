@@ -70,7 +70,7 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     if (thread->nb_sequences >= thread->nb_allocated_sequences) {
         pallas_log(DebugLevel::Debug, "Doubling mem space of sequence for thread trace %p\n", this);
         doubleMemorySpaceConstructor(thread->sequences, thread->nb_allocated_sequences);
-        for (uint i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
+        for (unsigned int i = thread->nb_allocated_sequences / 2; i < thread->nb_allocated_sequences; i++) {
             thread->sequences[i].durations = new LinkedDurationVector(*parameter_handler);
             thread->sequences[i].exclusive_durations = new LinkedDurationVector(*parameter_handler);
             thread->sequences[i].timestamps = new LinkedVector(*parameter_handler);
