@@ -288,7 +288,7 @@ size_t ParameterHandler::getMaxLoopLength() const {
     return maxLoopLength;
   pallas_error("Asked for the max loop length but wasn't using a LoopFindingBasicTruncated algorithm.\n");
 }
-u_int8_t ParameterHandler::getZstdCompressionLevel() const {
+uint8_t ParameterHandler::getZstdCompressionLevel() const {
   return zstdCompressionLevel;
 }
 CompressionAlgorithm ParameterHandler::getCompressionAlgorithm() const {

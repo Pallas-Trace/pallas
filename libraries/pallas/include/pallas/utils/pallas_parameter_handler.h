@@ -9,6 +9,7 @@
 #pragma once
 #ifdef __cplusplus
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <string>
 
@@ -176,7 +177,7 @@ class ParameterHandler {
     [[nodiscard]] size_t getMaxLoopLength() const;
     /** Getter for #zstdCompressionLevel. Error if you're not using ZSTD.
      * @returns Value of #zstdCompressionLevel. */
-    [[nodiscard]] u_int8_t getZstdCompressionLevel() const;
+    [[nodiscard]] uint8_t getZstdCompressionLevel() const;
     /** Getter for #compressionAlgorithm.
      * @returns Value of #compressionAlgorithm. */
     [[nodiscard]] CompressionAlgorithm getCompressionAlgorithm() const;
