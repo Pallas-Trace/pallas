@@ -10,14 +10,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Install Windows dependencies
-        if: runner.os == 'Windows'
-        run: |
-          vcpkg install zstd:x64-windows
-          echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows" >> $env:GITHUB_ENV
       - uses: pypa/cibuildwheel@v2.20
         env:
           CIBW_BEFORE_BUILD_LINUX: "yum install -y libzstd-devel || apt-get install -y libzstd-dev"
