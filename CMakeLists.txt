@@ -66,8 +66,19 @@ execute_process(
 )
 
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(ZSTD libzstd REQUIRED)
+# pkg-config is not available on Windows CI runners; fall back to zstd's own
+# CMake config package there (provided by vcpkg).
+find_package(PkgConfig)
+if (PkgConfig_FOUND)
+    pkg_check_modules(ZSTD libzstd REQUIRED)
+else()
+    find_package(zstd CONFIG REQUIRED)
+    if (TARGET zstd::libzstd_shared)
+        set(ZSTD_LIBRARIES zstd::libzstd_shared)
+    else()
+        set(ZSTD_LIBRARIES zstd::libzstd_static)
+    endif()
+endif()
 find_package(Doxygen)
 find_package(unordered_dense CONFIG)
 if (NOT unordered_dense_FOUND)
