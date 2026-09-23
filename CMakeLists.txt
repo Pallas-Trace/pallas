@@ -68,14 +68,9 @@ execute_process(
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD libzstd REQUIRED)
 if (_PIP)
-    # Prefer linking zstd statically when the static archive is available.
-    # This avoids bundling libzstd.dylib into the macOS wheel: Homebrew's
-    # bottle is built with a much higher minimum macOS version than the
-    # wheel targets, which delocate-wheel then refuses to repair. This is
-    # only safe here because pallas itself is built as a static PIC
-    # library in the _PIP case; the regular (non-_PIP) build links pallas
-    # as a shared library, and distro static archives (e.g. Ubuntu/Debian's
-    # libzstd.a) generally aren't built with -fPIC, which breaks that link.
+    # When building the Python package, prefer linking zstd statically when
+    # the static archive is available. Otherwise the Github action that builds
+    # the macOS python package fails.
     find_library(ZSTD_STATIC_LIBRARY NAMES libzstd.a HINTS ${ZSTD_LIBRARY_DIRS})
     if (ZSTD_STATIC_LIBRARY)
         set(ZSTD_LIBRARIES ${ZSTD_STATIC_LIBRARY})
