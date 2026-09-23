@@ -68,13 +68,8 @@ execute_process(
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD libzstd REQUIRED)
 if (_PIP AND APPLE)
-    # When building the macOS Python wheel, prefer linking zstd statically
-    # when the static archive is available: Homebrew's libzstd.dylib bottle
-    # has a minimum macOS version far above the wheel's target, which
-    # delocate-wheel then refuses to repair. This isn't needed (and isn't
-    # safe) on Linux: distro static archives (e.g. Ubuntu/Debian's
-    # libzstd.a) generally aren't built with -fPIC, which breaks linking
-    # pallas_python's shared module.
+    # Link zstd statically on macOS, otherwise the wheel build fails to
+    # delocate Homebrew's libzstd.dylib (too-high minimum macOS version).
     find_library(ZSTD_STATIC_LIBRARY NAMES libzstd.a HINTS ${ZSTD_LIBRARY_DIRS})
     if (ZSTD_STATIC_LIBRARY)
         set(ZSTD_LIBRARIES ${ZSTD_STATIC_LIBRARY})
