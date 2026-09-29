@@ -8,7 +8,7 @@
  */
 #pragma once
 
-#include "pallas_timestamp.h"
+#include "pallas/utils/pallas_timestamp.h"
 #ifndef __cplusplus
 #include <stdint.h>
 #endif
@@ -19,7 +19,7 @@
 #include <set>
 
 
-#include "pallas_parameter_handler.h"
+#include "pallas/utils/pallas_parameter_handler.h"
 /** Default size for creating Vectors and SubVectors.*/
 #define DEFAULT_VECTOR_SIZE 1000
 

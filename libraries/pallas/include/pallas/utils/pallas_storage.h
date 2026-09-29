@@ -7,8 +7,8 @@
  */
 #pragma once
 
-#include "pallas.h"
-#include "pallas_archive.h"
+#include "pallas/pallas.h"
+#include "pallas/pallas_archive.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
