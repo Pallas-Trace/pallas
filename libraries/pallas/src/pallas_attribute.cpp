@@ -60,7 +60,7 @@ void Thread::printAttribute(AttributeRef ref) const {
   printf("INVALID <%d>", ref);
 }
 
-static enum AttributeType _guess_attribute_size(const AttributeData* attr) {
+static AttributeType _guess_attribute_size(const AttributeData* attr) {
   uint16_t data_size = attr->struct_size - ATTRIBUTE_HEADER_SIZE;
   switch (data_size) {
   case 1:
@@ -316,7 +316,7 @@ void Thread::printAttributeValue(const struct AttributeData* attr, pallas_type_t
 
 std::string Thread::attributeToString(const struct AttributeData* attr) const {
   const char* attr_string = "INVALID";
-  enum AttributeType type = _guess_attribute_size(attr);
+  AttributeType type = _guess_attribute_size(attr);
 
   auto* a = archive->getAttribute(attr->ref);
   if (a) {

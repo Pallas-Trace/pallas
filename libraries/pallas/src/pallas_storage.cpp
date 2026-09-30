@@ -224,6 +224,8 @@ static void storeRegions(pallas::Definition& definitions, File& file);
 static void storeAttributes(pallas::Definition& definitions, File& file);
 static void storeGroups(pallas::Definition& definitions, File& file);
 static void storeComms(pallas::Definition& definitions, File& file);
+static void storeMetricMemberss(pallas::Definition& definitions, File& file);
+static void storeMetrics(pallas::Definition& definitions, File& file);
 static void storeMetadata(pallas::Metadata& metadata, File& file);
 
 static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file);
@@ -244,11 +246,13 @@ static void readSequence(pallas::Sequence& sequence,
                                const char* durationFileName,
                                pallas::ParameterHandler& parameter_handler,uint8_t abi_version);
 
-static void readString(pallas::Definition& definitions, File& file,uint8_t abi_version);
-static void readRegions(pallas::Definition& definitions, File& file,uint8_t abi_version);
-static void readAttributes(pallas::Definition& definitions, File& file,uint8_t abi_version);
-static void readGroups(pallas::Definition& definitions, File& file,uint8_t abi_version);
-static void readComms(pallas::Definition& definitions, File& file,uint8_t abi_version);
+static void readString(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readRegions(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readAttributes(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readGroups(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readComms(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readMetricMemberss(pallas::Definition& definitions, File& file, uint8_t abi_version);
+static void readMetrics(pallas::Definition& definitions, File& file, uint8_t abi_version);
 static void readLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file,uint8_t abi_version);
 static void readLocations(std::vector<pallas::Location>& locations, File& file,uint8_t abi_version);
 static void readMetadata(pallas::Metadata& metadata, File& file,uint8_t abi_version);
@@ -1419,6 +1423,54 @@ static void readComms(pallas::Definition& definitions, File& file, uint8_t abi_v
   }
 
   pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu comms\n", definitions.comms.size());
+}
+
+static void storeMetricMembers(pallas::Definition& definitions, File& file) {
+  size_t size = definitions.metric_members.size();
+  file.write(&size, sizeof(size), 1);
+  if (definitions.metric_members.empty())
+    return;
+
+  pallas_log(pallas::DebugLevel::Debug, "\tStore %zu MetricMembers\n", definitions.metric_members.size());
+  for (auto& m : definitions.metric_members) {
+    file.write(&m.second, sizeof(pallas::MetricMember), 1);
+  }
+}
+
+static void readMetricMembers(pallas::Definition& definitions, File& file, uint8_t abi_version) {
+  size_t size;
+  file.read(&size, sizeof(size), 1);
+  pallas::MetricMember tempM;
+  for (size_t i = 0; i < size; i++) {
+    file.read(&tempM, sizeof(pallas::MetricMember), 1);
+    definitions.metric_members[tempM.metric_member_ref] = tempM;
+  }
+
+  pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu metricMembers\n", definitions.metric_members.size());
+}
+
+static void storeMetrics(pallas::Definition& definitions, File& file) {
+  size_t size = definitions.metrics.size();
+  file.write(&size, sizeof(size), 1);
+  if (definitions.metrics.empty())
+    return;
+
+  pallas_log(pallas::DebugLevel::Debug, "\tStore %zu Metrics\n", definitions.metrics.size());
+  for (auto& m : definitions.metrics) {
+    file.write(&m.second, sizeof(pallas::Metric), 1);
+  }
+}
+
+static void readMetrics(pallas::Definition& definitions, File& file, uint8_t abi_version) {
+  size_t size;
+  file.read(&size, sizeof(size), 1);
+  pallas::Metric tempM;
+  for (size_t i = 0; i < size; i++) {
+    file.read(&tempM, sizeof(pallas::Metric), 1);
+    definitions.metrics[tempM.metric_ref] = tempM;
+  }
+
+  pallas_log(pallas::DebugLevel::Debug, "\tLoad %zu metrics\n", definitions.metrics.size());
 }
 
 static void storeDefinitions(pallas::Definition& def, File& file) {

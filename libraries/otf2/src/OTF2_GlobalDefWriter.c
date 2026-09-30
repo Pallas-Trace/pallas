@@ -230,7 +230,9 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteMetricMember(OTF2_GlobalDefWriter* writ
                                                       OTF2_Base base,
                                                       int64_t exponent,
                                                       OTF2_StringRef unit) {
-  NOT_IMPLEMENTED;
+  pallas_global_archive_register_metric_member(writerHandle->archive, self, name, description, metricType, metricMode, valueType, base, exponent, unit);
+
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_GlobalDefWriter_WriteMetricClass(OTF2_GlobalDefWriter* writerHandle,
@@ -239,7 +241,8 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteMetricClass(OTF2_GlobalDefWriter* write
                                                      const OTF2_MetricMemberRef* metricMembers,
                                                      OTF2_MetricOccurrence metricOccurrence,
                                                      OTF2_RecorderKind recorderKind) {
-  NOT_IMPLEMENTED;
+  pallas_global_archive_register_metric_class(writerHandle->archive, self, numberOfMetrics, metricMembers, metricOccurrence, recorderKind);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_GlobalDefWriter_WriteMetricInstance(OTF2_GlobalDefWriter* writerHandle,

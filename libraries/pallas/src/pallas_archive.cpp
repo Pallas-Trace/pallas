@@ -158,6 +158,66 @@ void Definition::addComm(CommRef comm_ref, StringRef name, GroupRef group, CommR
   pallas_log(DebugLevel::Verbose, "Register comm #%zu{.ref=%d, .str=%d, .group=%d, .parent=%d}\n", comms.size() - 1, c.comm_ref, c.name, c.group, c.parent);
 }
 
+/**
+ * Getter for a MetricMember from its id.
+ * @returns First MetricMember matching the given pallas::MetricMemberRef, nullptr if it doesn't have a match.
+ */
+const MetricMember* Definition::getMetricMember(MetricMemberRef ref) const {
+  if (metric_members.count(ref) > 0)
+    return &metric_members.at(ref);
+  else
+    return nullptr;
+}
+void Definition::addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description, pallas::MetricType metricType,
+				 pallas::MetricMode metricMode, pallas::Type valueType, pallas::Base base, int64_t exponent,
+				 pallas::StringRef unit) {
+  if(getMetricMember(self)) {
+     pallas_error("Given metric_member_ref was already in use.\n");
+  }
+  auto& m = metric_members[self];
+  m.metric_member_ref = self;
+  m.name = name;
+  m.description = description;
+  m.metric_type = metricType;
+  m.metric_mode = metricMode;
+  m.value_type = valueType;
+  m.base = base;
+  m.exponent = exponent;
+  m.unit_ref = unit;
+
+  pallas_log(DebugLevel::Verbose, "Register metricMember #%zu{.ref=%d, .name=%d, .value_type=%d, .unit=%d}\n", metric_members.size() - 1,
+	     m.metric_member_ref, m.name, m.value_type, m.unit_ref);
+}
+
+/**
+ * Getter for a Metric from its id.
+ * @returns First Metric matching the given pallas::MetricRef, nullptr if it doesn't have a match.
+ */
+const Metric* Definition::getMetric(MetricRef ref) const {
+  if (metrics.count(ref) > 0)
+    return &metrics.at(ref);
+  else
+    return nullptr;
+}
+void Definition::addMetric(pallas::MetricRef self, uint8_t numberOfMetrics,const pallas::MetricMemberRef* metricMembers,
+			   pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind) {
+  if(getMetric(self)) {
+    pallas_error("Given metric_ref was already in use.\n");
+  }
+  auto &m = metrics[self];
+  m.metric_ref = self;
+  m.numberOfMetrics = numberOfMetrics;
+  m.metric_members = new MetricMemberRef[numberOfMetrics];
+  for (uint8_t i = 0; i < numberOfMetrics; i++) {
+    m.metric_members[i] = metricMembers[i];
+  }
+  m.metric_occurrence = metricOccurrence;
+  m.recorderKind = recorderKind;
+
+  pallas_log(DebugLevel::Verbose, "Register metric #%zu{.ref=%d, .nbMembers=%d}\n", metrics.size() - 1, m.metric_ref, m.numberOfMetrics);
+}
+
+  
 char* pallas_global_archive_fullpath(char* dir_name, char* trace_name) {
   int len = strlen(dir_name) + strlen(trace_name) + 2;
   char* fullpath = new char[len];
@@ -320,6 +380,22 @@ void GlobalArchive::addComm(CommRef comm_ref, StringRef name, GroupRef group, Co
   pthread_mutex_unlock(&lock);
 }
 
+void GlobalArchive::addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description,
+				    pallas::MetricType metricType, pallas::MetricMode metricMode, pallas::Type valueType,
+				    pallas::Base base, int64_t exponent, pallas::StringRef unit) {
+  pthread_mutex_lock(&lock);
+  definitions.addMetricMember(self, name, description, metricType, metricMode, valueType, base, exponent, unit);
+  pthread_mutex_unlock(&lock);
+}
+
+void GlobalArchive::addMetric(pallas::MetricRef self, uint8_t numberOfMetrics, const pallas::MetricMemberRef* metricMembers,
+			      pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind) {
+  pthread_mutex_lock(&lock);
+  definitions.addMetric(self, numberOfMetrics, metricMembers, metricOccurrence, recorderKind);
+  pthread_mutex_unlock(&lock);
+}
+
+    
 GlobalArchive::~GlobalArchive() {
     pallas_log(DebugLevel::Debug, "Deleting GlobalArchive\n");
   free(dir_name);
@@ -404,6 +480,21 @@ void Archive::addGroup(GroupRef group_ref, StringRef name, uint32_t number_of_me
 void Archive::addComm(CommRef comm_ref, StringRef name, GroupRef group, CommRef parent) {
   pthread_mutex_lock(&lock);
   definitions.addComm(comm_ref, name, group, parent);
+  pthread_mutex_unlock(&lock);
+}
+
+void Archive::addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description,
+			      pallas::MetricType metricType, pallas::MetricMode metricMode, pallas::Type valueType,
+			      pallas::Base base, int64_t exponent, pallas::StringRef unit) {
+  pthread_mutex_lock(&lock);
+  definitions.addMetricMember(self, name, description, metricType, metricMode, valueType, base, exponent, unit);
+  pthread_mutex_unlock(&lock);
+}
+
+void Archive::addMetric(pallas::MetricRef self, uint8_t numberOfMetrics, const pallas::MetricMemberRef* metricMembers,
+				   pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind) {
+  pthread_mutex_lock(&lock);
+  definitions.addMetric(self, numberOfMetrics, metricMembers, metricOccurrence, recorderKind);
   pthread_mutex_unlock(&lock);
 }
 
@@ -588,6 +679,28 @@ void pallas_global_archive_register_group(pallas::GlobalArchive* archive,
 }
 void pallas_global_archive_register_comm(pallas::GlobalArchive* archive, pallas::CommRef comm_ref, pallas::StringRef name, pallas::GroupRef group, pallas::CommRef parent) {
   archive->addComm(comm_ref, name, group, parent);
+}
+
+void pallas_global_archive_register_metric_member(pallas::GlobalArchive* archive,
+						  pallas::MetricMemberRef metric_member_ref,
+						  pallas::StringRef name_ref,
+						  pallas::StringRef description_ref,
+						  pallas::MetricType metric_type,
+						  pallas::MetricMode metric_mode,
+						  pallas::Type value_type,
+						  pallas::Base base,
+						  int64_t exponent,
+						  pallas::StringRef unit_ref) {
+  archive->addMetricMember(metric_member_ref, name_ref, description_ref, metric_type, metric_mode, value_type, base, exponent, unit_ref);
+}
+
+void pallas_global_archive_register_metric_class(pallas::GlobalArchive* archive,
+						 pallas::MetricRef self,
+						 uint8_t numberOfMetrics,
+						 const pallas::MetricMemberRef* metricMembers,
+						 pallas::MetricOccurrence metricOccurrence,
+						 pallas::RecorderKind recorderKind) {
+  archive->addMetric(self, numberOfMetrics, metricMembers, metricOccurrence, recorderKind);
 }
 
 extern void pallas_global_archive_define_location_group(pallas::GlobalArchive* archive, pallas::LocationGroupId id, pallas::StringRef name, pallas::LocationGroupId parent) {

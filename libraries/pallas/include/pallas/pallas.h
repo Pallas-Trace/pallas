@@ -601,6 +601,122 @@ typedef struct Comm {
     CommRef parent;
 } Comm;
 
+
+/** Reference for a pallas::MetricMember. */
+typedef Ref MetricMemberRef;
+/** Invalid MetricMemberRef */
+#define PALLAS_METRICMEMBERREF_INVALID ((PALLAS(MetricMemberRef))PALLAS_UNDEFINED_UINT32)
+
+typedef enum MetricType {
+  PALLAS_METRIC_TYPE_OTHER, // Any metric of a type not explicitly listed below. 
+  PALLAS_METRIC_TYPE_PAPI, // PAPI counter. 
+  PALLAS_METRIC_TYPE_RUSAGE, // Resource usage counter. 
+  PALLAS_METRIC_TYPE_USER  // User metrics. 
+} MetricType;
+
+typedef enum MetricMode { 
+  PALLAS_METRIC_ACCUMULATED_START, // Accumulated metric, 'START' timing.
+  PALLAS_METRIC_ACCUMULATED_POINT, // Accumulated metric, 'POINT' timing.
+  PALLAS_METRIC_ACCUMULATED_LAST, // Accumulated metric, 'LAST' timing.
+  PALLAS_METRIC_ACCUMULATED_NEXT, // Accumulated metric, 'NEXT' timing.
+  PALLAS_METRIC_ABSOLUTE_POINT, // Absolute metric, 'POINT' timing.
+  PALLAS_METRIC_ABSOLUTE_LAST, // Absolute metric, 'LAST' timing.
+  PALLAS_METRIC_ABSOLUTE_NEXT, // Absolute metric, 'NEXT' timing.
+  PALLAS_METRIC_RELATIVE_POINT, // Relative metric, 'POINT' timing.
+  PALLAS_METRIC_RELATIVE_LAST, // Relative metric, 'LAST' timing.
+  PALLAS_METRIC_RELATIVE_NEXT, // Relative metric, 'NEXT' timing.
+} MetricMode;
+
+typedef enum Base {
+  PALLAS_BASE_BINARY, // Binary base.
+  PALLAS_BASE_DECIMAL, // Decimal base.
+} Base;
+
+typedef enum Type {
+  PALLAS_TYPE_NONE, // Undefined type.
+  PALLAS_TYPE_UINT8, // Unsigned 8-bit integer.
+  PALLAS_TYPE_UINT16, // Unsigned 16-bit integer.
+  PALLAS_TYPE_UINT32, // Unsigned 32-bit integer.
+  PALLAS_TYPE_UINT64, // Unsigned 64-bit integer.
+  PALLAS_TYPE_INT8, // Signed 8-bit integer.
+  PALLAS_TYPE_INT16, // Signed 16-bit integer.
+  PALLAS_TYPE_INT32, // Signed 32-bit integer.
+  PALLAS_TYPE_INT64, // Signed 64-bit integer.
+  PALLAS_TYPE_FLOAT, // 32-bit floating point value
+  PALLAS_TYPE_DOUBLE, // 64-bit floating point value
+  PALLAS_TYPE_STRING, // Mapping of String identifiers.
+  PALLAS_TYPE_ATTRIBUTE, // Mapping of Attribute identifiers.
+  PALLAS_TYPE_LOCATION, // Mapping of Location identifiers.
+  PALLAS_TYPE_REGION, // Mapping of Region identifiers.
+  PALLAS_TYPE_GROUP, // Mapping of Group identifiers.
+  PALLAS_TYPE_METRIC, // Mapping of Metric identifiers.
+  PALLAS_TYPE_COMM, // Mapping of Comm identifiers.
+  PALLAS_TYPE_PARAMETER, // Mapping of Parameter identifiers.
+  PALLAS_TYPE_RMA_WIN, // Mapping of RmaWin identifiers.
+  PALLAS_TYPE_SOURCE_CODE_LOCATION, // Mapping of SourceCodeLocation identifiers.
+  PALLAS_TYPE_CALLING_CONTEXT, // Mapping of CallingContext identifiers.
+  PALLAS_TYPE_INTERRUPT_GENERATOR, // Mapping of InterruptGenerator identifiers.
+  PALLAS_TYPE_IO_FILE, // Mapping of IoFile identifiers.
+  PALLAS_TYPE_IO_HANDLE, // Mapping of IoHandle identifiers.
+  PALLAS_TYPE_LOCATION_GROUP  //Mapping of LocationGroup identifiers.
+} Type;
+
+/**
+ * Define a MetricMember reference structure used by PALLAS format.
+ *
+ */
+typedef struct MetricMember {
+  /** ID of that Metric Member.*/
+  MetricMemberRef metric_member_ref;
+  /** Name of that Metric Member. */
+  StringRef name;
+  /** Description of that Metric Member. */
+  StringRef description;
+  /** Metric type: PAPI, etc. */
+  MetricType metric_type;
+  /** Metric mode: accumulative, fix, relative, etc.  */
+  MetricMode metric_mode;
+  /** Type of the value. eg. PALLAS_TYPE_INT64, PALLAS_TYPE_UINT64, etc. */
+  pallas_type_t value_type;
+  /** The recorded values should be handled in this given base, either binary or decimal. */
+  Base base;
+  /** The values inside the Metric events should be scaled by the factor base^exponent */
+  int64_t exponent;
+  /** Unit of the metric (eg. Bytes, Joules, etc. */
+  StringRef unit_ref;
+} MetricMember;
+
+/** Reference for a pallas::Metric. */
+typedef Ref MetricRef;
+  /** Invalid MetricRef */
+#define PALLAS_METRICREF_INVALID ((PALLAS(MetricRef))PALLAS_UNDEFINED_UINT32)
+
+typedef enum MetricOccurrence {
+  PALLAS_METRIC_SYNCHRONOUS_STRICT, // Metric occurs at every region enter and leave.
+  PALLAS_METRIC_SYNCHRONOUS, // Metric occurs only at a region enter and leave, but does not need to occur at every enter/leave.
+  PALLAS_METRIC_ASYNCHRONOUS, // Metric can occur at any place i.e. it is not related to region enter and leaves. 
+} MetricOccurrence;
+
+typedef enum RecorderKind {
+  PALLAS_RECORDER_KIND_UNKNOWN, // No specific kind of recorder.
+  PALLAS_RECORDER_KIND_ABSTRACT, // The metric class will only be recorded via a MetricInstance definitions.
+  PALLAS_RECORDER_KIND_CPU, // This metric class will only be recorded by locations of type OTF2_LOCATION_TYPE_CPU_THREAD.
+  PALLAS_RECORDER_KIND_GPU, // This metric class will only be recorded by locations of type OTF2_LOCATION_TYPE_GPU.
+} RecorderKind;
+
+typedef struct Metric {
+  /** ID of that Metric */
+  MetricRef metric_ref;
+  /** Number of metrics within the set. */
+  uint8_t numberOfMetrics;
+  /** 	List of metric members. */
+  MetricMemberRef* metric_members;
+  /** Defines occurrence of a metric set. */
+  MetricOccurrence metric_occurrence;
+  /** What kind of locations will record this metric class. */
+  RecorderKind recorderKind;
+} Metric;
+  
 /**
  * A thread contains streams of events.
  *

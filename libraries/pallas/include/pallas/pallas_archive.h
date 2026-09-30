@@ -84,6 +84,20 @@ typedef struct Definition {
     byte comms[MAP_SIZE];
 #endif
 
+  /** List of MetricMember stored in that Definition. */
+#ifdef __cplusplus
+    std::map<MetricMemberRef, MetricMember> metric_members;
+#else
+    byte metric_members[MAP_SIZE];
+#endif
+
+  /** List of Metric stored in that Definition. */
+#ifdef __cplusplus
+  std::map<MetricRef, Metric> metrics;
+#else
+  byte metrics[MAP_SIZE];
+#endif
+
 #ifdef __cplusplus
     [[nodiscard]] const String* getString(StringRef) const;
     void addString(StringRef, const char*);
@@ -95,6 +109,16 @@ typedef struct Definition {
     void addGroup(GroupRef, StringRef, GroupType group_type, Paradigm paradigm, uint32_t, const uint64_t*);
     [[nodiscard]] const Comm* getComm(CommRef) const;
     void addComm(CommRef, StringRef, GroupRef, CommRef);
+
+    [[nodiscard]] const MetricMember* getMetricMember(MetricMemberRef ref) const;
+    void addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description, pallas::MetricType metricType,
+		       pallas::MetricMode metricMode, pallas::Type valueType, pallas::Base base, int64_t exponent,
+		       pallas::StringRef unit);
+
+    [[nodiscard]] const Metric* getMetric(MetricRef ref) const;
+    void addMetric(pallas::MetricRef self, uint8_t numberOfMetrics,const pallas::MetricMemberRef* metricMembers,
+		 pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind);
+
 #endif
 } Definition;
 
@@ -206,6 +230,22 @@ typedef struct GlobalArchive {
      * Locks and unlocks the mutex for that operation.
      */
     void addComm(CommRef, StringRef, GroupRef, CommRef);
+
+    /**
+     * Creates a new MetricMember and adds it to a GlobalArchive.
+     * Error if the given pallas::MetricMemberRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description, pallas::MetricType metricType,
+			 pallas::MetricMode metricMode, pallas::Type valueType, pallas::Base base, int64_t exponent,
+			 pallas::StringRef unit);
+    /**
+     * Creates a new Metric and adds it to a GlobalArchive.
+     * Error if the given pallas::MetricRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addMetric(pallas::MetricRef self, uint8_t numberOfMetrics,const pallas::MetricMemberRef* metricMembers,
+		   pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind);
 
     /**
      * Create a GlobalArchive. Does not read or write anything in the given .
@@ -365,6 +405,22 @@ typedef struct Archive {
      */
     void addComm(CommRef, StringRef, GroupRef, CommRef);
     /**
+     * Creates a new MetricMember and adds it to a GlobalArchive.
+     * Error if the given pallas::MetricMemberRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addMetricMember(MetricMemberRef self, pallas::StringRef name, pallas::StringRef description, pallas::MetricType metricType,
+			 pallas::MetricMode metricMode, pallas::Type valueType, pallas::Base base, int64_t exponent,
+			 pallas::StringRef unit);
+    /**
+     * Creates a new Metric and adds it to a GlobalArchive.
+     * Error if the given pallas::MetricRef is already in use.
+     * Locks and unlocks the mutex for that operation.
+     */
+    void addMetric(pallas::MetricRef self, uint8_t numberOfMetrics,const pallas::MetricMemberRef* metricMembers,
+		   pallas::MetricOccurrence metricOccurrence, pallas::RecorderKind recorderKind);
+
+    /**
      * Creates a new Location and adds it to that Archive.
      */
     void defineLocation(ThreadId id, StringRef name, LocationGroupId parent);
@@ -506,7 +562,37 @@ extern void pallas_global_archive_register_comm(PALLAS(GlobalArchive) * archive,
                                                 PALLAS(StringRef) name_ref,
                                                 PALLAS(GroupRef) group_ref,
                                                 PALLAS(CommRef) parent_ref);
+
+
 /**
+ * Creates a new MetricMember and adds it to a GlobalArchive.
+ * Error if the given pallas::MetricMemberRef is already in use.
+ * Locks and unlocks the mutex for that operation.
+ */
+extern void pallas_global_archive_register_metric_member(PALLAS(GlobalArchive)* archive,
+							 PALLAS(MetricMemberRef) metric_member_ref,
+							 PALLAS(StringRef) name_ref,
+							 PALLAS(StringRef) description_ref,
+							 PALLAS(MetricType) metric_type,
+							 PALLAS(MetricMode) metric_mode,
+							 PALLAS(Type) value_type,
+							 PALLAS(Base) base,
+							 int64_t exponent,
+							 PALLAS(StringRef) unit_ref);
+
+/**
+ * Creates a new MetricClass and adds it to a GlobalArchive.
+ * Error if the given pallas::MetricClassRef is already in use.
+ * Locks and unlocks the mutex for that operation.
+ */
+extern void pallas_global_archive_register_metric_class(PALLAS(GlobalArchive)* archive,
+							PALLAS(MetricRef) metric_ref,
+							uint8_t numberOfMetrics,
+							const PALLAS(MetricMemberRef)* metric_members,
+							PALLAS(MetricOccurrence) metric_occurrence,
+							PALLAS(RecorderKind) recorderKind);
+
+  /**
  * Creates a new LocationGroup and adds it to that GlobalArchive.
  * Locks and unlocks the mutex for that operation.
  */
