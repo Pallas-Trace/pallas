@@ -16,7 +16,7 @@ static inline void init_event(EventData *e, enum Record record) {
     memset(&e->event_data[0], 0, sizeof(e->event_data));
 }
 
-static inline void push_data(EventData *e, void *data, size_t data_size) {
+static inline void push_data(EventData *e, const void *data, size_t data_size) {
     size_t o = e->event_size - offsetof(EventData, event_data);
     pallas_assert(o < PALLAS_EVENT_DATA_MAX_SIZE);
     pallas_assert(o + data_size < PALLAS_EVENT_DATA_MAX_SIZE);
@@ -842,6 +842,47 @@ void pallas_read_thread_task_complete(const EventData *data,
     PALLAS_READ_PROLOG(PALLAS_EVENT_THREAD_TASK_COMPLETE);
     if (attribute_list) *attribute_list = NULL;
 }
+
+void pallas_record_metric(ThreadWriter *thread_writer,
+			  AttributeList* attributeList,
+			  pallas_timestamp_t time,
+			  MetricRef metric,
+			  uint8_t numberOfMetrics,
+			  const MetricValue* metricValues) {
+  if (pallas_recursion_shield)
+        return;
+    pallas_recursion_shield++;
+
+    EventData e;
+    init_event(&e, PALLAS_EVENT_METRIC);
+    push_data(&e, &metric, sizeof(metric));
+    push_data(&e, &numberOfMetrics, sizeof(numberOfMetrics));
+    for(auto i = 0; i<numberOfMetrics; i++) {
+      push_data(&e, &metricValues[i], sizeof(numberOfMetrics));
+    }
+    TokenId e_id = thread_writer->getEventId(&e);
+    thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attributeList);
+    pallas_recursion_shield--;
+}
+
+  void pallas_read_metric(const EventData *data, struct AttributeList **attribute_list,
+			  MetricRef *metric,
+			  uint8_t *numberOfMetrics,
+			  MetricValue** metricValues) {
+    PALLAS_READ_PROLOG(PALLAS_EVENT_METRIC);
+    if (attribute_list) *attribute_list = nullptr; // TODO : add support for attribute_lists
+    if(metric) pallas_event_pop_data(data, metric, sizeof(*metric), &cursor);
+    if (numberOfMetrics) {
+      pallas_event_pop_data(data, numberOfMetrics, sizeof(*numberOfMetrics), &cursor);
+      *metricValues=new MetricValue[*numberOfMetrics];
+
+      for(auto i=0; i< *numberOfMetrics; i++) {
+	pallas_event_pop_data(data, &(*metricValues)[i], sizeof(MetricValue), &cursor);    
+      }
+    }
+}
+
+
 } // namespace pallas
 
 

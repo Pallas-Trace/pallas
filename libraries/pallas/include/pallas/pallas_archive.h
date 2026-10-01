@@ -197,6 +197,18 @@ typedef struct GlobalArchive {
     [[nodiscard]] const Comm* getComm(CommRef comm_ref);
 
     /**
+     * Getter for a Metric from its id.
+     * @returns First Metric matching the given pallas::MetricRef in this GlobalArchive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Metric* getMetric(MetricRef metric_ref);
+
+    /**
+     * Getter for a MetricMember from its id.
+     * @returns First MetricMember matching the given pallas::MetricMemberRef in this GlobalArchive. Nullptr if none was found.
+     */
+    [[nodiscard]] const MetricMember* getMetricMember(MetricRef metric_member_ref);
+
+    /**
      * Creates a new String and adds it to that GlobalArchive.
      * Error if the given pallas::StringRef is already in use.
      * Locks and unlocks the mutex for that operation.
@@ -374,6 +386,18 @@ typedef struct Archive {
      * @returns First Comm matching the given pallas::CommRef in this archive, then global_archive. Nullptr if none was found.
      */
     [[nodiscard]] const Comm* getComm(CommRef comm_ref);
+    /**
+     * Getter for a Metric from its id.
+     * @returns First Metric matching the given pallas::MetricRef in this GlobalArchive. Nullptr if none was found.
+     */
+    [[nodiscard]] const Metric* getMetric(MetricRef metric_ref);
+
+    /**
+     * Getter for a MetricMember from its id.
+     * @returns First MetricMember matching the given pallas::MetricMemberRef in this GlobalArchive. Nullptr if none was found.
+     */
+    [[nodiscard]] const MetricMember* getMetricMember(MetricRef metric_member_ref);
+
     /**
      * Creates a new String and adds it to that Archive.
      * Error if the given pallas::StringRef is already in use.

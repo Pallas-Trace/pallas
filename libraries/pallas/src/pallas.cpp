@@ -491,6 +491,23 @@ std::string Thread::getEventString(EventData* e) const {
     case PALLAS_EVENT_THREAD_TASK_COMPLETE: {
         return "THREAD_TASK_COMPLETE()";
     }
+    case PALLAS_EVENT_METRIC: {
+      MetricRef metric;
+      uint8_t numberOfMetrics;
+      MetricValue* metricValues = nullptr;
+      pallas_read_metric(e, nullptr, &metric, &numberOfMetrics, &metricValues);
+      if(metricValues) free(metricValues);
+
+      const Metric* m = archive->getMetric(metric);
+      std::string s="METRIC("+metricRefToString(metric);
+
+      for(auto i=0; i<numberOfMetrics; i++) {
+	MetricMemberRef mm_ref = m->metric_members[i];
+	s += ", "+metricMemberRefToString(metric) + "=" + metricValues[i].to_string();
+      }
+      delete [] metricValues;
+      return "METRIC()";
+    }
     case PALLAS_EVENT_GENERIC: {
         StringRef eventNameRef;
         pallas_read_generic(e, nullptr, &eventNameRef);

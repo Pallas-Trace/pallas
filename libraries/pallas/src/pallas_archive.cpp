@@ -300,6 +300,20 @@ const Comm* GlobalArchive::getComm(CommRef comm_ref) {
   return res;
 }
 
+const Metric* GlobalArchive::getMetric(MetricRef metric_ref) {
+  pthread_mutex_lock(&lock);
+  auto res = definitions.getMetric(metric_ref);
+  pthread_mutex_unlock(&lock);
+  return res;
+}
+
+const MetricMember* GlobalArchive::getMetricMember(MetricMemberRef metric_ref) {
+  pthread_mutex_lock(&lock);
+  auto res = definitions.getMetricMember(metric_ref);
+  pthread_mutex_unlock(&lock);
+  return res;
+}
+
 const LocationGroup* GlobalArchive::getLocationGroup(LocationGroupId location_group_id) const {
   for (auto& lc : location_groups) {
     if (lc.id == location_group_id) {
@@ -539,6 +553,24 @@ const Comm* Archive::getComm(CommRef comm_ref) {
   auto res = definitions.getComm(comm_ref);
   if (res == nullptr && global_archive)
     res = global_archive->getComm(comm_ref);
+  pthread_mutex_unlock(&lock);
+  return res;
+}
+
+const Metric* Archive::getMetric(MetricRef ref) {
+  pthread_mutex_lock(&lock);
+  auto res = definitions.getMetric(ref);
+  if (res == nullptr && global_archive)
+    res = global_archive->getMetric(ref);
+  pthread_mutex_unlock(&lock);
+  return res;
+}
+
+const MetricMember* Archive::getMetricMember(MetricMemberRef ref) {
+  pthread_mutex_lock(&lock);
+  auto res = definitions.getMetricMember(ref);
+  if (res == nullptr && global_archive)
+    res = global_archive->getMetricMember(ref);
   pthread_mutex_unlock(&lock);
   return res;
 }

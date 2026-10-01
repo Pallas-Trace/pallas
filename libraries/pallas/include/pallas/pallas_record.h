@@ -176,6 +176,18 @@ extern void pallas_read_thread_task_switch(const EventData* data,AttributeList**
 extern void pallas_record_thread_task_complete(ThreadWriter* thread_writer, AttributeList* attribute_list, pallas_timestamp_t time);
 extern void pallas_read_thread_task_complete(const EventData* data,AttributeList** attribute_list);
 
+extern void pallas_record_metric(ThreadWriter *thread_writer,
+				 AttributeList* attributeList,
+				 pallas_timestamp_t time,
+				 MetricRef metric,
+				 uint8_t numberOfMetrics,
+				 const MetricValue* metricValues);
+
+extern void pallas_read_metric(const EventData *data, struct AttributeList **attribute_list,
+			       MetricRef *metric,
+			       uint8_t *numberOfMetrics,
+			       MetricValue** metricValues);
+
 extern void pallas_read_generic(const EventData* data,struct AttributeList** attribute_list, StringRef* event_name_ref);
 
 #ifdef __cplusplus

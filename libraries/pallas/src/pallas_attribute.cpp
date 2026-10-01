@@ -149,6 +149,35 @@ void Thread::printRegion(RegionRef region_ref) const {
   std::cout << regionRefToString(region_ref);
 }
 
+/** Prints an MetricRef (checks for validity first). */
+void Thread::printMetricRef(MetricRef ref) const {
+  std::cout << metricRefToString(ref);
+}
+
+std::string Thread::metricRefToString(MetricRef ref) const {
+  auto* m = archive->getMetric(ref);
+  if(m) {
+    return std::string(pallas::format("metric %s", ref));
+  } else {
+    return std::string(pallas::format("INVALID_METRIC <%d>", ref));
+  }
+}
+
+/** Prints an MetricMemberRef (checks for validity first). */
+void Thread::printMetricMemberRef(MetricMemberRef ref) const {
+  std::cout << metricMemberRefToString(ref);
+}
+
+std::string Thread::metricMemberRefToString(MetricMemberRef ref) const {
+  auto* m = archive->getMetricMember(ref);
+  if(m) {
+    auto* name = archive->getString(m->name);
+    return std::string(pallas::format("metricMember %s <%d>", name->str, ref));
+  } else {
+    return std::string(pallas::format("INVALID_METRIC_MEMBER <%d>", ref));
+  }
+}
+
 static std::string _group_ref_to_string(Ref group_ref) {
   return std::string(pallas::format("group <%d>", group_ref));
 }

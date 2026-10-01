@@ -661,6 +661,78 @@ typedef enum Type {
   PALLAS_TYPE_LOCATION_GROUP  //Mapping of LocationGroup identifiers.
 } Type;
 
+  /** Reference for a pallas::Metric. */
+typedef Ref MetricRef;
+  /** Invalid MetricRef */
+#define PALLAS_METRICREF_INVALID ((PALLAS(MetricRef))PALLAS_UNDEFINED_UINT32)
+
+  typedef struct MetricValue {
+    Type type;
+    union Value {
+      uint8_t  uint8;
+      uint16_t uint16;
+      uint32_t uint32;
+      uint64_t uint64;
+      int8_t   int8;
+      int16_t  int16;
+      int32_t  int32;
+      int64_t  int64;
+      float    float32;
+      double   float64;
+      StringRef string;
+      AttributeRef attribute;
+      Ref location;
+      RegionRef region;
+      GroupRef group;
+      MetricRef metric;
+      CommRef comm;
+      Ref parameter;
+      Ref rma;
+      Ref source_code_location;
+      Ref calling_context;
+      Ref interrupt_generator;
+      Ref io_file;
+      Ref io_handle;
+      LocationGroupId location_group;
+    } value;
+
+#ifdef __cplusplus
+    std::string to_string() const {
+      switch(type) {
+      case PALLAS_TYPE_NONE:    return "";
+      case PALLAS_TYPE_UINT8:   return std::to_string(value.uint8);
+      case PALLAS_TYPE_UINT16:  return std::to_string(value.uint16);
+      case PALLAS_TYPE_UINT32:  return std::to_string(value.uint32);
+      case PALLAS_TYPE_UINT64:  return std::to_string(value.uint64);
+      case PALLAS_TYPE_INT8:    return std::to_string(value.int8);
+      case PALLAS_TYPE_INT16:   return std::to_string(value.int16);
+      case PALLAS_TYPE_INT32:   return std::to_string(value.int32);
+      case PALLAS_TYPE_INT64:   return std::to_string(value.int64);
+      case PALLAS_TYPE_FLOAT:   return std::to_string(value.float32);
+      case PALLAS_TYPE_DOUBLE:  return std::to_string(value.float64);
+
+      case PALLAS_TYPE_STRING:   return std::to_string(value.string);
+      case PALLAS_TYPE_ATTRIBUTE:return std::to_string(value.attribute);
+      case PALLAS_TYPE_LOCATION: return std::to_string(value.location);
+      case PALLAS_TYPE_REGION:   return std::to_string(value.region);
+      case PALLAS_TYPE_GROUP:    return std::to_string(value.group);
+      case PALLAS_TYPE_METRIC:   return std::to_string(value.metric);
+      case PALLAS_TYPE_COMM:     return std::to_string(value.comm);
+      case PALLAS_TYPE_PARAMETER:return std::to_string(value.parameter);
+      case PALLAS_TYPE_RMA_WIN:  return std::to_string(value.rma);
+      case PALLAS_TYPE_SOURCE_CODE_LOCATION:return std::to_string(value.source_code_location);
+      case PALLAS_TYPE_CALLING_CONTEXT:     return std::to_string(value.calling_context);
+      case PALLAS_TYPE_INTERRUPT_GENERATOR: return std::to_string(value.interrupt_generator);
+      case PALLAS_TYPE_IO_FILE:             return std::to_string(value.io_file);
+      case PALLAS_TYPE_IO_HANDLE:           return std::to_string(value.io_handle);
+      case PALLAS_TYPE_LOCATION_GROUP:      return std::to_string(value.location_group);
+
+      default: return "";
+      }
+    }
+#endif
+  } MetricValue;
+
 /**
  * Define a MetricMember reference structure used by PALLAS format.
  *
@@ -685,11 +757,6 @@ typedef struct MetricMember {
   /** Unit of the metric (eg. Bytes, Joules, etc. */
   StringRef unit_ref;
 } MetricMember;
-
-/** Reference for a pallas::Metric. */
-typedef Ref MetricRef;
-  /** Invalid MetricRef */
-#define PALLAS_METRICREF_INVALID ((PALLAS(MetricRef))PALLAS_UNDEFINED_UINT32)
 
 typedef enum MetricOccurrence {
   PALLAS_METRIC_SYNCHRONOUS_STRICT, // Metric occurs at every region enter and leave.
@@ -854,6 +921,14 @@ typedef struct Thread {
     /** Prints an RegionRef (checks for validity first). */
     void printRegion(RegionRef) const;
     std::string regionRefToString(RegionRef) const;
+
+    /** Prints an MetricRef (checks for validity first). */
+    void printMetricRef(MetricRef) const;
+    std::string metricRefToString(MetricRef) const;
+
+    /** Prints an MetricMemberRef (checks for validity first). */
+    void printMetricMemberRef(MetricMemberRef) const;
+    std::string metricMemberRefToString(MetricMemberRef) const;
 
     /** If event is Enter or Leave, returns the name of the region. Otherwise, returns "INVALID". */
     [[nodiscard]] const char* getRegionStringFromEvent(EventData *e) const;
