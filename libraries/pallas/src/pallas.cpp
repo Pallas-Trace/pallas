@@ -152,7 +152,8 @@ Event* Thread::getEvent(Token token) const {
         pallas_error("Trying to getEvent of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
 #endif
-    pallas_assert(token.id < this->event_id_map.size());
+    if(token.id >= this->event_id_map.size())
+      return NULL;
     uint32_t phys_id = this->event_id_map[token.id];
     pallas_assert(phys_id != PALLAS_INDEX_INVALID);
     pallas_assert(phys_id < this->nb_events);
@@ -165,7 +166,8 @@ Sequence* Thread::getSequence(Token token) const {
         pallas_error("Trying to getSequence of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
 #endif
-    pallas_assert(token.id < this->sequence_id_map.size());
+    if(token.id >= this->sequence_id_map.size())
+      return NULL;
     uint32_t phys_id = this->sequence_id_map[token.id];
     pallas_assert(phys_id != PALLAS_INDEX_INVALID);
     pallas_assert(phys_id < this->nb_sequences);
@@ -206,7 +208,8 @@ Loop* Thread::getLoop(Token token) const {
     if (token.type != TypeLoop) {
         pallas_error("Trying to getLoop of (%c%d)\n", PALLAS_TOKEN_TYPE_C(token), token.id);
     }
-    pallas_assert(token.id < this->loop_id_map.size());
+    if(token.id >= this->loop_id_map.size())
+      return NULL;
     uint32_t phys_id = this->loop_id_map[token.id];
     pallas_assert(phys_id != PALLAS_INDEX_INVALID);
     pallas_assert(phys_id < this->nb_loops);
