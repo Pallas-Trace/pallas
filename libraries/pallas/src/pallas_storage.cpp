@@ -1479,6 +1479,8 @@ static void storeDefinitions(pallas::Definition& def, File& file) {
     storeAttributes(def, file);
     storeGroups(def, file);
     storeComms(def, file);
+    storeMetricMembers(def, file);
+    storeMetrics(def, file);
 }
 
 static void readDefinitions(pallas::Definition& def, File& file, uint8_t abi_version) {
@@ -1487,6 +1489,8 @@ static void readDefinitions(pallas::Definition& def, File& file, uint8_t abi_ver
     readAttributes(def, file, abi_version);
     readGroups(def, file, abi_version);
     readComms(def, file, abi_version);
+    readMetricMembers(def, file, abi_version);
+    readMetrics(def, file, abi_version);
 }
 
 static void storeLocationGroups(std::vector<pallas::LocationGroup>& location_groups, File& file) {
