@@ -46,7 +46,7 @@ function download() {
 
 function test() {
   print_info "Testing $1"
-  TRACE_PATH="$1_trace"
+  TRACE_PATH="$1"
   if ! download "$TRACE_PATH"; then
     print_error "Could not download the trace"
     exit 1
