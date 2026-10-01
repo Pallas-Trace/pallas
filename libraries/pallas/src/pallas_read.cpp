@@ -84,8 +84,11 @@ ThreadReader::ThreadReader(Archive* archive, ThreadId threadId, int read_flags) 
         this->thread_trace->printSequence(root_token);
     }
 
-    if (this->thread_trace->getSequence(root_token)->size() == 0) {
+    auto root_sequence = this->thread_trace->getSequence(root_token);
+    if (root_sequence == NULL ||  root_sequence->size() == 0) {
         pallas_warn("Thread %s is empty\n", this->thread_trace->getName());
+        this->currentState.read_ended = true;
+	this->currentState.current_frame_index = -1;
     } else {
         // And initialize the callstack
         // ie set the cursor on the first event
@@ -329,7 +332,10 @@ void ThreadReader::guessSequencesNames(std::map<pallas::Sequence*, std::string>&
 //******************* EXPLORATION FUNCTIONS ********************
 
 const Token& ThreadReader::pollCurToken() const {
+  if(currentState.current_frame_index >= 0)
     return getTokenInCallstack(currentState.current_frame_index);
+  // We probably reached the end of trace
+  return INVALID_TOKEN;
 }
 
 Token ThreadReader::pollNextToken(int flags) const {
