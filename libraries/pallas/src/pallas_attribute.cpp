@@ -157,9 +157,9 @@ void Thread::printMetricRef(MetricRef ref) const {
 std::string Thread::metricRefToString(MetricRef ref) const {
   auto* m = archive->getMetric(ref);
   if(m) {
-    return std::string(pallas::format("metric %s", ref));
+    return std::string("metric <"+std::to_string(ref)+">");
   } else {
-    return std::string(pallas::format("INVALID_METRIC <%d>", ref));
+    return std::string("INVALID_METRIC <"+std::to_string(ref)+">");
   }
 }
 
@@ -172,9 +172,9 @@ std::string Thread::metricMemberRefToString(MetricMemberRef ref) const {
   auto* m = archive->getMetricMember(ref);
   if(m) {
     auto* name = archive->getString(m->name);
-    return std::string(pallas::format("metricMember %s <%d>", name->str, ref));
+    return std::string("metricMember "+std::string(name->str)+" <"+std::to_string(ref)+">");
   } else {
-    return std::string(pallas::format("INVALID_METRIC_MEMBER <%d>", ref));
+    return std::string("INVALID_METRIC_MEMBER <"+std::to_string(ref)+">");
   }
 }
 

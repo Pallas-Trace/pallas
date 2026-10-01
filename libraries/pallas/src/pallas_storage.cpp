@@ -224,7 +224,7 @@ static void storeRegions(pallas::Definition& definitions, File& file);
 static void storeAttributes(pallas::Definition& definitions, File& file);
 static void storeGroups(pallas::Definition& definitions, File& file);
 static void storeComms(pallas::Definition& definitions, File& file);
-static void storeMetricMemberss(pallas::Definition& definitions, File& file);
+static void storeMetricMembers(pallas::Definition& definitions, File& file);
 static void storeMetrics(pallas::Definition& definitions, File& file);
 static void storeMetadata(pallas::Metadata& metadata, File& file);
 
@@ -1456,8 +1456,14 @@ static void storeMetrics(pallas::Definition& definitions, File& file) {
     return;
 
   pallas_log(pallas::DebugLevel::Debug, "\tStore %zu Metrics\n", definitions.metrics.size());
-  for (auto& m : definitions.metrics) {
-    file.write(&m.second, sizeof(pallas::Metric), 1);
+  for (auto& it : definitions.metrics) {
+    pallas::Metric* m = &it.second;
+
+    file.write(&m->metric_ref, sizeof(m->metric_ref), 1);
+    file.write(&m->numberOfMetrics, sizeof(m->numberOfMetrics), 1);
+    file.write(m->metric_members, sizeof(m->metric_members[0]), m->numberOfMetrics);
+    file.write(&m->metric_occurrence, sizeof(m->metric_occurrence), 1);
+    file.write(&m->recorderKind, sizeof(m->recorderKind), 1);
   }
 }
 
@@ -1466,7 +1472,14 @@ static void readMetrics(pallas::Definition& definitions, File& file, uint8_t abi
   file.read(&size, sizeof(size), 1);
   pallas::Metric tempM;
   for (size_t i = 0; i < size; i++) {
-    file.read(&tempM, sizeof(pallas::Metric), 1);
+    pallas::Metric *m = &tempM;
+    file.read(&m->metric_ref, sizeof(m->metric_ref), 1);
+    file.read(&m->numberOfMetrics, sizeof(m->numberOfMetrics), 1);
+    m->metric_members = new pallas::MetricMemberRef[m->numberOfMetrics];
+    file.read(m->metric_members, sizeof(m->metric_members[0]), m->numberOfMetrics);
+    file.read(&m->metric_occurrence, sizeof(m->metric_occurrence), 1);
+    file.read(&m->recorderKind, sizeof(m->recorderKind), 1);
+
     definitions.metrics[tempM.metric_ref] = tempM;
   }
 
