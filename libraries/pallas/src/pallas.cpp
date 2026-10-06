@@ -518,6 +518,7 @@ std::string Thread::getEventString(EventData* e) const {
         return "{.record=" + std::to_string(e->record) + ", .size=" + std::to_string(e->event_size) + "}";
     }
 }
+
 std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const {
     // We will read the whole trace "smartly"
     auto output = std::map<Token, pallas_duration_t>();

@@ -858,7 +858,7 @@ void pallas_record_metric(ThreadWriter *thread_writer,
     push_data(&e, &metric, sizeof(metric));
     push_data(&e, &numberOfMetrics, sizeof(numberOfMetrics));
     for(auto i = 0; i<numberOfMetrics; i++) {
-      push_data(&e, &metricValues[i], sizeof(numberOfMetrics));
+      push_data(&e, &metricValues[i], sizeof(metricValues[i]));
     }
     TokenId e_id = thread_writer->getEventId(&e);
     thread_writer->storeEvent(PALLAS_SINGLETON, e_id, time, attributeList);
@@ -877,7 +877,7 @@ void pallas_record_metric(ThreadWriter *thread_writer,
       *metricValues=new MetricValue[*numberOfMetrics];
 
       for(auto i=0; i< *numberOfMetrics; i++) {
-	pallas_event_pop_data(data, &(*metricValues)[i], sizeof(MetricValue), &cursor);    
+	pallas_event_pop_data(data, &(*metricValues)[i], sizeof(MetricValue), &cursor);
       }
     }
 }
