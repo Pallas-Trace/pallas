@@ -273,7 +273,7 @@ void info_definitions(Definition& definitions) {
         auto name = definitions.getString(group.name);
       printf("\t\t%d: '%s' [", group.group_ref, (name) ? name->str : "INVALID");
       for (uint32_t i = 0; i < group.numberOfMembers; i++) {
-        printf("%s%u", i > 0 ? ", " : "", group.members[i]);
+        printf("%s%lu", i > 0 ? ", " : "", group.members[i]);
       }
       printf("]\n");
     }

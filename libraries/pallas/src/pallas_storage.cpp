@@ -1380,7 +1380,7 @@ static void readGroups(pallas::Definition& definitions, File& file, uint8_t abi_
             file.read(&g.paradigm, sizeof(g.paradigm), 1);
         }
         file.read(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
-        g.members = new uint32_t[g.numberOfMembers];
+        g.members = new uint64_t[g.numberOfMembers];
         pallas_assert(g.members);
         if (abi_version == 16 ) {
             auto temp = new uint64_t [g.numberOfMembers];

@@ -576,7 +576,7 @@ typedef struct Group {
     /** Number of members. */
     uint32_t numberOfMembers;
     /** Array of member id. */
-    uint32_t* members;
+    uint64_t* members;
 #ifdef __cplusplus
     ~Group();
 #endif
