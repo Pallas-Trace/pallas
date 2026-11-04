@@ -227,7 +227,30 @@ OTF2_ErrorCode OTF2_EvtWriter_Metric(OTF2_EvtWriter* writer,
                                      uint8_t numberOfMetrics,
                                      const OTF2_Type* typeIDs,
                                      const OTF2_MetricValue* metricValues) {
-  NOT_IMPLEMENTED;
+  MetricValue values[numberOfMetrics];
+
+  for(int i = 0; i<numberOfMetrics; i++) {
+    /* According to OTF2 documentation, a metric can only be an int64, an uint64, or a double */
+    switch(typeIDs[i]) {
+    case OTF2_TYPE_INT64:
+      values[i].type = PALLAS_TYPE_INT64;
+      values[i].value.int64 =  metricValues[i].signed_int;
+      break;
+    case OTF2_TYPE_UINT64:
+      values[i].type = PALLAS_TYPE_UINT64;
+      values[i].value.uint64 =  metricValues[i].unsigned_int;
+      break; 
+    case OTF2_TYPE_DOUBLE:
+      values[i].type = PALLAS_TYPE_DOUBLE;
+      values[i].value.float64 =  metricValues[i].floating_point;
+      break;
+    default:
+      return OTF2_ERROR_INVALID;
+   }
+  } 
+
+  pallas_record_metric(writer->thread_writer, attributeList, time, metric, numberOfMetrics, values);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_EvtWriter_ParameterString(OTF2_EvtWriter* writer,

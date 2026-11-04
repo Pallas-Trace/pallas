@@ -491,6 +491,23 @@ std::string Thread::getEventString(EventData* e) const {
     case PALLAS_EVENT_THREAD_TASK_COMPLETE: {
         return "THREAD_TASK_COMPLETE()";
     }
+    case PALLAS_EVENT_METRIC: {
+      MetricRef metric;
+      uint8_t numberOfMetrics;
+      MetricValue* metricValues = nullptr;
+      pallas_read_metric(e, nullptr, &metric, &numberOfMetrics, &metricValues);
+
+      const Metric* m = archive->getMetric(metric);
+      std::string s="METRIC("+metricRefToString(metric);
+
+      for(auto i=0; i<numberOfMetrics; i++) {
+	MetricMemberRef mm_ref = m->metric_members[i];
+	s += ", "+metricMemberRefToString(metric) + "=" + metricValues[i].to_string();
+      }
+      s+=")";
+      delete [] metricValues;
+      return s;
+    }
     case PALLAS_EVENT_GENERIC: {
         StringRef eventNameRef;
         pallas_read_generic(e, nullptr, &eventNameRef);
@@ -501,6 +518,7 @@ std::string Thread::getEventString(EventData* e) const {
         return "{.record=" + std::to_string(e->record) + ", .size=" + std::to_string(e->event_size) + "}";
     }
 }
+
 std::map<Token, pallas_duration_t> Thread::getSnapshotViewExact(pallas_timestamp_t start, pallas_timestamp_t end) const {
     // We will read the whole trace "smartly"
     auto output = std::map<Token, pallas_duration_t>();

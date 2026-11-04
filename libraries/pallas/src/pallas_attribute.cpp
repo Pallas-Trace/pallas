@@ -60,7 +60,7 @@ void Thread::printAttribute(AttributeRef ref) const {
   printf("INVALID <%d>", ref);
 }
 
-static enum AttributeType _guess_attribute_size(const AttributeData* attr) {
+static AttributeType _guess_attribute_size(const AttributeData* attr) {
   uint16_t data_size = attr->struct_size - ATTRIBUTE_HEADER_SIZE;
   switch (data_size) {
   case 1:
@@ -147,6 +147,35 @@ std::string Thread::regionRefToString(RegionRef region_ref) const {
 
 void Thread::printRegion(RegionRef region_ref) const {
   std::cout << regionRefToString(region_ref);
+}
+
+/** Prints an MetricRef (checks for validity first). */
+void Thread::printMetricRef(MetricRef ref) const {
+  std::cout << metricRefToString(ref);
+}
+
+std::string Thread::metricRefToString(MetricRef ref) const {
+  auto* m = archive->getMetric(ref);
+  if(m) {
+    return std::string("metric <"+std::to_string(ref)+">");
+  } else {
+    return std::string("INVALID_METRIC <"+std::to_string(ref)+">");
+  }
+}
+
+/** Prints an MetricMemberRef (checks for validity first). */
+void Thread::printMetricMemberRef(MetricMemberRef ref) const {
+  std::cout << metricMemberRefToString(ref);
+}
+
+std::string Thread::metricMemberRefToString(MetricMemberRef ref) const {
+  auto* m = archive->getMetricMember(ref);
+  if(m) {
+    auto* name = archive->getString(m->name);
+    return std::string("metricMember "+std::string(name->str)+" <"+std::to_string(ref)+">");
+  } else {
+    return std::string("INVALID_METRIC_MEMBER <"+std::to_string(ref)+">");
+  }
 }
 
 static std::string _group_ref_to_string(Ref group_ref) {
@@ -316,7 +345,7 @@ void Thread::printAttributeValue(const struct AttributeData* attr, pallas_type_t
 
 std::string Thread::attributeToString(const struct AttributeData* attr) const {
   const char* attr_string = "INVALID";
-  enum AttributeType type = _guess_attribute_size(attr);
+  AttributeType type = _guess_attribute_size(attr);
 
   auto* a = archive->getAttribute(attr->ref);
   if (a) {
