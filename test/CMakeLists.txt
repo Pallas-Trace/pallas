@@ -144,13 +144,13 @@ add_test(check_stark_bt.A.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.s
 # Takes 4 / 8 / 8 s
 add_test(check_stark_bt.B.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_bt.B.x.16")
 # Takes 8 / 11 / 11 s
-add_test(check_stark_amg.4.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.4.16")
+add_test(check_stark_amg.4.16 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_openmp_amg_16x4")
 
 if (GIT_BRANCH STREQUAL "main")
     # Takes 40 / 60 / 60 s
-    add_test(check_stark_amg.16.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.16.4")
+    add_test(check_stark_amg.16.4 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_openmp_amg_16x4")
     # Takes 180 / 210 / 410 s
-    add_test(check_stark_amg.64.1 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "amg.64.1")
+    add_test(check_stark_amg.32.2 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_openmp_amg_32x2")
     # Takes 50 / 80 / 160 s
     add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_bt.C.x.64")
     set_tests_properties(check_stark_amg.16.4 check_stark_amg.64.1 check_stark_bt.C.64 PROPERTIES
