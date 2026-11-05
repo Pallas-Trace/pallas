@@ -161,6 +161,6 @@ endif()
 set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES
         COST 100
 )
-set_tests_properties(check_stark_bt.B.16 check_stark_amg.16.4 PROPERTIES
+set_tests_properties(check_stark_bt.B.16 check_stark_amg.4.16 PROPERTIES
         COST 150
 )
