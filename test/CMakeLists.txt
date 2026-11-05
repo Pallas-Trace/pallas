@@ -153,7 +153,7 @@ if (GIT_BRANCH STREQUAL "main")
     add_test(check_stark_amg.32.2 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_openmp_amg_32x2")
     # Takes 50 / 80 / 160 s
     add_test(check_stark_bt.C.64 bash "${CMAKE_CURRENT_SOURCE_DIR}/test_stark_trace.sh" "${CMAKE_BINARY_DIR}" "mpi_bt.C.x.64")
-    set_tests_properties(check_stark_amg.16.4 check_stark_amg.64.1 check_stark_bt.C.64 PROPERTIES
+    set_tests_properties(check_stark_amg.16.4 check_stark_amg.32.2 check_stark_bt.C.64 PROPERTIES
             COST 50
     )
 endif()
@@ -161,6 +161,6 @@ endif()
 set_tests_properties(write_benchmark write_benchmark_CPP write_benchmark_logical PROPERTIES
         COST 100
 )
-set_tests_properties(check_stark_bt.B.16 check_stark_amg.4.16 PROPERTIES
+set_tests_properties(check_stark_bt.B.16 check_stark_amg.16.4 PROPERTIES
         COST 150
 )
