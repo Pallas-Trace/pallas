@@ -91,6 +91,10 @@ Sequence& ThreadWriter::getOrCreateSequenceFromArray(pallas::Token* token_array,
     s->tokens.resize(array_len);
     memcpy(s->tokens.data(), token_array, sizeof(Token) * array_len);
     auto& sequencesWithSameHash = thread->hashToSequence[hash];
+    if (array_len >= known_sequence_lengths.size()) {
+        known_sequence_lengths.resize(array_len + 1, false);
+    }
+    known_sequence_lengths[array_len] = true;
     s->hash = hash;
     s->id = sid;
     sequencesWithSameHash.push_back(logi_id);
@@ -392,20 +396,25 @@ void ThreadWriter::findSequence(size_t n) {
     auto& curTokenIndex = index_stack[cur_depth];
     size_t currentIndex = curTokenSeq.size() - 1;
     n = std::min(currentIndex, n);
+    // No need to search for sequences longer than the longest known sequence
+    if (!known_sequence_lengths.empty())
+        n = std::min(n, known_sequence_lengths.size() - 1);
+    else
+        n = 0;
 
     unsigned found_sequence_id = 0;
     for (int array_len = 1; array_len <= n; array_len++) {
+        if (!known_sequence_lengths[array_len])
+            continue;
         auto token_array = &curTokenSeq[currentIndex - array_len + 1];
         uint32_t hash = hash32_Token(token_array, array_len, SEED);
-        if (thread->hashToSequence.find(hash) != thread->hashToSequence.end()) {
-            auto& sequencesWithSameHash = thread->hashToSequence[hash];
-            if (!sequencesWithSameHash.empty()) {
-                for (const auto sid : sequencesWithSameHash) {
-                    uint32_t phys_id = thread->sequence_id_map[sid];
-                    if (_pallas_arrays_equal(token_array, array_len, thread->sequences[phys_id].tokens.data(), thread->sequences[phys_id].size())) {
-                        found_sequence_id = sid;
-                        break;
-                    }
+        auto sequencesWithSameHash = thread->hashToSequence.find(hash);
+        if (sequencesWithSameHash != thread->hashToSequence.end()) {
+            for (const auto sid : sequencesWithSameHash->second) {
+                uint32_t phys_id = thread->sequence_id_map[sid];
+                if (_pallas_arrays_equal(token_array, array_len, thread->sequences[phys_id].tokens.data(), thread->sequences[phys_id].size())) {
+                    found_sequence_id = sid;
+                    break;
                 }
             }
         }
@@ -686,7 +695,8 @@ ThreadWriter::ThreadWriter(Archive& a, ThreadId thread_id) {
 TokenId ThreadWriter::getEventId(EventData* e) {
     pallas_log(DebugLevel::Max, "getEventId: Searching for event {.event_type=%d}\n", e->record);
 
-    uint32_t hash = hash32(reinterpret_cast<byte*>(e), sizeof(EventData), SEED);
+    // Only hash the used part of the EventData, since events are compared with memcmp(e, ..., e->event_size)
+    uint32_t hash = hash32(reinterpret_cast<byte*>(e), e->event_size, SEED);
     auto& eventWithSameHash = thread->hashToEvent[hash];
     if (!eventWithSameHash.empty()) {
         if (eventWithSameHash.size() > 1) {
@@ -720,7 +730,7 @@ TokenId ThreadWriter::getEventId(EventData* e) {
     new_event->timestamps = new LinkedVector(*parameter_handler);
 
     // In-place initialisation
-    thread->hashToEvent[hash].push_back(logi_id);
+    eventWithSameHash.push_back(logi_id);
 
     return logi_id;
 }
