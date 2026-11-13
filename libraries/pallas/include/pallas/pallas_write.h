@@ -39,6 +39,9 @@ typedef struct ThreadWriter {
 #ifdef __cplusplus
 
    private:
+    /** known_sequence_lengths[n] is true if this thread contains at least one Sequence of n tokens.
+     * Used by findSequence to skip lengths that cannot match any Sequence. */
+    std::vector<bool> known_sequence_lengths;
     /**
      * Returns the inclusive and exclusive block duration / block duration for the offset-th last given Sequence.
      * The Sequence's token need to be in curIndexSeq for this to work out.
