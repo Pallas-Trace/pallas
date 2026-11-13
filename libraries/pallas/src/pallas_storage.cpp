@@ -1366,7 +1366,7 @@ static void storeGroups(pallas::Definition& definitions, File& file) {
         file.write(&g.group_type, sizeof(g.group_type), 1);
         file.write(&g.paradigm, sizeof(g.paradigm), 1);
         file.write(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
-        file.write(g.members, sizeof(uint32_t), g.numberOfMembers);
+        file.write(g.members, sizeof(g.members[0]), g.numberOfMembers);
     }
 }
 
@@ -1386,15 +1386,25 @@ static void readGroups(pallas::Definition& definitions, File& file, uint8_t abi_
         file.read(&g.numberOfMembers, sizeof(g.numberOfMembers), 1);
         g.members = new uint64_t[g.numberOfMembers];
         pallas_assert(g.members);
-        if (abi_version == 16 ) {
-            auto temp = new uint64_t [g.numberOfMembers];
-            file.read(temp, sizeof(uint64_t), g.numberOfMembers);
+        if (abi_version == 16 || abi_version >= 23) {
+            file.read(g.members, sizeof(uint64_t), g.numberOfMembers);
+        } else if (abi_version == 22) {
+            // ABI 22 wrote the uint64_t members array with sizeof(uint32_t): only the first half was stored
+            memset(g.members, 0, sizeof(uint64_t) * g.numberOfMembers);
+            file.read(g.members, sizeof(uint32_t), g.numberOfMembers);
+            static bool group_warning_set = true;
+            if (group_warning_set && g.numberOfMembers > 1) {
+                pallas_warn("Group members are corrupted in traces with ABI version 22. Please regenerate the trace.\n");
+                group_warning_set = false;
+            }
+        } else {
+            // ABI 17 to 21 store members as uint32_t
+            auto temp = new uint32_t [g.numberOfMembers];
+            file.read(temp, sizeof(uint32_t), g.numberOfMembers);
             for (size_t i = 0; i < g.numberOfMembers; i ++) {
                 g.members[i] = temp[i];
             }
             delete[] temp;
-        } else {
-            file.read(g.members, sizeof(uint32_t), g.numberOfMembers);
         }
         pallas_log(pallas::DebugLevel::Debug, "\tLoad Group {.ref=%d, .name=%d, .nb_members=%d}\n", g.group_ref,
                    g.name, g.numberOfMembers);
