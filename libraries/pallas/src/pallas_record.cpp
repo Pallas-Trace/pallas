@@ -240,8 +240,11 @@ void pallas_read_thread_fork(const EventData *data,
 void pallas_record_thread_join(ThreadWriter *thread_writer,
                                AttributeList *attribute_list,
                                pallas_timestamp_t time) {
+    if (pallas_recursion_shield)
+        return;
+    pallas_recursion_shield++;
     EventData e;
-    init_event(&e, PALLAS_EVENT_OMP_JOIN);
+    init_event(&e, PALLAS_EVENT_THREAD_JOIN);
     TokenId e_id = thread_writer->getEventId(&e);
     thread_writer->storeEvent(PALLAS_BLOCK_END, e_id, time, attribute_list);
     pallas_recursion_shield--;
@@ -249,7 +252,7 @@ void pallas_record_thread_join(ThreadWriter *thread_writer,
 
 void pallas_read_thread_join(const EventData *data,
                              AttributeList **attribute_list) {
-    PALLAS_READ_PROLOG(PALLAS_EVENT_OMP_JOIN);
+    PALLAS_READ_PROLOG(PALLAS_EVENT_THREAD_JOIN);
     if (attribute_list) *attribute_list = NULL;
 }
 
