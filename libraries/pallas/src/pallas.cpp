@@ -262,7 +262,10 @@ std::string Thread::getTokenString(Token token) const {
 
 pallas_duration_t Thread::getDuration() const {
     uint32_t phys_id = sequence_id_map[sequence_root];
-    return sequences[phys_id].durations->at(0);
+    const auto& root = sequences[phys_id];
+    if (root.durations == nullptr || root.durations->size == 0)
+        return 0;
+    return root.durations->at(0);
 }
 
 pallas_duration_t get_duration(PALLAS(Thread) * t) {
@@ -278,6 +281,8 @@ pallas_timestamp_t get_first_timestamp(PALLAS(Thread) * t) {
 }
 
 pallas_timestamp_t Thread::getLastTimestamp() const {
+    if (first_timestamp == PALLAS_TIMESTAMP_INVALID)
+        return 0;
     return getFirstTimestamp() + getDuration();
 }
 
