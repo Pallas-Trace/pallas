@@ -735,6 +735,15 @@ void pallas_global_archive_register_metric_class(pallas::GlobalArchive* archive,
   archive->addMetric(self, numberOfMetrics, metricMembers, metricOccurrence, recorderKind);
 }
 
+void pallas_global_archive_register_metric_instance(pallas::GlobalArchive* archive,
+						    pallas::MetricRef instance_ref,
+						    pallas::MetricRef class_ref) {
+  const pallas::Metric* c = archive->getMetric(class_ref);
+  if (c == nullptr || archive->getMetric(instance_ref) != nullptr)
+    return;
+  archive->addMetric(instance_ref, c->numberOfMetrics, c->metric_members, c->metric_occurrence, c->recorderKind);
+}
+
 extern void pallas_global_archive_define_location_group(pallas::GlobalArchive* archive, pallas::LocationGroupId id, pallas::StringRef name, pallas::LocationGroupId parent) {
   archive->defineLocationGroup(id, name, parent);
 };

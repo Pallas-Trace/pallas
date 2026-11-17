@@ -616,6 +616,14 @@ extern void pallas_global_archive_register_metric_class(PALLAS(GlobalArchive)* a
 							PALLAS(MetricOccurrence) metric_occurrence,
 							PALLAS(RecorderKind) recorderKind);
 
+/**
+ * Registers a metric instance as an alias of an existing metric class (same members/occurrence/recorder kind).
+ * Does nothing if the class is unknown.
+ */
+extern void pallas_global_archive_register_metric_instance(PALLAS(GlobalArchive)* archive,
+							   PALLAS(MetricRef) instance_ref,
+							   PALLAS(MetricRef) class_ref);
+
   /**
  * Creates a new LocationGroup and adds it to that GlobalArchive.
  * Locks and unlocks the mutex for that operation.

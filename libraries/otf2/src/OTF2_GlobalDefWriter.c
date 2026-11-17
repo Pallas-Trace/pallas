@@ -251,7 +251,10 @@ OTF2_ErrorCode OTF2_GlobalDefWriter_WriteMetricInstance(OTF2_GlobalDefWriter* wr
                                                         OTF2_LocationRef recorder,
                                                         OTF2_MetricScope metricScope,
                                                         uint64_t scope) {
-  NOT_IMPLEMENTED;
+  /* Register the instance as an alias of its class (same members/occurrence/recorder kind). */
+  if (self != metricClass)
+    pallas_global_archive_register_metric_instance(writerHandle->archive, self, metricClass);
+  return OTF2_SUCCESS;
 }
 
 OTF2_ErrorCode OTF2_GlobalDefWriter_WriteComm(OTF2_GlobalDefWriter* writerHandle,
