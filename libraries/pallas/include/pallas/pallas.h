@@ -1100,14 +1100,18 @@ extern void* pallas_realloc(void* buffer, int cur_size, int new_size, size_t dat
  */
 template <typename T>
 void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
+    // new T[] default-constructs all the elements.  The first `counter` ones
+    // are about to be replaced by the existing objects: destroy them first,
+    // otherwise what their constructor allocated is leaked.  The other ones
+    // are already constructed and must not be constructed a second time.
     T* newArray = new T[counter * 2];
-    // Copy without destructing
-    std::memcpy(newArray, originalArray, counter * sizeof(T));
-    std::memset(originalArray, 0, counter * sizeof(T));
-    // Create the new objects by calling there constructors
-    for (size_t i = counter; i < counter * 2; ++i) {
-        new(&newArray[i]) T();
+    for (size_t i = 0; i < counter; ++i) {
+        newArray[i].~T();
     }
+    // Move the existing objects bitwise, without destructing them.
+    std::memcpy(static_cast<void*>(newArray), originalArray, counter * sizeof(T));
+    // The old slots are now empty shells that delete[] can destroy safely.
+    std::memset(static_cast<void*>(originalArray), 0, counter * sizeof(T));
 
     // Delete then replace the original array
     delete[]originalArray;
