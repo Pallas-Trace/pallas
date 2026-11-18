@@ -205,23 +205,51 @@ uint64_t& LinkedVector::operator[](size_t pos) {
     return (*correct_sub)[pos];
 }
 
+void LinkedDurationVector::ensure_loaded(SubArray* sub) {
+    if (sub->array != nullptr)
+        return;
+    while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
+        auto* temp = (SubArray*)parameter_handler.subvector_queue.front();
+        parameter_handler.subvector_queue.pop_front();
+        delete[] temp->array;
+        temp->array = nullptr;
+        parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
+    }
+    load_data(sub);
+    loaded_subarrays.insert(sub);
+}
+
 uint64_t& LinkedDurationVector::operator[](size_t pos) {
-      SubArray* correct_sub = last;
-      while (pos < correct_sub->starting_index) {
-          correct_sub = correct_sub->previous;
-      }
-      if (correct_sub->array == nullptr) {
-          while (parameter_handler.loaded_durations_size > parameter_handler.max_memory_durations) {
-              auto * temp = (SubArray*) parameter_handler.subvector_queue.front();
-              parameter_handler.subvector_queue.pop_front();
-              delete[] temp->array;
-              temp->array = nullptr;
-              parameter_handler.loaded_durations_size -= temp->size * sizeof(uint64_t);
-          }
-          load_data(correct_sub);
-          loaded_subarrays.insert(correct_sub);
-      }
-      return (*correct_sub)[pos];
+    SubArray* correct_sub = last;
+    while (pos < correct_sub->starting_index) {
+        correct_sub = correct_sub->previous;
+    }
+    ensure_loaded(correct_sub);
+    return (*correct_sub)[pos];
+}
+
+pallas_duration_t LinkedDurationVector::sum(size_t start, size_t count) {
+    if (count == 0)
+        return 0;
+    pallas_assert(start + count <= size);
+    // The range usually ends near the end of the vector: look for its first
+    // SubArray backwards, once.
+    SubArray* sub = last;
+    while (start < sub->starting_index) {
+        sub = sub->previous;
+    }
+    pallas_duration_t total = 0;
+    const size_t end = start + count;
+    size_t pos = start;
+    while (pos < end) {
+        ensure_loaded(sub);
+        const size_t sub_end = std::min(end, sub->starting_index + sub->size);
+        for (; pos < sub_end; pos++) {
+            total += (*sub)[pos];
+        }
+        sub = sub->next;
+    }
+    return total;
 }
 
 size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
