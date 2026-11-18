@@ -421,6 +421,8 @@ class LinkedDurationVector {
      * Loads the durations from filePath.
      */
     void load_data(SubArray* sub);
+    /** Loads the data of `sub` if it was offloaded, evicting other SubArrays if needed. */
+    void ensure_loaded(SubArray* sub);
     /**
      * Updates the min/max/mean.
      */
@@ -435,6 +437,13 @@ class LinkedDurationVector {
     void final_update_mean();
  /** Returns the sum of the durations between [start, end[. */
     pallas_duration_t computeDurationBetween(size_t start_index, size_t end_index);
+    /**
+     * Returns the exact sum of the `count` elements starting at index `start`.
+     * The SubArrays are walked once, in order: summing a range this way is
+     * linear in `count`, whereas calling at() on each element walks back from
+     * the last SubArray every time.
+     */
+    [[nodiscard]] pallas_duration_t sum(size_t start, size_t count);
 
     ~LinkedDurationVector();
     /** Returns an array of size #size containing a copy of the values in this vector.*/
