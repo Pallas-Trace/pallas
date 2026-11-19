@@ -1100,11 +1100,13 @@ extern void* pallas_realloc(void* buffer, int cur_size, int new_size, size_t dat
  */
 template <typename T>
 void doubleMemorySpaceConstructor(T*& originalArray, size_t& counter) {
-    // new T[] default-constructs all the elements.  The first `counter` ones
+    // new T[]() value-initializes all the elements: members without a default
+    // initializer are zeroed (eg. Event::timestamps, deleted by
+    // Thread::~Thread for every allocated event).  The first `counter` ones
     // are about to be replaced by the existing objects: destroy them first,
     // otherwise what their constructor allocated is leaked.  The other ones
     // are already constructed and must not be constructed a second time.
-    T* newArray = new T[counter * 2];
+    T* newArray = new T[counter * 2]();
     for (size_t i = 0; i < counter; ++i) {
         newArray[i].~T();
     }
