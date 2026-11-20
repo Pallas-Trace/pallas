@@ -799,9 +799,10 @@ std::array<pallas_duration_t, 2> ThreadWriter::getLastSequenceDuration(const Seq
         if (token.type == TypeLoop) {
             auto* l = thread->getLoop(token);
             auto* s = thread->getSequence(l->repeated_token);
-            for (size_t j = 0; j < l->nb_iterations; j++) {
-                block_duration += (s->type == SEQUENCE_BLOCK) ? s->durations->at(index + j) : s->exclusive_durations->at(index + j);
-            }
+            // Sum the durations of all the iterations at once: calling at()
+            // for each iteration made this quadratic in the number of iterations.
+            auto* durations = (s->type == SEQUENCE_BLOCK) ? s->durations : s->exclusive_durations;
+            block_duration += durations->sum(index, l->nb_iterations);
             continue;
         }
     }
