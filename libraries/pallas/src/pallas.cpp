@@ -500,9 +500,13 @@ std::string Thread::getEventString(EventData* e) const {
       const Metric* m = archive->getMetric(metric);
       std::string s="METRIC("+metricRefToString(metric);
 
-      for(auto i=0; i<numberOfMetrics; i++) {
-	MetricMemberRef mm_ref = m->metric_members[i];
-	s += ", "+metricMemberRefToString(metric) + "=" + metricValues[i].to_string();
+      for (auto i = 0; i < numberOfMetrics; i++) {
+          if (m && i < m->numberOfMetrics) {
+              MetricMemberRef mm_ref = m->metric_members[i];
+              s += ", " + metricMemberRefToString(mm_ref) + "=" + metricValues[i].to_string();
+          } else {
+              s += ", " + metricValues[i].to_string();
+          }
       }
       s+=")";
       delete [] metricValues;
