@@ -301,38 +301,22 @@ size_t LinkedVector::getFirstOccurrenceBefore(pallas_timestamp_t ts) {
 }
 
 pallas_duration_t LinkedDurationVector::computeDurationBetween(size_t start_index, size_t end_index) {
-    // Find the correct starting sub-array
-    auto* start_subarray = first;
-    while (start_subarray->starting_index + start_subarray->size < start_index) {
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return 0;
-    }
-
+    // Sum of the elements in [start_index, end_index)
     pallas_duration_t sum = 0;
-    if ( start_subarray->starting_index != start_index ) {
-        // Load the sub_array
-        size_t i = start_index;
-        sum += at( i++ );
-        for (; i < start_subarray->starting_index + start_subarray->size && i < end_index; i++) {
-            sum += start_subarray->at(i);
+    auto* sub = first;
+    while (sub != nullptr && sub->starting_index + sub->size <= start_index)
+        sub = sub->next;
+    for (; sub != nullptr && sub->starting_index < end_index; sub = sub->next) {
+        size_t sub_end = sub->starting_index + sub->size;
+        if (start_index <= sub->starting_index && sub_end <= end_index) {
+            // Whole sub-array: use its statistics (no need to load it)
+            sum += sub->mean * sub->size;
+        } else {
+            size_t from = std::max(start_index, sub->starting_index);
+            size_t to = std::min(end_index, sub_end);
+            for (size_t i = from; i < to; i++)
+                sum += at(i);
         }
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return sum;
-    }
-
-    while (start_subarray->starting_index + start_subarray->size < end_index) {
-        sum += start_subarray->mean * start_subarray->size;
-        start_subarray = start_subarray->next;
-        if (start_subarray == nullptr)
-            return sum;
-    }
-
-    size_t i = start_subarray->starting_index;
-    sum += at(i ++);
-    for (; i < end_index; i++) {
-        sum += start_subarray->at(i);
     }
     return sum;
 }

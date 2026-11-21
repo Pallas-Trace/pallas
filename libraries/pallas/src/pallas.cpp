@@ -3,8 +3,11 @@
  * See LICENSE in top-level directory.
  */
 
+#include <algorithm>
 #include <iostream>
+#include <set>
 #include <sstream>
+#include <vector>
 
 #include "pallas/pallas.h"
 #include "pallas/pallas_archive.h"
@@ -703,6 +706,151 @@ std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotV
     return output;
 }
 
+
+/** Time during which the occurrence [ts, ts+duration] overlaps [start, end]. */
+static pallas_duration_t overlapDuration(pallas_timestamp_t ts, pallas_duration_t duration,
+                                         pallas_timestamp_t start, pallas_timestamp_t end) {
+    pallas_timestamp_t lo = std::max(ts, start);
+    pallas_timestamp_t hi = std::min(ts + duration, end);
+    return lo < hi ? hi - lo : 0;
+}
+
+/** Inclusive time spent in the occurrences of `s` that overlap [start, end]. */
+static pallas_duration_t inclusiveDurationIn(Sequence* s, pallas_timestamp_t start, pallas_timestamp_t end) {
+    if (start >= end || s->timestamps->size == 0)
+        return 0;
+    if (end <= s->timestamps->front() || s->timestamps->back() + s->durations->back() <= start)
+        return 0;
+    size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
+    size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+    pallas_duration_t sum = 0;
+    if (start_index + 1 < end_index)
+        sum += s->durations->computeDurationBetween(start_index + 1, end_index);
+    sum += overlapDuration(s->timestamps->at(start_index), s->durations->at(start_index), start, end);
+    if (end_index != start_index)
+        sum += overlapDuration(s->timestamps->at(end_index), s->durations->at(end_index), start, end);
+    return sum;
+}
+
+/** Collect the blocks directly called by `s` (looking through loops, but not through other blocks). */
+static void collectChildBlocks(const Thread* thread, const Sequence* s, std::set<Token>& out) {
+    for (const Token& token : s->tokens) {
+        if (token.type == TypeSequence) {
+            auto* child = thread->getSequence(token);
+            if (child->type == SEQUENCE_BLOCK)
+                out.insert(token);
+            else
+                collectChildBlocks(thread, child, out);
+        } else if (token.type == TypeLoop) {
+            auto* loop = thread->getLoop(token);
+            auto* repeated = thread->getSequence(loop->repeated_token);
+            if (repeated->type == SEQUENCE_BLOCK)
+                out.insert(loop->repeated_token);  // Loop over a function call
+            else
+                collectChildBlocks(thread, repeated, out);
+        }
+    }
+}
+
+/** Whether `target` appears somewhere below the sequence `s` in the grammar. */
+static bool sequenceContains(const Thread* thread, Token s, Token target, std::map<Token, bool>& memo) {
+    auto found = memo.find(s);
+    if (found != memo.end())
+        return found->second;
+    memo[s] = false;
+    bool result = false;
+    for (const Token& token : thread->getSequence(s)->tokens) {
+        Token child = token;
+        if (token.type == TypeLoop)
+            child = thread->getLoop(token)->repeated_token;
+        else if (token.type != TypeSequence)
+            continue;
+        if (child == target || sequenceContains(thread, child, target, memo)) {
+            result = true;
+            break;
+        }
+    }
+    memo[s] = result;
+    return result;
+}
+
+/** Append to `out` the parts within [start, end] of the occurrences of `s`. */
+static void collectOverlaps(Sequence* s, pallas_timestamp_t start, pallas_timestamp_t end,
+                            std::vector<std::pair<pallas_timestamp_t, pallas_timestamp_t>>& out) {
+    if (start >= end || s->timestamps->size == 0)
+        return;
+    if (end <= s->timestamps->front() || s->timestamps->back() + s->durations->back() <= start)
+        return;
+    size_t start_index = s->timestamps->getFirstOccurrenceBefore(start);
+    size_t end_index = s->timestamps->getFirstOccurrenceBefore(end);
+    for (size_t i = start_index; i <= end_index; i++) {
+        pallas_timestamp_t lo = std::max(start, s->timestamps->at(i));
+        pallas_timestamp_t hi = std::min(end, s->timestamps->at(i) + s->durations->at(i));
+        if (lo < hi)
+            out.emplace_back(lo, hi);
+    }
+}
+
+/** Exclusive time of occurrence `index` of `s` that lies within [start, end].
+ * Instead of assuming that the exclusive time is uniformly spread over the occurrence,
+ * subtract the time spent in its direct children during [start, end].
+ *
+ * A child C may also appear deeper, below another child D (e.g. an OpenMP barrier called
+ * directly by a parallel region and by the loops of this region): the occurrences of C that
+ * are nested in D must not be subtracted twice. For such children (C and D), the measure of
+ * the union of their occurrences is subtracted; the time of the other children is summed. */
+static pallas_duration_t partialExclusiveDuration(const Thread* thread, Sequence* s, size_t index,
+                                                  pallas_timestamp_t start, pallas_timestamp_t end) {
+    pallas_timestamp_t ts = s->timestamps->at(index);
+    pallas_duration_t duration = s->durations->at(index);
+    pallas_timestamp_t lo = std::max(start, ts);
+    pallas_timestamp_t hi = std::min(end, ts + duration);
+    if (hi <= lo)
+        return 0;
+    if (s->exclusive_durations->at(index) >= duration)
+        return hi - lo;  // No child call: the whole overlap is exclusive time
+    std::set<Token> children;
+    collectChildBlocks(thread, s, children);
+    children.erase(s->id);  // Recursive call: not handled
+
+    // Children that can be nested in another child, and the children that can contain them
+    std::set<Token> overlapping;
+    for (const Token& c : children) {
+        std::map<Token, bool> memo;
+        for (const Token& d : children) {
+            if (d != c && sequenceContains(thread, d, c, memo)) {
+                overlapping.insert(c);
+                overlapping.insert(d);
+            }
+        }
+    }
+
+    pallas_duration_t children_time = 0;
+    std::vector<std::pair<pallas_timestamp_t, pallas_timestamp_t>> intervals;
+    for (const Token& child : children) {
+        if (overlapping.count(child))
+            collectOverlaps(thread->getSequence(child), lo, hi, intervals);
+        else
+            children_time += inclusiveDurationIn(thread->getSequence(child), lo, hi);
+    }
+    if (!intervals.empty()) {
+        // Measure of the union of the intervals
+        std::sort(intervals.begin(), intervals.end());
+        pallas_timestamp_t cur_lo = intervals[0].first, cur_hi = intervals[0].second;
+        for (size_t i = 1; i < intervals.size(); i++) {
+            if (intervals[i].first > cur_hi) {
+                children_time += cur_hi - cur_lo;
+                cur_lo = intervals[i].first;
+                cur_hi = intervals[i].second;
+            } else {
+                cur_hi = std::max(cur_hi, intervals[i].second);
+            }
+        }
+        children_time += cur_hi - cur_lo;
+    }
+    return children_time >= hi - lo ? 0 : hi - lo - children_time;
+}
+
 std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotView(pallas_timestamp_t start, pallas_timestamp_t end) const {
     // This code is the exact same as Thread::getSnapshotViewByName
     // Any modifications / fix to this should also be done to the former.
@@ -751,8 +899,7 @@ std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotV
                 // Trivial case where it's entirely contained in [start, end]
                 output[sequence_token_name] += s.exclusive_durations->at(start_index);
             } else {
-                pallas_duration_t capped_duration = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
-                output[sequence_token_name] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
+                output[sequence_token_name] += partialExclusiveDuration(this, &s, start_index, start, end);
             }
         }
         // Ending event
@@ -766,8 +913,7 @@ std::map<std::tuple<Token, std::string>, pallas_duration_t> Thread::getSnapshotV
                     // Trivial case where it's entirely contained in [start, end]
                     output[sequence_token_name] += s.exclusive_durations->at(end_index);
                 } else {
-                    pallas_duration_t capped_duration = pallas_get_duration(std::max(start, end_event_start), std::min(end_event_end, end));
-                    output[sequence_token_name] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
+                    output[sequence_token_name] += partialExclusiveDuration(this, &s, end_index, start, end);
                 }
             }
         }
@@ -823,8 +969,7 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
                 // Trivial case where it's entirely contained in [start, end]
                 output[sequence_name] += s.exclusive_durations->at(start_index);
             } else {
-                pallas_duration_t capped_duration = pallas_get_duration(std::max(start, start_event_start), std::min(start_event_end, end));
-                output[sequence_name] += (s.exclusive_durations->at(start_index) * capped_duration) / start_event_duration;
+                output[sequence_name] += partialExclusiveDuration(this, &s, start_index, start, end);
             }
         }
         // Ending event
@@ -838,8 +983,7 @@ std::map<std::string, pallas_duration_t> Thread::getSnapshotViewByName(pallas_ti
                     // Trivial case where it's entirely contained in [start, end]
                     output[sequence_name] += s.exclusive_durations->at(end_index);
                 } else {
-                    pallas_duration_t capped_duration = pallas_get_duration(std::max(start, end_event_start), std::min(end_event_end, end));
-                    output[sequence_name] += (s.exclusive_durations->at(end_index) * capped_duration) / end_event_duration;
+                    output[sequence_name] += partialExclusiveDuration(this, &s, end_index, start, end);
                 }
             }
         }
