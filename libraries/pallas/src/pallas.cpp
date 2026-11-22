@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <mutex>
+#include <unordered_map>
 #include <set>
 #include <sstream>
 #include <vector>
@@ -752,26 +754,83 @@ static void collectChildBlocks(const Thread* thread, const Sequence* s, std::set
     }
 }
 
-/** Whether `target` appears somewhere below the sequence `s` in the grammar. */
-static bool sequenceContains(const Thread* thread, Token s, Token target, std::map<Token, bool>& memo) {
-    auto found = memo.find(s);
-    if (found != memo.end())
-        return found->second;
-    memo[s] = false;
-    bool result = false;
-    for (const Token& token : thread->getSequence(s)->tokens) {
+/** Grammar information needed by partialExclusiveDuration. It only depends on the grammar of
+ * the thread, so it is computed once per thread instead of at every call. */
+struct ChildInfo {
+    std::vector<Token> summed;   // children whose inclusive times can simply be added
+    std::vector<Token> unioned;  // children that can be nested in another child (and those containers)
+};
+struct ThreadGrammarCache {
+    const Thread* thread = nullptr;
+    size_t nb_sequences = 0;
+    std::map<Token, std::set<Token>> descendants;  // blocks reachable below a sequence
+    std::map<Token, ChildInfo> children;
+};
+
+/** Blocks that appear somewhere below the sequence `s` (memoized). */
+static const std::set<Token>& descendantBlocks(ThreadGrammarCache& cache, Token s) {
+    auto it = cache.descendants.find(s);
+    if (it != cache.descendants.end())
+        return it->second;
+    cache.descendants[s];  // Placeholder: protects against cycles (recursive calls)
+    std::set<Token> result;
+    for (const Token& token : cache.thread->getSequence(s)->tokens) {
         Token child = token;
         if (token.type == TypeLoop)
-            child = thread->getLoop(token)->repeated_token;
+            child = cache.thread->getLoop(token)->repeated_token;
         else if (token.type != TypeSequence)
             continue;
-        if (child == target || sequenceContains(thread, child, target, memo)) {
-            result = true;
-            break;
+        if (cache.thread->getSequence(child)->type == SEQUENCE_BLOCK)
+            result.insert(child);
+        const auto& below = descendantBlocks(cache, child);
+        result.insert(below.begin(), below.end());
+    }
+    auto& ref = cache.descendants[s];
+    ref = std::move(result);
+    return ref;
+}
+
+/** Per-thread grammar caches. An entry is removed when its thread is destroyed (see Thread::~Thread). */
+static std::mutex grammar_caches_mutex;
+static std::unordered_map<const Thread*, ThreadGrammarCache> grammar_caches;
+
+/** Direct children of `s`, split between children to sum and children to merge (cached per thread). */
+static const ChildInfo& childInfo(const Thread* thread, Sequence* s) {
+    std::lock_guard<std::mutex> lock(grammar_caches_mutex);
+    auto& cache = grammar_caches[thread];
+    if (cache.thread != thread || cache.nb_sequences != thread->nb_sequences) {
+        cache = ThreadGrammarCache();  // New (or reallocated) thread
+        cache.thread = thread;
+        cache.nb_sequences = thread->nb_sequences;
+    }
+    auto found = cache.children.find(s->id);
+    if (found != cache.children.end())
+        return found->second;
+
+    std::set<Token> children;
+    collectChildBlocks(thread, s, children);
+    children.erase(s->id);  // Recursive call: not handled
+    std::set<Token> overlapping;
+    for (const Token& d : children) {
+        const auto& below = descendantBlocks(cache, d);
+        if (below.size() < children.size()) {
+            for (const Token& c : below)
+                if (c != d && children.count(c)) {
+                    overlapping.insert(c);
+                    overlapping.insert(d);
+                }
+        } else {
+            for (const Token& c : children)
+                if (c != d && below.count(c)) {
+                    overlapping.insert(c);
+                    overlapping.insert(d);
+                }
         }
     }
-    memo[s] = result;
-    return result;
+    ChildInfo info;
+    for (const Token& c : children)
+        (overlapping.count(c) ? info.unioned : info.summed).push_back(c);
+    return cache.children[s->id] = std::move(info);
 }
 
 /** Append to `out` the parts within [start, end] of the occurrences of `s`. */
@@ -798,7 +857,8 @@ static void collectOverlaps(Sequence* s, pallas_timestamp_t start, pallas_timest
  * A child C may also appear deeper, below another child D (e.g. an OpenMP barrier called
  * directly by a parallel region and by the loops of this region): the occurrences of C that
  * are nested in D must not be subtracted twice. For such children (C and D), the measure of
- * the union of their occurrences is subtracted; the time of the other children is summed. */
+ * the union of their occurrences is subtracted; the time of the other children is summed.
+ * Which children are summed and which are merged only depends on the grammar: see childInfo(). */
 static pallas_duration_t partialExclusiveDuration(const Thread* thread, Sequence* s, size_t index,
                                                   pallas_timestamp_t start, pallas_timestamp_t end) {
     pallas_timestamp_t ts = s->timestamps->at(index);
@@ -809,30 +869,13 @@ static pallas_duration_t partialExclusiveDuration(const Thread* thread, Sequence
         return 0;
     if (s->exclusive_durations->at(index) >= duration)
         return hi - lo;  // No child call: the whole overlap is exclusive time
-    std::set<Token> children;
-    collectChildBlocks(thread, s, children);
-    children.erase(s->id);  // Recursive call: not handled
-
-    // Children that can be nested in another child, and the children that can contain them
-    std::set<Token> overlapping;
-    for (const Token& c : children) {
-        std::map<Token, bool> memo;
-        for (const Token& d : children) {
-            if (d != c && sequenceContains(thread, d, c, memo)) {
-                overlapping.insert(c);
-                overlapping.insert(d);
-            }
-        }
-    }
-
+    const ChildInfo& info = childInfo(thread, s);
     pallas_duration_t children_time = 0;
     std::vector<std::pair<pallas_timestamp_t, pallas_timestamp_t>> intervals;
-    for (const Token& child : children) {
-        if (overlapping.count(child))
-            collectOverlaps(thread->getSequence(child), lo, hi, intervals);
-        else
-            children_time += inclusiveDurationIn(thread->getSequence(child), lo, hi);
-    }
+    for (const Token& child : info.summed)
+        children_time += inclusiveDurationIn(thread->getSequence(child), lo, hi);
+    for (const Token& child : info.unioned)
+        collectOverlaps(thread->getSequence(child), lo, hi, intervals);
     if (!intervals.empty()) {
         // Measure of the union of the intervals
         std::sort(intervals.begin(), intervals.end());
@@ -1013,6 +1056,10 @@ Thread::Thread() {
 
 Thread::~Thread() {
     pallas_log(DebugLevel::Debug, "Deleting Thread %d\n", id);
+    {
+        std::lock_guard<std::mutex> lock(grammar_caches_mutex);
+        grammar_caches.erase(this);
+    }
     for (size_t i = 0; i < nb_allocated_events; i++) {
         events[i].cleanEvent();
     }
