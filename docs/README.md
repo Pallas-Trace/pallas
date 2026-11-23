@@ -20,9 +20,9 @@ _The Pallas cat is just like our trace format: it looks big, but it's actually j
 New to Pallas? Start here:
 
 1. **🏃‍♂️ Quick Start Guide**: [Get running in 5 minutes](01-quick-start.md)
-2. **🔧 Tracing with EZTrace**: [Using EZTrace/Pallas](02-pallas.md)
-3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/index.md)
-4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/index.md)
+2. **🔧 Pallas documentation**: [The Pallas trace format](02-pallas/README.md)
+3. **🔍 Scalable trace analysis** with [Pallas native tools](04-analyzing-pallas/README.md)
+4. **📊 Trace visualization** at scale with [Blup](05-visualizing-blup/README.md)
 
 ---
 
@@ -32,27 +32,27 @@ New to Pallas? Start here:
 Quickly get up and running with Pallas and EZTrace
 
 
-### 📈 [Pallas Documentation](02-pallas/)
-Learn how to use the **Pallas trace format** to speed up you analyses:
-- 🎭 [Pallas Format Overview](02-pallas/01-presentation.md): All you need to understand Pallas
-- 🔧 [Installing Pallas](02-pallas/02-installing-pallas.md): A detailed guide on all the options for Pallas
-- ⚙️ [Installing EZTrace + Pallas]() (TODO)
+### 📈 [Pallas Documentation](02-pallas/README.md)
+Learn how to use the **Pallas trace format** to speed up your analyses:
+- 🎭 [Pallas Format Overview](02-pallas/01-format.md): All you need to understand Pallas
+- 🔧 [Building and Installing Pallas](02-pallas/02-building.md): A detailed guide on all the options for Pallas
+- ✍️ [Using Pallas](02-pallas/03-using.md): Write your own traces and store custom data
 - Tracing your applications by yourself:
-    - ⚡ [Multithreaded Application Tracing (OpenMP)](02-pallas/03-tracing-examples/01-multithread/index.md)
-    - 🌐 [Multiprocess Application Tracing (MPI)](02-pallas/03-tracing-examples/02-multiprocess/index.md)
-    - 📚 [Custom Library Tracing](02-pallas/03-tracing-examples/03-custom-library/index.md)
+    - ⚡ [Multithreaded Application Tracing (OpenMP)](03-tracing-examples/01-multithread.md)
+    - 🌐 [Multiprocess Application Tracing (MPI)](03-tracing-examples/02-multiprocess.md)
+    - 📚 [Custom Library Tracing](03-tracing-examples/03-custom-library.md)
 
-### 🔍 [Scalable Trace Analysis with Pallas Traces](04-analyzing-pallas/index.md)
+### 🔍 [Scalable Trace Analysis with Pallas Traces](04-analyzing-pallas/README.md)
 Perform scalable trace analysis using the **Pallas trace format** :
-- 🎯 [Analysis Fundamentals](04-analyzing-pallas/01-generalities/index.md)
-- 🛠️ [Native Analysis Tools](04-analyzing-pallas/02-native-analysis/index.md)
-- 🏗️ [Custom Analysis Programs](04-analyzing-pallas/03-build-analysis/index.md)
+- 🎯 [Analysis Fundamentals](04-analyzing-pallas/01-generalities/README.md)
+- 🛠️ [Native Analysis Tools](04-analyzing-pallas/02-native-analysis/README.md)
+- 🏗️ [Custom Analysis Programs](04-analyzing-pallas/03-build-analysis/README.md)
 
-### 📊 [Scalable Visualization of Pallas Traces with Blup](05-visualizing-blup/index.md)
+### 📊 [Scalable Visualization of Pallas Traces with Blup](05-visualizing-blup/README.md)
 Scalable trace visualization relying on the **Pallas API** using the **Blup** tool:
-- 🎨 [Blup Overview](05-visualizing-blup/01-generalities/index.md)
-- 📂 [Opening Traces](05-visualizing-blup/02-open-trace/index.md)
-- ✨ [Advanced Features](05-visualizing-blup/03-other-functionalities/index.md)
+- 🎨 [Blup Overview](05-visualizing-blup/01-generalities/README.md)
+- 📂 [Opening Traces](05-visualizing-blup/02-open-trace/README.md)
+- ✨ [Advanced Features](05-visualizing-blup/03-other-functionalities/README.md)
 
 ### 📖 [API Reference](06-api-reference/README.md)
 Complete technical reference for developers and advanced users.

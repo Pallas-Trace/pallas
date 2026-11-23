@@ -1,6 +1,6 @@
 # Pallas Python API
 
-> Before reading, it is strongly advised that you read the [introduction to the Pallas format](../../02-pallas.md).
+> Before reading, it is strongly advised that you read the [introduction to the Pallas format](../../02-pallas/01-format.md).
 
 Pallas's Python API only features the reading API.
 

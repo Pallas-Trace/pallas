@@ -33,7 +33,7 @@ eztrace -t compiler_instrumentation <my_app>
 
 ## In your application
 You can also skip EZTrace and trace your application yourself.
-For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/).
+For this, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/README.md).
 
 # Reading your trace
 ## Using Pallas
@@ -67,7 +67,7 @@ Learn how to use the Python API in the [Python section of the documentation](04-
 
 ## Using C/C++
 You can also use the Pallas library to read your traces.
-Once again, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/index.md).
+Once again, you should get a full grasp of Pallas by reading the [full documentation](02-pallas/README.md).
 
 ## Visualizing Pallas traces
 
