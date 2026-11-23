@@ -23,6 +23,10 @@ class Archive:
     @property
     def metadata(self) -> dict[str, str]: ...
     @property
+    def metric_members(self) -> dict[int, MetricMember]: ...
+    @property
+    def metrics(self) -> dict[int, Metric]: ...
+    @property
     def regions(self) -> dict[int, Region]: ...
     @property
     def strings(self) -> dict[int, str]: ...
@@ -347,6 +351,68 @@ class Record:
     @property
     def value(self) -> int: ...
 
+class MetricMember:
+    """
+    A Pallas metric member, ie one counter (eg. the energy of a CPU package).
+    """
+
+    def __repr__(self) -> str: ...
+    @property
+    def id(self) -> int: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+    @property
+    def unit(self) -> str: ...
+    @property
+    def type(self) -> MetricType: ...
+    @property
+    def mode(self) -> MetricMode: ...
+    @property
+    def base(self) -> int: ...
+    @property
+    def exponent(self) -> int:
+        """The values should be multiplied by base**exponent to get them in unit"""
+
+class Metric:
+    """
+    A Pallas metric class: the set of metric members recorded together by a METRIC event.
+    """
+
+    def __repr__(self) -> str: ...
+    @property
+    def id(self) -> int: ...
+    @property
+    def members(self) -> list[int]:
+        """The MetricMember ids of the values of the METRIC events"""
+
+class MetricMode:
+    ACCUMULATED_START: typing.ClassVar[MetricMode]
+    ACCUMULATED_POINT: typing.ClassVar[MetricMode]
+    ACCUMULATED_LAST: typing.ClassVar[MetricMode]
+    ACCUMULATED_NEXT: typing.ClassVar[MetricMode]
+    ABSOLUTE_POINT: typing.ClassVar[MetricMode]
+    ABSOLUTE_LAST: typing.ClassVar[MetricMode]
+    ABSOLUTE_NEXT: typing.ClassVar[MetricMode]
+    RELATIVE_POINT: typing.ClassVar[MetricMode]
+    RELATIVE_LAST: typing.ClassVar[MetricMode]
+    RELATIVE_NEXT: typing.ClassVar[MetricMode]
+    @property
+    def name(self) -> str: ...
+    @property
+    def value(self) -> int: ...
+
+class MetricType:
+    OTHER: typing.ClassVar[MetricType]
+    PAPI: typing.ClassVar[MetricType]
+    RUSAGE: typing.ClassVar[MetricType]
+    USER: typing.ClassVar[MetricType]
+    @property
+    def name(self) -> str: ...
+    @property
+    def value(self) -> int: ...
+
 class Region:
     """
     A Pallas region.
@@ -442,6 +508,14 @@ class Thread:
     def get_events_from_record(
         self, records: collections.abc.Sequence[Record]
     ) -> list[Event]: ...
+    def get_metrics(
+        self,
+    ) -> dict[str, tuple[numpy.typing.NDArray[numpy.uint64], numpy.typing.NDArray[numpy.float64]]]:
+        """
+        Returns the values of the METRIC events recorded by this thread:
+        {metric member name: (timestamps, values)}, two numpy arrays sorted by timestamp
+        (timestamps in ns, like the other timestamps; values as float64, not scaled by base**exponent).
+        """
     @property
     def events(self) -> list[Event]: ...
     @property
@@ -580,6 +654,10 @@ class Trace:
     def locations(self) -> dict[int, Location]: ...
     @property
     def metadata(self) -> dict[str, str]: ...
+    @property
+    def metric_members(self) -> dict[int, MetricMember]: ...
+    @property
+    def metrics(self) -> dict[int, Metric]: ...
     @property
     def regions(self) -> dict[int, Region]: ...
     @property

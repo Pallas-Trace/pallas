@@ -217,6 +217,10 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("loops", [](pallas::Thread &self) { return threadGetLoops(self); })
             .def("get_events_from_record", threadGetEventsMatching)
             .def("get_events_from_record", threadGetEventsMatchingList)
+            .def("get_metrics", threadGetMetrics,
+                 "Returns the values of the METRIC events recorded by this thread:\n"
+                 "{metric member name: (timestamps, values)}, two numpy arrays sorted by timestamp\n"
+                 "(timestamps in ns, like the other timestamps; values as float64, not scaled by base**exponent).")
             .def("__repr__", [](const pallas::Thread &self) {
                 return "<pallas_python.Thread " + std::to_string(self.id) + ">";
             })
@@ -321,6 +325,45 @@ PYBIND11_MODULE(_core, m) {
                 return "<pallas_python.Region " + std::to_string(self.id) + ": '" + self.name + "'>";
             });
 
+    py::enum_<pallas::MetricMode>(m, "MetricMode")
+            .value("ACCUMULATED_START", pallas::PALLAS_METRIC_ACCUMULATED_START)
+            .value("ACCUMULATED_POINT", pallas::PALLAS_METRIC_ACCUMULATED_POINT)
+            .value("ACCUMULATED_LAST", pallas::PALLAS_METRIC_ACCUMULATED_LAST)
+            .value("ACCUMULATED_NEXT", pallas::PALLAS_METRIC_ACCUMULATED_NEXT)
+            .value("ABSOLUTE_POINT", pallas::PALLAS_METRIC_ABSOLUTE_POINT)
+            .value("ABSOLUTE_LAST", pallas::PALLAS_METRIC_ABSOLUTE_LAST)
+            .value("ABSOLUTE_NEXT", pallas::PALLAS_METRIC_ABSOLUTE_NEXT)
+            .value("RELATIVE_POINT", pallas::PALLAS_METRIC_RELATIVE_POINT)
+            .value("RELATIVE_LAST", pallas::PALLAS_METRIC_RELATIVE_LAST)
+            .value("RELATIVE_NEXT", pallas::PALLAS_METRIC_RELATIVE_NEXT);
+
+    py::enum_<pallas::MetricType>(m, "MetricType")
+            .value("OTHER", pallas::PALLAS_METRIC_TYPE_OTHER)
+            .value("PAPI", pallas::PALLAS_METRIC_TYPE_PAPI)
+            .value("RUSAGE", pallas::PALLAS_METRIC_TYPE_RUSAGE)
+            .value("USER", pallas::PALLAS_METRIC_TYPE_USER);
+
+    py::class_<PyMetricMember>(m, "MetricMember", "A Pallas metric member, ie one counter (eg. the energy of a CPU package).")
+            .def_readonly("id", &PyMetricMember::id)
+            .def_readonly("name", &PyMetricMember::name)
+            .def_readonly("description", &PyMetricMember::description)
+            .def_readonly("unit", &PyMetricMember::unit)
+            .def_readonly("type", &PyMetricMember::type)
+            .def_readonly("mode", &PyMetricMember::mode)
+            .def_property_readonly("base", [](const PyMetricMember &self) { return self.base == pallas::PALLAS_BASE_BINARY ? 2 : 10; })
+            .def_readonly("exponent", &PyMetricMember::exponent,
+                          "The values should be multiplied by base**exponent to get them in unit")
+            .def("__repr__", [](const PyMetricMember &self) {
+                return "<pallas_python.MetricMember " + std::to_string(self.id) + ": '" + self.name + "' (" + self.unit + ")>";
+            });
+
+    py::class_<PyMetric>(m, "Metric", "A Pallas metric class: the set of metric members recorded together by a METRIC event.")
+            .def_readonly("id", &PyMetric::id)
+            .def_readonly("members", &PyMetric::members, "The MetricMember ids of the values of the METRIC events")
+            .def("__repr__", [](const PyMetric &self) {
+                return "<pallas_python.Metric " + std::to_string(self.id) + ">";
+            });
+
     py::class_<pallas::Archive>(m, "Archive", "A Pallas archive. If it exists, it's already been loaded.")
             .def_readonly("dir_name", &pallas::Archive::dir_name)
             .def_readonly("id", &pallas::Archive::id)
@@ -328,6 +371,8 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("locations", &Archive_get_locations)
             .def_property_readonly("strings", &Archive_get_strings)
             .def_property_readonly("regions", &Archive_get_regions)
+            .def_property_readonly("metric_members", &Archive_get_metric_members)
+            .def_property_readonly("metrics", &Archive_get_metrics)
             .def_property_readonly("threads", &Archive_get_threads);
 
     m.def("open_trace", &open_trace, "Open a Pallas trace")
@@ -376,6 +421,8 @@ PYBIND11_MODULE(_core, m) {
             .def_property_readonly("location_groups", &Trace_get_location_groups)
             .def_property_readonly("strings", &Trace_get_strings)
             .def_property_readonly("regions", &Trace_get_regions)
+            .def_property_readonly("metric_members", &Trace_get_metric_members)
+            .def_property_readonly("metrics", &Trace_get_metrics)
             .def_property_readonly("archives", &Trace_get_archives)
             .def_property_readonly("starting_timestamp", &pallas::GlobalArchive::get_starting_timestamp)
             .def_property_readonly("ending_timestamp", &pallas::GlobalArchive::get_ending_timestamp)

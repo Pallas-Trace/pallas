@@ -34,6 +34,22 @@ struct PyRegion {
     const std::string name;
 };
 
+struct PyMetricMember {
+    const pallas::MetricMemberRef id;
+    const std::string name;
+    const std::string description;
+    const std::string unit;
+    const pallas::MetricType type;
+    const pallas::MetricMode mode;
+    const pallas::Base base;
+    const int64_t exponent;
+};
+
+struct PyMetric {
+    const pallas::MetricRef id;
+    const std::vector<pallas::MetricMemberRef> members;
+};
+
 struct PyLinkedVector {
     pallas::LinkedVector* linked_vector;
     pallas::LinkedDurationVector* linked_duration_vector;
@@ -76,6 +92,18 @@ std::map<pallas::LocationGroupId, PyLocationGroup> Trace_get_location_groups(pal
 std::map<pallas::StringRef, std::string> Trace_get_strings(pallas::GlobalArchive& trace);
 
 std::map<pallas::RegionRef, PyRegion> Trace_get_regions(pallas::GlobalArchive& trace);
+
+std::map<pallas::MetricMemberRef, PyMetricMember> Archive_get_metric_members(pallas::Archive& archive);
+
+std::map<pallas::MetricRef, PyMetric> Archive_get_metrics(pallas::Archive& archive);
+
+std::map<pallas::MetricMemberRef, PyMetricMember> Trace_get_metric_members(pallas::GlobalArchive& trace);
+
+std::map<pallas::MetricRef, PyMetric> Trace_get_metrics(pallas::GlobalArchive& trace);
+
+py::dict threadGetMetrics(pallas::Thread& thread);
+
+py::list MetricValues_to_list(uint8_t nb_values, const pallas::MetricValue* values);
 
 py::list* Trace_get_archives(pallas::GlobalArchive& trace);
 

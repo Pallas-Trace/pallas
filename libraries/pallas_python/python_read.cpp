@@ -7,6 +7,9 @@
 #include <iostream>
 #include <variant>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include <map>
 #include "pallas.h"
 #include "pallas_archive.h"
 #include "pallas_attribute.h"
@@ -79,6 +82,144 @@ std::map<pallas::RegionRef, PyRegion> Trace_get_regions(pallas::GlobalArchive& t
         map.insert(std::pair(key, PyRegion{r.region_ref, trace.getString(r.string_ref)->str}));
     }
     return map;
+}
+
+namespace {
+
+template <typename A>
+std::string string_or_empty(A& archive, pallas::StringRef ref) {
+    const auto* s = archive.getString(ref);
+    return s ? std::string(s->str) : std::string();
+}
+
+template <typename A>
+PyMetricMember make_metric_member(A& archive, const pallas::MetricMember& m) {
+    return PyMetricMember{m.metric_member_ref,
+                          string_or_empty(archive, m.name),
+                          string_or_empty(archive, m.description),
+                          string_or_empty(archive, m.unit_ref),
+                          m.metric_type,
+                          m.metric_mode,
+                          m.base,
+                          m.exponent};
+}
+
+PyMetric make_metric(const pallas::Metric& m) {
+    return PyMetric{m.metric_ref, std::vector<pallas::MetricMemberRef>(m.metric_members, m.metric_members + m.numberOfMetrics)};
+}
+
+/** Value of a metric as a double (the OTF2 metric values are int64, uint64 or double). */
+double metric_value_as_double(const pallas::MetricValue& v) {
+    switch (v.type) {
+    case pallas::PALLAS_TYPE_INT64:
+        return static_cast<double>(v.value.int64);
+    case pallas::PALLAS_TYPE_UINT64:
+        return static_cast<double>(v.value.uint64);
+    case pallas::PALLAS_TYPE_DOUBLE:
+        return v.value.float64;
+    case pallas::PALLAS_TYPE_FLOAT:
+        return v.value.float32;
+    default:
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+}
+
+}  // namespace
+
+std::map<pallas::MetricMemberRef, PyMetricMember> Archive_get_metric_members(pallas::Archive& archive) {
+    auto map = std::map<pallas::MetricMemberRef, PyMetricMember>();
+    for (auto& [key, m] : archive.definitions.metric_members) {
+        map.insert(std::pair(key, make_metric_member(archive, m)));
+    }
+    return map;
+}
+
+std::map<pallas::MetricRef, PyMetric> Archive_get_metrics(pallas::Archive& archive) {
+    auto map = std::map<pallas::MetricRef, PyMetric>();
+    for (auto& [key, m] : archive.definitions.metrics) {
+        map.insert(std::pair(key, make_metric(m)));
+    }
+    return map;
+}
+
+std::map<pallas::MetricMemberRef, PyMetricMember> Trace_get_metric_members(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::MetricMemberRef, PyMetricMember>();
+    for (auto& [key, m] : trace.definitions.metric_members) {
+        map.insert(std::pair(key, make_metric_member(trace, m)));
+    }
+    return map;
+}
+
+std::map<pallas::MetricRef, PyMetric> Trace_get_metrics(pallas::GlobalArchive& trace) {
+    auto map = std::map<pallas::MetricRef, PyMetric>();
+    for (auto& [key, m] : trace.definitions.metrics) {
+        map.insert(std::pair(key, make_metric(m)));
+    }
+    return map;
+}
+
+py::list MetricValues_to_list(uint8_t nb_values, const pallas::MetricValue* values) {
+    py::list list;
+    for (uint8_t i = 0; i < nb_values; i++) {
+        switch (values[i].type) {
+        case pallas::PALLAS_TYPE_INT64:
+            list.append(values[i].value.int64);
+            break;
+        case pallas::PALLAS_TYPE_UINT64:
+            list.append(values[i].value.uint64);
+            break;
+        default:
+            list.append(metric_value_as_double(values[i]));
+            break;
+        }
+    }
+    return list;
+}
+
+py::dict threadGetMetrics(pallas::Thread& thread) {
+    struct Series {
+        std::vector<std::pair<uint64_t, double>> samples;
+    };
+    std::map<pallas::MetricMemberRef, Series> series;
+
+    for (size_t e = 0; e < thread.nb_events; e++) {
+        auto& event = thread.events[e];
+        if (event.data.record != pallas::PALLAS_EVENT_METRIC)
+            continue;
+        pallas::MetricRef metric_ref;
+        uint8_t nb_values = 0;
+        pallas::MetricValue* values = nullptr;
+        pallas::pallas_read_metric(&event.data, nullptr, &metric_ref, &nb_values, &values);
+        const pallas::Metric* metric = thread.archive->getMetric(metric_ref);
+        for (size_t occ = 0; occ < event.nb_occurrences; occ++) {
+            uint64_t ts = event.timestamps->at(occ);
+            for (uint8_t i = 0; i < nb_values; i++) {
+                pallas::MetricMemberRef member = (metric && i < metric->numberOfMetrics) ? metric->metric_members[i] : PALLAS_METRICMEMBERREF_INVALID;
+                series[member].samples.emplace_back(ts, metric_value_as_double(values[i]));
+            }
+        }
+        delete[] values;
+    }
+
+    py::dict result;
+    for (auto& [member_ref, s] : series) {
+        std::sort(s.samples.begin(), s.samples.end());
+        py::ssize_t n = s.samples.size();
+        py::array_t<uint64_t> timestamps(n);
+        py::array_t<double> values(n);
+        auto t = timestamps.mutable_unchecked<1>();
+        auto v = values.mutable_unchecked<1>();
+        for (py::ssize_t i = 0; i < n; i++) {
+            t(i) = s.samples[i].first;
+            v(i) = s.samples[i].second;
+        }
+        const pallas::MetricMember* m = thread.archive->getMetricMember(member_ref);
+        std::string name = m ? string_or_empty(*thread.archive, m->name) : std::string();
+        if (name.empty())
+            name = "metric_member_" + std::to_string(member_ref);
+        result[py::str(name)] = py::make_tuple(timestamps, values);
+    }
+    return result;
 }
 
 py::list* Trace_get_archives(pallas::GlobalArchive& trace) {

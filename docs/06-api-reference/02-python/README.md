@@ -74,3 +74,18 @@ class Event:
 ```
 
 **WARNING** : Not all kinds of attributes are supported yet
+
+### Metrics
+The values of the `METRIC` events (e.g. hardware counters, or the energy measured by EZTrace's `energyreader` module)
+are in `event.data` (`{"metric": <Metric id>, "values": [...]}`). The definitions are in `trace.metrics` (the metric
+classes: the `MetricMember` ids of the values of a `METRIC` event) and `trace.metric_members` (the counters: name,
+description, unit, mode, ...).
+
+`Thread.get_metrics()` gathers them per counter: it returns `{metric member name: (timestamps, values)}`, two numpy
+arrays sorted by timestamp.
+```python
+for archive in trace.archives:
+  for thread in archive.threads:
+    for name, (timestamps, values) in thread.get_metrics().items():
+      print(archive.locations[thread.id].name, name, len(values), values[-1])
+```

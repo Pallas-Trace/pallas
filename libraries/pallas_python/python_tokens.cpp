@@ -1,5 +1,6 @@
 #include "python_tokens.h"
 #include "pallas_python.h"
+#include "python_read.h"
 
 namespace {
 
@@ -130,6 +131,17 @@ py::dict& EventData_get_data(pallas::EventData* data) {
         uint64_t requestID;
         pallas::pallas_read_mpi_irecv_request(data, nullptr, &requestID);
         ADD_TO_DICT(requestID);
+        break;
+    }
+    case pallas::PALLAS_EVENT_METRIC: {
+        pallas::MetricRef metric;
+        uint8_t numberOfMetrics = 0;
+        pallas::MetricValue* metricValues = nullptr;
+        pallas::pallas_read_metric(data, nullptr, &metric, &numberOfMetrics, &metricValues);
+        py::list values = MetricValues_to_list(numberOfMetrics, metricValues);
+        delete[] metricValues;
+        ADD_TO_DICT(metric);
+        ADD_TO_DICT(values);
         break;
     }
     case pallas::PALLAS_EVENT_THREAD_ACQUIRE_LOCK: {
